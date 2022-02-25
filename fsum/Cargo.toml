@@ -1,0 +1,13 @@
+[package]
+name = "fsum"
+version = "0.1.2"
+authors = ["Piotr Beling <qwak82@gmail.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "The library to calculate accurate sum of floats."
+documentation = "https://docs.rs/fsum"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "algorithms", "data-structures", "mathematics", "science" ]
+keywords = [ "float", "sum", "exact", "accurate", "f64" ]

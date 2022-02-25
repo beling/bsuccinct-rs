@@ -1,0 +1,2 @@
+[workspace]
+members = ["dyn_size_of", "fsum"]
