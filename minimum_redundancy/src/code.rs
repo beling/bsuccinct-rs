@@ -1,3 +1,4 @@
+//! Tools to deal with codes.
 
 /// `Code` represents a code which consists of a number of `bits_per_fragment`-bits fragments.
 /// It is also an iterator over the code fragments.

@@ -1,3 +1,5 @@
+//! Tools to count frequencies of values.
+
 use std::collections::HashMap;
 use fsum::FSum;
 use co_sort::{Permutation, co_sort};
