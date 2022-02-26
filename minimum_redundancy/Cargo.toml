@@ -1,0 +1,21 @@
+[package]
+name = "minimum_redundancy"
+version = "0.1.0"
+authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "The library to encode and decode data with binary or non-binary Huffman coding."
+documentation = "https://docs.rs/minimum_redundancy"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "compression", "algorithms", "data-structures", "encoding", "science" ]
+keywords = [ "compression", "decompression", "huffman", "huffman_coding", "canonical" ]
+
+[dependencies]
+dyn_size_of = { version="0.1", path="../dyn_size_of" }
+fsum = { version="0.1", path="../fsum" }
+co_sort = "0.2.*"
+
+[dev-dependencies]
+maplit = "1.*"
