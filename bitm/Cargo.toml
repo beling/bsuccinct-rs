@@ -1,0 +1,16 @@
+[package]
+name = "bitm"
+version = "0.1.0"
+edition = "2018"
+authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+license = "MIT OR Apache-2.0"
+description = "The library for bit and bitmap (bit vector) manipulation."
+documentation = "https://docs.rs/bitm"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "algorithms", "data-structures", "science", "encoding" ]
+keywords = [ "bit", "bitmap", "rank", "bitvector", "bitvec", "bitset" ]
+
+[dependencies]
+dyn_size_of = { path="../dyn_size_of", version="0.1" }
