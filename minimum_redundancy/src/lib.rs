@@ -363,16 +363,24 @@ impl<T> From<Option<T>> for DecodingResult<T> {
 }
 
 /// Decoder that decodes a value for given code, producing one fragment at a time.
+///
+/// Time complexity of decoding the whole code is:
+/// - pessimistic: *O(length of the longest code)*
+/// - expected: *O(log(number of values, i.e. length of coding.values))*
+/// - optimistic: *O(1)*
+///
+/// Memory complexity: *O(1)*
 pub struct Decoder<'huff, ValueType> {
     coding: &'huff Coding<ValueType>,
+    // shift+fragment is a current position (node number, counting from the left) at current level
     shift: u32,
-    // shift+fragment is a current position (node nr.) at current level
-    first_leaf_nr: u32,
     // number of leafs at all previous levels
+    first_leaf_nr: u32,
+    // current level size = number of: internal nodes + leaves
     level_size: u32,
-    // current level size
+    // number of the current level
     level: u8
-}   // Note: Brodnik describes also faster decoder that runs in log(length of the longest code) time.
+}   // Note: Brodnik describes also faster decoder that runs in expected loglog(length of the longest code) expected time, but requires all codeword bits in advance.
 
 impl<'huff, ValueType> Decoder<'huff, ValueType> {
     /// Constructs decoder for given `coding`.
