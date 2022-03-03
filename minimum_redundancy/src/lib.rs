@@ -316,7 +316,8 @@ impl<ValueType> Coding<ValueType> {
                 }
                 value_index += 1;
             }
-            level_size = internal_nodes * self.tree_degree as u32;
+            //level_size = internal_nodes * self.tree_degree as u32;
+            level_size = internal_nodes << self.bits_per_fragment;
         }
     }
 }
@@ -391,9 +392,11 @@ impl<'huff, ValueType> Decoder<'huff, ValueType> {
         self.shift += fragment;
         let internal_nodes_count = self.internal_nodes_count();
         return if self.shift < internal_nodes_count {    // internal node, go level down
-            self.shift *= self.coding.tree_degree as u32;
+            //self.shift *= self.coding.tree_degree as u32;
+            self.shift <<= self.coding.bits_per_fragment;
             self.first_leaf_nr += self.level_size - internal_nodes_count;    // increase by number of leafs at current level
-            self.level_size = internal_nodes_count * self.coding.tree_degree as u32; // size of the next level
+            //self.level_size = internal_nodes_count * self.coding.tree_degree as u32; // size of the next level
+            self.level_size = internal_nodes_count << self.coding.bits_per_fragment; // size of the next level
             self.level += 1;
             DecodingResult::Incomplete
         } else {    // leaf, return value or Invalid
