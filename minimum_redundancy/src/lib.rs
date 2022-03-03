@@ -14,30 +14,44 @@ use std::io;
 use std::borrow::Borrow;
 use dyn_size_of::GetSize;
 
-/// Writes primitive (integer) to `output` (which implements `std::io::Write`); in little-endian bytes order.
+/// Writes primitive (integer) to `output` (which implements `std::io::Write`);
+/// in little-endian bytes order.
 ///
 /// # Example
 ///
 /// ```
+/// use minimum_redundancy::write_int;
+/// use std::io::Write;
+///
+/// let mut output = Vec::new();
 /// write_int!(output, 1u32);
+/// assert_eq!(output, vec![1, 0, 0, 0]);
 /// ```
 #[macro_export]
 macro_rules! write_int {
-    ($output:ident, $what:expr) => {
+    ($output:expr, $what:expr) => {
      $output.write_all(&$what.to_le_bytes())
     }
 }
 
-/// Reads primitive (integer) from `input` (which implements `std::io::Read`); in little-endian bytes order.
+/// Reads primitive (integer) from `input` (which implements `std::io::Read`);
+/// in little-endian bytes order.
 ///
 /// # Example
 ///
 /// ```
-/// let u32_from_input = read_int!(input, u32);
+/// use minimum_redundancy::read_int;
+/// use std::io::Read;
+///
+/// # fn main() -> std::io::Result<()> {
+/// let input = [1u8, 0u8, 0u8, 0u8];
+/// assert_eq!(read_int!(&mut &input[..], u32), 1u32);
+/// #    Ok(())
+/// # }
 /// ```
 #[macro_export]
 macro_rules! read_int {
-    ($input:ident, $what:ty) => {{
+    ($input:expr, $what:ty) => {{
         let mut buff = [0u8; ::std::mem::size_of::<$what>()];
         $input.read_exact(&mut buff)?;
         <$what>::from_le_bytes(buff)
@@ -55,7 +69,7 @@ pub struct Coding<ValueType> {
     /// Each internal node (excepting at most one at the lowest level) has `tree_degree` children.
     pub tree_degree: u32,
     /// Number of bits per code fragment.
-    /// Code assigment to each value has length dividable by `bits_per_fragment`.
+    /// Codewords assigned to values have bit-lengths dividable by `bits_per_fragment`.
     pub bits_per_fragment: u8
 }
 
@@ -98,7 +112,7 @@ impl<ValueType> Coding<ValueType> {
     /// Returns total (summarized) number of code fragments of all values.
     ///
     /// The algorithm runs in *O(L)* time and *O(1)* memory,
-    /// where *L* is the number of fragments in the longest code.
+    /// where *L* is the number of fragments in the longest codeword.
     pub fn total_fragments_count(&self) -> usize {
         let mut values_to_count = self.values.len();
         let mut result = 0;
@@ -350,9 +364,9 @@ impl<ValueType: Hash + Eq + Clone> Coding<ValueType> {
 pub enum DecodingResult<T> {
     /// Completed value that has been successfully decoded.
     Value(T),
-    /// The code is incomplete and next fragment is needed.
+    /// The codeword is incomplete and the next fragment is needed.
     Incomplete,
-    /// The code is invalid (possible only for bits per fragment > 1).
+    /// The codeword is invalid (possible only for bits per fragment > 1).
     Invalid
 }
 
@@ -362,7 +376,7 @@ impl<T> From<Option<T>> for DecodingResult<T> {
     }
 }
 
-/// Decoder that decodes a value for given code, producing one fragment at a time.
+/// Decoder that decodes a value for given code, consuming one codeword fragment at a time.
 ///
 /// Time complexity of decoding the whole code is:
 /// - pessimistic: *O(length of the longest code)*
@@ -394,7 +408,11 @@ impl<'huff, ValueType> Decoder<'huff, ValueType> {
         }
     }
 
-    /// Consumes a `fragment` of the code and returns a value if the given `fragment` finishes the valid code.
+    /// Consumes a `fragment` of the codeword and returns:
+    /// - a value if the given `fragment` finishes the valid codeword;
+    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
+    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for bits per fragment > 1).
+    ///
     /// Result is undefined if `fragment` exceeds `tree_degree`.
     pub fn consume(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
         self.shift += fragment;
@@ -412,8 +430,11 @@ impl<'huff, ValueType> Decoder<'huff, ValueType> {
         }
     }
 
-    /// Consumes a `fragment` of the code and returns a value if the given `fragment` finishes the valid code.
-    /// Returns `DecodingResult::Invalid` if `fragment` exceeds `tree_degree`.
+    /// Consumes a `fragment` of the codeword and returns:
+    /// - a value if the given `fragment` finishes the valid codeword;
+    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
+    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for bits per fragment > 1)
+    ///     or `fragment` exceeds `tree_degree`.
     #[inline(always)] pub fn consume_checked(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
         if fragment < self.coding.tree_degree {
             self.consume(fragment)

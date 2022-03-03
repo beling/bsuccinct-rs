@@ -13,7 +13,7 @@ The library uses modified Huffman algorithm, with ideas from papers:
 
 # Example
 ```rust
-use minimum_redundancy::{Coding, Code};
+use minimum_redundancy::{Coding, Code, DecodingResult};
 use maplit::hashmap;
 
 // Construct coding with 1 bit per fragment for values 'a', 'b', 'c',
