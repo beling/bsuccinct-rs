@@ -4,18 +4,19 @@
 /// It is also an iterator over the code fragments.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct Code {
-    /// Concatenated fragments of the code. The lowest bits contain the last fragment.
+    /// Concatenated fragments of the codeword. The lowest bits contain the first fragment.
     /// It stores only few last fragments, and can represent the code with length > 32 bits, with zeroed few first fragments.
     pub bits: u32,
     /// Number of fragments.
-    pub fragments: u8,
+    pub fragments: u32,
     /// Size of a single code fragment, in bits.
-    pub bits_per_fragment: u8
+    pub bits_per_fragment: u8   // TODO remove
 }
 
 /// Returns the `fragment_nr`-th `bits_per_fragment`-bit fragment of `bits`.
-pub fn get_u32_fragment(bits: u32, bits_per_fragment: u8, fragment_nr: u8) -> u32 {
-    (bits >> (bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << bits_per_fragment as u32) - 1)
+pub fn get_u32_fragment(bits: u32, fragment_nr: u32, bits_per_fragment: u8) -> u32 {
+    bits.checked_shr(bits_per_fragment as u32 * fragment_nr).map_or(0, |v| v & ((1u32 << bits_per_fragment as u32) - 1))
+    //(bits >> (bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << bits_per_fragment as u32) - 1)
 }
 
 impl Code {
@@ -32,13 +33,13 @@ impl Code {
     }
 
     /// Gets `fragment_nr`-th fragment from the end.
-    pub fn get_r(&self, fragment_nr: u8) -> u32 {
-        get_u32_fragment(self.bits, self.bits_per_fragment, fragment_nr)
+    #[inline] pub fn get_r(&self, fragment_nr: u32) -> u32 {
+        get_u32_fragment(self.bits, fragment_nr, self.bits_per_fragment)
         //(self.bits >> (self.bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << self.bits_per_fragment as u32) - 1)
     }
 
     /// Gets `fragment_nr`-th fragment.
-    pub fn get(&self, fragment_nr: u8) -> u32 {
+    #[inline] pub fn get(&self, fragment_nr: u32) -> u32 {
         self.get_r(self.fragments - fragment_nr - 1)
     }
 
@@ -53,7 +54,7 @@ impl Code {
     }
 
     /// Returns whether `self` consists of zero fragments.
-    pub fn is_empty(&self) -> bool { self.fragments == 0 }
+    #[inline] pub fn is_empty(&self) -> bool { self.fragments == 0 }
 }
 
 impl ExactSizeIterator for Code {
@@ -66,7 +67,8 @@ impl Iterator for Code {
 
     /// Extracts and returns the first fragment of `self` or returns `None` of `self` is empty.
     fn next(&mut self) -> Option<u32> {
-        if self.fragments == 0 { None } else { Some(self.extract_first()) }
+        (self.fragments != 0).then(|| self.extract_first())
+        //if self.fragments == 0 { None } else { Some(self.extract_first()) }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

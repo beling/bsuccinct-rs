@@ -315,11 +315,11 @@ impl<ValueType> Coding<ValueType> {
     /// Arguments of `f` are: value assigned to the leaf, level of leaf in the tree (counting from 0),
     /// number of internal nodes at the level, index of leaf at the level.
     pub fn for_each_leaf<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
-        where F: FnMut(&ValueType, u8, u32, u32)  //value: &ValueType, level: u8, internal_nodes: u32, leaf_index: u32
+        where F: FnMut(&ValueType, u32, u32, u32)  //value: &ValueType, level: u32, internal_nodes: u32, leaf_index: u32
     {
         let mut level_size = self.tree_degree as u32;
         let mut value_index = 0usize;
-        for level in 0u8..self.internal_nodes_count.len() as u8 {
+        for level in 0u32..self.internal_nodes_count.len() as u32 {
             let internal_nodes = self.internal_nodes_count[level as usize];
             let leaves_count = level_size - internal_nodes;
             for leaf_index in 0..leaves_count {
@@ -339,8 +339,8 @@ impl<ValueType> Coding<ValueType> {
 impl<ValueType: Hash + Eq + Clone> Coding<ValueType> {
 
     /// Returns a map from values to the lengths of their codes.
-    pub fn fragment_counts_for_values(&self) -> HashMap<ValueType, u8> {
-        let mut result = HashMap::<ValueType, u8>::with_capacity(self.values.len());
+    pub fn fragment_counts_for_values(&self) -> HashMap<ValueType, u32> {
+        let mut result = HashMap::<ValueType, u32>::with_capacity(self.values.len());
         self.for_each_leaf(|value, level, _, _| { result.insert(value.clone(), level + 1); });
         return result;
     }
@@ -427,6 +427,7 @@ impl<'huff, ValueType> Decoder<'huff, ValueType> {
             DecodingResult::Incomplete
         } else {    // leaf, return value or Invalid
             self.coding.values.get((self.first_leaf_nr + self.shift - internal_nodes_count) as usize).into()
+            //self.coding.values.get((self.first_leaf_nr + self.level_size + self.shift) as usize).into()
         }
     }
 
