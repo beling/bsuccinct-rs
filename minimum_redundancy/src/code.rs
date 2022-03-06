@@ -45,12 +45,15 @@ impl Code {
 
     /// Extracts and returns first, remaining code fragment.
     pub fn extract_first(&mut self) -> u32 {
-        let mask = (1u32 << self.bits_per_fragment as u32) - 1;
         self.fragments -= 1;
         let shift = self.bits_per_fragment as u32 * self.fragments as u32;
-        let result = (self.bits >> shift) & mask;
-        self.bits ^= result << shift;
-        return result;
+        return if let Some(shifted) = self.bits.checked_shr(shift) {
+            let result = shifted & ((1u32 << self.bits_per_fragment as u32) - 1);
+            self.bits ^= result << shift;
+            result
+        } else {
+            0
+        }
     }
 
     /// Returns whether `self` consists of zero fragments.
