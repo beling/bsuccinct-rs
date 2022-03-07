@@ -1,8 +1,9 @@
 `minimum_redundancy` is the Rust library by Piotr Beling to encode and decode data
-with binary or non-binary Huffman coding.
+with binary or non-binary minimum-redundancy (Huffman) coding.
 
 The library can construct and concisely represent optimal prefix (minimum-redundancy) coding
-whose codewords are of length divisible by a given number of bits (1-bit, 2-bits, ...).
+whose codewords length are a multiple of given number of bits (1-bit, 2-bits, ...).
+The library supports Huffman trees of arbitrary degrees, even those that are not powers of 2.
 
 The library uses modified Huffman algorithm, with ideas from papers:
 - A. Brodnik, S. Carlsson, *Sub-linear decoding of Huffman Codes Almost In-Place*, 1998
@@ -13,21 +14,21 @@ The library uses modified Huffman algorithm, with ideas from papers:
 
 # Example
 ```rust
-use minimum_redundancy::{Coding, Code, DecodingResult};
+use minimum_redundancy::{Coding, Code, DecodingResult, BitsPerFragment};
 use maplit::hashmap;
 
 // Construct coding with 1 bit per fragment for values 'a', 'b', 'c',
 // whose frequencies of occurrence are 100, 50, 10 times, respectively.
-let huffman = Coding::from_frequencies_bits_per_fragment(hashmap!('a' => 100, 'b' => 50, 'c' => 10), 1);
+let huffman = Coding::from_frequencies(hashmap!('a' => 100, 'b' => 50, 'c' => 10), BitsPerFragment(1));
 // We expected the following Huffman tree:
 //  /  \
 // /\  a
 // bc
 // and the following code assignment: a -> 1, b -> 00, c -> 01
 assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0b1, fragments: 1, bits_per_fragment: 1},
-                'b' => Code{bits: 0b00, fragments: 2, bits_per_fragment: 1},
-                'c' => Code{bits: 0b01, fragments: 2, bits_per_fragment: 1}
+                'a' => Code{ bits: 0b1, fragments: 1 },
+                'b' => Code{ bits: 0b00, fragments: 2 },
+                'c' => Code{ bits: 0b01, fragments: 2 }
                ));
 let mut decoder_for_a = huffman.decoder();
 assert_eq!(decoder_for_a.consume(1), DecodingResult::Value(&'a'));

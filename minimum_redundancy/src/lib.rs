@@ -6,13 +6,16 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use co_sort::{Permutation, co_sort};
 
-pub mod code;
-pub use crate::code::{Code, get_u32_fragment};
-pub mod frequencies;
-pub use frequencies::Frequencies;
 use std::io;
 use std::borrow::Borrow;
+use std::convert::TryFrom;
+use std::io::Read;
 use dyn_size_of::GetSize;
+
+mod code;
+pub use crate::code::{Code};
+mod frequencies;
+pub use frequencies::Frequencies;
 
 /// Writes primitive (integer) to `output` (which implements `std::io::Write`);
 /// in little-endian bytes order.
@@ -21,92 +24,172 @@ use dyn_size_of::GetSize;
 ///
 /// ```
 /// use minimum_redundancy::write_int;
-/// use std::io::Write;
 ///
 /// let mut output = Vec::new();
-/// write_int!(output, 1u32);
+/// write_int!(&mut output, 1u32);
 /// assert_eq!(output, vec![1, 0, 0, 0]);
 /// ```
 #[macro_export]
 macro_rules! write_int {
     ($output:expr, $what:expr) => {
-     $output.write_all(&$what.to_le_bytes())
+     ::std::io::Write::write_all($output, &$what.to_le_bytes())
     }
 }
 
 /// Reads primitive (integer) from `input` (which implements `std::io::Read`);
-/// in little-endian bytes order.
+/// in little-endian bytes order, returning `std::io::Read`.
 ///
 /// # Example
 ///
 /// ```
 /// use minimum_redundancy::read_int;
-/// use std::io::Read;
 ///
-/// # fn main() -> std::io::Result<()> {
 /// let input = [1u8, 0u8, 0u8, 0u8];
-/// assert_eq!(read_int!(&mut &input[..], u32), 1u32);
-/// #    Ok(())
-/// # }
+/// assert_eq!(read_int!(&mut &input[..], u32).unwrap(), 1u32);
 /// ```
 #[macro_export]
 macro_rules! read_int {
     ($input:expr, $what:ty) => {{
         let mut buff = [0u8; ::std::mem::size_of::<$what>()];
-        $input.read_exact(&mut buff)?;
-        <$what>::from_le_bytes(buff)
+        let result = ::std::io::Read::read_exact($input, &mut buff);
+        result.map(|()| <$what>::from_le_bytes(buff))
     }}
 }
 
+pub trait FragmentSize: Sized + Copy {
+    /// Returns the range of a single fragment.
+    fn tree_degree(&self) -> u32;
+
+    /// Returns `tree_degree() * rhs`.
+    #[inline(always)] fn tree_degree_times(&self, rhs: u32) -> u32 {
+        self.tree_degree() * rhs
+    }
+
+    /// Returns number of bites that `self.write` writes to the output.
+    #[inline(always)] fn write_bytes(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+
+    /// Writes `self` to `output`.
+    #[inline(always)] fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        write_int!(output, self.tree_degree())
+    }
+
+    /// Reads `Self` from `input`.
+    fn read(input: &mut dyn io::Read) -> io::Result<Self>;
+
+    /// Returns the `fragment_nr`-th fragment of `bits`. Result is less than `self.tree_degree()`.
+    fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32;
+
+    /// Appends the `fragment` (that must be less than `self.tree_degree`) to the lowest digits (bits) of `bits`.
+    fn push_front(&self, bits: &mut u32, fragment: u32) {
+        *bits = self.tree_degree_times(*bits) + fragment;
+    }
+}
+
+/// Number of bits per code fragment.
+/// Codewords assigned to values have bit-lengths dividable by `bits_per_fragment`.
+#[derive(Copy, Clone)]
+pub struct BitsPerFragment(pub u8);
+
+impl FragmentSize for BitsPerFragment {
+    #[inline(always)] fn tree_degree(&self) -> u32 { 1u32 << self.0 }
+
+    #[inline(always)] fn tree_degree_times(&self, rhs: u32) -> u32 {
+        rhs << self.0
+    }
+
+    #[inline(always)] fn write_bytes(&self) -> usize {
+        std::mem::size_of::<u8>()
+    }
+
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        write_int!(output, self.0)
+    }
+
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        read_int!(input, u8).map(|v| Self(v))
+    }
+
+    fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32 {
+        bits.checked_shr(self.0 as u32 * fragment_nr).map_or(0, |v| v & ((1u32 << self.0) - 1))
+        //(bits >> (bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << bits_per_fragment as u32) - 1)
+    }
+
+    fn push_front(&self, bits: &mut u32, fragment: u32) {
+        *bits = self.tree_degree_times(*bits) | fragment;
+    }
+}
+
+impl TryFrom<TreeDegree> for BitsPerFragment {
+    type Error = &'static str;
+
+    fn try_from(value: TreeDegree) -> Result<Self, Self::Error> {
+        if value.0.is_power_of_two() {  // power of 2?
+            Ok(Self(value.0.trailing_zeros() as u8))
+        } else {
+            Err("BitsPerFragment requires the tree degree to be a power of two")
+        }
+    }
+}
+
+/// Degree of the tree.
+/// Each internal node (excepting at most one at the lowest level) has `tree_degree` children.
+#[derive(Copy, Clone)]
+pub struct TreeDegree(pub u32);
+
+impl FragmentSize for TreeDegree {
+    #[inline(always)] fn tree_degree(&self) -> u32 {
+        self.0
+    }
+
+    fn read(input: &mut dyn Read) -> io::Result<Self> {
+        read_int!(input, u32).map(|v| Self(v))
+    }
+
+    fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32 {
+        self.0.checked_pow(fragment_nr).map_or(0, |v| (bits/v) % self.0)
+    }
+}
+
+impl From<BitsPerFragment> for TreeDegree {
+    fn from(bits_per_fragment: BitsPerFragment) -> Self {
+        Self(bits_per_fragment.tree_degree())
+    }
+}
+
 /// Succinct representation of coding (huffman tree of some degree in the canonical form).
-pub struct Coding<ValueType> {
+pub struct Coding<ValueType, FS> {
     /// Values, from the most frequent to the least.
     pub values: Box<[ValueType]>,
     /// Number of the internal nodes of each tree level. The root is not counted.
     /// Contains exactly one zero at the end.
     pub internal_nodes_count: Box<[u32]>,
-    /// Degree of the tree.
-    /// Each internal node (excepting at most one at the lowest level) has `tree_degree` children.
-    pub tree_degree: u32,
-    /// Number of bits per code fragment.
-    /// Codewords assigned to values have bit-lengths dividable by `bits_per_fragment`.
-    pub bits_per_fragment: u8
+    /// Size of the fragment given as bits per fragment or tree degree.
+    pub fragment_size: FS
 }
 
-impl<ValueType: GetSize> dyn_size_of::GetSize for Coding<ValueType> {
+impl<ValueType: GetSize, FragmentSize> dyn_size_of::GetSize for Coding<ValueType, FragmentSize> {
     fn size_bytes_dyn(&self) -> usize {
         self.values.size_bytes_dyn() + self.internal_nodes_count.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<ValueType> Coding<ValueType> {
+impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
 
     /// Constructs coding for given frequencies of values and degree (currently must be a power of two) of Huffman tree.
-    pub fn from_frequencies_tree_degree<F: Frequencies<Value=ValueType>>(frequencies: F, tree_degree: u32) -> Self {
+    pub fn from_frequencies<F: Frequencies<Value=ValueType>>(frequencies: F, fragment_size: FS) -> Self {
         let (values, mut freq) = frequencies.into_sorted();
-        Self::from_sorted(values, &mut freq, tree_degree)
-    }
-
-    /// Constructs coding for given frequencies of values and number of bit per code fragment (currently clamped to range [1, 8]).
-    pub fn from_frequencies_bits_per_fragment<F: Frequencies<Value=ValueType>>(frequencies: F, bits_per_fragment: u8) -> Self {
-        Self::from_frequencies_tree_degree(frequencies, 1u32 << bits_per_fragment.clamp(1, 8))
+        Self::from_sorted(values, &mut freq, fragment_size)
     }
 
     /// Counts occurrences of all values exposed by `iter` and constructs coding for obtained
     /// frequencies of values and degree (currently must be a power of two) of Huffman tree.
-    pub fn from_iter_tree_degree<Iter>(iter: Iter, tree_degree: u32) -> Coding<ValueType>
+    pub fn from_iter<Iter>(iter: Iter, fragment_size: FS) -> Self<>
         where Iter: IntoIterator, Iter::Item: Borrow<ValueType>, ValueType: Hash + Eq + Clone
     {
-        Self::from_frequencies_tree_degree(HashMap::<ValueType, u32>::with_counted_all(iter), tree_degree)
-    }
-
-    /// Counts occurrences of all values exposed by `iter` and constructs coding for obtained
-    /// frequencies of values and number of bit per code fragment (currently clamped to range [1, 8]).
-    pub fn from_iter_bits_per_fragment<Iter>(iter: Iter, bits_per_fragment: u8) -> Self
-        where Iter: IntoIterator, Iter::Item: Borrow<ValueType>, ValueType: Hash + Eq + Clone
-    {
-        Self::from_frequencies_bits_per_fragment(HashMap::<ValueType, u32>::with_counted_all(iter), bits_per_fragment)
+        Self::from_frequencies(HashMap::<ValueType, u32>::with_counted_all(iter), fragment_size)
     }
 
     /// Returns total (summarized) number of code fragments of all values.
@@ -118,29 +201,18 @@ impl<ValueType> Coding<ValueType> {
         let mut result = 0;
         let mut prev_internal = 1;
         for (level, curr_internal) in self.internal_nodes_count.iter().enumerate() {
-            let curr_internal = *curr_internal as usize;
-            let curr_total = prev_internal * self.tree_degree as usize;
-            prev_internal = curr_internal;
-            let curr_leaf = (curr_total - curr_internal).min(values_to_count);
+            let curr_total = self.fragment_size.tree_degree_times(prev_internal);
+            prev_internal = *curr_internal;
+            let curr_leaf = ((curr_total - *curr_internal) as usize).min(values_to_count);
             values_to_count -= curr_leaf;
-            result += curr_leaf as usize * (level+1);
+            result += curr_leaf * (level+1);
         }
         result
     }
 
-    /// Returns number of bits per code fragment appropriate to given `tree_degree`.
-    fn tree_degree_to_bits_per_fragment(tree_degree: u32) -> u8 {
-        if tree_degree.is_power_of_two() {  // power of 2?
-            tree_degree.trailing_zeros() as u8
-        } else {
-            panic!("tree_degree that are not power of 2 are not supported by the current version");
-            //32u8 - tree_degree.leading_zeros() as u8
-        }
-    }
-
     /// Returns decoder that allows for decoding a value.
-    #[inline] pub fn decoder(&self) -> Decoder<ValueType> {
-        return Decoder::<ValueType>::new(self);
+    #[inline] pub fn decoder(&self) -> Decoder<ValueType, FS> {
+        return Decoder::<ValueType, FS>::new(self);
     }
 
     /// Construct coding for the given `values`, where:
@@ -151,15 +223,15 @@ impl<ValueType> Coding<ValueType> {
     ///
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
-    pub fn from_sorted(mut values: Box<[ValueType]>, freq: &mut [u32], tree_degree: u32) -> Coding<ValueType> {
+    pub fn from_sorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: FS) -> Self {
         let len = freq.len();
+        let tree_degree = fragment_size.tree_degree();
         if len <= tree_degree as usize {
             values.reverse();
             return Coding {
                 values,
                 internal_nodes_count: vec![0u32].into_boxed_slice(),
-                tree_degree,
-                bits_per_fragment: Self::tree_degree_to_bits_per_fragment(tree_degree)
+                fragment_size,
             }
         }
 
@@ -206,11 +278,10 @@ impl<ValueType> Coding<ValueType> {
         }
 
         values.reverse();
-        let mut result = Coding::<ValueType> {
+        let mut result = Self {
             values,
             internal_nodes_count: vec![0u32; max_depth as usize + 1].into_boxed_slice(),
-            tree_degree,
-            bits_per_fragment: Self::tree_degree_to_bits_per_fragment(tree_degree)
+            fragment_size
         };
         for i in 0..internal_nodes_size - 1 {
             result.internal_nodes_count[freq[i] as usize - 1] += 1;  // only root is at the level 0, we skip it
@@ -224,9 +295,9 @@ impl<ValueType> Coding<ValueType> {
     /// - `tree_degree` (typically 2) is the degree (currently must be a power of two)
     ///     of Huffman tree.
     /// The algorithm runs in O(values.len * log(values.len)) time.
-    pub fn from_unsorted(mut values: Box<[ValueType]>, freq: &mut [u32], tree_degree: u32) -> Coding<ValueType> {
+    pub fn from_unsorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: FS) -> Self{
         co_sort!(freq, values);
-        Self::from_sorted(values, freq, tree_degree)
+        Self::from_sorted(values, freq, fragment_size)
     }
 
     /// Returns number of bytes which `write_internal_nodes_count` will write.
@@ -243,9 +314,7 @@ impl<ValueType> Coding<ValueType> {
     }
 
     /// Reads and returns `u32` (little-endian) from the given input.
-    fn read_u32(input: &mut dyn io::Read) -> io::Result<u32> {
-        Ok(read_int!(input, u32))
-    }
+    fn read_u32(input: &mut dyn io::Read) -> io::Result<u32> { read_int!(input, u32) }
 
     /// Reads (written by `write_internal_nodes_count`) `internal_nodes_count` from `input`.
     pub fn read_internal_nodes_count(input: &mut dyn io::Read) -> io::Result<Box<[u32]>> {
@@ -280,34 +349,31 @@ impl<ValueType> Coding<ValueType> {
         Ok(v.into_boxed_slice())
     }
 
-    /// Returns number of bytes which `write_pow2` will write,
+    /// Returns number of bytes which `write` will write,
     /// assuming that each call to `write_value` writes `bytes_per_value` bytes.
     pub fn write_pow2_bytes(&self, bytes_per_value: usize) -> usize {
-        std::mem::size_of::<u8>() + self.write_internal_nodes_count_bytes() + self.write_values_bytes(bytes_per_value)
+        self.fragment_size.write_bytes() + self.write_internal_nodes_count_bytes() + self.write_values_bytes(bytes_per_value)
     }
 
-    /// Writes `self` to the given `output` (work only if `bits_per_fragment` is a power of 2),
-    /// using `write_value` to write each value.
-    pub fn write_pow2<F>(&self, output: &mut dyn io::Write, write_value: F) -> io::Result<()>
+    /// Writes `self` to the given `output`, using `write_value` to write each value.
+    pub fn write<F>(&self, output: &mut dyn io::Write, write_value: F) -> io::Result<()>
         where F: FnMut(&mut dyn io::Write, &ValueType) -> io::Result<()>
     {
-        write_int!(output, &self.bits_per_fragment)?;
+        self.fragment_size.write(output)?;
         self.write_internal_nodes_count(output)?;
         self.write_values(output, write_value)
     }
 
-    /// Reads `Coding` from the given `input` (work only if `bits_per_fragment` is a power of 2),
-    /// using `read_value` to read each value.
-    pub fn read_pow2<F>(input: &mut dyn io::Read, read_value: F) -> io::Result<Self>
+    /// Reads `Coding` from the given `input`, using `read_value` to read each value.
+    pub fn read<F>(input: &mut dyn io::Read, read_value: F) -> io::Result<Self>
         where F: FnMut(&mut dyn io::Read) -> io::Result<ValueType>
     {
-        let bits_per_fragment = read_int!(input, u8);
+        let fragment_size = FS::read(input)?;
         let internal_nodes_count = Self::read_internal_nodes_count(input)?;
         Ok(Self {
             values: Self::read_values(input, read_value)?,
             internal_nodes_count,
-            tree_degree: 1<<bits_per_fragment,
-            bits_per_fragment
+            fragment_size
         })
     }
 
@@ -317,7 +383,7 @@ impl<ValueType> Coding<ValueType> {
     pub fn for_each_leaf<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
         where F: FnMut(&ValueType, u32, u32, u32)  //value: &ValueType, level: u32, internal_nodes: u32, leaf_index: u32
     {
-        let mut level_size = self.tree_degree as u32;
+        let mut level_size = self.fragment_size.tree_degree();
         let mut value_index = 0usize;
         for level in 0u32..self.internal_nodes_count.len() as u32 {
             let internal_nodes = self.internal_nodes_count[level as usize];
@@ -331,12 +397,13 @@ impl<ValueType> Coding<ValueType> {
                 value_index += 1;
             }
             //level_size = internal_nodes * self.tree_degree as u32;
-            level_size = internal_nodes << self.bits_per_fragment;
+            //level_size = internal_nodes << self.bits_per_fragment;
+            level_size = self.fragment_size.tree_degree_times(internal_nodes)
         }
     }
 }
 
-impl<ValueType: Hash + Eq + Clone> Coding<ValueType> {
+impl<ValueType: Hash + Eq + Clone, FS: FragmentSize> Coding<ValueType, FS> {
 
     /// Returns a map from values to the lengths of their codes.
     pub fn fragment_counts_for_values(&self) -> HashMap<ValueType, u32> {
@@ -351,7 +418,7 @@ impl<ValueType: Hash + Eq + Clone> Coding<ValueType> {
         let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
         self.for_each_leaf(|value, level, internal_nodes, leaf_index| {
             result.insert(value.clone(),
-                          Code { bits: internal_nodes + leaf_index, fragments: level + 1, bits_per_fragment: self.bits_per_fragment });
+                          Code { bits: internal_nodes + leaf_index, fragments: level + 1 });
             // TODO bits w ogólności należy zakodować jako liczbę w systemie tree_degree, każdy znak zapisując na bits_per_fragment bitach
             // aktualny kod zadziała tylko dla potęg 2
         });
@@ -384,8 +451,8 @@ impl<T> From<Option<T>> for DecodingResult<T> {
 /// - optimistic: *O(1)*
 ///
 /// Memory complexity: *O(1)*
-pub struct Decoder<'huff, ValueType> {
-    coding: &'huff Coding<ValueType>,
+pub struct Decoder<'huff, ValueType, FS> {
+    coding: &'huff Coding<ValueType, FS>,
     // shift+fragment is a current position (node number, counting from the left) at current level
     shift: u32,
     // number of leafs at all previous levels
@@ -396,14 +463,14 @@ pub struct Decoder<'huff, ValueType> {
     level: u8
 }   // Note: Brodnik describes also faster decoder that runs in expected loglog(length of the longest code) expected time, but requires all codeword bits in advance.
 
-impl<'huff, ValueType> Decoder<'huff, ValueType> {
+impl<'huff, ValueType, FS: FragmentSize> Decoder<'huff, ValueType, FS> {
     /// Constructs decoder for given `coding`.
-    pub fn new(coding: &'huff Coding<ValueType>) -> Self {
+    pub fn new(coding: &'huff Coding<ValueType, FS>) -> Self {
         Self {
             coding,
             shift: 0,
             first_leaf_nr: 0,
-            level_size: coding.tree_degree as u32,
+            level_size: coding.fragment_size.tree_degree(),
             level: 0
         }
     }
@@ -419,11 +486,13 @@ impl<'huff, ValueType> Decoder<'huff, ValueType> {
         let internal_nodes_count = self.internal_nodes_count();
         return if self.shift < internal_nodes_count {    // internal node, go level down
             //self.shift *= self.coding.tree_degree as u32;
-            self.shift <<= self.coding.bits_per_fragment;
+            //self.shift <<= self.coding.bits_per_fragment;
+            self.shift = self.coding.fragment_size.tree_degree_times(self.shift);
             self.first_leaf_nr += self.level_size - internal_nodes_count;    // increase by number of leafs at current level
             //self.level_size = internal_nodes_count * self.coding.tree_degree as u32; // size of the next level
-            self.level_size = internal_nodes_count << self.coding.bits_per_fragment; // size of the next level
-            self.level += 1;
+            //self.level_size = internal_nodes_count << self.coding.bits_per_fragment; // size of the next level
+            self.level_size = self.coding.fragment_size.tree_degree_times(internal_nodes_count);
+                self.level += 1;
             DecodingResult::Incomplete
         } else {    // leaf, return value or Invalid
             self.coding.values.get((self.first_leaf_nr + self.shift - internal_nodes_count) as usize).into()
@@ -437,7 +506,7 @@ impl<'huff, ValueType> Decoder<'huff, ValueType> {
     /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for bits per fragment > 1)
     ///     or `fragment` exceeds `tree_degree`.
     #[inline(always)] pub fn consume_checked(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
-        if fragment < self.coding.tree_degree {
+        if fragment < self.coding.fragment_size.tree_degree() {
             self.consume(fragment)
         } else {
             DecodingResult::Invalid
@@ -462,23 +531,22 @@ mod tests {
     use super::*;
     use maplit::hashmap;
 
-    fn test_read_write(huffman: &Coding<char>) {
+    fn test_read_write<FS: FragmentSize>(huffman: &Coding<char, FS>) {
         let mut buff = Vec::new();
         huffman.write_values(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
         assert_eq!(buff.len(), huffman.write_values_bytes(1));
-        assert_eq!(Coding::read_values(&mut &buff[..], |b| Ok(read_int!(b, u8) as char)).unwrap(), huffman.values);
+        assert_eq!(Coding::<_, FS>::read_values(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap(), huffman.values);
         buff.clear();
         huffman.write_internal_nodes_count(&mut buff).unwrap();
         assert_eq!(buff.len(), huffman.write_internal_nodes_count_bytes());
-        assert_eq!(Coding::<char>::read_internal_nodes_count(&mut &buff[..]).unwrap(), huffman.internal_nodes_count);
+        assert_eq!(Coding::<char, FS>::read_internal_nodes_count(&mut &buff[..]).unwrap(), huffman.internal_nodes_count);
         buff.clear();
-        huffman.write_pow2(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
+        huffman.write(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
         assert_eq!(buff.len(), huffman.write_pow2_bytes(1));
-        let read = Coding::read_pow2(&mut &buff[..], |b| Ok(read_int!(b, u8) as char)).unwrap();
-        assert_eq!(huffman.bits_per_fragment, read.bits_per_fragment);
+        let read = Coding::<_, FS>::read(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap();
+        assert_eq!(huffman.fragment_size.tree_degree(), read.fragment_size.tree_degree());
         assert_eq!(huffman.values, read.values);
         assert_eq!(huffman.internal_nodes_count, read.internal_nodes_count);
-        assert_eq!(huffman.tree_degree, read.tree_degree);
     }
 
     #[test]
@@ -486,14 +554,14 @@ mod tests {
         //  /  \
         // /\  a
         // bc
-        let huffman = Coding::from_frequencies_bits_per_fragment(hashmap!('a' => 100, 'b' => 50, 'c' => 10), 1);
+        let huffman = Coding::from_frequencies(hashmap!('a' => 100, 'b' => 50, 'c' => 10), BitsPerFragment(1));
         assert_eq!(huffman.total_fragments_count(), 5);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0b1, fragments: 1, bits_per_fragment: 1},
-                'b' => Code{bits: 0b00, fragments: 2, bits_per_fragment: 1},
-                'c' => Code{bits: 0b01, fragments: 2, bits_per_fragment: 1}
+                'a' => Code{ bits: 0b1, fragments: 1 },
+                'b' => Code{ bits: 0b00, fragments: 2 },
+                'c' => Code{ bits: 0b01, fragments: 2 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(1), DecodingResult::Value(&'a'));
@@ -510,14 +578,14 @@ mod tests {
     fn coding_3sym_2bits() {
         //  /|\
         //  abc
-        let huffman = Coding::from_frequencies_bits_per_fragment(hashmap!('a' => 100, 'b' => 50, 'c' => 10), 2);
+        let huffman = Coding::from_frequencies(hashmap!('a' => 100, 'b' => 50, 'c' => 10), BitsPerFragment(2));
         assert_eq!(huffman.total_fragments_count(), 3);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0, fragments: 1, bits_per_fragment: 2},
-                'b' => Code{bits: 1, fragments: 1, bits_per_fragment: 2},
-                'c' => Code{bits: 2, fragments: 1, bits_per_fragment: 2}
+                'a' => Code{ bits: 0, fragments: 1 },
+                'b' => Code{ bits: 1, fragments: 1 },
+                'c' => Code{ bits: 2, fragments: 1 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Value(&'a'));
@@ -538,17 +606,17 @@ mod tests {
         // /\ a
         // bc
         let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
-        let huffman = Coding::from_frequencies_bits_per_fragment(frequencies, 1);
+        let huffman = Coding::from_frequencies(frequencies, BitsPerFragment(1));
         assert_eq!(huffman.total_fragments_count(), 17);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [2, 1, 1, 0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0b001, fragments: 3, bits_per_fragment: 1},
-                'b' => Code{bits: 0b0000, fragments: 4, bits_per_fragment: 1},
-                'c' => Code{bits: 0b0001, fragments: 4, bits_per_fragment: 1},
-                'd' => Code{bits: 0b01, fragments: 2, bits_per_fragment: 1},
-                'e' => Code{bits: 0b10, fragments: 2, bits_per_fragment: 1},
-                'f' => Code{bits: 0b11, fragments: 2, bits_per_fragment: 1}
+                'a' => Code{bits: 0b001, fragments: 3 },
+                'b' => Code{bits: 0b0000, fragments: 4 },
+                'c' => Code{bits: 0b0001, fragments: 4 },
+                'd' => Code{bits: 0b01, fragments: 2 },
+                'e' => Code{bits: 0b10, fragments: 2 },
+                'f' => Code{bits: 0b11, fragments: 2 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);
@@ -583,17 +651,17 @@ mod tests {
         // abc 12 11 10
         // 321
         let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
-        let huffman = Coding::from_frequencies_bits_per_fragment(frequencies, 2);
+        let huffman = Coding::from_frequencies(frequencies, BitsPerFragment(2));
         assert_eq!(huffman.total_fragments_count(), 9);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0b00_00, fragments: 2, bits_per_fragment: 2},
-                'b' => Code{bits: 0b00_01, fragments: 2, bits_per_fragment: 2},
-                'c' => Code{bits: 0b00_10, fragments: 2, bits_per_fragment: 2},
-                'd' => Code{bits: 0b01, fragments: 1, bits_per_fragment: 2},
-                'e' => Code{bits: 0b10, fragments: 1, bits_per_fragment: 2},
-                'f' => Code{bits: 0b11, fragments: 1, bits_per_fragment: 2}
+                'a' => Code{bits: 0b00_00, fragments: 2 },
+                'b' => Code{bits: 0b00_01, fragments: 2 },
+                'c' => Code{bits: 0b00_10, fragments: 2 },
+                'd' => Code{bits: 0b01, fragments: 1 },
+                'e' => Code{bits: 0b10, fragments: 1 },
+                'f' => Code{bits: 0b11, fragments: 1 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);
@@ -613,6 +681,43 @@ mod tests {
         assert_eq!(decoder_for_e.consume(2), DecodingResult::Value(&'e'));
         let mut decoder_for_f = huffman.decoder();
         assert_eq!(decoder_for_f.consume(3), DecodingResult::Value(&'f'));
+        test_read_write(&huffman);
+    }
+
+    #[test]
+    fn coding_5sym_tree_degree3() {
+        //  /   |  \
+        // /\\  d  e
+        // abc 12 11
+        // 321
+        let frequencies = hashmap!('d' => 12, 'e' => 11, 'a' => 3, 'b' => 2, 'c' => 1);
+        let huffman = Coding::from_frequencies(frequencies, TreeDegree(3));
+        assert_eq!(huffman.total_fragments_count(), 8);
+        assert_eq!(huffman.values.as_ref(), ['d', 'e', 'a', 'b', 'c']);
+        assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
+        assert_eq!(huffman.codes_for_values(), hashmap!(
+                'a' => Code{bits: 0+0, fragments: 2 },
+                'b' => Code{bits: 0+1, fragments: 2 },
+                'c' => Code{bits: 0+2, fragments: 2 },
+                'd' => Code{bits: 1, fragments: 1 },
+                'e' => Code{bits: 2, fragments: 1 },
+               ));
+        let mut decoder_for_a = huffman.decoder();
+        assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);
+        assert_eq!(decoder_for_a.consume(0), DecodingResult::Value(&'a'));
+        let mut decoder_for_b = huffman.decoder();
+        assert_eq!(decoder_for_b.consume(0), DecodingResult::Incomplete);
+        assert_eq!(decoder_for_b.consume(1), DecodingResult::Value(&'b'));
+        let mut decoder_for_c = huffman.decoder();
+        assert_eq!(decoder_for_c.consume(0), DecodingResult::Incomplete);
+        assert_eq!(decoder_for_c.consume(2), DecodingResult::Value(&'c'));
+        let mut decoder_for_invalid = huffman.decoder();
+        assert_eq!(decoder_for_invalid.consume(0), DecodingResult::Incomplete);
+        assert_eq!(decoder_for_invalid.consume(3), DecodingResult::Invalid);
+        let mut decoder_for_d = huffman.decoder();
+        assert_eq!(decoder_for_d.consume(1), DecodingResult::Value(&'d'));
+        let mut decoder_for_e = huffman.decoder();
+        assert_eq!(decoder_for_e.consume(2), DecodingResult::Value(&'e'));
         test_read_write(&huffman);
     }
 }
