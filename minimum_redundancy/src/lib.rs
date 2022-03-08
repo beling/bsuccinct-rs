@@ -14,6 +14,7 @@ pub use frequencies::Frequencies;
 mod degree;
 pub use degree::*;
 mod io;
+pub use io::*;
 
 /// Succinct representation of coding (huffman tree of some degree in the canonical form).
 pub struct Coding<ValueType, D> {
