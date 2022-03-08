@@ -1,162 +1,19 @@
 #![doc = include_str!("../README.md")]
 
-#![macro_use]
-
 use std::collections::HashMap;
 use std::hash::Hash;
 use co_sort::{Permutation, co_sort};
 
-use std::io;
 use std::borrow::Borrow;
-use std::convert::TryFrom;
-use std::io::Read;
 use dyn_size_of::GetSize;
 
 mod code;
 pub use crate::code::{Code};
 mod frequencies;
 pub use frequencies::Frequencies;
-
-/// Writes primitive (integer) to `output` (which implements `std::io::Write`);
-/// in little-endian bytes order.
-///
-/// # Example
-///
-/// ```
-/// use minimum_redundancy::write_int;
-///
-/// let mut output = Vec::new();
-/// write_int!(&mut output, 1u32);
-/// assert_eq!(output, vec![1, 0, 0, 0]);
-/// ```
-#[macro_export]
-macro_rules! write_int {
-    ($output:expr, $what:expr) => {
-     ::std::io::Write::write_all($output, &$what.to_le_bytes())
-    }
-}
-
-/// Reads primitive (integer) from `input` (which implements `std::io::Read`);
-/// in little-endian bytes order, returning `std::io::Read`.
-///
-/// # Example
-///
-/// ```
-/// use minimum_redundancy::read_int;
-///
-/// let input = [1u8, 0u8, 0u8, 0u8];
-/// assert_eq!(read_int!(&mut &input[..], u32).unwrap(), 1u32);
-/// ```
-#[macro_export]
-macro_rules! read_int {
-    ($input:expr, $what:ty) => {{
-        let mut buff = [0u8; ::std::mem::size_of::<$what>()];
-        let result = ::std::io::Read::read_exact($input, &mut buff);
-        result.map(|()| <$what>::from_le_bytes(buff))
-    }}
-}
-
-pub trait FragmentSize: Sized + Copy {
-    /// Returns the range of a single fragment.
-    fn tree_degree(&self) -> u32;
-
-    /// Returns `tree_degree() * rhs`.
-    #[inline(always)] fn tree_degree_times(&self, rhs: u32) -> u32 {
-        self.tree_degree() * rhs
-    }
-
-    /// Returns number of bites that `self.write` writes to the output.
-    #[inline(always)] fn write_bytes(&self) -> usize {
-        std::mem::size_of::<u32>()
-    }
-
-    /// Writes `self` to `output`.
-    #[inline(always)] fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
-        write_int!(output, self.tree_degree())
-    }
-
-    /// Reads `Self` from `input`.
-    fn read(input: &mut dyn io::Read) -> io::Result<Self>;
-
-    /// Returns the `fragment_nr`-th fragment of `bits`. Result is less than `self.tree_degree()`.
-    fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32;
-
-    /// Appends the `fragment` (that must be less than `self.tree_degree`) to the lowest digits (bits) of `bits`.
-    fn push_front(&self, bits: &mut u32, fragment: u32) {
-        *bits = self.tree_degree_times(*bits) + fragment;
-    }
-}
-
-/// Number of bits per code fragment.
-/// Codewords assigned to values have bit-lengths dividable by `bits_per_fragment`.
-#[derive(Copy, Clone)]
-pub struct BitsPerFragment(pub u8);
-
-impl FragmentSize for BitsPerFragment {
-    #[inline(always)] fn tree_degree(&self) -> u32 { 1u32 << self.0 }
-
-    #[inline(always)] fn tree_degree_times(&self, rhs: u32) -> u32 {
-        rhs << self.0
-    }
-
-    #[inline(always)] fn write_bytes(&self) -> usize {
-        std::mem::size_of::<u8>()
-    }
-
-    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
-        write_int!(output, self.0)
-    }
-
-    fn read(input: &mut dyn io::Read) -> io::Result<Self> {
-        read_int!(input, u8).map(|v| Self(v))
-    }
-
-    fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32 {
-        bits.checked_shr(self.0 as u32 * fragment_nr).map_or(0, |v| v & ((1u32 << self.0) - 1))
-        //(bits >> (bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << bits_per_fragment as u32) - 1)
-    }
-
-    fn push_front(&self, bits: &mut u32, fragment: u32) {
-        *bits = self.tree_degree_times(*bits) | fragment;
-    }
-}
-
-impl TryFrom<TreeDegree> for BitsPerFragment {
-    type Error = &'static str;
-
-    fn try_from(value: TreeDegree) -> Result<Self, Self::Error> {
-        if value.0.is_power_of_two() {  // power of 2?
-            Ok(Self(value.0.trailing_zeros() as u8))
-        } else {
-            Err("BitsPerFragment requires the tree degree to be a power of two")
-        }
-    }
-}
-
-/// Degree of the tree.
-/// Each internal node (excepting at most one at the lowest level) has `tree_degree` children.
-#[derive(Copy, Clone)]
-pub struct TreeDegree(pub u32);
-
-impl FragmentSize for TreeDegree {
-    #[inline(always)] fn tree_degree(&self) -> u32 {
-        self.0
-    }
-
-    fn read(input: &mut dyn Read) -> io::Result<Self> {
-        read_int!(input, u32).map(|v| Self(v))
-    }
-
-    fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32 {
-        self.0.checked_pow(fragment_nr).map_or(0, |v| (bits/v) % self.0)
-    }
-}
-
-impl From<BitsPerFragment> for TreeDegree {
-    fn from(bits_per_fragment: BitsPerFragment) -> Self {
-        Self(bits_per_fragment.tree_degree())
-    }
-}
+mod degree;
+pub use degree::*;
+mod io;
 
 /// Succinct representation of coding (huffman tree of some degree in the canonical form).
 pub struct Coding<ValueType, FS> {
@@ -307,17 +164,17 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
 
     /// Writes `internal_nodes_count` to `output` as the following `internal_nodes_count.len()`, little-endian `u32`:
     /// `internal_nodes_count.len()-1` (=l), `internal_nodes_count[0]`, `internal_nodes_count[1]`, ..., `internal_nodes_count[l-1]`
-    pub fn write_internal_nodes_count(&self, output: &mut dyn io::Write) -> io::Result<()> {
+    pub fn write_internal_nodes_count(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
         let l = self.internal_nodes_count.len()-1;
         write_int!(output, l as u32)?;
         self.internal_nodes_count[..l].iter().try_for_each(|v| write_int!(output, v))
     }
 
     /// Reads and returns `u32` (little-endian) from the given input.
-    fn read_u32(input: &mut dyn io::Read) -> io::Result<u32> { read_int!(input, u32) }
+    fn read_u32(input: &mut dyn std::io::Read) -> std::io::Result<u32> { read_int!(input, u32) }
 
     /// Reads (written by `write_internal_nodes_count`) `internal_nodes_count` from `input`.
-    pub fn read_internal_nodes_count(input: &mut dyn io::Read) -> io::Result<Box<[u32]>> {
+    pub fn read_internal_nodes_count(input: &mut dyn std::io::Read) -> std::io::Result<Box<[u32]>> {
         let s = Self::read_u32(input)?;
         let mut v = Vec::with_capacity(s as usize + 1);
         for _ in 0..s { v.push(Self::read_u32(input)?); }
@@ -332,16 +189,16 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     }
 
     /// Writes `values` to the given `output`, using `write_value` to write each value.
-    pub fn write_values<F>(&self, output: &mut dyn io::Write, mut write_value: F) -> io::Result<()>
-        where F: FnMut(&mut dyn io::Write, &ValueType) -> io::Result<()>
+    pub fn write_values<F>(&self, output: &mut dyn std::io::Write, mut write_value: F) -> std::io::Result<()>
+        where F: FnMut(&mut dyn std::io::Write, &ValueType) -> std::io::Result<()>
     {
         write_int!(output, &(self.values.len() as u32))?;
         self.values.iter().try_for_each(|v| {write_value(output, v)})
     }
 
     /// Reads `values` from the given `input`, using `read_value` to read each value.
-    pub fn read_values<F>(input: &mut dyn io::Read, mut read_value: F) -> io::Result<Box<[ValueType]>>
-        where F: FnMut(&mut dyn io::Read) -> io::Result<ValueType>
+    pub fn read_values<F>(input: &mut dyn std::io::Read, mut read_value: F) -> std::io::Result<Box<[ValueType]>>
+        where F: FnMut(&mut dyn std::io::Read) -> std::io::Result<ValueType>
     {
         let s = Self::read_u32(input)?;
         let mut v = Vec::with_capacity(s as usize);
@@ -356,8 +213,8 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     }
 
     /// Writes `self` to the given `output`, using `write_value` to write each value.
-    pub fn write<F>(&self, output: &mut dyn io::Write, write_value: F) -> io::Result<()>
-        where F: FnMut(&mut dyn io::Write, &ValueType) -> io::Result<()>
+    pub fn write<F>(&self, output: &mut dyn std::io::Write, write_value: F) -> std::io::Result<()>
+        where F: FnMut(&mut dyn std::io::Write, &ValueType) -> std::io::Result<()>
     {
         self.fragment_size.write(output)?;
         self.write_internal_nodes_count(output)?;
@@ -365,8 +222,8 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     }
 
     /// Reads `Coding` from the given `input`, using `read_value` to read each value.
-    pub fn read<F>(input: &mut dyn io::Read, read_value: F) -> io::Result<Self>
-        where F: FnMut(&mut dyn io::Read) -> io::Result<ValueType>
+    pub fn read<F>(input: &mut dyn std::io::Read, read_value: F) -> std::io::Result<Self>
+        where F: FnMut(&mut dyn std::io::Read) -> std::io::Result<ValueType>
     {
         let fragment_size = FS::read(input)?;
         let internal_nodes_count = Self::read_internal_nodes_count(input)?;
