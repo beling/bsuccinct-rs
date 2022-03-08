@@ -31,8 +31,12 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     }
 }
 
-/// Number of bits per code fragment.
-/// Codewords assigned to values have bit-lengths dividable by `bits_per_fragment`.
+/// `BitsPerFragment` represents the Hufmann's tree degree that is the power of two.
+/// It represents number of bits needed to store the degree.
+/// It can be used to construct minimum-redundancy coding whose
+/// codeword lengths are a multiple of this number of bits.
+/// It is faster than `Degree` and should be preferred
+/// for degrees that are the powers of two.
 #[derive(Copy, Clone)]
 pub struct BitsPerFragment(pub u8);
 
@@ -81,8 +85,9 @@ impl TryFrom<Degree> for BitsPerFragment {
     }
 }
 
-/// Degree of the tree.
-/// Each internal node (excepting at most one at the lowest level) has `tree_degree` children.
+/// `Degree` represents the degree of the Hufmann tree.
+/// It is slower than `BitsPerFragment` and should be avoided
+/// when the degree is the power of two.
 #[derive(Copy, Clone)]
 pub struct Degree(pub u32);
 

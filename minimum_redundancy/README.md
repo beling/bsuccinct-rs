@@ -2,7 +2,7 @@
 with binary or non-binary minimum-redundancy (Huffman) coding.
 
 The library can construct and concisely represent optimal prefix (minimum-redundancy) coding
-whose codewords length are a multiple of given number of bits (1-bit, 2-bits, ...).
+whose codeword lengths are a multiple of given number of bits (1-bit, 2-bits, ...).
 The library supports Huffman trees of arbitrary degrees, even those that are not powers of 2.
 
 The library uses modified Huffman algorithm, with ideas from papers:
