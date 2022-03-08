@@ -16,34 +16,34 @@ pub use degree::*;
 mod io;
 
 /// Succinct representation of coding (huffman tree of some degree in the canonical form).
-pub struct Coding<ValueType, FS> {
+pub struct Coding<ValueType, D> {
     /// Values, from the most frequent to the least.
     pub values: Box<[ValueType]>,
     /// Number of the internal nodes of each tree level. The root is not counted.
     /// Contains exactly one zero at the end.
     pub internal_nodes_count: Box<[u32]>,
     /// Size of the fragment given as bits per fragment or tree degree.
-    pub fragment_size: FS
+    pub degree: D
 }
 
-impl<ValueType: GetSize, FragmentSize> dyn_size_of::GetSize for Coding<ValueType, FragmentSize> {
+impl<ValueType: GetSize, D> dyn_size_of::GetSize for Coding<ValueType, D> {
     fn size_bytes_dyn(&self) -> usize {
         self.values.size_bytes_dyn() + self.internal_nodes_count.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
+impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
 
     /// Constructs coding for given frequencies of values and degree (currently must be a power of two) of Huffman tree.
-    pub fn from_frequencies<F: Frequencies<Value=ValueType>>(frequencies: F, fragment_size: FS) -> Self {
+    pub fn from_frequencies<F: Frequencies<Value=ValueType>>(frequencies: F, fragment_size: D) -> Self {
         let (values, mut freq) = frequencies.into_sorted();
         Self::from_sorted(values, &mut freq, fragment_size)
     }
 
     /// Counts occurrences of all values exposed by `iter` and constructs coding for obtained
     /// frequencies of values and degree (currently must be a power of two) of Huffman tree.
-    pub fn from_iter<Iter>(iter: Iter, fragment_size: FS) -> Self<>
+    pub fn from_iter<Iter>(iter: Iter, fragment_size: D) -> Self<>
         where Iter: IntoIterator, Iter::Item: Borrow<ValueType>, ValueType: Hash + Eq + Clone
     {
         Self::from_frequencies(HashMap::<ValueType, u32>::with_counted_all(iter), fragment_size)
@@ -58,7 +58,7 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
         let mut result = 0;
         let mut prev_internal = 1;
         for (level, curr_internal) in self.internal_nodes_count.iter().enumerate() {
-            let curr_total = self.fragment_size.tree_degree_times(prev_internal);
+            let curr_total = self.degree * prev_internal;
             prev_internal = *curr_internal;
             let curr_leaf = ((curr_total - *curr_internal) as usize).min(values_to_count);
             values_to_count -= curr_leaf;
@@ -68,8 +68,8 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     }
 
     /// Returns decoder that allows for decoding a value.
-    #[inline] pub fn decoder(&self) -> Decoder<ValueType, FS> {
-        return Decoder::<ValueType, FS>::new(self);
+    #[inline] pub fn decoder(&self) -> Decoder<ValueType, D> {
+        return Decoder::<ValueType, D>::new(self);
     }
 
     /// Construct coding for the given `values`, where:
@@ -80,15 +80,15 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     ///
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
-    pub fn from_sorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: FS) -> Self {
+    pub fn from_sorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: D) -> Self {
         let len = freq.len();
-        let tree_degree = fragment_size.tree_degree();
+        let tree_degree = fragment_size.as_u32();
         if len <= tree_degree as usize {
             values.reverse();
             return Coding {
                 values,
                 internal_nodes_count: vec![0u32].into_boxed_slice(),
-                fragment_size,
+                degree: fragment_size,
             }
         }
 
@@ -138,7 +138,7 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
         let mut result = Self {
             values,
             internal_nodes_count: vec![0u32; max_depth as usize + 1].into_boxed_slice(),
-            fragment_size
+            degree: fragment_size
         };
         for i in 0..internal_nodes_size - 1 {
             result.internal_nodes_count[freq[i] as usize - 1] += 1;  // only root is at the level 0, we skip it
@@ -152,7 +152,7 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     /// - `tree_degree` (typically 2) is the degree (currently must be a power of two)
     ///     of Huffman tree.
     /// The algorithm runs in O(values.len * log(values.len)) time.
-    pub fn from_unsorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: FS) -> Self{
+    pub fn from_unsorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: D) -> Self{
         co_sort!(freq, values);
         Self::from_sorted(values, freq, fragment_size)
     }
@@ -209,14 +209,14 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     /// Returns number of bytes which `write` will write,
     /// assuming that each call to `write_value` writes `bytes_per_value` bytes.
     pub fn write_pow2_bytes(&self, bytes_per_value: usize) -> usize {
-        self.fragment_size.write_bytes() + self.write_internal_nodes_count_bytes() + self.write_values_bytes(bytes_per_value)
+        self.degree.write_bytes() + self.write_internal_nodes_count_bytes() + self.write_values_bytes(bytes_per_value)
     }
 
     /// Writes `self` to the given `output`, using `write_value` to write each value.
     pub fn write<F>(&self, output: &mut dyn std::io::Write, write_value: F) -> std::io::Result<()>
         where F: FnMut(&mut dyn std::io::Write, &ValueType) -> std::io::Result<()>
     {
-        self.fragment_size.write(output)?;
+        self.degree.write(output)?;
         self.write_internal_nodes_count(output)?;
         self.write_values(output, write_value)
     }
@@ -225,12 +225,12 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     pub fn read<F>(input: &mut dyn std::io::Read, read_value: F) -> std::io::Result<Self>
         where F: FnMut(&mut dyn std::io::Read) -> std::io::Result<ValueType>
     {
-        let fragment_size = FS::read(input)?;
+        let fragment_size = D::read(input)?;
         let internal_nodes_count = Self::read_internal_nodes_count(input)?;
         Ok(Self {
             values: Self::read_values(input, read_value)?,
             internal_nodes_count,
-            fragment_size
+            degree: fragment_size
         })
     }
 
@@ -240,7 +240,7 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
     pub fn for_each_leaf<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
         where F: FnMut(&ValueType, u32, u32, u32)  //value: &ValueType, level: u32, internal_nodes: u32, leaf_index: u32
     {
-        let mut level_size = self.fragment_size.tree_degree();
+        let mut level_size = self.degree.as_u32();
         let mut value_index = 0usize;
         for level in 0u32..self.internal_nodes_count.len() as u32 {
             let internal_nodes = self.internal_nodes_count[level as usize];
@@ -255,12 +255,12 @@ impl<ValueType, FS: FragmentSize> Coding<ValueType, FS> {
             }
             //level_size = internal_nodes * self.tree_degree as u32;
             //level_size = internal_nodes << self.bits_per_fragment;
-            level_size = self.fragment_size.tree_degree_times(internal_nodes)
+            level_size = self.degree * internal_nodes;
         }
     }
 }
 
-impl<ValueType: Hash + Eq + Clone, FS: FragmentSize> Coding<ValueType, FS> {
+impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
 
     /// Returns a map from values to the lengths of their codes.
     pub fn fragment_counts_for_values(&self) -> HashMap<ValueType, u32> {
@@ -308,8 +308,8 @@ impl<T> From<Option<T>> for DecodingResult<T> {
 /// - optimistic: *O(1)*
 ///
 /// Memory complexity: *O(1)*
-pub struct Decoder<'huff, ValueType, FS> {
-    coding: &'huff Coding<ValueType, FS>,
+pub struct Decoder<'huff, ValueType, D> {
+    coding: &'huff Coding<ValueType, D>,
     // shift+fragment is a current position (node number, counting from the left) at current level
     shift: u32,
     // number of leafs at all previous levels
@@ -320,14 +320,14 @@ pub struct Decoder<'huff, ValueType, FS> {
     level: u8
 }   // Note: Brodnik describes also faster decoder that runs in expected loglog(length of the longest code) expected time, but requires all codeword bits in advance.
 
-impl<'huff, ValueType, FS: FragmentSize> Decoder<'huff, ValueType, FS> {
+impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
     /// Constructs decoder for given `coding`.
-    pub fn new(coding: &'huff Coding<ValueType, FS>) -> Self {
+    pub fn new(coding: &'huff Coding<ValueType, D>) -> Self {
         Self {
             coding,
             shift: 0,
             first_leaf_nr: 0,
-            level_size: coding.fragment_size.tree_degree(),
+            level_size: coding.degree.as_u32(),
             level: 0
         }
     }
@@ -344,11 +344,11 @@ impl<'huff, ValueType, FS: FragmentSize> Decoder<'huff, ValueType, FS> {
         return if self.shift < internal_nodes_count {    // internal node, go level down
             //self.shift *= self.coding.tree_degree as u32;
             //self.shift <<= self.coding.bits_per_fragment;
-            self.shift = self.coding.fragment_size.tree_degree_times(self.shift);
+            self.shift = self.coding.degree * self.shift;
             self.first_leaf_nr += self.level_size - internal_nodes_count;    // increase by number of leafs at current level
             //self.level_size = internal_nodes_count * self.coding.tree_degree as u32; // size of the next level
             //self.level_size = internal_nodes_count << self.coding.bits_per_fragment; // size of the next level
-            self.level_size = self.coding.fragment_size.tree_degree_times(internal_nodes_count);
+            self.level_size = self.coding.degree * internal_nodes_count;
                 self.level += 1;
             DecodingResult::Incomplete
         } else {    // leaf, return value or Invalid
@@ -360,10 +360,10 @@ impl<'huff, ValueType, FS: FragmentSize> Decoder<'huff, ValueType, FS> {
     /// Consumes a `fragment` of the codeword and returns:
     /// - a value if the given `fragment` finishes the valid codeword;
     /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
-    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for bits per fragment > 1)
-    ///     or `fragment` exceeds `tree_degree`.
+    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for `degree` greater than 2)
+    ///     or `fragment` exceeds `degree`.
     #[inline(always)] pub fn consume_checked(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
-        if fragment < self.coding.fragment_size.tree_degree() {
+        if fragment < self.coding.degree.as_u32() {
             self.consume(fragment)
         } else {
             DecodingResult::Invalid
@@ -388,7 +388,7 @@ mod tests {
     use super::*;
     use maplit::hashmap;
 
-    fn test_read_write<FS: FragmentSize>(huffman: &Coding<char, FS>) {
+    fn test_read_write<FS: TreeDegree>(huffman: &Coding<char, FS>) {
         let mut buff = Vec::new();
         huffman.write_values(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
         assert_eq!(buff.len(), huffman.write_values_bytes(1));
@@ -401,7 +401,7 @@ mod tests {
         huffman.write(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
         assert_eq!(buff.len(), huffman.write_pow2_bytes(1));
         let read = Coding::<_, FS>::read(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap();
-        assert_eq!(huffman.fragment_size.tree_degree(), read.fragment_size.tree_degree());
+        assert_eq!(huffman.degree.as_u32(), read.degree.as_u32());
         assert_eq!(huffman.values, read.values);
         assert_eq!(huffman.internal_nodes_count, read.internal_nodes_count);
     }
@@ -548,7 +548,7 @@ mod tests {
         // abc 12 11
         // 321
         let frequencies = hashmap!('d' => 12, 'e' => 11, 'a' => 3, 'b' => 2, 'c' => 1);
-        let huffman = Coding::from_frequencies(frequencies, TreeDegree(3));
+        let huffman = Coding::from_frequencies(frequencies, Degree(3));
         assert_eq!(huffman.total_fragments_count(), 8);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);

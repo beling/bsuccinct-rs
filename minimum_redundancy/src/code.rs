@@ -1,6 +1,6 @@
 //! Tools to deal with codes.
 
-use crate::FragmentSize;
+use crate::TreeDegree;
 
 /// `Code` represents a code which consists of a number of `bits_per_fragment`-bits fragments.
 /// It is also an iterator over the code fragments.
@@ -17,24 +17,24 @@ pub struct Code {
 
 impl Code {
     /// Appends the `fragment` (that must be less than `fragment_size.tree_degree()`) to the end of `self`.
-    #[inline] pub fn push(&mut self, fragment: u32, fragment_size: impl FragmentSize) {
+    #[inline] pub fn push(&mut self, fragment: u32, fragment_size: impl TreeDegree) {
         fragment_size.push_front(&mut self.bits, fragment)
     }
 
     /// Gets `fragment_nr`-th fragment from the end.
-    #[inline] pub fn get_r(&self, fragment_nr: u32, fragment_size: impl FragmentSize) -> u32 {
+    #[inline] pub fn get_r(&self, fragment_nr: u32, fragment_size: impl TreeDegree) -> u32 {
         fragment_size.get_fragment(self.bits, fragment_nr)
         //get_u32_fragment(self.bits, fragment_nr, self.bits_per_fragment)
         //(self.bits >> (self.bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << self.bits_per_fragment as u32) - 1)
     }
 
     /// Gets `fragment_nr`-th fragment.
-    #[inline] pub fn get(&self, fragment_nr: u32, fragment_size: impl FragmentSize) -> u32 {
+    #[inline] pub fn get(&self, fragment_nr: u32, fragment_size: impl TreeDegree) -> u32 {
         fragment_size.get_fragment(self.bits, self.fragments - fragment_nr - 1)
     }
 
     /// Extracts and returns first, remaining code fragment.
-    pub fn extract_first(&mut self, fragment_size: impl FragmentSize) -> Option<u32> {
+    pub fn extract_first(&mut self, fragment_size: impl TreeDegree) -> Option<u32> {
         (self.fragments != 0).then(|| {
             self.fragments -= 1;
             self.get_r(self.fragments, fragment_size)
@@ -76,7 +76,7 @@ impl Iterator for Code {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BitsPerFragment, TreeDegree};
+    use crate::{BitsPerFragment, Degree};
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
@@ -101,19 +101,19 @@ mod tests {
     #[test]
     fn code_tree_degree3() {
         let mut code = Code { bits: 1*3*3 + 0*3 + 2, fragments: 3 };
-        assert_eq!(code.get_r(0, TreeDegree(3)), 2);
-        assert_eq!(code.get_r(1, TreeDegree(3)), 0);
-        assert_eq!(code.get_r(2, TreeDegree(3)), 1);
-        assert_eq!(code.get(2, TreeDegree(3)), 2);
-        assert_eq!(code.get(1, TreeDegree(3)), 0);
-        assert_eq!(code.get(0, TreeDegree(3)), 1);
+        assert_eq!(code.get_r(0, Degree(3)), 2);
+        assert_eq!(code.get_r(1, Degree(3)), 0);
+        assert_eq!(code.get_r(2, Degree(3)), 1);
+        assert_eq!(code.get(2, Degree(3)), 2);
+        assert_eq!(code.get(1, Degree(3)), 0);
+        assert_eq!(code.get(0, Degree(3)), 1);
         assert_eq!(code.fragments, 3);
-        assert_eq!(code.extract_first(TreeDegree(3)), Some(1));
+        assert_eq!(code.extract_first(Degree(3)), Some(1));
         assert_eq!(code.fragments, 2);
-        assert_eq!(code.extract_first(TreeDegree(3)), Some(0));
+        assert_eq!(code.extract_first(Degree(3)), Some(0));
         assert_eq!(code.fragments, 1);
-        assert_eq!(code.extract_first(TreeDegree(3)), Some(2));
+        assert_eq!(code.extract_first(Degree(3)), Some(2));
         assert_eq!(code.fragments, 0);
-        assert_eq!(code.extract_first(TreeDegree(3)), None);
+        assert_eq!(code.extract_first(Degree(3)), None);
     }
 }

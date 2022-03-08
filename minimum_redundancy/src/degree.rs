@@ -1,14 +1,13 @@
 use std::convert::TryFrom;
+use std::ops::Mul;
 use crate::{read_int, write_int};
 
-pub trait FragmentSize: Sized + Copy {
-    /// Returns the range of a single fragment.
-    fn tree_degree(&self) -> u32;
-
-    /// Returns `tree_degree() * rhs`.
-    #[inline(always)] fn tree_degree_times(&self, rhs: u32) -> u32 {
-        self.tree_degree() * rhs
-    }
+/// Represents the degree of the Hufmann tree,
+/// which is equal to the number of different
+/// values of a single codeword fragment.
+pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
+    /// Returns the degree of the Hufmann tree as u32.
+    fn as_u32(&self) -> u32;
 
     /// Returns number of bites that `self.write` writes to the output.
     #[inline(always)] fn write_bytes(&self) -> usize {
@@ -17,7 +16,7 @@ pub trait FragmentSize: Sized + Copy {
 
     /// Writes `self` to `output`.
     #[inline(always)] fn write(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write_int!(output, self.tree_degree())
+        write_int!(output, self.as_u32())
     }
 
     /// Reads `Self` from `input`.
@@ -28,7 +27,7 @@ pub trait FragmentSize: Sized + Copy {
 
     /// Appends the `fragment` (that must be less than `self.tree_degree`) to the lowest digits (bits) of `bits`.
     fn push_front(&self, bits: &mut u32, fragment: u32) {
-        *bits = self.tree_degree_times(*bits) + fragment;
+        *bits = *self * *bits + fragment;
     }
 }
 
@@ -37,12 +36,16 @@ pub trait FragmentSize: Sized + Copy {
 #[derive(Copy, Clone)]
 pub struct BitsPerFragment(pub u8);
 
-impl FragmentSize for BitsPerFragment {
-    #[inline(always)] fn tree_degree(&self) -> u32 { 1u32 << self.0 }
+impl Mul<u32> for BitsPerFragment {
+    type Output = u32;
 
-    #[inline(always)] fn tree_degree_times(&self, rhs: u32) -> u32 {
+    #[inline(always)] fn mul(self, rhs: u32) -> Self::Output {
         rhs << self.0
     }
+}
+
+impl TreeDegree for BitsPerFragment {
+    #[inline(always)] fn as_u32(&self) -> u32 { 1u32 << self.0 }
 
     #[inline(always)] fn write_bytes(&self) -> usize {
         std::mem::size_of::<u8>()
@@ -62,14 +65,14 @@ impl FragmentSize for BitsPerFragment {
     }
 
     fn push_front(&self, bits: &mut u32, fragment: u32) {
-        *bits = self.tree_degree_times(*bits) | fragment;
+        *bits = *self * *bits | fragment;
     }
 }
 
-impl TryFrom<TreeDegree> for BitsPerFragment {
+impl TryFrom<Degree> for BitsPerFragment {
     type Error = &'static str;
 
-    fn try_from(value: TreeDegree) -> Result<Self, Self::Error> {
+    fn try_from(value: Degree) -> Result<Self, Self::Error> {
         if value.0.is_power_of_two() {  // power of 2?
             Ok(Self(value.0.trailing_zeros() as u8))
         } else {
@@ -81,10 +84,18 @@ impl TryFrom<TreeDegree> for BitsPerFragment {
 /// Degree of the tree.
 /// Each internal node (excepting at most one at the lowest level) has `tree_degree` children.
 #[derive(Copy, Clone)]
-pub struct TreeDegree(pub u32);
+pub struct Degree(pub u32);
 
-impl FragmentSize for TreeDegree {
-    #[inline(always)] fn tree_degree(&self) -> u32 {
+impl Mul<u32> for Degree {
+    type Output = u32;
+
+    #[inline(always)] fn mul(self, rhs: u32) -> Self::Output {
+        self.0 * rhs
+    }
+}
+
+impl TreeDegree for Degree {
+    #[inline(always)] fn as_u32(&self) -> u32 {
         self.0
     }
 
@@ -97,8 +108,8 @@ impl FragmentSize for TreeDegree {
     }
 }
 
-impl From<BitsPerFragment> for TreeDegree {
+impl From<BitsPerFragment> for Degree {
     fn from(bits_per_fragment: BitsPerFragment) -> Self {
-        Self(bits_per_fragment.tree_degree())
+        Self(bits_per_fragment.as_u32())
     }
 }
