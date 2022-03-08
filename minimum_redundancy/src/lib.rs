@@ -28,6 +28,15 @@ pub struct Coding<ValueType, D> {
     pub degree: D
 }
 
+/// Points the number of bytes needed to store value of the type `ValueType`.
+/// This number of bytes can be constant or can depend on the value.
+pub enum ValueSize<ValueType> {
+    /// Holds constant number of bytes needed to store value.
+    Const(usize),
+    /// Holds callback that shows the number of bytes needed to store given value.
+    Variable(Box<dyn Fn(&ValueType)->usize>)
+}
+
 impl<ValueType: GetSize, D> dyn_size_of::GetSize for Coding<ValueType, D> {
     fn size_bytes_dyn(&self) -> usize {
         self.values.size_bytes_dyn() + self.internal_nodes_count.size_bytes_dyn()
@@ -161,54 +170,56 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         self.internal_nodes_count.len()*std::mem::size_of::<u32>()
     }
 
-    /// Writes `internal_nodes_count` to `output` as the following `internal_nodes_count.len()`, little-endian `u32`:
+    /// Writes `internal_nodes_count` to `output` as the following `internal_nodes_count.len()`, VByte values:
     /// `internal_nodes_count.len()-1` (=l), `internal_nodes_count[0]`, `internal_nodes_count[1]`, ..., `internal_nodes_count[l-1]`
     pub fn write_internal_nodes_count(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
         let l = self.internal_nodes_count.len()-1;
-        write_int!(output, l as u32)?;
-        self.internal_nodes_count[..l].iter().try_for_each(|v| write_int!(output, v))
+        vbyte_write(output, l as u32)?;
+        self.internal_nodes_count[..l].iter().try_for_each(|v| vbyte_write(output, *v))
     }
-
-    /// Reads and returns `u32` (little-endian) from the given input.
-    fn read_u32(input: &mut dyn std::io::Read) -> std::io::Result<u32> { read_int!(input, u32) }
 
     /// Reads (written by `write_internal_nodes_count`) `internal_nodes_count` from `input`.
     pub fn read_internal_nodes_count(input: &mut dyn std::io::Read) -> std::io::Result<Box<[u32]>> {
-        let s = Self::read_u32(input)?;
+        let s = vbyte_read(input)?;
         let mut v = Vec::with_capacity(s as usize + 1);
-        for _ in 0..s { v.push(Self::read_u32(input)?); }
+        for _ in 0..s { v.push(vbyte_read(input)?); }
         v.push(0);
         Ok(v.into_boxed_slice())
     }
 
     /// Returns number of bytes which `write_values` will write,
-    /// assuming that each call to `write_value` writes `bytes_per_value` bytes.
-    pub fn write_values_bytes(&self, bytes_per_value: usize) -> usize {
-        std::mem::size_of::<u32>() + bytes_per_value*self.values.len()
+    /// assuming that each call to `write_value` writes the number of bytes pointed by `value_size`.
+    pub fn write_values_size_bytes(&self, value_size: ValueSize<ValueType>) -> usize {
+        vbyte_len(self.values.len() as u32) as usize +
+            match value_size {
+                ValueSize::Const(bytes_per_value) => { bytes_per_value*self.values.len() }
+                ValueSize::Variable(f) => { self.values.iter().map(|v| f(v)).sum::<usize>() }
+            }
     }
 
     /// Writes `values` to the given `output`, using `write_value` to write each value.
     pub fn write_values<F>(&self, output: &mut dyn std::io::Write, mut write_value: F) -> std::io::Result<()>
         where F: FnMut(&mut dyn std::io::Write, &ValueType) -> std::io::Result<()>
     {
-        write_int!(output, &(self.values.len() as u32))?;
-        self.values.iter().try_for_each(|v| {write_value(output, v)})
+        vbyte_write(output, self.values.len() as u32)?;
+        self.values.iter().try_for_each(|v| { write_value(output, v) })
     }
 
     /// Reads `values` from the given `input`, using `read_value` to read each value.
     pub fn read_values<F>(input: &mut dyn std::io::Read, mut read_value: F) -> std::io::Result<Box<[ValueType]>>
         where F: FnMut(&mut dyn std::io::Read) -> std::io::Result<ValueType>
     {
-        let s = Self::read_u32(input)?;
+        let s = vbyte_read(input)?;
         let mut v = Vec::with_capacity(s as usize);
         for _ in 0..s { v.push(read_value(input)?); }
         Ok(v.into_boxed_slice())
     }
 
     /// Returns number of bytes which `write` will write,
-    /// assuming that each call to `write_value` writes `bytes_per_value` bytes.
-    pub fn write_pow2_bytes(&self, bytes_per_value: usize) -> usize {
-        self.degree.write_bytes() + self.write_internal_nodes_count_bytes() + self.write_values_bytes(bytes_per_value)
+    /// assuming that each call to `write_value` writes the number of bytes pointed by `value_size`.
+    pub fn write_size_bytes(&self, value_size: ValueSize<ValueType>) -> usize {
+        self.degree.write_size_bytes() + self.write_internal_nodes_count_bytes()
+            + self.write_values_size_bytes(value_size)
     }
 
     /// Writes `self` to the given `output`, using `write_value` to write each value.
@@ -275,8 +286,6 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
         self.for_each_leaf(|value, level, internal_nodes, leaf_index| {
             result.insert(value.clone(),
                           Code { bits: internal_nodes + leaf_index, fragments: level + 1 });
-            // TODO bits w ogólności należy zakodować jako liczbę w systemie tree_degree, każdy znak zapisując na bits_per_fragment bitach
-            // aktualny kod zadziała tylko dla potęg 2
         });
         return result;
     }
@@ -390,7 +399,7 @@ mod tests {
     fn test_read_write<FS: TreeDegree>(huffman: &Coding<char, FS>) {
         let mut buff = Vec::new();
         huffman.write_values(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
-        assert_eq!(buff.len(), huffman.write_values_bytes(1));
+        assert_eq!(buff.len(), huffman.write_values_size_bytes(ValueSize::Const(1)));
         assert_eq!(Coding::<_, FS>::read_values(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap(), huffman.values);
         buff.clear();
         huffman.write_internal_nodes_count(&mut buff).unwrap();
@@ -398,7 +407,7 @@ mod tests {
         assert_eq!(Coding::<char, FS>::read_internal_nodes_count(&mut &buff[..]).unwrap(), huffman.internal_nodes_count);
         buff.clear();
         huffman.write(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
-        assert_eq!(buff.len(), huffman.write_pow2_bytes(1));
+        assert_eq!(buff.len(), huffman.write_size_bytes(ValueSize::Const(1)));
         let read = Coding::<_, FS>::read(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap();
         assert_eq!(huffman.degree.as_u32(), read.degree.as_u32());
         assert_eq!(huffman.values, read.values);

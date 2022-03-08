@@ -45,7 +45,7 @@ macro_rules! read_int {
 }
 
 /// Writes `val` into `output` in *VByte* format.
-pub fn vbyte_write(output: &mut impl std::io::Write, val: u32) -> std::io::Result<()> {
+pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, val: u32) -> std::io::Result<()> {
     if val < (1 << 7) {
         output.write_all(&[val as u8])
     } else if val < (1 << 14) {
@@ -71,14 +71,14 @@ pub fn vbyte_write(output: &mut impl std::io::Write, val: u32) -> std::io::Resul
 /// assert_eq!(vbyte_len(128), 2);
 /// ```
 pub fn vbyte_len(val: u32) -> u8 {
-    if val < (1 << 7) { 1 } else
-    if val < (1 << 14) { 2 } else
-    if val < (1 << 21) { 3 } else
-    if val < (1 << 28) { 4 } else { 5 }
+    if val < (1 << 7) { 1 }
+    else if val < (1 << 14) { 2 }
+    else if val < (1 << 21) { 3 }
+    else if val < (1 << 28) { 4 } else { 5 }
 }
 
 /// Returns the value read from `input` and decoded from *VByte* format.
-pub fn vbyte_read(input: &mut impl std::io::Read) -> std::io::Result<u32> {
+pub fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<u32> {
     let mut read: u8 = 0;
     let mut result = 0;
     for shift in [0, 7, 14, 21, 28] {
@@ -110,5 +110,6 @@ mod tests {
         test_vbyte(8912310);
         test_vbyte(2_000_000_000);
         test_vbyte(4_000_000_000);
+        test_vbyte(u32::MAX);
     }
 }

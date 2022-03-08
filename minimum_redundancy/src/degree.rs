@@ -10,7 +10,7 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     fn as_u32(&self) -> u32;
 
     /// Returns number of bites that `self.write` writes to the output.
-    #[inline(always)] fn write_bytes(&self) -> usize {
+    #[inline(always)] fn write_size_bytes(&self) -> usize {
         std::mem::size_of::<u32>()
     }
 
@@ -51,7 +51,7 @@ impl Mul<u32> for BitsPerFragment {
 impl TreeDegree for BitsPerFragment {
     #[inline(always)] fn as_u32(&self) -> u32 { 1u32 << self.0 }
 
-    #[inline(always)] fn write_bytes(&self) -> usize {
+    #[inline(always)] fn write_size_bytes(&self) -> usize {
         std::mem::size_of::<u8>()
     }
 
