@@ -8,7 +8,7 @@ use std::borrow::Borrow;
 use dyn_size_of::GetSize;
 
 mod code;
-pub use crate::code::{Code};
+pub use code::Code;
 mod frequencies;
 pub use frequencies::Frequencies;
 mod degree;
@@ -16,14 +16,15 @@ pub use degree::*;
 mod io;
 pub use io::*;
 
-/// Succinct representation of coding (huffman tree of some degree in the canonical form).
+/// Succinct representation of minimum-redundancy coding
+/// (huffman tree of some degree in the canonical form).
 pub struct Coding<ValueType, D> {
     /// Values, from the most frequent to the least.
     pub values: Box<[ValueType]>,
     /// Number of the internal nodes of each tree level. The root is not counted.
     /// Contains exactly one zero at the end.
     pub internal_nodes_count: Box<[u32]>,
-    /// Size of the fragment given as bits per fragment or tree degree.
+    /// Size of the fragment given as bits per fragment or the degree of the Huffman tree.
     pub degree: D
 }
 
@@ -36,18 +37,18 @@ impl<ValueType: GetSize, D> dyn_size_of::GetSize for Coding<ValueType, D> {
 
 impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
 
-    /// Constructs coding for given frequencies of values and degree (currently must be a power of two) of Huffman tree.
-    pub fn from_frequencies<F: Frequencies<Value=ValueType>>(frequencies: F, fragment_size: D) -> Self {
+    /// Constructs coding for given `frequencies` of values and `degree` of the Huffman tree.
+    pub fn from_frequencies<F: Frequencies<Value=ValueType>>(degree: D, frequencies: F) -> Self {
         let (values, mut freq) = frequencies.into_sorted();
-        Self::from_sorted(values, &mut freq, fragment_size)
+        Self::from_sorted(degree, values, &mut freq)
     }
 
     /// Counts occurrences of all values exposed by `iter` and constructs coding for obtained
-    /// frequencies of values and degree (currently must be a power of two) of Huffman tree.
-    pub fn from_iter<Iter>(iter: Iter, fragment_size: D) -> Self<>
+    /// frequencies of values and `degree` of the Huffman tree.
+    pub fn from_iter<Iter>(degree: D, iter: Iter) -> Self
         where Iter: IntoIterator, Iter::Item: Borrow<ValueType>, ValueType: Hash + Eq + Clone
     {
-        Self::from_frequencies(HashMap::<ValueType, u32>::with_counted_all(iter), fragment_size)
+        Self::from_frequencies(degree, HashMap::<ValueType, u32>::with_counted_all(iter))
     }
 
     /// Returns total (summarized) number of code fragments of all values.
@@ -73,23 +74,21 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         return Decoder::<ValueType, D>::new(self);
     }
 
-    /// Construct coding for the given `values`, where:
-    /// - `freq` is an array of numbers of occurrences of corresponding values,
-    ///     it has to be in non-descending order and of the same length as values;
-    /// - `tree_degree` (typically 2) is the degree (currently must be a power of two)
-    ///     of Huffman tree.
+    /// Construct coding (of given `degree`) for the given `values`, where
+    /// `freq` is an array of numbers of occurrences of corresponding values.
+    /// `freq` has to be in non-descending order and of the same length as values.
     ///
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
-    pub fn from_sorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: D) -> Self {
+    pub fn from_sorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self {
         let len = freq.len();
-        let tree_degree = fragment_size.as_u32();
+        let tree_degree = degree.as_u32();
         if len <= tree_degree as usize {
             values.reverse();
             return Coding {
                 values,
                 internal_nodes_count: vec![0u32].into_boxed_slice(),
-                degree: fragment_size,
+                degree,
             }
         }
 
@@ -139,7 +138,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         let mut result = Self {
             values,
             internal_nodes_count: vec![0u32; max_depth as usize + 1].into_boxed_slice(),
-            degree: fragment_size
+            degree
         };
         for i in 0..internal_nodes_size - 1 {
             result.internal_nodes_count[freq[i] as usize - 1] += 1;  // only root is at the level 0, we skip it
@@ -148,14 +147,13 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         return result;
     }
 
-    /// Construct coding for the given `values`, where:
-    /// - `freq` has to be of the same length as values and contain number of occurrences of corresponding values;
-    /// - `tree_degree` (typically 2) is the degree (currently must be a power of two)
-    ///     of Huffman tree.
-    /// The algorithm runs in O(values.len * log(values.len)) time.
-    pub fn from_unsorted(mut values: Box<[ValueType]>, freq: &mut [u32], fragment_size: D) -> Self{
+    /// Construct coding (of the given `degree`) for the given `values`, where
+    /// `freq` has to be of the same length as values and contain number of occurrences of corresponding values.
+    ///
+    /// The algorithm runs in *O(values.len * log(values.len))* time.
+    pub fn from_unsorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self{
         co_sort!(freq, values);
-        Self::from_sorted(values, freq, fragment_size)
+        Self::from_sorted(degree, values, freq)
     }
 
     /// Returns number of bytes which `write_internal_nodes_count` will write.
@@ -412,7 +410,8 @@ mod tests {
         //  /  \
         // /\  a
         // bc
-        let huffman = Coding::from_frequencies(hashmap!('a' => 100, 'b' => 50, 'c' => 10), BitsPerFragment(1));
+        let huffman = Coding::from_frequencies(BitsPerFragment(1),
+                                               hashmap!('a' => 100, 'b' => 50, 'c' => 10));
         assert_eq!(huffman.total_fragments_count(), 5);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
@@ -436,7 +435,8 @@ mod tests {
     fn coding_3sym_2bits() {
         //  /|\
         //  abc
-        let huffman = Coding::from_frequencies(hashmap!('a' => 100, 'b' => 50, 'c' => 10), BitsPerFragment(2));
+        let huffman = Coding::from_frequencies(BitsPerFragment(2),
+                                               hashmap!('a' => 100, 'b' => 50, 'c' => 10));
         assert_eq!(huffman.total_fragments_count(), 3);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [0]);
@@ -464,7 +464,7 @@ mod tests {
         // /\ a
         // bc
         let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
-        let huffman = Coding::from_frequencies(frequencies, BitsPerFragment(1));
+        let huffman = Coding::from_frequencies(BitsPerFragment(1), frequencies);
         assert_eq!(huffman.total_fragments_count(), 17);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [2, 1, 1, 0]);
@@ -509,7 +509,7 @@ mod tests {
         // abc 12 11 10
         // 321
         let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
-        let huffman = Coding::from_frequencies(frequencies, BitsPerFragment(2));
+        let huffman = Coding::from_frequencies(BitsPerFragment(2), frequencies);
         assert_eq!(huffman.total_fragments_count(), 9);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
@@ -549,7 +549,7 @@ mod tests {
         // abc 12 11
         // 321
         let frequencies = hashmap!('d' => 12, 'e' => 11, 'a' => 3, 'b' => 2, 'c' => 1);
-        let huffman = Coding::from_frequencies(frequencies, Degree(3));
+        let huffman = Coding::from_frequencies(Degree(3), frequencies);
         assert_eq!(huffman.total_fragments_count(), 8);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
@@ -558,7 +558,7 @@ mod tests {
                 'b' => Code{bits: 0+1, fragments: 2 },
                 'c' => Code{bits: 0+2, fragments: 2 },
                 'd' => Code{bits: 1, fragments: 1 },
-                'e' => Code{bits: 2, fragments: 1 },
+                'e' => Code{bits: 2, fragments: 1 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);

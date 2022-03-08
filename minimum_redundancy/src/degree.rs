@@ -2,11 +2,11 @@ use std::convert::TryFrom;
 use std::ops::Mul;
 use crate::{read_int, write_int};
 
-/// Represents the degree of the Hufmann tree,
+/// Represents the degree of the Huffman tree,
 /// which is equal to the number of different
 /// values of a single codeword fragment.
 pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
-    /// Returns the degree of the Hufmann tree as u32.
+    /// Returns the degree of the Huffman tree as u32.
     fn as_u32(&self) -> u32;
 
     /// Returns number of bites that `self.write` writes to the output.
@@ -31,7 +31,7 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     }
 }
 
-/// `BitsPerFragment` represents the Hufmann's tree degree that is the power of two.
+/// `BitsPerFragment` represents the Huffman's tree degree that is the power of two.
 /// It represents number of bits needed to store the degree.
 /// It can be used to construct minimum-redundancy coding whose
 /// codeword lengths are a multiple of this number of bits.
@@ -85,7 +85,7 @@ impl TryFrom<Degree> for BitsPerFragment {
     }
 }
 
-/// `Degree` represents the degree of the Hufmann tree.
+/// `Degree` represents the degree of the Huffman tree.
 /// It is slower than `BitsPerFragment` and should be avoided
 /// when the degree is the power of two.
 #[derive(Copy, Clone)]

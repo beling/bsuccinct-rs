@@ -19,7 +19,7 @@ use maplit::hashmap;
 
 // Construct coding with 1 bit per fragment for values 'a', 'b', 'c',
 // whose frequencies of occurrence are 100, 50, 10 times, respectively.
-let huffman = Coding::from_frequencies(hashmap!('a' => 100, 'b' => 50, 'c' => 10), BitsPerFragment(1));
+let huffman = Coding::from_frequencies(BitsPerFragment(1), hashmap!('a' => 100, 'b' => 50, 'c' => 10));
 // We expected the following Huffman tree:
 //  /  \
 // /\  a
