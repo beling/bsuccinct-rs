@@ -167,7 +167,9 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
 
     /// Returns number of bytes which `write_internal_nodes_count` will write.
     pub fn write_internal_nodes_count_bytes(&self) -> usize {
-        self.internal_nodes_count.len()*std::mem::size_of::<u32>()
+        let l = self.internal_nodes_count.len()-1;
+        vbyte_len(l as u32) as usize
+            + self.internal_nodes_count[..l].iter().map(|v| vbyte_len(*v) as usize).sum::<usize>()
     }
 
     /// Writes `internal_nodes_count` to `output` as the following `internal_nodes_count.len()`, VByte values:
@@ -244,29 +246,40 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         })
     }
 
-    /// Calls `f` for each leaf in the huffman tree.
-    /// Arguments of `f` are: value assigned to the leaf, level of leaf in the tree (counting from 0),
-    /// number of internal nodes at the level, index of leaf at the level.
-    pub fn for_each_leaf<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
-        where F: FnMut(&ValueType, u32, u32, u32)  //value: &ValueType, level: u32, internal_nodes: u32, leaf_index: u32
+    /// Calls `f` for each level in the huffman tree.
+    /// Arguments of `f` are: values assigned to the leafs at the current level, index of level in the tree (counting from 0),
+    /// number of internal nodes at the level (which equals the index of the first leaf at the level).
+    pub fn for_each_level<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
+        where F: FnMut(&[ValueType], u32, u32)  //values, level index, number of internal nodes = index of the first leaf at the level
     {
         let mut level_size = self.degree.as_u32();
         let mut value_index = 0usize;
         for level in 0u32..self.internal_nodes_count.len() as u32 {
             let internal_nodes = self.internal_nodes_count[level as usize];
             let leaves_count = level_size - internal_nodes;
-            for leaf_index in 0..leaves_count {
-                if let Some(value) = self.values.get(value_index) {
-                    f(value, level, internal_nodes, leaf_index);
-                } else {
-                    return;
-                }
-                value_index += 1;
+            let last_value_index = value_index + leaves_count as usize;
+            if self.values.len() <= last_value_index {
+                f(&self.values[value_index..], level, internal_nodes);
+                return;
+            } else {
+                f(&self.values[value_index..last_value_index], level, internal_nodes);
             }
-            //level_size = internal_nodes * self.tree_degree as u32;
-            //level_size = internal_nodes << self.bits_per_fragment;
+            value_index = last_value_index;
             level_size = self.degree * internal_nodes;
         }
+    }
+
+    /// Calls `f` for each leaf in the huffman tree.
+    /// Arguments of `f` are: value assigned to the leaf, level of leaf in the tree (counting from 0),
+    /// number of internal nodes at the level, index of leaf at the level.
+    pub fn for_each_leaf<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
+        where F: FnMut(&ValueType, u32, u32, u32)  //value: &ValueType, level: u32, internal_nodes: u32, leaf_index: u32
+    {
+        self.for_each_level(|values, level, internal_nodes| {
+            for (i, v) in values.iter().enumerate() {
+                f(v, level, internal_nodes, i as u32)
+            }
+        })
     }
 }
 
