@@ -1,43 +1,40 @@
-//! Tools to deal with codes.
+//! Tools to deal with codewords.
 
 use crate::TreeDegree;
 
-/// `Code` represents a code which consists of a number of `bits_per_fragment`-bits fragments.
-/// It is also an iterator over the code fragments.
+/// Represents a codeword.
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Default)]
 pub struct Code {
     /// Concatenated fragments of the codeword. The lowest bits contain the first fragment.
     /// It stores only few last fragments, and can represent the code with length > 32 bits, with zeroed few first fragments.
     pub bits: u32,
     /// Number of fragments.
-    pub fragments: u32,
-    // Size of a single code fragment, in bits.
-    //pub bits_per_fragment: u8
+    pub fragments: u32
 }
 
 impl Code {
-    /// Appends the `fragment` (that must be less than `fragment_size.tree_degree()`) to the end of `self`.
-    #[inline] pub fn push(&mut self, fragment: u32, fragment_size: impl TreeDegree) {
-        fragment_size.push_front(&mut self.bits, fragment)
+    /// Appends the `fragment` (that must be less than `degree.as_u32()`) to the end of `self`.
+    #[inline] pub fn push(&mut self, fragment: u32, degree: impl TreeDegree) {
+        degree.push_front(&mut self.bits, fragment)
     }
 
     /// Gets `fragment_nr`-th fragment from the end.
-    #[inline] pub fn get_r(&self, fragment_nr: u32, fragment_size: impl TreeDegree) -> u32 {
-        fragment_size.get_fragment(self.bits, fragment_nr)
+    #[inline] pub fn get_r(&self, fragment_nr: u32, degree: impl TreeDegree) -> u32 {
+        degree.get_fragment(self.bits, fragment_nr)
         //get_u32_fragment(self.bits, fragment_nr, self.bits_per_fragment)
         //(self.bits >> (self.bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << self.bits_per_fragment as u32) - 1)
     }
 
     /// Gets `fragment_nr`-th fragment.
-    #[inline] pub fn get(&self, fragment_nr: u32, fragment_size: impl TreeDegree) -> u32 {
-        fragment_size.get_fragment(self.bits, self.fragments - fragment_nr - 1)
+    #[inline] pub fn get(&self, fragment_nr: u32, degree: impl TreeDegree) -> u32 {
+        degree.get_fragment(self.bits, self.fragments - fragment_nr - 1)
     }
 
     /// Extracts and returns first, remaining code fragment.
-    pub fn extract_first(&mut self, fragment_size: impl TreeDegree) -> Option<u32> {
+    pub fn extract_first(&mut self, degree: impl TreeDegree) -> Option<u32> {
         (self.fragments != 0).then(|| {
             self.fragments -= 1;
-            self.get_r(self.fragments, fragment_size)
+            self.get_r(self.fragments, degree)
         })
 
         /*self.fragments -= 1;

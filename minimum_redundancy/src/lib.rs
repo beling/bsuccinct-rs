@@ -173,7 +173,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     }
 
     /// Writes `internal_nodes_count` to `output` as the following `internal_nodes_count.len()`, VByte values:
-    /// `internal_nodes_count.len()-1` (=l), `internal_nodes_count[0]`, `internal_nodes_count[1]`, ..., `internal_nodes_count[l-1]`
+    /// `internal_nodes_count.len()-1` (=l), `internal_nodes_count[0]`, `internal_nodes_count[1]`, ..., `internal_nodes_count[l]`
     pub fn write_internal_nodes_count(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
         let l = self.internal_nodes_count.len()-1;
         vbyte_write(output, l as u32)?;
@@ -362,14 +362,10 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
         self.shift += fragment;
         let internal_nodes_count = self.internal_nodes_count();
         return if self.shift < internal_nodes_count {    // internal node, go level down
-            //self.shift *= self.coding.tree_degree as u32;
-            //self.shift <<= self.coding.bits_per_fragment;
             self.shift = self.coding.degree * self.shift;
             self.first_leaf_nr += self.level_size - internal_nodes_count;    // increase by number of leafs at current level
-            //self.level_size = internal_nodes_count * self.coding.tree_degree as u32; // size of the next level
-            //self.level_size = internal_nodes_count << self.coding.bits_per_fragment; // size of the next level
             self.level_size = self.coding.degree * internal_nodes_count;
-                self.level += 1;
+            self.level += 1;
             DecodingResult::Incomplete
         } else {    // leaf, return value or Invalid
             self.coding.values.get((self.first_leaf_nr + self.shift - internal_nodes_count) as usize).into()
