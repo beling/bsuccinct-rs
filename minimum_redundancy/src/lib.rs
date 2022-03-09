@@ -261,9 +261,8 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             if self.values.len() <= last_value_index {
                 f(&self.values[value_index..], level, internal_nodes);
                 return;
-            } else {
-                f(&self.values[value_index..last_value_index], level, internal_nodes);
             }
+            f(&self.values[value_index..last_value_index], level, internal_nodes);
             value_index = last_value_index;
             level_size = self.degree * internal_nodes;
         }
