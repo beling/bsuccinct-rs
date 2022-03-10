@@ -245,13 +245,16 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     }
 
     /// Returns iterator over value-codeword pairs.
-    pub fn codes(&self) -> impl Iterator<Item=(&ValueType, Code)> {
+    pub fn codes(&self) -> CodesIterator<'_, ValueType, D> {
+        CodesIterator::<'_, ValueType, D>::new(&self)
+    }
+    /*pub fn codes(&self) -> impl Iterator<Item=(&ValueType, Code)> {
         self.levels().flat_map(|(values, first_code_bits, fragments)|
             values.iter().enumerate().map(move |(i, v)| {
                 (v, Code{ bits: first_code_bits + i as u32, fragments })
             })
         )
-    }
+    }*/
 }
 
 impl<ValueType: Hash + Eq, D: TreeDegree> Coding<ValueType, D> {
@@ -310,7 +313,7 @@ pub struct LevelIterator<'coding, ValueType, D> {
     coding: &'coding Coding<ValueType, D>,
     /// Index of the last value exposed.
     last_value_index: usize,
-    /// Size of the whole current level.
+    /// Size of the whole current level, sum of numbers of: internal nodes, leafs, unused indices (only at the last level)
     level_size: u32,
     /// Index of level of the tree, which is equal to the length of the codewords assigned to leafs at this level.
     level: u32
@@ -330,6 +333,12 @@ impl<'coding, ValueType, D: TreeDegree> LevelIterator<'coding, ValueType, D> {
 
 impl<'coding, ValueType, D: TreeDegree> FusedIterator for LevelIterator<'coding, ValueType, D> {}
 
+impl<'coding, ValueType, D: TreeDegree> ExactSizeIterator for LevelIterator<'coding, ValueType, D> {
+    fn len(&self) -> usize {
+        self.coding.internal_nodes_count.len() - self.level as usize
+    }
+}
+
 impl<'coding, ValueType, D: TreeDegree> Iterator for LevelIterator<'coding, ValueType, D> {
     type Item = (&'coding [ValueType], u32, u32);
 
@@ -343,6 +352,57 @@ impl<'coding, ValueType, D: TreeDegree> Iterator for LevelIterator<'coding, Valu
             self.level_size = self.coding.degree * internal_nodes;
             (&self.coding.values[value_index..self.last_value_index], internal_nodes, self.level)
         })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct CodesIterator<'coding, ValueType, D> {
+    level_iterator: LevelIterator<'coding, ValueType, D>,
+    value_index: usize,
+    bits: u32,
+}
+
+impl<'coding, ValueType, D: TreeDegree> CodesIterator<'coding, ValueType, D> {
+    pub fn new(coding: &'coding Coding<ValueType, D>) -> Self {
+        Self {
+            level_iterator: LevelIterator::new(coding),
+            value_index: 0,
+            bits: 0
+        }
+    }
+}
+
+impl<'coding, ValueType, D: TreeDegree> FusedIterator for CodesIterator<'coding, ValueType, D> {}
+
+impl<'coding, ValueType, D: TreeDegree> ExactSizeIterator for CodesIterator<'coding, ValueType, D> {
+    fn len(&self) -> usize {
+        self.level_iterator.coding.values.len() - self.value_index
+    }
+}
+
+impl<'coding, ValueType, D: TreeDegree> Iterator for CodesIterator<'coding, ValueType, D> {
+    type Item = (&'coding ValueType, Code);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.value_index == self.level_iterator.last_value_index {
+            let (_, first_code_bits, _) = self.level_iterator.next()?;
+            self.bits = first_code_bits;
+        }
+        let result = (&self.level_iterator.coding.values[self.value_index],
+                          Code{ bits: self.bits, fragments: self.level_iterator.level });
+        self.value_index += 1;
+        self.bits += 1;
+        Some(result)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
     }
 }
 
@@ -488,6 +548,9 @@ mod tests {
         let mut decoder_for_c = huffman.decoder();
         assert_eq!(decoder_for_c.consume(0), DecodingResult::Incomplete);
         assert_eq!(decoder_for_c.consume(1), DecodingResult::Value(&'c'));
+        assert_eq!(huffman.codes().len(), 3);
+        assert_eq!(huffman.levels().len(), 2);
+        assert_eq!(huffman.levels().map(|(v, _, _)| v.len()).collect::<Vec<_>>(), &[1, 2]);
         test_read_write(&huffman);
     }
 
@@ -513,6 +576,9 @@ mod tests {
         assert_eq!(decoder_for_c.consume(2), DecodingResult::Value(&'c'));
         let mut decoder_for_invalid = huffman.decoder();
         assert_eq!(decoder_for_invalid.consume(3), DecodingResult::Invalid);
+        assert_eq!(huffman.codes().len(), 3);
+        assert_eq!(huffman.levels().len(), 1);
+        assert_eq!(huffman.levels().map(|(v, _, _)| v.len()).collect::<Vec<_>>(), &[3]);
         test_read_write(&huffman);
     }
 
@@ -559,6 +625,9 @@ mod tests {
         let mut decoder_for_f = huffman.decoder();
         assert_eq!(decoder_for_f.consume(1), DecodingResult::Incomplete);
         assert_eq!(decoder_for_f.consume(1), DecodingResult::Value(&'f'));
+        assert_eq!(huffman.codes().len(), 6);
+        assert_eq!(huffman.levels().len(), 4);
+        assert_eq!(huffman.levels().map(|(v, _, _)| v.len()).collect::<Vec<_>>(), &[0, 3, 1, 2]);
         test_read_write(&huffman);
     }
 
@@ -599,6 +668,9 @@ mod tests {
         assert_eq!(decoder_for_e.consume(2), DecodingResult::Value(&'e'));
         let mut decoder_for_f = huffman.decoder();
         assert_eq!(decoder_for_f.consume(3), DecodingResult::Value(&'f'));
+        assert_eq!(huffman.codes().len(), 6);
+        assert_eq!(huffman.levels().len(), 2);
+        assert_eq!(huffman.levels().map(|(v, _, _)| v.len()).collect::<Vec<_>>(), &[3, 3]);
         test_read_write(&huffman);
     }
 
@@ -636,6 +708,9 @@ mod tests {
         assert_eq!(decoder_for_d.consume(1), DecodingResult::Value(&'d'));
         let mut decoder_for_e = huffman.decoder();
         assert_eq!(decoder_for_e.consume(2), DecodingResult::Value(&'e'));
+        assert_eq!(huffman.codes().len(), 5);
+        assert_eq!(huffman.levels().len(), 2);
+        assert_eq!(huffman.levels().map(|(v, _, _)| v.len()).collect::<Vec<_>>(), &[2, 3]);
         test_read_write(&huffman);
     }
 }
