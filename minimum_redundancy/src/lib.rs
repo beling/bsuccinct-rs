@@ -5,6 +5,7 @@ use std::hash::Hash;
 use co_sort::{Permutation, co_sort};
 
 use std::borrow::Borrow;
+use std::iter::FusedIterator;
 use dyn_size_of::GetSize;
 
 mod code;
@@ -15,6 +16,8 @@ mod degree;
 pub use degree::*;
 mod io;
 pub use io::*;
+
+
 
 /// Succinct representation of minimum-redundancy coding
 /// (huffman tree of some degree in the canonical form).
@@ -246,39 +249,20 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         })
     }
 
-    /// Calls `f` for each level in the huffman tree.
-    /// Arguments of `f` are: values assigned to the leafs at the current level, index of level in the tree (counting from 0),
-    /// number of internal nodes at the level (which equals the index of the first leaf at the level).
-    pub fn for_each_level<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
-        where F: FnMut(&[ValueType], u32, u32)  //values, level index, number of internal nodes = index of the first leaf at the level
-    {
-        let mut level_size = self.degree.as_u32();
-        let mut value_index = 0usize;
-        for level in 0u32..self.internal_nodes_count.len() as u32 {
-            let internal_nodes = self.internal_nodes_count[level as usize];
-            let leaves_count = level_size - internal_nodes;
-            let last_value_index = value_index + leaves_count as usize;
-            if self.values.len() <= last_value_index {
-                f(&self.values[value_index..], level, internal_nodes);
-                return;
-            }
-            f(&self.values[value_index..last_value_index], level, internal_nodes);
-            value_index = last_value_index;
-            level_size = self.degree * internal_nodes;
-        }
+    #[inline] pub fn levels(&self) -> LevelIterator<'_, ValueType, D> {
+        LevelIterator::<'_, ValueType, D>::new(&self)
     }
 
-    /// Calls `f` for each leaf in the huffman tree.
-    /// Arguments of `f` are: value assigned to the leaf, level of leaf in the tree (counting from 0),
-    /// number of internal nodes at the level, index of leaf at the level.
-    pub fn for_each_leaf<F>(&self, mut f: F)    // TODO reimplement to be a normal iterator
-        where F: FnMut(&ValueType, u32, u32, u32)  //value: &ValueType, level: u32, internal_nodes: u32, leaf_index: u32
+    /// Calls `f` for each codeword.
+    /// Arguments of `f` are: value assigned to the codeword, codeword.
+    pub fn for_each_code<F>(&self, mut f: F)
+        where F: FnMut(&ValueType, Code)  //value: &ValueType, codeword bits, codeword length
     {
-        self.for_each_level(|values, level, internal_nodes| {
+        for (values, fragments, internal_nodes) in self.levels() {
             for (i, v) in values.iter().enumerate() {
-                f(v, level, internal_nodes, i as u32)
+                f(v, Code{ bits: internal_nodes + i as u32, fragments })
             }
-        })
+        }
     }
 }
 
@@ -287,7 +271,7 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
     /// Returns a map from values to the lengths of their codes.
     pub fn fragment_counts_for_values(&self) -> HashMap<ValueType, u32> {
         let mut result = HashMap::<ValueType, u32>::with_capacity(self.values.len());
-        self.for_each_leaf(|value, level, _, _| { result.insert(value.clone(), level + 1); });
+        self.for_each_code(|value, code| { result.insert(value.clone(), code.fragments); });
         return result;
     }
 
@@ -295,11 +279,58 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
     pub fn codes_for_values(&self) -> HashMap<ValueType, Code> {
         // fill map for encoding:
         let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
-        self.for_each_leaf(|value, level, internal_nodes, leaf_index| {
-            result.insert(value.clone(),
-                          Code { bits: internal_nodes + leaf_index, fragments: level + 1 });
+        self.for_each_code(|value, code| {
+            result.insert(value.clone(), code);
         });
         return result;
+    }
+}
+
+/// Iterator over the levels of the huffman tree.
+///
+/// For each level of the tree, it exposes the tuple that consists of:
+/// - values assigned to the leafs at the current level,
+/// - index of the level in the tree, which is equal to the length of the codewords assigned to leafs at the level,
+/// - number of internal nodes at the level, which equals the bits of codeword assigned to the first leaf at the level.
+#[derive(Copy, Clone)]
+pub struct LevelIterator<'coding, ValueType, D> {
+    /// Huffman tree to iterate over.
+    coding: &'coding Coding<ValueType, D>,
+    /// Index of the last value exposed.
+    last_value_index: usize,
+    /// Size of the whole current level.
+    level_size: u32,
+    /// Index of level of the tree, which is equal to the length of the codewords assigned to leafs at this level.
+    level: u32
+}
+
+impl<'coding, ValueType, D: TreeDegree> LevelIterator<'coding, ValueType, D> {
+    /// Returns iterator over levels of `coding`.
+    pub fn new(coding: &'coding Coding<ValueType, D>) -> Self {
+        Self {
+            coding,
+            level_size: coding.degree.as_u32(),
+            last_value_index: 0,
+            level: 0
+        }
+    }
+}
+
+impl<'coding, ValueType, D: TreeDegree> FusedIterator for LevelIterator<'coding, ValueType, D> {}
+
+impl<'coding, ValueType, D: TreeDegree> Iterator for LevelIterator<'coding, ValueType, D> {
+    type Item = (&'coding [ValueType], u32, u32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        (self.last_value_index != self.coding.values.len()).then(|| {
+            let value_index = self.last_value_index;
+            let internal_nodes = self.coding.internal_nodes_count[self.level as usize];
+            self.level += 1;
+            let leaves_count = self.level_size - internal_nodes;
+            self.last_value_index = (value_index + leaves_count as usize).min(self.coding.values.len());
+            self.level_size = self.coding.degree * internal_nodes;
+            (&self.coding.values[value_index..self.last_value_index], self.level, internal_nodes)
+        })
     }
 }
 
