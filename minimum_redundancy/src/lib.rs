@@ -68,17 +68,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     /// The algorithm runs in *O(L)* time and *O(1)* memory,
     /// where *L* is the number of fragments in the longest codeword.
     pub fn total_fragments_count(&self) -> usize {
-        let mut values_to_count = self.values.len();
-        let mut result = 0;
-        let mut prev_internal = 1;
-        for (level, curr_internal) in self.internal_nodes_count.iter().enumerate() {
-            let curr_total = self.degree * prev_internal;
-            prev_internal = *curr_internal;
-            let curr_leaf = ((curr_total - *curr_internal) as usize).min(values_to_count);
-            values_to_count -= curr_leaf;
-            result += curr_leaf * (level+1);
-        }
-        result
+        self.levels().map(|(values, _, fragments)| values.len()*fragments as usize).sum()
     }
 
     /// Returns decoder that allows for decoding a value.
@@ -249,6 +239,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         })
     }
 
+    /// Return iterator over the levels of the huffman tree.
     #[inline] pub fn levels(&self) -> LevelIterator<'_, ValueType, D> {
         LevelIterator::<'_, ValueType, D>::new(&self)
     }
@@ -258,9 +249,9 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     pub fn for_each_code<F>(&self, mut f: F)
         where F: FnMut(&ValueType, Code)  //value: &ValueType, codeword bits, codeword length
     {
-        for (values, fragments, internal_nodes) in self.levels() {
+        for (values, first_code_bits, fragments) in self.levels() {
             for (i, v) in values.iter().enumerate() {
-                f(v, Code{ bits: internal_nodes + i as u32, fragments })
+                f(v, Code{ bits: first_code_bits + i as u32, fragments })
             }
         }
     }
@@ -290,8 +281,8 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
 ///
 /// For each level of the tree, it exposes the tuple that consists of:
 /// - values assigned to the leafs at the current level,
-/// - index of the level in the tree, which is equal to the length of the codewords assigned to leafs at the level,
-/// - number of internal nodes at the level, which equals the bits of codeword assigned to the first leaf at the level.
+/// - number of internal nodes at the level, which equals the bits of codeword assigned to the first leaf at the level,
+/// - index of the level in the tree, which equals to the length of the codewords assigned to leafs at the level.
 #[derive(Copy, Clone)]
 pub struct LevelIterator<'coding, ValueType, D> {
     /// Huffman tree to iterate over.
@@ -329,7 +320,7 @@ impl<'coding, ValueType, D: TreeDegree> Iterator for LevelIterator<'coding, Valu
             let leaves_count = self.level_size - internal_nodes;
             self.last_value_index = (value_index + leaves_count as usize).min(self.coding.values.len());
             self.level_size = self.coding.degree * internal_nodes;
-            (&self.coding.values[value_index..self.last_value_index], self.level, internal_nodes)
+            (&self.coding.values[value_index..self.last_value_index], internal_nodes, self.level)
         })
     }
 }
