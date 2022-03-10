@@ -2,21 +2,24 @@
 
 use std::collections::HashMap;
 use std::hash::Hash;
-use co_sort::{Permutation, co_sort};
+use co_sort::{co_sort, Permutation};
 
 use std::borrow::Borrow;
-use std::iter::FusedIterator;
 use dyn_size_of::GetSize;
 
 mod code;
 pub use code::Code;
+
 mod frequencies;
 pub use frequencies::Frequencies;
 mod degree;
 pub use degree::*;
 mod io;
 pub use io::*;
-
+mod decoder;
+pub use decoder::Decoder;
+mod iterators;
+pub use iterators::{CodesIterator, LevelIterator};
 
 
 /// Succinct representation of minimum-redundancy coding
@@ -301,111 +304,6 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
     }
 }
 
-/// Iterator over the levels of the huffman tree.
-///
-/// For each level of the tree, it exposes the tuple that consists of:
-/// - values assigned to the leafs at the current level,
-/// - number of internal nodes at the level, which equals the bits of codeword assigned to the first leaf at the level,
-/// - index of the level in the tree, which equals to the length of the codewords assigned to leafs at the level.
-#[derive(Copy, Clone)]
-pub struct LevelIterator<'coding, ValueType, D> {
-    /// Huffman tree to iterate over.
-    coding: &'coding Coding<ValueType, D>,
-    /// Index of the last value exposed.
-    last_value_index: usize,
-    /// Size of the whole current level, sum of numbers of: internal nodes, leafs, unused indices (only at the last level)
-    level_size: u32,
-    /// Index of level of the tree, which is equal to the length of the codewords assigned to leafs at this level.
-    level: u32
-}
-
-impl<'coding, ValueType, D: TreeDegree> LevelIterator<'coding, ValueType, D> {
-    /// Returns iterator over levels of `coding`.
-    pub fn new(coding: &'coding Coding<ValueType, D>) -> Self {
-        Self {
-            coding,
-            level_size: coding.degree.as_u32(),
-            last_value_index: 0,
-            level: 0
-        }
-    }
-}
-
-impl<'coding, ValueType, D: TreeDegree> FusedIterator for LevelIterator<'coding, ValueType, D> {}
-
-impl<'coding, ValueType, D: TreeDegree> ExactSizeIterator for LevelIterator<'coding, ValueType, D> {
-    fn len(&self) -> usize {
-        self.coding.internal_nodes_count.len() - self.level as usize
-    }
-}
-
-impl<'coding, ValueType, D: TreeDegree> Iterator for LevelIterator<'coding, ValueType, D> {
-    type Item = (&'coding [ValueType], u32, u32);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        (self.last_value_index != self.coding.values.len()).then(|| {
-            let value_index = self.last_value_index;
-            let internal_nodes = self.coding.internal_nodes_count[self.level as usize];
-            self.level += 1;
-            let leaves_count = self.level_size - internal_nodes;
-            self.last_value_index = (value_index + leaves_count as usize).min(self.coding.values.len());
-            self.level_size = self.coding.degree * internal_nodes;
-            (&self.coding.values[value_index..self.last_value_index], internal_nodes, self.level)
-        })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct CodesIterator<'coding, ValueType, D> {
-    level_iterator: LevelIterator<'coding, ValueType, D>,
-    value_index: usize,
-    bits: u32,
-}
-
-impl<'coding, ValueType, D: TreeDegree> CodesIterator<'coding, ValueType, D> {
-    pub fn new(coding: &'coding Coding<ValueType, D>) -> Self {
-        Self {
-            level_iterator: LevelIterator::new(coding),
-            value_index: 0,
-            bits: 0
-        }
-    }
-}
-
-impl<'coding, ValueType, D: TreeDegree> FusedIterator for CodesIterator<'coding, ValueType, D> {}
-
-impl<'coding, ValueType, D: TreeDegree> ExactSizeIterator for CodesIterator<'coding, ValueType, D> {
-    fn len(&self) -> usize {
-        self.level_iterator.coding.values.len() - self.value_index
-    }
-}
-
-impl<'coding, ValueType, D: TreeDegree> Iterator for CodesIterator<'coding, ValueType, D> {
-    type Item = (&'coding ValueType, Code);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.value_index == self.level_iterator.last_value_index {
-            let (_, first_code_bits, _) = self.level_iterator.next()?;
-            self.bits = first_code_bits;
-        }
-        let result = (&self.level_iterator.coding.values[self.value_index],
-                          Code{ bits: self.bits, fragments: self.level_iterator.level });
-        self.value_index += 1;
-        self.bits += 1;
-        Some(result)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-}
-
 /// Result of fragment decoding returned be `consume` method of `Decoder`.
 #[derive(PartialOrd, Ord, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum DecodingResult<T> {
@@ -421,79 +319,7 @@ impl<T> From<Option<T>> for DecodingResult<T> {
     #[inline(always)] fn from(option: Option<T>) -> Self {
         if let Some(v) = option { DecodingResult::Value(v) } else { DecodingResult::Invalid }
     }
-}
-
-/// Decoder that decodes a value for given code, consuming one codeword fragment at a time.
-///
-/// Time complexity of decoding the whole code is:
-/// - pessimistic: *O(length of the longest code)*
-/// - expected: *O(log(number of values, i.e. length of coding.values))*
-/// - optimistic: *O(1)*
-///
-/// Memory complexity: *O(1)*
-pub struct Decoder<'huff, ValueType, D> {
-    coding: &'huff Coding<ValueType, D>,
-    // shift+fragment is a current position (node number, counting from the left) at current level
-    shift: u32,
-    // number of leafs at all previous levels
-    first_leaf_nr: u32,
-    // current level size = number of: internal nodes + leaves
-    level_size: u32,
-    // number of the current level
-    level: u8
-}   // Note: Brodnik describes also faster decoder that runs in expected loglog(length of the longest code) expected time, but requires all codeword bits in advance.
-
-impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
-    /// Constructs decoder for given `coding`.
-    pub fn new(coding: &'huff Coding<ValueType, D>) -> Self {
-        Self {
-            coding,
-            shift: 0,
-            first_leaf_nr: 0,
-            level_size: coding.degree.as_u32(),
-            level: 0
-        }
-    }
-
-    /// Consumes a `fragment` of the codeword and returns:
-    /// - a value if the given `fragment` finishes the valid codeword;
-    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
-    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for bits per fragment > 1).
-    ///
-    /// Result is undefined if `fragment` exceeds `tree_degree`.
-    pub fn consume(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
-        self.shift += fragment;
-        let internal_nodes_count = self.internal_nodes_count();
-        return if self.shift < internal_nodes_count {    // internal node, go level down
-            self.shift = self.coding.degree * self.shift;
-            self.first_leaf_nr += self.level_size - internal_nodes_count;    // increase by number of leafs at current level
-            self.level_size = self.coding.degree * internal_nodes_count;
-            self.level += 1;
-            DecodingResult::Incomplete
-        } else {    // leaf, return value or Invalid
-            self.coding.values.get((self.first_leaf_nr + self.shift - internal_nodes_count) as usize).into()
-            //self.coding.values.get((self.first_leaf_nr + self.level_size + self.shift) as usize).into()
-        }
-    }
-
-    /// Consumes a `fragment` of the codeword and returns:
-    /// - a value if the given `fragment` finishes the valid codeword;
-    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
-    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for `degree` greater than 2)
-    ///     or `fragment` is not less than `degree`.
-    #[inline(always)] pub fn consume_checked(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
-        if fragment < self.coding.degree.as_u32() {
-            self.consume(fragment)
-        } else {
-            DecodingResult::Invalid
-        }
-    }
-
-    /// Returns number of internal (i.e. non-leafs) nodes at the current level of the tree.
-    #[inline(always)] fn internal_nodes_count(&self) -> u32 {
-        self.coding.internal_nodes_count[self.level as usize]
-    }
-}
+}    // Note: Brodnik describes also faster decoder that runs in expected loglog(length of the longest code) expected time, but requires all codeword bits in advance.
 
 /// Heuristically calculates bits per fragment that gives about constant length average code size.
 /// `entropy` should equals to entropy or a bit less, e.g. entropy minus `0.2`
