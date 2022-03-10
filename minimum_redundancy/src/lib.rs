@@ -244,35 +244,56 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         LevelIterator::<'_, ValueType, D>::new(&self)
     }
 
-    /// Calls `f` for each codeword.
-    /// Arguments of `f` are: value assigned to the codeword, codeword.
-    pub fn for_each_code<F>(&self, mut f: F)
-        where F: FnMut(&ValueType, Code)  //value: &ValueType, codeword bits, codeword length
-    {
-        for (values, first_code_bits, fragments) in self.levels() {
-            for (i, v) in values.iter().enumerate() {
-                f(v, Code{ bits: first_code_bits + i as u32, fragments })
-            }
+    /// Returns iterator over value-codeword pairs.
+    pub fn codes(&self) -> impl Iterator<Item=(&ValueType, Code)> {
+        self.levels().flat_map(|(values, first_code_bits, fragments)|
+            values.iter().enumerate().map(move |(i, v)| {
+                (v, Code{ bits: first_code_bits + i as u32, fragments })
+            })
+        )
+    }
+}
+
+impl<ValueType: Hash + Eq, D: TreeDegree> Coding<ValueType, D> {
+
+    /// Returns a map from (references to) values to the lengths of their codes.
+    pub fn code_lengths_ref(&self) -> HashMap<&ValueType, u32> {
+        let mut result = HashMap::<&ValueType, u32>::with_capacity(self.values.len());
+        for (value, code) in self.codes() {
+            result.insert(value, code.fragments);
         }
+        return result;
+    }
+
+    /// Returns a map from (references to) values to their codes.
+    pub fn codes_for_values_ref(&self) -> HashMap<&ValueType, Code> {
+        // fill map for encoding:
+        let mut result = HashMap::<&ValueType, Code>::with_capacity(self.values.len());
+        for (value, code) in self.codes() {
+            result.insert(value, code);
+        };
+        return result;
     }
 }
 
 impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
 
-    /// Returns a map from values to the lengths of their codes.
-    pub fn fragment_counts_for_values(&self) -> HashMap<ValueType, u32> {
+    /// Returns a map from (clones of) values to the lengths of their codes.
+    pub fn code_lengths(&self) -> HashMap<ValueType, u32> {
         let mut result = HashMap::<ValueType, u32>::with_capacity(self.values.len());
-        self.for_each_code(|value, code| { result.insert(value.clone(), code.fragments); });
+        for (value, code) in self.codes() {
+            result.insert(value.clone(), code.fragments);
+        }
         return result;
     }
 
-    /// Returns a map from values to their codes.
+    /// Returns a map from (clones of) values to their codes.
     pub fn codes_for_values(&self) -> HashMap<ValueType, Code> {
         // fill map for encoding:
         let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
-        self.for_each_code(|value, code| {
+        for (value, code) in self.codes() {
             result.insert(value.clone(), code);
-        });
+        };
         return result;
     }
 }
@@ -399,7 +420,7 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
     /// - a value if the given `fragment` finishes the valid codeword;
     /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
     /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for `degree` greater than 2)
-    ///     or `fragment` exceeds `degree`.
+    ///     or `fragment` is not less than `degree`.
     #[inline(always)] pub fn consume_checked(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
         if fragment < self.coding.degree.as_u32() {
             self.consume(fragment)
