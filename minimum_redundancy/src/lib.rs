@@ -24,7 +24,7 @@ pub use iterators::{CodesIterator, LevelIterator};
 
 /// Succinct representation of minimum-redundancy coding
 /// (huffman tree of some degree in the canonical form).
-pub struct Coding<ValueType, D> {
+pub struct Coding<ValueType, D = BitsPerFragment> {
     /// Values, from the most frequent to the least.
     pub values: Box<[ValueType]>,
     /// Number of the internal nodes of each tree level. The root is not counted.

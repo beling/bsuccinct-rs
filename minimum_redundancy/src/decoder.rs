@@ -1,4 +1,4 @@
-use crate::{Coding, DecodingResult, TreeDegree};
+use crate::{BitsPerFragment, Coding, DecodingResult, TreeDegree};
 
 /// Decoder that decodes a value for given code, consuming one codeword fragment at a time.
 ///
@@ -8,7 +8,7 @@ use crate::{Coding, DecodingResult, TreeDegree};
 /// - optimistic: *O(1)*
 ///
 /// Memory complexity: *O(1)*
-pub struct Decoder<'huff, ValueType, D> {
+pub struct Decoder<'huff, ValueType, D = BitsPerFragment> {
     coding: &'huff Coding<ValueType, D>,
     /// shift+fragment is a current position (node number, counting from the left) at current level.
     shift: u32,
