@@ -43,7 +43,7 @@ pub enum ValueSize<ValueType> {
     Variable(Box<dyn Fn(&ValueType)->usize>)
 }
 
-impl<ValueType: GetSize, D> dyn_size_of::GetSize for Coding<ValueType, D> {
+impl<ValueType: GetSize, D> GetSize for Coding<ValueType, D> {
     fn size_bytes_dyn(&self) -> usize {
         self.values.size_bytes_dyn() + self.internal_nodes_count.size_bytes_dyn()
     }
