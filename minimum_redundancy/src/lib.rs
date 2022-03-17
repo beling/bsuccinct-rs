@@ -8,7 +8,7 @@ use std::borrow::Borrow;
 use dyn_size_of::GetSize;
 
 mod code;
-pub use code::Code;
+pub use code::{Code, CodeIterator};
 
 mod frequencies;
 pub use frequencies::Frequencies;

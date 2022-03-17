@@ -26,9 +26,9 @@ let huffman = Coding::from_frequencies(BitsPerFragment(1), hashmap!('a' => 100, 
 // bc
 // and the following code assignment: a -> 1, b -> 00, c -> 01
 assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{ bits: 0b1, fragments: 1 },
-                'b' => Code{ bits: 0b00, fragments: 2 },
-                'c' => Code{ bits: 0b01, fragments: 2 }
+                'a' => Code{ content: 0b1, len: 1 },
+                'b' => Code{ content: 0b00, len: 2 },
+                'c' => Code{ content: 0b01, len: 2 }
                ));
 let mut decoder_for_a = huffman.decoder();
 assert_eq!(decoder_for_a.consume(1), DecodingResult::Value(&'a'));
