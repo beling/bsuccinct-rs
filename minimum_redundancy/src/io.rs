@@ -20,7 +20,7 @@ macro_rules! write_int {
 }
 
 /// Reads primitive (integer) from `input` (which implements `std::io::Read`);
-/// in little-endian bytes order, returning `std::io::Read`.
+/// in little-endian bytes order, returning `std::io::Result`.
 ///
 /// # Example
 ///
