@@ -65,6 +65,7 @@ impl Code {
     }
 }
 
+/// Iterator over the fragments of code.
 pub struct CodeIterator<D: TreeDegree> {
     code: Code,
     degree: D
