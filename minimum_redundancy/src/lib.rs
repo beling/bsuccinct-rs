@@ -36,11 +36,11 @@ pub struct Coding<ValueType, D = BitsPerFragment> {
 
 /// Points the number of bytes needed to store value of the type `ValueType`.
 /// This number of bytes can be constant or can depend on the value.
-pub enum ValueSize<ValueType> {
-    /// Holds constant number of bytes needed to store value.
+pub enum ValueSize<'v, ValueType> {
+    /// Holds constant number of bytes needed to store each value.
     Const(usize),
     /// Holds callback that shows the number of bytes needed to store given value.
-    Variable(Box<dyn Fn(&ValueType)->usize>)
+    Variable(&'v dyn Fn(&ValueType)->usize)
 }
 
 impl<ValueType: GetSize, D> GetSize for Coding<ValueType, D> {
@@ -191,7 +191,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         vbyte_len(self.values.len() as u32) as usize +
             match value_size {
                 ValueSize::Const(bytes_per_value) => { bytes_per_value*self.values.len() }
-                ValueSize::Variable(f) => { self.values.iter().map(|v| f(v)).sum::<usize>() }
+                ValueSize::Variable(f) => { self.values.iter().map(f).sum::<usize>() }
             }
     }
 
@@ -345,6 +345,7 @@ mod tests {
         buff.clear();
         huffman.write(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
         assert_eq!(buff.len(), huffman.write_size_bytes(ValueSize::Const(1)));
+        assert_eq!(buff.len(), huffman.write_size_bytes(ValueSize::Variable(&|_| 1)));
         let read = Coding::<_, FS>::read(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap();
         assert_eq!(huffman.degree.as_u32(), read.degree.as_u32());
         assert_eq!(huffman.values, read.values);
