@@ -98,7 +98,7 @@ impl<'coding, ValueType, D: TreeDegree> Iterator for CodesIterator<'coding, Valu
             self.bits = first_code_bits;
         }
         let result = (&self.level_iterator.coding.values[self.value_index],
-                          Code{ bits: self.bits, fragments: self.level_iterator.level });
+                          Code{ content: self.bits, len: self.level_iterator.level });
         self.value_index += 1;
         self.bits += 1;
         Some(result)

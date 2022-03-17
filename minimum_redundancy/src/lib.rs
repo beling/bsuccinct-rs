@@ -266,7 +266,7 @@ impl<ValueType: Hash + Eq, D: TreeDegree> Coding<ValueType, D> {
     pub fn code_lengths_ref(&self) -> HashMap<&ValueType, u32> {
         let mut result = HashMap::<&ValueType, u32>::with_capacity(self.values.len());
         for (value, code) in self.codes() {
-            result.insert(value, code.fragments);
+            result.insert(value, code.len);
         }
         return result;
     }
@@ -288,7 +288,7 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
     pub fn code_lengths(&self) -> HashMap<ValueType, u32> {
         let mut result = HashMap::<ValueType, u32>::with_capacity(self.values.len());
         for (value, code) in self.codes() {
-            result.insert(value.clone(), code.fragments);
+            result.insert(value.clone(), code.len);
         }
         return result;
     }
@@ -362,9 +362,9 @@ mod tests {
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{ bits: 0b1, fragments: 1 },
-                'b' => Code{ bits: 0b00, fragments: 2 },
-                'c' => Code{ bits: 0b01, fragments: 2 }
+                'a' => Code{ content: 0b1, len: 1 },
+                'b' => Code{ content: 0b00, len: 2 },
+                'c' => Code{ content: 0b01, len: 2 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(1), DecodingResult::Value(&'a'));
@@ -390,9 +390,9 @@ mod tests {
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{ bits: 0, fragments: 1 },
-                'b' => Code{ bits: 1, fragments: 1 },
-                'c' => Code{ bits: 2, fragments: 1 }
+                'a' => Code{ content: 0, len: 1 },
+                'b' => Code{ content: 1, len: 1 },
+                'c' => Code{ content: 2, len: 1 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Value(&'a'));
@@ -421,12 +421,12 @@ mod tests {
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [2, 1, 1, 0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0b001, fragments: 3 },
-                'b' => Code{bits: 0b0000, fragments: 4 },
-                'c' => Code{bits: 0b0001, fragments: 4 },
-                'd' => Code{bits: 0b01, fragments: 2 },
-                'e' => Code{bits: 0b10, fragments: 2 },
-                'f' => Code{bits: 0b11, fragments: 2 }
+                'a' => Code{content: 0b001, len: 3 },
+                'b' => Code{content: 0b0000, len: 4 },
+                'c' => Code{content: 0b0001, len: 4 },
+                'd' => Code{content: 0b01, len: 2 },
+                'e' => Code{content: 0b10, len: 2 },
+                'f' => Code{content: 0b11, len: 2 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);
@@ -469,12 +469,12 @@ mod tests {
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0b00_00, fragments: 2 },
-                'b' => Code{bits: 0b00_01, fragments: 2 },
-                'c' => Code{bits: 0b00_10, fragments: 2 },
-                'd' => Code{bits: 0b01, fragments: 1 },
-                'e' => Code{bits: 0b10, fragments: 1 },
-                'f' => Code{bits: 0b11, fragments: 1 }
+                'a' => Code{content: 0b00_00, len: 2 },
+                'b' => Code{content: 0b00_01, len: 2 },
+                'c' => Code{content: 0b00_10, len: 2 },
+                'd' => Code{content: 0b01, len: 1 },
+                'e' => Code{content: 0b10, len: 1 },
+                'f' => Code{content: 0b11, len: 1 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);
@@ -512,11 +512,11 @@ mod tests {
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
         assert_eq!(huffman.codes_for_values(), hashmap!(
-                'a' => Code{bits: 0+0, fragments: 2 },
-                'b' => Code{bits: 0+1, fragments: 2 },
-                'c' => Code{bits: 0+2, fragments: 2 },
-                'd' => Code{bits: 1, fragments: 1 },
-                'e' => Code{bits: 2, fragments: 1 }
+                'a' => Code{content: 0+0, len: 2 },
+                'b' => Code{content: 0+1, len: 2 },
+                'c' => Code{content: 0+2, len: 2 },
+                'd' => Code{content: 1, len: 1 },
+                'e' => Code{content: 2, len: 1 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);
