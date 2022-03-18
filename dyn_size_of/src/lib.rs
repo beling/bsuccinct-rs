@@ -51,6 +51,14 @@ impl <T: GetSize> GetSize for Box<T> {
     impl_getsize_methods_for_pointer!();
 }
 
+impl <T: GetSize> GetSize for ::std::rc::Rc<T> {
+    fn size_bytes_dyn(&self) -> ::std::primitive::usize {
+        // size of T + size of strong and weak reference counters
+        ::std::ops::Deref::deref(self).size_bytes() + 2*::std::mem::size_of::<usize>()
+    }
+    const USES_DYN_MEM: bool = true;
+}
+
 macro_rules! impl_getsize_methods_for_dyn_arr {
     ($T:ty) => (
         fn size_bytes_dyn(&self) -> ::std::primitive::usize {
