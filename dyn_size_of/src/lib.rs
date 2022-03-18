@@ -38,7 +38,20 @@ impl<T: GetSize, const N: usize> GetSize for [T; N] {
     const USES_DYN_MEM: bool = T::USES_DYN_MEM;
 }
 
-macro_rules! impl_dyn_getsize_methods {
+macro_rules! impl_getsize_methods_for_pointer {
+    () => (
+        fn size_bytes_dyn(&self) -> ::std::primitive::usize {
+            ::std::ops::Deref::deref(self).size_bytes()
+        }
+        const USES_DYN_MEM: bool = true;
+    );
+}
+
+impl <T: GetSize> GetSize for Box<T> {
+    impl_getsize_methods_for_pointer!();
+}
+
+macro_rules! impl_getsize_methods_for_dyn_arr {
     ($T:ty) => (
         fn size_bytes_dyn(&self) -> ::std::primitive::usize {
             if <$T>::USES_DYN_MEM {
@@ -52,7 +65,7 @@ macro_rules! impl_dyn_getsize_methods {
 }
 
 impl<T: GetSize> GetSize for Box<[T]> {
-    impl_dyn_getsize_methods!(T);
+    impl_getsize_methods_for_dyn_arr!(T);
 }
 
 impl<T: GetSize> GetSize for Vec<T> {
@@ -90,6 +103,8 @@ impl_getsize_for_tuple!(A, B, C, D, E, F, G);
 impl_getsize_for_tuple!(A, B, C, D, E, F, G, H);
 impl_getsize_for_tuple!(A, B, C, D, E, F, G, H, I);
 impl_getsize_for_tuple!(A, B, C, D, E, F, G, H, I, J);
+
+
 
 #[cfg(test)]
 mod tests {
@@ -135,5 +150,11 @@ mod tests {
         assert_eq!((1u32, 2u32).size_bytes_dyn(), 0);
         assert_eq!((1u32, vec![3u32, 4u32]).size_bytes_dyn(), 2*4);
         assert_eq!((vec![1u32, 2u32], vec![3u32, 4u32]).size_bytes_dyn(), 4*4);
+    }
+
+    #[test]
+    fn test_box() {
+        assert_eq!(Box::new(1u32).size_bytes_dyn(), 4);
+        assert_eq!(Box::new([1u32, 2u32]).size_bytes_dyn(), 2*4);
     }
 }
