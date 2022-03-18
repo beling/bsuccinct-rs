@@ -1,6 +1,6 @@
 [package]
 name = "bitm"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
@@ -13,4 +13,4 @@ categories = [ "algorithms", "data-structures", "science", "encoding" ]
 keywords = [ "bit", "bitmap", "rank", "bitvector", "bitset" ]
 
 [dependencies]
-dyn_size_of = { path="../dyn_size_of", version="0.1" }
+dyn_size_of = { version="*", path="../dyn_size_of" }

@@ -1,6 +1,6 @@
 [package]
 name = "minimum_redundancy"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -13,7 +13,7 @@ categories = [ "compression", "algorithms", "data-structures", "encoding", "scie
 keywords = [ "compression", "decompression", "huffman", "huffman_coding", "canonical" ]
 
 [dependencies]
-dyn_size_of = { version="0.1", path="../dyn_size_of" }
+dyn_size_of = { version="*", path="../dyn_size_of" }
 fsum = { version="0.1", path="../fsum" }
 co_sort = "0.2.*"
 

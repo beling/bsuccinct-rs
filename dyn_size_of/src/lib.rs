@@ -19,7 +19,7 @@ macro_rules! impl_nodyn_getsize_for {
     ($x:ty) => (impl GetSize for $x {});
     // `$x` followed by at least one `$y,`
     ($x:ty, $($y:ty),+) => (
-        impl GetSize for $x {}
+        impl self::GetSize for $x {}
         impl_nodyn_getsize_for!($($y),+);
     )
 }
@@ -45,20 +45,30 @@ macro_rules! impl_dyn_getsize_methods {
             if <$T>::USES_DYN_MEM {
                 self.iter().map(|i| i.size_bytes()).sum()
             } else {
-                std::mem::size_of::<$T>() * self.len()
+                ::std::mem::size_of::<$T>() * self.len()
             }
         }
         const USES_DYN_MEM: bool = true;
     );
 }
 
-impl<T: GetSize> GetSize for Vec<T> {
-    impl_dyn_getsize_methods!(T);
-}
-
 impl<T: GetSize> GetSize for Box<[T]> {
     impl_dyn_getsize_methods!(T);
 }
+
+impl<T: GetSize> GetSize for Vec<T> {
+    fn size_bytes_dyn(&self) -> usize {
+        let c = ::std::mem::size_of::<T>() * self.capacity();
+        if T::USES_DYN_MEM {
+            c + self.iter().map(|i| i.size_bytes_dyn()).sum::<usize>()
+        } else {
+            c
+        }
+    }
+    const USES_DYN_MEM: bool = true;
+}
+
+
 
 
 #[cfg(test)]
