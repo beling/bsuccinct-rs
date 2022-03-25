@@ -53,8 +53,9 @@ impl <T: GetSize> GetSize for Box<T> {
 
 impl <T: GetSize> GetSize for ::std::rc::Rc<T> {
     fn size_bytes_dyn(&self) -> ::std::primitive::usize {
-        // size of T + size of strong and weak reference counters
-        ::std::ops::Deref::deref(self).size_bytes() + 2*::std::mem::size_of::<usize>()
+        // round((size of T + size of strong and weak reference counters) / number of strong references)
+        let c = ::std::rc::Rc::strong_count(self);
+        (::std::ops::Deref::deref(self).size_bytes() + 2*::std::mem::size_of::<usize>() + c/2) / c
     }
     const USES_DYN_MEM: bool = true;
 }
