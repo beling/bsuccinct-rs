@@ -25,6 +25,7 @@ pub trait BitArrayWithRank {
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
+#[derive(Clone)]
 pub struct ArrayWithRank101111 {
     pub content: Box<[u64]>,  // BitVec
     pub ranks: Box<[u64]>   // Each cell holds 4 ranks using [bits]: 32 (absolute), 10, 11, 11 (deltas).
@@ -85,6 +86,7 @@ impl BitArrayWithRank for ArrayWithRank101111 {
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
+#[derive(Clone)]
 pub struct ArrayWithRankSimple {
     pub content: Box<[u64]>,  // BitVec
     pub ranks: Box<[u32]>,
