@@ -69,6 +69,9 @@ pub trait BitAccess {
 pub trait BitVec where Self: Sized {
     fn with_64bit_segments(segments_value: u64, segments_len: usize) -> Self;
 
+    /// Returns vector of bits filled with `words_count` `word`s of length `word_len_bits` bits each.
+    fn with_bitwords(word: u64, word_len_bits: u8, words_count: usize) -> Self;
+
     #[inline(always)] fn with_zeroed_64bit_segments(segments_len: usize) -> Self {
         Self::with_64bit_segments(0, segments_len)
     }
@@ -91,6 +94,12 @@ pub trait BitVec where Self: Sized {
 impl BitVec for Box<[u64]> {
     #[inline(always)] fn with_64bit_segments(segments_value: u64, segments_len: usize) -> Self {
         vec![segments_value; segments_len].into_boxed_slice()
+    }
+
+    fn with_bitwords(word: u64, word_len_bits: u8, words_count: usize) -> Self {
+        let mut result = Self::with_zeroed_bits(words_count * word_len_bits as usize);
+        for index in 0..words_count { result.init_fragment(index, word, word_len_bits); }
+        result
     }
 }
 
