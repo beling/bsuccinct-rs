@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
 
+use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize,
+    AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize};
+
 /// Provides methods to get dynamic and total size of the variable.
 pub trait GetSize {
     /// Returns approximate number of bytes occupied by dynamic (heap) part of `self`.
@@ -24,7 +27,12 @@ macro_rules! impl_nodyn_getsize_for {
     )
 }
 
-impl_nodyn_getsize_for!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64, char, isize, usize, ());
+impl_nodyn_getsize_for!(u8, u16, u32, u64, u128, usize,
+    AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize,
+    bool, AtomicBool,
+    i8, i16, i32, i64, i128, isize,
+    AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize,
+    f32, f64, char, ());
 
 //impl<T: GetSize> GetSize for [T] {    // this works also with slices, but is this sound?
 impl<T: GetSize, const N: usize> GetSize for [T; N] {
