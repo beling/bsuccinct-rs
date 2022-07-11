@@ -1,6 +1,6 @@
 [package]
 name = "minimum_redundancy"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -14,6 +14,7 @@ keywords = [ "compression", "decompression", "huffman", "huffman_coding", "canon
 
 [dependencies]
 dyn_size_of = { version=">=0.1", path="../dyn_size_of" }
+binout = { version=">=0.1", path="../binout" }
 fsum = { version="0.1", path="../fsum" }
 co_sort = "0.2.*"
 

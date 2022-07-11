@@ -1,2 +1,2 @@
 [workspace]
-members = ["minimum_redundancy", "dyn_size_of", "fsum", "bitm"]
+members = ["minimum_redundancy", "dyn_size_of", "fsum", "bitm", "binout"]

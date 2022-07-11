@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 use std::ops::Mul;
-use crate::{read_int, write_int};
+use binout::{read_int, write_int};
 
 /// Represents the degree of the Huffman tree,
 /// which is equal to the number of different

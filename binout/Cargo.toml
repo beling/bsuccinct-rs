@@ -1,0 +1,13 @@
+[package]
+name = "binout"
+version = "0.1.0"
+edition = "2018"
+authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+license = "MIT OR Apache-2.0"
+description = "The library for binary encoding, decoding, serialization, deserialization of data."
+documentation = "https://docs.rs/binout"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = ["encoding", "compression", "algorithms"]
+keywords = [ "io", "binary", "encoding", "decoding", "vbyte", "leb128" ]

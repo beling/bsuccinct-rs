@@ -6,7 +6,7 @@
 /// # Example
 ///
 /// ```
-/// use minimum_redundancy::write_int;
+/// use binout::write_int;
 ///
 /// let mut output = Vec::new();
 /// write_int!(&mut output, 1u32);
@@ -25,7 +25,7 @@ macro_rules! write_int {
 /// # Example
 ///
 /// ```
-/// use minimum_redundancy::read_int;
+/// use binout::read_int;
 ///
 /// let input = [1u8, 0u8, 0u8, 0u8];
 /// assert_eq!(read_int!(&mut &input[..], u32).unwrap(), 1u32);
@@ -64,7 +64,7 @@ pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, val: u32) -> std:
 /// # Example
 ///
 /// ```
-/// use minimum_redundancy::vbyte_len;
+/// use binout::vbyte_len;
 ///
 /// assert_eq!(vbyte_len(0), 1);
 /// assert_eq!(vbyte_len(127), 1);

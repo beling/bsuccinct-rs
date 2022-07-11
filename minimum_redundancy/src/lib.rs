@@ -5,6 +5,7 @@ use std::hash::Hash;
 use co_sort::{co_sort, Permutation};
 
 use std::borrow::Borrow;
+use binout::{vbyte_len, vbyte_read, vbyte_write};
 use dyn_size_of::GetSize;
 
 mod code;
@@ -14,8 +15,6 @@ mod frequencies;
 pub use frequencies::Frequencies;
 mod degree;
 pub use degree::*;
-mod io;
-pub use io::*;
 mod decoder;
 pub use decoder::Decoder;
 mod iterators;
@@ -332,6 +331,7 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use maplit::hashmap;
+    use binout::*;
 
     fn test_read_write<FS: TreeDegree>(huffman: &Coding<char, FS>) {
         let mut buff = Vec::new();
