@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 #![macro_use]
 
 /// Writes primitive (integer) to `output` (which implements `std::io::Write`);

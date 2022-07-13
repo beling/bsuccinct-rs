@@ -1,2 +1,5 @@
 [workspace]
-members = ["minimum_redundancy", "dyn_size_of", "fsum", "bitm", "binout"]
+members = ["ph", "minimum_redundancy", "dyn_size_of", "fsum", "bitm", "binout"]
+
+[patch.crates-io]
+dyn_size_of = { version=">=0.1", path="dyn_size_of" }

@@ -2,7 +2,7 @@
 name = "fsum"
 version = "0.1.2"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "The library to calculate accurate sum of floats."
 documentation = "https://docs.rs/fsum"
