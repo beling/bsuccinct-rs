@@ -1,4 +1,5 @@
 Succinct data structures and other Rust libraries by Piotr Beling, including:
+- `ph` ([crate](https://crates.io/crates/ph), [doc](https://docs.rs/ph)) - data structures based on perfect hashing (requires nightly);
 - `minimum_redundancy` ([crate](https://crates.io/crates/minimum_redundancy), [doc](https://docs.rs/minimum_redundancy)) -  encode and decode data
   with binary or non-binary Huffman coding;
 - `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
