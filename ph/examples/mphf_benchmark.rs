@@ -81,8 +81,9 @@ pub struct SearchStats {
 impl SearchStats {
     /// Lookups `h` for all keys in `input` and returns search statistics.
     /// If `verify` is `true`, checks if the MPHF `h` is valid for the given `input`.
-    fn new<K: Hash, F: Fn(&K, &mut u64) -> Option<u64>>(input: &[K], h: F, verify: bool) -> Self {
+    fn new<K: Hash, F: Fn(&K, &mut u64) -> Option<u64>>(input: &[K], h: F, verify: bool, repeats: usize) -> Self {
         if input.is_empty() { return Self::nan(); }
+        let repeats = repeats.max(1);
         let mut extra_levels_searched = 0u64;
         let mut not_found = 0usize;
         let start_process_moment = ProcessTime::now();
@@ -105,11 +106,15 @@ impl SearchStats {
                 }
             }
         }
+        for _ in 1..repeats {
+            let mut dump = 0;
+            for v in input { h(v, &mut dump); }
+        }
         let seconds = start_process_moment.elapsed().as_secs_f64();
         let divider = input.len() as f64;
         Self {
             avg_deep: extra_levels_searched as f64 / divider,
-            avg_lookup_time: seconds / divider,
+            avg_lookup_time: seconds / (divider * repeats as f64),
             absences_found: not_found as f64 / divider
         }
     }
@@ -156,24 +161,26 @@ trait MPHFBuilder<K: Hash> {
     fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64>;
 
     /// Builds MPHF and measure the time of building. Returns: MPHF, wall-clock time of building, CPU time of building (consumed by the whole process)
-    fn benchmark_build(&self, keys: &[K]) -> (Self::MPHF, f64, f64) {
+    fn benchmark_build(&self, keys: &[K], repeats: usize) -> (Self::MPHF, f64, f64) {
+        let repeats = repeats.max(1);
         let start_process_moment = ProcessTime::now();
         let start_moment = Instant::now();
+        for _ in 1..repeats { self.new(keys); }
         let h = self.new(keys);
         let build_time_seconds = start_moment.elapsed().as_secs_f64();
         let build_process_time_seconds = start_process_moment.elapsed().as_secs_f64();
-        (h, build_time_seconds, build_process_time_seconds)
+        (h, build_time_seconds / repeats as f64, build_process_time_seconds / repeats as f64)
     }
 
     /// Builds, tests, and returns MPHF.
-    fn benchmark(&self, i: &(Vec<K>, Vec<K>), verify: bool) -> (Self::MPHF, BenchmarkResult) {
-        let (h, build_time_seconds, build_process_time_seconds) = self.benchmark_build(&i.0);
-        let included = SearchStats::new(&i.0, |k, s| Self::value(&h, k, s), verify);
+    fn benchmark(&self, i: &(Vec<K>, Vec<K>), verify: bool, repeats: usize) -> (Self::MPHF, BenchmarkResult) {
+        let (h, build_time_seconds, build_process_time_seconds) = self.benchmark_build(&i.0, repeats);
+        let included = SearchStats::new(&i.0, |k, s| Self::value(&h, k, s), verify, repeats);
         assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let size_bytes = h.size_bytes();
         let bits_per_value = 8.0 * size_bytes as f64 / i.0.len() as f64;
         let absent = if Self::CAN_DETECT_ABSENCE {
-            SearchStats::new(&i.1, |k, s| Self::value(&h, k, s), false)
+            SearchStats::new(&i.1, |k, s| Self::value(&h, k, s), false, repeats)
         } else {
             SearchStats::nan()
         };
@@ -285,37 +292,37 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     }
 }
 
-fn h2bench<GS, SS, S, K>(hash: S, bits_per_group_seed: SS, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), verify: bool, key_access: KeyAccess) -> (f64, BenchmarkResult)
+fn h2bench<GS, SS, S, K>(hash: S, bits_per_group_seed: SS, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), verify: bool, repeats: usize, key_access: KeyAccess) -> (f64, BenchmarkResult)
 where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone {
-    ((FPHash2Conf::hash_bps_bpg_lsize_threads(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size, 1), key_access).benchmark_build(&i.0).1,
-     (FPHash2Conf::hash_bps_bpg_lsize(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size), key_access).benchmark(i, verify).1)
+    ((FPHash2Conf::hash_bps_bpg_lsize_threads(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size, 1), key_access).benchmark_build(&i.0, repeats).1,
+     (FPHash2Conf::hash_bps_bpg_lsize(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size), key_access).benchmark(i, verify, repeats).1)
 }
 
-fn h2b<GS, S, K>(hash: S, bits_per_group_seed: u8, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), verify: bool, key_access: KeyAccess) -> (f64, BenchmarkResult)
+fn h2b<GS, S, K>(hash: S, bits_per_group_seed: u8, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), verify: bool, repeats: usize, key_access: KeyAccess) -> (f64, BenchmarkResult)
     where GS: GroupSize + Sync + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
     if bits_per_group_seed.is_power_of_two() {
         match bits_per_group_seed {
-            1 => h2bench(hash, TwoToPowerBitsStatic::<0>, bits_per_group, relative_level_size, i, verify, key_access),
-            2 => h2bench(hash, TwoToPowerBitsStatic::<1>, bits_per_group, relative_level_size, i, verify, key_access),
-            4 => h2bench(hash, TwoToPowerBitsStatic::<2>, bits_per_group, relative_level_size, i, verify, key_access),
-            8 => h2bench(hash, Bits8, bits_per_group, relative_level_size, i, verify, key_access),
-            16 => h2bench(hash, TwoToPowerBitsStatic::<5>, bits_per_group, relative_level_size, i, verify, key_access),
+            1 => h2bench(hash, TwoToPowerBitsStatic::<0>, bits_per_group, relative_level_size, i, verify, repeats, key_access),
+            2 => h2bench(hash, TwoToPowerBitsStatic::<1>, bits_per_group, relative_level_size, i, verify, repeats, key_access),
+            4 => h2bench(hash, TwoToPowerBitsStatic::<2>, bits_per_group, relative_level_size, i, verify, repeats, key_access),
+            8 => h2bench(hash, Bits8, bits_per_group, relative_level_size, i, verify, repeats, key_access),
+            16 => h2bench(hash, TwoToPowerBitsStatic::<5>, bits_per_group, relative_level_size, i, verify, repeats, key_access),
             _ => unreachable!()
         }
     } else {
-        h2bench(hash, Bits(bits_per_group_seed), bits_per_group, relative_level_size, i, verify, key_access)
+        h2bench(hash, Bits(bits_per_group_seed), bits_per_group, relative_level_size, i, verify, repeats, key_access)
     }
 }
 
-fn hash2<S, K>(csv_file: &mut Option<&mut dyn Write>, hash: &S, i: &(Vec<K>, Vec<K>), verify: bool, bits_per_group_seed: u8, relative_level_size: u16, bits_per_group: u8, key_access: KeyAccess)
+fn hash2<S, K>(csv_file: &mut Option<&mut dyn Write>, hash: &S, i: &(Vec<K>, Vec<K>), verify: bool, bits_per_group_seed: u8, relative_level_size: u16, bits_per_group: u8, repeats: usize, key_access: KeyAccess)
 -> (f64, BenchmarkResult)
     where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
     let (st_build_time, b) = if bits_per_group.is_power_of_two() {
-        h2b(hash.clone(), bits_per_group_seed, TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), relative_level_size, i, verify, key_access)
+        h2b(hash.clone(), bits_per_group_seed, TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), relative_level_size, i, verify, repeats, key_access)
     } else {
-        h2b(hash.clone(), bits_per_group_seed, Bits(bits_per_group), relative_level_size, i, verify, key_access)
+        h2b(hash.clone(), bits_per_group_seed, Bits(bits_per_group), relative_level_size, i, verify, repeats, key_access)
     };
     if let Some(ref mut f) = csv_file {
         writeln!(f, "{} {} {} {} {}", bits_per_group_seed, relative_level_size, bits_per_group, st_build_time, b).unwrap();
@@ -325,7 +332,7 @@ fn hash2<S, K>(csv_file: &mut Option<&mut dyn Write>, hash: &S, i: &(Vec<K>, Vec
 
 const HASH2_BENCHMARK_HEADER: &'static str = "bits_per_group_seed relative_level_size bits_per_group ST_build_time";
 
-fn hash2_benchmark<S, K>(mut csv_file: Option<&mut dyn Write>, hash: S, i: &(Vec<K>, Vec<K>), verify: bool, key_access: KeyAccess)
+fn hash2_benchmark<S, K>(mut csv_file: Option<&mut dyn Write>, hash: S, i: &(Vec<K>, Vec<K>), verify: bool, repeats: usize, key_access: KeyAccess)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
     if let Some(ref mut f) = csv_file {
@@ -338,7 +345,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
             //for bits_per_group_log2 in 3u8..=7u8 {
             for bits_per_group in (2u8..=62u8).step_by(2) {
                 //let (_, b) = Conf::bps_bpg_lsize(bits_per_group_seed, TwoToPowerBits::new(bits_per_group_log2), relative_level_size).benchmark(verify);
-                let (_st_build_time, b) = hash2(&mut csv_file, &hash, i, verify, bits_per_group_seed, relative_level_size, bits_per_group, key_access);
+                let (_st_build_time, b) = hash2(&mut csv_file, &hash, i, verify, bits_per_group_seed, relative_level_size, bits_per_group, repeats, key_access);
                 print!(" {:.2}", b.bits_per_value);
                 stdout().flush().unwrap();
             }
@@ -347,7 +354,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
     }
 }
 
-fn hash2_selected_benchmark<S, K>(mut csv_file: Option<&mut dyn Write>, hash: S, i: &(Vec<K>, Vec<K>), verify: bool, key_access: KeyAccess)
+fn hash2_selected_benchmark<S, K>(mut csv_file: Option<&mut dyn Write>, hash: S, i: &(Vec<K>, Vec<K>), verify: bool, repeats: usize, key_access: KeyAccess)
     where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
     if let Some(ref mut f) = csv_file {
@@ -356,13 +363,13 @@ fn hash2_selected_benchmark<S, K>(mut csv_file: Option<&mut dyn Write>, hash: S,
     println!("s b r bits/key build_ST build_MT");
     for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
         for relative_level_size in (100..=200).step_by(50) {
-            let (st_build_time, b) = hash2(&mut csv_file, &hash, i, verify, bits_per_group_seed, relative_level_size, bits_per_group, key_access);
+            let (st_build_time, b) = hash2(&mut csv_file, &hash, i, verify, bits_per_group_seed, relative_level_size, bits_per_group, repeats, key_access);
             println!("{} {} {} {:.2} {:.0} {:.0}", bits_per_group_seed, bits_per_group, relative_level_size, b.bits_per_value, st_build_time*1000.0, b.build_time_seconds*1000.0);
         }
     }
 }
 
-fn hash_benchmark<S, K>(mut csv_file: Option<&mut dyn Write>, i: &(Vec<K>, Vec<K>), verify: bool, use_fp: Option<(S, KeyAccess)>)
+fn hash_benchmark<S, K>(mut csv_file: Option<&mut dyn Write>, i: &(Vec<K>, Vec<K>), verify: bool, repeats: usize, use_fp: Option<(S, KeyAccess)>)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
 {
     if let Some(ref mut f) = csv_file {
@@ -378,11 +385,11 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
         let (st_build_time, b) = if let Some((ref hash, key_access)) = use_fp {
             //let mut r = bbmap::bb::hash::Conf::hash_lsize(/*fnv::FnvBuildHasher::default()*/ hash.clone(), relative_level_size).benchmark(verify).1;
             //(std::mem::replace(&mut r.build_time_seconds, f64::NAN), r)
-            ((FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 1), key_access).benchmark_build(&i.0).1,
-             (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 0), key_access).benchmark(i, verify).1)
+            ((FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 1), key_access).benchmark_build(&i.0, repeats).1,
+             (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 0), key_access).benchmark(i, verify, repeats).1)
         } else {
-            (BooMPHFConf { gamma, mt: false }.benchmark_build(&i.0).1,
-             BooMPHFConf { gamma, mt: true }.benchmark(i, verify).1)
+            (BooMPHFConf { gamma, mt: false }.benchmark_build(&i.0, repeats).1,
+             BooMPHFConf { gamma, mt: true }.benchmark(i, verify, repeats).1)
         };
         print!(" {} (eval [ns]: {:.0} build [ms]: S {:.0} M {:.0})", b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, st_build_time * 1000.0, b.build_time_seconds * 1000.0);
         if let Some(ref mut f) = csv_file {
@@ -392,7 +399,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     println!();
 }
 
-fn chd_benchmark<K>(mut csv_file: Option<&mut dyn Write>, i: &(Vec<K>, Vec<K>), verify: bool)
+fn chd_benchmark<K>(mut csv_file: Option<&mut dyn Write>, i: &(Vec<K>, Vec<K>), verify: bool, repeats: usize)
 where K: Hash
 {
     if let Some(ref mut f) = csv_file {
@@ -400,7 +407,7 @@ where K: Hash
     }
     println!("lambda size build_time lookup_time");
     for lambda in 1..=6 {
-        let b = CHDConf{ lambda }.benchmark(i, verify).1;
+        let b = CHDConf{ lambda }.benchmark(i, verify, repeats).1;
         if let Some(ref mut f) = csv_file {
             writeln!(f, "{} {}", lambda, b).unwrap();
         }
@@ -410,17 +417,18 @@ where K: Hash
 
 fn main() {
     let d64 = test_data_64(1_000_000);
+    let repeats = 30;
 
-    hash2_benchmark(Some(&mut File::create("hash2_wyhash_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, KeyAccess::StoreIndices);
-    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, KeyAccess::StoreIndices);
-    hash_benchmark(Some(&mut File::create("hash_wyhash_benchmark_64.csv").unwrap()), &d64, false, Some((BuildWyHash, KeyAccess::StoreIndices)));
-    hash_benchmark::<BuildWyHash, _>(Some(&mut File::create("boomphf_benchmark_64.csv").unwrap()), &d64, false, None);
-    chd_benchmark(Some(&mut File::create("CHD_benchmark_64.csv").unwrap()), &d64, false);
+    chd_benchmark(Some(&mut File::create("CHD_benchmark_64r.csv").unwrap()), &d64, false, repeats);
+    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_benchmark_64r.csv").unwrap()), BuildWyHash, &d64, false, repeats, KeyAccess::StoreIndices);
+    hash_benchmark(Some(&mut File::create("hash_wyhash_benchmark_64r.csv").unwrap()), &d64, false, repeats, Some((BuildWyHash, KeyAccess::StoreIndices)));
+    hash_benchmark::<BuildWyHash, _>(Some(&mut File::create("boomphf_benchmark_64r.csv").unwrap()), &d64, false, repeats, None);
+    hash2_benchmark(Some(&mut File::create("hash2_wyhash_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, 1, KeyAccess::StoreIndices);
 
-    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_copy_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, KeyAccess::CopyKeys);
-    hash_benchmark(Some(&mut File::create("hash_wyhash_copy_benchmark_64.csv").unwrap()), &d64, false, Some((BuildWyHash, KeyAccess::CopyKeys)));
+    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_copy_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, repeats, KeyAccess::CopyKeys);
+    hash_benchmark(Some(&mut File::create("hash_wyhash_copy_benchmark_64.csv").unwrap()), &d64, false, repeats, Some((BuildWyHash, KeyAccess::CopyKeys)));
 
     let ten_percent = d64.0.len() / 10;
-    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_lomem10_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, KeyAccess::LoMem(ten_percent));
-    hash_benchmark(Some(&mut File::create("hash_wyhash_lomem10_benchmark_64.csv").unwrap()), &d64, false, Some((BuildWyHash, KeyAccess::LoMem(ten_percent))));
+    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_lomem10_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, repeats, KeyAccess::LoMem(ten_percent));
+    hash_benchmark(Some(&mut File::create("hash_wyhash_lomem10_benchmark_64.csv").unwrap()), &d64, false, repeats, Some((BuildWyHash, KeyAccess::LoMem(ten_percent))));
 }
