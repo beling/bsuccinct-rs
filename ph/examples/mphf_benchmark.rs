@@ -419,11 +419,12 @@ fn main() {
     let d64 = test_data_64(1_000_000);
     let repeats = 30;
 
-    chd_benchmark(Some(&mut File::create("CHD_benchmark_64r.csv").unwrap()), &d64, false, repeats);
-    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_benchmark_64r.csv").unwrap()), BuildWyHash, &d64, false, repeats, KeyAccess::StoreIndices);
-    hash_benchmark(Some(&mut File::create("hash_wyhash_benchmark_64r.csv").unwrap()), &d64, false, repeats, Some((BuildWyHash, KeyAccess::StoreIndices)));
-    hash_benchmark::<BuildWyHash, _>(Some(&mut File::create("boomphf_benchmark_64r.csv").unwrap()), &d64, false, repeats, None);
     hash2_benchmark(Some(&mut File::create("hash2_wyhash_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, 1, KeyAccess::StoreIndices);
+
+    chd_benchmark(Some(&mut File::create("CHD_benchmark_64.csv").unwrap()), &d64, false, repeats);
+    hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, repeats, KeyAccess::StoreIndices);
+    hash_benchmark(Some(&mut File::create("hash_wyhash_benchmark_64.csv").unwrap()), &d64, false, repeats, Some((BuildWyHash, KeyAccess::StoreIndices)));
+    hash_benchmark::<BuildWyHash, _>(Some(&mut File::create("boomphf_benchmark_64.csv").unwrap()), &d64, false, repeats, None);
 
     hash2_selected_benchmark(Some(&mut File::create("hash2_selected_wyhash_copy_benchmark_64.csv").unwrap()), BuildWyHash, &d64, false, repeats, KeyAccess::CopyKeys);
     hash_benchmark(Some(&mut File::create("hash_wyhash_copy_benchmark_64.csv").unwrap()), &d64, false, repeats, Some((BuildWyHash, KeyAccess::CopyKeys)));
