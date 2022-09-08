@@ -32,6 +32,16 @@ macro_rules! bits_to_store {
 }
 
 /// Reads array of integers from given `input`.
+///
+/// # Examples of calls:
+///
+/// ```
+/// // Let l be an integer, v be a vector, and input implement Read.
+/// read_array!([u32, l] from input to v);   // reads l 32-bit integers from input and pushes them to v
+/// v = read_array!([u32, l] from input);    // reads l 32-bit integers from input (as a Vec::<u32>)
+/// v = read_array!([u32, read u8] from input); // reads (from input) number (stored as u8) of elements to read, and read that number of u32 (as a Vec::<u32>)
+/// read_array!(l; bits from input);    // reads l (rounded up to a multiple of 64) bits from input as a Vec::<u64>
+/// ```
 #[macro_export]
 macro_rules! read_array {
     ([$cell_t:ty; $len:expr] from $input:ident to $vec:ident) => {{
