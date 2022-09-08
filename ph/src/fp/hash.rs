@@ -348,9 +348,7 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
     /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
     pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
     {
-        let l = read_int!(input, u32)?;
-        let mut levels = Vec::with_capacity(l as usize);
-        for _ in 0..l { levels.push(read_int!(input, u32)?); }
+        let levels = read_array!([u32; read u32] from input);
         let array_content_len = levels.iter().map(|v|*v as usize).sum::<usize>();
         let array_content = read_array!([u64; array_content_len] from input).into_boxed_slice();
         let (array_with_rank, _) = ArrayWithRank::build(array_content);
