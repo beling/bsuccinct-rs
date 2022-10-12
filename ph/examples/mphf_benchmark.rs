@@ -16,7 +16,7 @@ use cmph_sys::{cmph_io_struct_vector_adapter,cmph_config_new,cmph_config_set_alg
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
 use ph::fp::keyset::{CachedDynamicKeySet, DynamicKeySet};
-use ph::seedable_hash::{BuildWyHash};
+use ph::seedable_hash::BuildWyHash;
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -435,16 +435,16 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>)) -> Option<File>
 
 fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     if conf.method == Method::FMPHGO_all {
-        fmphgo_benchmark_all(file("FMPHGO_all", &conf, i), BuildWyHash, &i, &conf, KeyAccess::StoreIndices);
+        fmphgo_benchmark_all(file("FMPHGO_all", &conf, i), BuildWyHash::default(), &i, &conf, KeyAccess::StoreIndices);
     }
     if conf.method == Method::Boomphf || conf.method == Method::Most {
         fmph_benchmark::<BuildWyHash, _>(file("BooMPHF", &conf, i), i, conf, None);
     }
     if conf.method == Method::FMPH || conf.method == Method::Most {
-        fmph_benchmark(file("FMPH", &conf, i), i, conf, Some((BuildWyHash, KeyAccess::StoreIndices)));
+        fmph_benchmark(file("FMPH", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::StoreIndices)));
     }
     if conf.method == Method::FMPHGO || conf.method == Method::Most {
-        fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash, i, conf, KeyAccess::StoreIndices);
+        fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::StoreIndices);
     }
     if conf.method == Method::CHD || conf.method == Method::Most {
         if conf.key_source == KeySource::stdin {
@@ -454,18 +454,18 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
         }
     }
     if conf.method == Method::FMPH_copy {
-        fmph_benchmark(file("FMPH_copy", &conf, i), i, conf, Some((BuildWyHash, KeyAccess::CopyKeys)));
+        fmph_benchmark(file("FMPH_copy", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::CopyKeys)));
     }
     if conf.method == Method::FMPHGO_copy {
-        fmphgo_benchmark(file("FMPHGO_copy", &conf, i), BuildWyHash, i, conf, KeyAccess::CopyKeys);
+        fmphgo_benchmark(file("FMPHGO_copy", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::CopyKeys);
     }
     if conf.method == Method::FMPH_lomem {
         let ten_percent = i.0.len() / 10;
-        fmph_benchmark(file("FMPH_lomem", &conf, i), i, conf, Some((BuildWyHash, KeyAccess::LoMem(ten_percent))));
+        fmph_benchmark(file("FMPH_lomem", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::LoMem(ten_percent))));
     }
     if conf.method == Method::FMPHGO_lomem {
         let ten_percent = i.0.len() / 10;
-        fmphgo_benchmark(file("FMPHGO_lomem", &conf, i), BuildWyHash, i, conf, KeyAccess::LoMem(ten_percent));
+        fmphgo_benchmark(file("FMPHGO_lomem", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::LoMem(ten_percent));
     }
 }
 

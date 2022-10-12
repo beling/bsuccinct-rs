@@ -18,6 +18,7 @@ pub trait BuildSeededHasher {
 }
 
 /// [`BuildSeededHasher`] that uses standard [`BuildHasher`].
+#[derive(Default, Copy, Clone)]
 pub struct Seedable<BH: BuildHasher>(BH);
 
 impl<BH: BuildHasher> BuildSeededHasher for Seedable<BH> {
@@ -53,6 +54,19 @@ impl BuildSeededHasher for BuildWyHash {
 
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::with_seed(seed as u64)
+    }
+}
+
+#[cfg(feature = "wyhash_git")]
+#[derive(Default, Copy, Clone)]
+pub struct BuildWyHashGit;
+
+#[cfg(feature = "wyhash_git")]
+impl BuildSeededHasher for BuildWyHashGit {
+    type Hasher = wyhash_git::WyHash;
+
+    #[inline] fn build_hasher(&self, mut seed: u32) -> Self::Hasher {
+        Self::Hasher::new(seed as u64, [0xa076_1d64_78bd_642f, 0xe703_7ed1_a0b4_28db, 0x8ebc_6af0_9c88_c6e3, 0x5899_65cc_7537_4cc3])
     }
 }
 
