@@ -24,6 +24,7 @@ fnv = { version="1", optional=true }
 cpu-time = "1"
 cmph-sys = { git = "https://github.com/beling/cmph-sys" }
 boomphf = { git = "https://github.com/beling/rust-boomphf" }
+clap = { version="4.0", features = ["derive"] }
 
 [[example]]
 name = "mphf_benchmark"
