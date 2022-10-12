@@ -447,7 +447,11 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
         fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash, i, conf, KeyAccess::StoreIndices);
     }
     if conf.method == Method::CHD || conf.method == Method::Most {
-        chd_benchmark(file("CHD", &conf, i), i, conf);
+        if conf.key_source == KeySource::stdin {
+            eprintln!("Benchmarking CHD with keys from stdin is not supported.")
+        } else {
+            chd_benchmark(file("CHD", &conf, i), i, conf);
+        }
     }
     if conf.method == Method::FMPH_copy {
         fmph_benchmark(file("FMPH_copy", &conf, i), i, conf, Some((BuildWyHash, KeyAccess::CopyKeys)));
