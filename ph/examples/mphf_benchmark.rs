@@ -30,7 +30,7 @@ enum Method {
     /// FMPHGO with selected settings
     FMPHGO,
     /// BooMPHF
-    BooMPHF,
+    Boomphf,
     /// CHD
     CHD,
     /// FMPH restricted to sequence access to keys, with coping only 10% of them (for random access)
@@ -67,8 +67,8 @@ struct Conf {
     lookup_runs: u32,
 
     /// Number of times to perform the construction
-    #[arg(short='c', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
-    construction_runs: u32,
+    #[arg(short='b', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
+    build_runs: u32,
 
     /// Whether to check the validity of built MPHFs
     #[arg(short='v', long, default_value_t = false)]
@@ -85,9 +85,9 @@ struct Conf {
     #[arg(short='f', long, default_value_t = 0)]
     foreign_keys_num: usize,
 
-    /// Whether to save detailed results to CSV file
+    /// Skip saving detailed results to CSV file
     #[arg(short='d', long, default_value_t = true)]
-    save_details: bool,
+    skip_details: bool,
 }
 
 /// Represents average (per value) lookup: level searched, times (seconds).
@@ -186,12 +186,12 @@ trait MPHFBuilder<K: Hash> {
 
     /// Builds, tests, and returns MPHF.
     fn benchmark(&self, i: &(Vec<K>, Vec<K>), conf: &Conf) -> (Self::MPHF, BenchmarkResult) {
-        let (h, build_time_seconds, build_process_time_seconds) = self.benchmark_build(&i.0, conf.construction_runs);
+        let (h, build_time_seconds, build_process_time_seconds) = self.benchmark_build(&i.0, conf.build_runs);
         let included = SearchStats::new(&i.0, |k, s| Self::value(&h, k, s), conf.verify, conf.lookup_runs);
         assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let size_bytes = h.size_bytes();
         let bits_per_value = 8.0 * size_bytes as f64 / i.0.len() as f64;
-        let absent = if conf.save_details && Self::CAN_DETECT_ABSENCE {
+        let absent = if !conf.skip_details && Self::CAN_DETECT_ABSENCE {
             SearchStats::new(&i.1, |k, s| Self::value(&h, k, s), false, conf.lookup_runs)
         } else {
             SearchStats::nan()
@@ -304,7 +304,7 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
 
 fn h2bench<GS, SS, S, K>(hash: S, bits_per_group_seed: SS, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess) -> (f64, BenchmarkResult)
 where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone {
-    ((FPHash2Conf::hash_bps_bpg_lsize_threads(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size, 1), key_access).benchmark_build(&i.0, conf.construction_runs).1,
+    ((FPHash2Conf::hash_bps_bpg_lsize_threads(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size, 1), key_access).benchmark_build(&i.0, conf.build_runs).1,
      (FPHash2Conf::hash_bps_bpg_lsize(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size), key_access).benchmark(i, conf).1)
 }
 
@@ -350,7 +350,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
     }
     println!("bps rls \\ bpglog 2 3 4 5 ... 62");
     for bits_per_group_seed in 1u8..=10u8 {
-        for relative_level_size in (100..=200).step_by(50) {
+        for relative_level_size in (100..=200).step_by(/*50*/100) {
             print!("{} {}", bits_per_group_seed, relative_level_size);
             //for bits_per_group_log2 in 3u8..=7u8 {
             for bits_per_group in (2u8..=62u8).step_by(2) {
@@ -372,7 +372,7 @@ fn fmphgo_benchmark<S, K>(mut csv_file: Option<File>, hash: S, i: &(Vec<K>, Vec<
     }
     println!("FMPHGO: s b gamma results...");
     for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
-        for relative_level_size in (100..=200).step_by(50) {
+        for relative_level_size in (100..=200).step_by(/*50*/100) {
             let (st_build_time, b) = fmphgo(&mut csv_file, &hash, i, conf, bits_per_group_seed, relative_level_size, bits_per_group, key_access);
             println!(" {} {} {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}",
                      bits_per_group_seed, bits_per_group, relative_level_size as f64/100.0,
@@ -389,15 +389,15 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     }
     if use_fp.is_some() { print!("FMPH"); } else { print!("boomphf") }
     println!(": gamma results...");
-    for relative_level_size in (100..=200).step_by(50) {
+    for relative_level_size in (100..=200).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
         let (st_build_time, b) = if let Some((ref hash, key_access)) = use_fp {
             //let mut r = bbmap::bb::hash::Conf::hash_lsize(/*fnv::FnvBuildHasher::default()*/ hash.clone(), relative_level_size).benchmark(verify).1;
             //(std::mem::replace(&mut r.build_time_seconds, f64::NAN), r)
-            ((FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 1), key_access).benchmark_build(&i.0, conf.construction_runs).1,
+            ((FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 1), key_access).benchmark_build(&i.0, conf.build_runs).1,
              (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 0), key_access).benchmark(i, conf).1)
         } else {
-            (BooMPHFConf { gamma, mt: false }.benchmark_build(&i.0, conf.construction_runs).1,
+            (BooMPHFConf { gamma, mt: false }.benchmark_build(&i.0, conf.build_runs).1,
              BooMPHFConf { gamma, mt: true }.benchmark(i, conf).1)
         };
         println!(" {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}", gamma, b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, st_build_time * 1000.0, b.build_time_seconds * 1000.0);
@@ -424,7 +424,7 @@ where K: Hash
 }
 
 fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>)) -> Option<File> {
-    if !conf.save_details { return None; }
+    if conf.skip_details { return None; }
     let ks_name = match conf.key_source {
         KeySource::xs32 => "32",
         KeySource::xs64 => "64",
@@ -437,8 +437,8 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
     if conf.method == Method::FMPHGO_all {
         fmphgo_benchmark_all(file("FMPHGO_all", &conf, i), BuildWyHash, &i, &conf, KeyAccess::StoreIndices);
     }
-    if conf.method == Method::CHD || conf.method == Method::Most {
-        chd_benchmark(file("CHD", &conf, i), i, conf);
+    if conf.method == Method::Boomphf || conf.method == Method::Most {
+        fmph_benchmark::<BuildWyHash, _>(file("BooMPHF", &conf, i), i, conf, None);
     }
     if conf.method == Method::FMPH || conf.method == Method::Most {
         fmph_benchmark(file("FMPH", &conf, i), i, conf, Some((BuildWyHash, KeyAccess::StoreIndices)));
@@ -446,8 +446,8 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
     if conf.method == Method::FMPHGO || conf.method == Method::Most {
         fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash, i, conf, KeyAccess::StoreIndices);
     }
-    if conf.method == Method::BooMPHF || conf.method == Method::Most {
-        fmph_benchmark::<BuildWyHash, _>(file("BooMPHF", &conf, i), i, conf, None);
+    if conf.method == Method::CHD || conf.method == Method::Most {
+        chd_benchmark(file("CHD", &conf, i), i, conf);
     }
     if conf.method == Method::FMPH_copy {
         fmph_benchmark(file("FMPH_copy", &conf, i), i, conf, Some((BuildWyHash, KeyAccess::CopyKeys)));
@@ -522,6 +522,14 @@ fn gen_data<I: Iterator>(keys_num: usize, foreign_keys_num: usize, mut generator
 
 //fn test_data_32x<const N: usize>(how_many: usize) -> (Vec<[u32; N]>, Vec<[u32; N]>) { test_data(how_many, Generate32x::<N>::new(5678)) }
 
+fn print_input_stats(setname: &str, strings: &[String]){
+    if strings.len() == 0 {
+        println!("{} is empty", setname);
+    } else {
+        println!("{} has {} strings with an average length of {:.1} bytes", setname, strings.len(), strings.iter().map(|s| s.len()).sum::<usize>() as f64 / strings.len() as f64)
+    }
+}
+
 fn main() {
     let conf = Conf::parse();
     match conf.key_source {
@@ -534,6 +542,8 @@ fn main() {
             } else {
                 (lines.collect(), Vec::new())
             };
+            print_input_stats("key set", &i.0);
+            print_input_stats("foreign key set", &i.1);
             run(&conf, &i);
         }
     };
