@@ -1,5 +1,4 @@
 use std::convert::{TryFrom, TryInto};
-use std::hash::{Hasher, Hash};
 use std::io::{Read, Write};
 use std::ops::Mul;
 use bitm::{BitAccess, BitVec, ceiling_div};
@@ -11,9 +10,19 @@ use crate::utils::map64_to_32;
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
 #[inline]
-pub(super) fn group_nr(hasher: &mut impl Hasher, key: &impl Hash, level_size_groups: u32) -> u32 {
+/*pub(super) fn group_nr(hasher: &mut impl Hasher, key: &impl Hash, level_size_groups: u32) -> u32 {
     key.hash(hasher);
     map64_to_32(hasher.finish(), level_size_groups)
+}*/
+pub fn group_nr(hash: u64, level_size_groups: u32) -> u32 {
+    map64_to_32(hash, level_size_groups)
+}
+
+#[inline]
+fn mix_bits(mut x: u64) -> u64 {
+    x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9u64);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111ebu64);
+    x ^ (x >> 31)
 }
 
 /// Implementations of `GroupSize` represent group size in fingerprinting-based minimal perfect hashing with group optimization.
@@ -30,16 +39,24 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
     /// Returns index in the group with given seed `group_seed` using `hasher`
     /// which must be modified earlier by `group_nr` function.
     #[inline]
-    fn in_group_index(&self, mut hasher: impl Hasher, group_seed: u16) -> u8 {
+    /*fn in_group_index(&self, mut hasher: impl Hasher, group_seed: u16) -> u8 {
         hasher.write_u16(group_seed);
         self.hash_to_group(hasher.finish())
+    }*/
+    fn in_group_index(&self, hash: u64, group_seed: u16) -> u8 {
+        self.hash_to_group(mix_bits(hash ^ group_seed as u64))
+        //self.hash_to_group(hash.rotate_left(group_seed as u32))
+        //self.hash_to_group(hash ^ (group_seed as u64 + 0x9e3779b9 + (hash << 6) + (hash >> 2)))
     }
 
     /// Returns bit index inside the group with number `group` and seed `group_seed`,
     /// assigned to the key hashed by the `hasher`.
     #[inline]
-    fn bit_index_for_seed(&self, hasher: impl Hasher, group_seed: u16, group: u32) -> usize {
+    /*fn bit_index_for_seed(&self, hasher: impl Hasher, group_seed: u16, group: u32) -> usize {
         (*self * group as usize) + self.in_group_index(hasher, group_seed) as usize
+    }*/
+    fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: u32) -> usize {
+        (*self * group as usize) + self.in_group_index(hash, group_seed) as usize
     }
 
     /// Returns number of groups and 64-bit segments for given `desired_total_size`.

@@ -16,7 +16,18 @@ pub trait KeySet<K> {
     fn for_each_key<F, P>(&self, f: F, retained_hint: P)
         where F: FnMut(&K), P: Fn(&K) -> bool;
 
-    /// Call `f` (or `par_f` in the case of multiple thread calculations) for each key in the set.
+    /// Call `map` for each key in the set, and return outputs of these calls.
+    ///
+    /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
+    fn map_each_key<R, M, P>(&self, mut map: M, len_hint: usize, retained_hint: P) -> Vec<R>
+        where M: FnMut(&K) -> R, P: Fn(&K) -> bool
+    {
+        let mut result = Vec::with_capacity(len_hint);
+        self.for_each_key(|k| result.push(map(k)), retained_hint);
+        result
+    }
+
+    /// Call `f` for each key in the set.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     #[inline(always)]
@@ -25,6 +36,13 @@ pub trait KeySet<K> {
     {
         self.for_each_key(f, retained_hint);
     }
+
+    /// Call `map` for each key in the set, and return outputs of these calls.
+    ///
+    /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
+    #[inline(always)]
+    fn par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P, _thread_pool: &ThreadPool) -> Vec<R>
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool { self.map_each_key(map, len_hint, retained_hint) }
 
     /// Retains in `self` keys pointed by the `filter` and remove the rest.
     ///
@@ -50,11 +68,17 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
         self.iter().for_each(f)
     }
 
+    #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
+        where M: FnMut(&K) -> R, P: Fn(&K) -> bool { self.iter().map(map).collect() }
+
     #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, thread_pool: &ThreadPool)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
         thread_pool.install(|| { self.into_par_iter().for_each(f) });
     }
+
+    #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P, thread_pool: &ThreadPool) -> Vec<R>
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool { thread_pool.install(|| { self.into_par_iter().map(map) }).collect() }
 
     /*#[inline(always)] fn retain_keys<F, R>(&mut self, filter: F, _removed_count: R, _thread_pool: Option<&ThreadPool>)
         where F: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
@@ -98,10 +122,26 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
         self.slice[0..self.len].iter().for_each(f)
     }
 
-    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, _thread_pool: &ThreadPool)
+    #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
+        where M: FnMut(&K) -> R, P: Fn(&K) -> bool
+    {
+        self.slice[0..self.len].into_iter().map(map).collect()
+    }
+
+    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, thread_pool: &ThreadPool)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
-        self.slice[0..self.len].into_par_iter().for_each(f)
+        thread_pool.install(|| {
+            self.slice[0..self.len].into_par_iter().for_each(f)
+        })
+    }
+
+    #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P, thread_pool: &ThreadPool) -> Vec<R>
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
+    {
+        thread_pool.install(|| {
+            self.slice[0..self.len].into_par_iter().map(map).collect()
+        })
     }
 
     fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R, _thread_pool: Option<&ThreadPool>)
@@ -149,6 +189,14 @@ impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
             retained.for_each_key(f, _retained_hint)
         } else {
             self.slice.into_iter().for_each(f)
+        }
+    }
+
+    #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, len_hint: usize, _retained_hint: P) -> Vec<R> where M: FnMut(&K) -> R, P: Fn(&K) -> bool {
+        if let Some(ref retained) = self.retained {
+            retained.map_each_key(map, len_hint, _retained_hint)
+        } else {
+            self.slice.into_iter().map(map).collect()
         }
     }
 
@@ -215,6 +263,16 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
             self.slice.into_iter().for_each(f);
         }
     }
+
+    /*#[inline(always)] fn map_each_key<R, M, P>(&self, mut map: M, _retained_hint: P) -> Vec<R> where M: FnMut(&K) -> R, P: Fn(&K) -> bool {
+        if let Some(ref indices) = self.retained {
+            indices.into_iter().zip(self.slice.chunks(1<<16))
+                .flat_map(|(i, v)| i.into_iter().map(|i| map(unsafe{v.get_unchecked(*i as usize)})))
+                .collect()
+        } else {
+            self.slice.into_iter().map(map).collect()
+        }
+    }*/
 
     #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, thread_pool: &ThreadPool)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
