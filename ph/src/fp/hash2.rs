@@ -207,6 +207,18 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
+    fn update_best_seeds_counts(&self, level_size_groups: usize, best_seeds: &mut [SS::VecElement], best_counts: &mut [u8], new_seeds: &[SS::VecElement], new_counts: &[u8]) {
+        for group_index in 0..level_size_groups {
+            let best_count = &mut best_counts[group_index];
+            let new_count = new_counts[group_index];
+            if new_count > *best_count {
+                *best_count = new_count;
+                self.conf.bits_per_seed.set_seed(best_seeds, group_index,
+                                                 self.conf.bits_per_seed.get_seed(&new_seeds, group_index))
+            }
+        }
+    }
+
     /// Select optimal group seeds for the given `keys` and level size.
     fn select_seeds_prehashed(&self, key_hashes: &[u64], level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
     {
@@ -502,47 +514,57 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     {
         let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
         if let Some(thread_pool) = &self.thread_pool {
-            let levels = self.build_levels_mt(keys, level_size_segments, level_size_groups as u32, 0..=last_seed, thread_pool);
-            thread_pool.install(|| {
-                levels.par_chunks(level_size_segments).enumerate().fold(|| None, |mut best: Option<(Box<[SS::VecElement]>, Box<[u8]>)>, (seed, array)| {
-                    let seed = seed as u16;
-                    if let Some((ref mut best_seeds, ref mut best_counts)) = best {
-                        Self::update_best_seeds(best_seeds, best_counts, &array, seed, &self.conf);
-                        best
-                    } else {
-                        Some((
-                            self.conf.bits_per_seed.new_seed_vec(seed, level_size_groups),
-                            (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&array, group_index)).collect()
-                        ))
-                    }
-                }).reduce_with(|mut best, new| {
-                    if let Some((ref mut best_seeds, ref mut best_counts)) = best {
-                        if let Some((new_seeds, new_counts)) = new {
-                            for group_index in 0..level_size_groups {
-                                let best_count = &mut best_counts[group_index];
-                                let new_count = new_counts[group_index];
-                                if new_count > *best_count {
-                                    *best_count = new_count;
-                                    self.conf.bits_per_seed.set_seed(best_seeds, group_index,
-                                                                     self.conf.bits_per_seed.get_seed(&new_seeds, group_index))
-                                }
-                            }
+            let mut result = None;
+            let mut seed_first = 0;
+            loop {
+                let seed_last = ((seed_first as u32) + 7).min(last_seed as u32) as u16;
+                let levels = self.build_levels_mt(keys, level_size_segments, level_size_groups as u32, seed_first..=seed_last, thread_pool);
+                result = thread_pool.install(|| {
+                    levels.par_chunks(level_size_segments).enumerate().fold(|| None, |mut best: Option<(Box<[SS::VecElement]>, Box<[u8]>)>, (seed, array)| {
+                        let seed = seed as u16;
+                        if let Some((ref mut best_seeds, ref mut best_counts)) = best {
+                            Self::update_best_seeds(best_seeds, best_counts, &array, seed, &self.conf);
+                            best
+                        } else {
+                            Some((
+                                self.conf.bits_per_seed.new_seed_vec(seed, level_size_groups),
+                                (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&array, group_index)).collect()
+                            ))
                         }
-                        best
-                    } else { new }
-                }).unwrap().unwrap().0
-            })
+                    }).chain([result]).reduce_with(|mut best, new| {
+                        if let Some((ref mut best_seeds, ref mut best_counts)) = best {
+                            if let Some((new_seeds, new_counts)) = new {
+                                self.update_best_seeds_counts(level_size_groups, &mut best_seeds[..], &mut best_counts[..], &new_seeds[..], &new_counts[..])
+                            }
+                            best
+                        } else { new }
+                    }).unwrap()
+                });
+                if seed_last == last_seed { break }
+                seed_first = seed_last + 1;
+            }
+            result.unwrap().0
         } else {
-            let levels = self.build_levels_st(keys, level_size_segments, level_size_groups as u32, 0..=last_seed);
-            let mut best_counts: Box<[u8]> = {
-                (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&levels, group_index)).collect()
-            };
+            let mut seed_first = 0;
             let mut best_seeds = self.conf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
-            let mut delta_beg = level_size_segments;
-            for group_seed in 1..=last_seed {
-                let delta_end = delta_beg + level_size_segments;
-                Self::update_best_seeds(&mut best_seeds, &mut best_counts, &levels[delta_beg..delta_end], group_seed, &self.conf);
-                delta_beg = delta_end;
+            let mut best_counts: Option<Box<[u8]>> = None;
+            loop {
+                let seed_last = ((seed_first as u32) + 7).min(last_seed as u32) as u16;
+                let levels = self.build_levels_st(keys, level_size_segments, level_size_groups as u32, seed_first..=seed_last);
+                let mut delta_beg = 0;
+                for group_seed in seed_first..=seed_last {
+                    let delta_end = delta_beg + level_size_segments;
+                    if let Some(ref mut best_counts) = best_counts {
+                        Self::update_best_seeds(&mut best_seeds, best_counts, &levels[delta_beg..delta_end], group_seed, &self.conf);
+                    } else {
+                        best_counts = Some(
+                            (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&levels, group_index)).collect()
+                        );
+                    }
+                    delta_beg = delta_end;
+                }
+                if seed_last == last_seed { break }
+                seed_first = seed_last + 1;
             }
             best_seeds
         }
