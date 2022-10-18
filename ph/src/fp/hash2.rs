@@ -9,8 +9,10 @@ use crate::read_array;
 use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
 use std::io;
 use std::num::NonZeroUsize;
+use std::ops::{Range, RangeInclusive};
+use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
-use crate::fp::hash::{fphash_add_bit, fphash_remove_collided};
+use crate::fp::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bit};
 use crate::fp::indexing2::group_nr;
 
 use rayon::prelude::*;
@@ -364,10 +366,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }   // end of multiple thread calculations
     }*/
 
-    /*fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
+    fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
-        let current_seeds = self.select_seeds(keys, level_size_groups, level_size_segments);
+        let current_seeds = self.select_seeds_new(keys, level_size_groups, level_size_segments);
         let current_array = self.build_array(
             keys,
             level_size_segments, level_size_groups as u32,
@@ -392,9 +394,9 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         );
         self.push(current_array, current_seeds, level_size_groups as u32);
         self.input_size = keys.keys_len();
-    }*/
+    }
 
-    fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
+    /*fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let level_seed = self.level_nr();
@@ -438,6 +440,112 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         );
         self.push(current_array, current_seeds, level_size_groups as u32);
         self.input_size = keys.keys_len();
+    }*/
+
+    /// Builds levels for all `group_seeds` given using single thread.
+    /// Returns the concatenation of the levels built.
+    fn build_levels_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, level_size_groups: u32, group_seeds: RangeInclusive<u16>) -> Box<[u64]>
+        where K: Hash + Sync
+    {
+        let total_array_size = level_size_segments * group_seeds.len();
+        let mut result = vec![0u64; total_array_size].into_boxed_slice();
+        let mut collision = vec![0u64; total_array_size].into_boxed_slice();
+        let level_size = level_size_segments * 64;
+        keys.for_each_key(
+            |key| {
+                let hash = self.conf.hash_builder.hash_one(key, self.level_nr());
+                let group = group_nr(hash, level_size_groups);
+                let mut delta = 0;
+                for group_seed in group_seeds.clone() {
+                    let bit = self.conf.bits_per_group.bit_index_for_seed(hash, group_seed, group);
+                    fphash_add_bit(&mut result, &mut collision, delta + bit);
+                    delta += level_size;
+                }
+            },
+            |key| self.retained(key)
+        );
+        fphash_remove_collided(&mut result, &mut collision);
+        result
+    }
+
+    /// Builds levels for all `group_seeds` given using multiple threads.
+    /// Returns the concatenation of the levels built.
+    fn build_levels_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, level_size_groups: u32, group_seeds: RangeInclusive<u16>, thread_pool: &ThreadPool) -> Box<[u64]>
+        where K: Hash + Sync
+    {
+        let total_array_size = level_size_segments * group_seeds.len();
+        let mut result = vec![0u64; total_array_size].into_boxed_slice();
+        let result_atom = AtomicU64::from_mut_slice(&mut result);
+        let mut collision: Box<[AtomicU64]> = (0..total_array_size).map(|_| AtomicU64::default()).collect();
+        let level_size = level_size_segments * 64;
+        keys.par_for_each_key(
+            |key| {
+                let hash = self.conf.hash_builder.hash_one(key, self.level_nr());
+                let group = group_nr(hash, level_size_groups);
+                let mut delta = 0;
+                for group_seed in group_seeds.clone() {
+                    let bit = self.conf.bits_per_group.bit_index_for_seed(hash, group_seed, group);
+                    fphash_sync_add_bit(&result_atom, &collision, delta + bit);
+                    delta += level_size;
+                }
+            },
+            |key| self.retained(key),
+            thread_pool
+        );
+        fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
+        result
+    }
+
+    /// Select optimal group seeds for the given `keys` and level size.
+    fn select_seeds_new<KS, K>(&self, keys: &KS, level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
+        where K: Hash + Sync, KS: KeySet<K> + Sync
+    {
+        let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
+        if let Some(thread_pool) = &self.thread_pool {
+            let levels = self.build_levels_mt(keys, level_size_segments, level_size_groups as u32, 0..=last_seed, thread_pool);
+            thread_pool.install(|| {
+                levels.par_chunks(level_size_segments).enumerate().fold(|| None, |mut best: Option<(Box<[SS::VecElement]>, Box<[u8]>)>, (seed, array)| {
+                    let seed = seed as u16;
+                    if let Some((ref mut best_seeds, ref mut best_counts)) = best {
+                        Self::update_best_seeds(best_seeds, best_counts, &array, seed, &self.conf);
+                        best
+                    } else {
+                        Some((
+                            self.conf.bits_per_seed.new_seed_vec(seed, level_size_groups),
+                            (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&array, group_index)).collect()
+                        ))
+                    }
+                }).reduce_with(|mut best, new| {
+                    if let Some((ref mut best_seeds, ref mut best_counts)) = best {
+                        if let Some((new_seeds, new_counts)) = new {
+                            for group_index in 0..level_size_groups {
+                                let best_count = &mut best_counts[group_index];
+                                let new_count = new_counts[group_index];
+                                if new_count > *best_count {
+                                    *best_count = new_count;
+                                    self.conf.bits_per_seed.set_seed(best_seeds, group_index,
+                                                                     self.conf.bits_per_seed.get_seed(&new_seeds, group_index))
+                                }
+                            }
+                        }
+                        best
+                    } else { new }
+                }).unwrap().unwrap().0
+            })
+        } else {
+            let levels = self.build_levels_st(keys, level_size_segments, level_size_groups as u32, 0..=last_seed);
+            let mut best_counts: Box<[u8]> = {
+                (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&levels, group_index)).collect()
+            };
+            let mut best_seeds = self.conf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
+            let mut delta_beg = level_size_segments;
+            for group_seed in 1..=last_seed {
+                let delta_end = delta_beg + level_size_segments;
+                Self::update_best_seeds(&mut best_seeds, &mut best_counts, &levels[delta_beg..delta_end], group_seed, &self.conf);
+                delta_beg = delta_end;
+            }
+            best_seeds
+        }
     }
 }
 

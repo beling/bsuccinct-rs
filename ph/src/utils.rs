@@ -89,12 +89,17 @@ pub fn map64_to_32(hash: u64, n: u32) -> u32 {
 /// <https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/>
 #[inline(always)]
 pub fn map64_to_64(hash: u64, n: u64) -> u64 {
-    /*if n > (u32::MAX as u64) {
-        hash % n
-    } else {
-        map64_to_32(hash, n as u32) as u64
-    }*/
     (((hash as u128) * (n as u128)) >> 64) as u64
+}
+
+/// Maps 48-bit `hash` to the range `[0, n)`, where `n` is a 64-bit integer.
+///
+/// Uses slightly modified version of the algorithm described in:
+/// Daniel Lemire, *A fast alternative to the modulo reduction*,
+/// <https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/>
+#[inline(always)]
+pub fn map48_to_64(hash: u64, n: u64) -> u64 {
+    ((((hash << 16) as u128) * (n as u128)) >> 64) as u64
 }
 
 /// Test given `mphf`, assuming that it is built for given set of keys.
