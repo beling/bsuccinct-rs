@@ -13,7 +13,7 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "minimal", "map", "dictionary" ]
 
 [dependencies]
-bitm = { version=">=0.1", path="../bitm" }
+bitm = { version=">=0.2", path="../bitm" }
 dyn_size_of = { version=">=0.1", path="../dyn_size_of" }
 binout = { version=">=0.1", path="../binout" }
 rayon = "1.5"

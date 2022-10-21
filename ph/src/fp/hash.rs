@@ -67,7 +67,7 @@ impl<S> FPHashConf<S> {
 
 /// Set `bit_index` bit in `result`. If it already was set, then set it in `collision`.
 #[cfg(not(feature = "no_branchless_bb"))]
-pub(crate) fn fphash_add_bit(result: &mut Box<[u64]>, collision: &mut Box<[u64]>, bit_index: usize) {
+pub(crate) fn fphash_add_bit(result: &mut [u64], collision: &mut [u64], bit_index: usize) {
     let index = bit_index / 64;
     let mask = 1u64 << (bit_index % 64) as u64;
     collision[index] |= result[index] & mask;

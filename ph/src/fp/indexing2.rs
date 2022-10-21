@@ -72,6 +72,12 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
         arr.get_fragment(group_index, (*self).into()).count_ones() as u8
     }
 
+    #[inline] fn conditionally_copy_group<Pred>(&self, dst: &mut [u64], src: &[u64], group_index: usize, predicate: Pred)
+        where Pred: FnOnce(u64, u64) -> bool
+    {
+        dst.conditionally_copy_fragment(src, predicate, group_index, (*self).into())
+    }
+
     /// Returns number of bites that `self.write` writes to the output.
     #[inline] fn write_size_bytes(&self) -> usize {
         std::mem::size_of::<u8>()

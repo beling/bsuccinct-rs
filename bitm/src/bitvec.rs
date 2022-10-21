@@ -63,6 +63,28 @@ pub trait BitAccess {
     {
         self.conditionally_change_bits(new_value, index * v_size as usize, v_size)
     }
+
+    /// Conditionally (if `predicate` return `true`) replaces the bits
+    /// [`begin`, `begin+v_size`) of `self` by the bits [`begin`, `begin+v_size`) of `src`.
+    /// Subsequent `predicate` arguments are the bits [`begin`, `begin+v_size`) of:
+    /// `self` and `src`.
+    #[inline(always)] fn conditionally_copy_bits<Pred>(&mut self, src: &Self, predicate: Pred, begin: usize, v_size: u8)
+        where Pred: FnOnce(u64, u64) -> bool
+    {
+        let src_bits = src.get_bits(begin, v_size);
+        self.conditionally_change_bits(|self_bits| predicate(self_bits, src_bits).then(|| src_bits), begin, v_size);
+    }
+
+    /// Conditionally (if `predicate` return `true`) replaces the bits
+    /// [`index*v_size`, `index*v_size+v_size`) of `self`
+    /// by the bits [`index*v_size`, `index*v_size+v_size`) of `src`.
+    /// Subsequent `predicate` arguments are the bits [`index*v_size`, `index*v_size+v_size`) of:
+    /// `self` and `src`.
+    #[inline(always)] fn conditionally_copy_fragment<Pred>(&mut self, src: &Self, predicate: Pred, index: usize, v_size: u8)
+        where Pred: FnOnce(u64, u64) -> bool
+    {
+        self.conditionally_copy_bits(src, predicate, index * v_size as usize, v_size)
+    }
 }
 
 /// The trait that is implemented for `Box<[u64]>` and extends it with bit-oriented constructors.
@@ -147,13 +169,14 @@ impl BitAccess for [u64] {
         //data += index_bit / 64;
         let offset = (begin % 64) as u8;
         let w1 = self[index_segment]>>offset;
-        let end_bit = offset+len;
-        if end_bit > 64 {
+        let v_mask = n_lowest_bits(len);
+        if offset+len > 64 {
+            let shift = 64-offset;
             w1 |
-                ((self[index_segment+1] & n_lowest_bits(end_bit&0x3F)) // or (end_bit-64) or (end_bit%64)
-                    << (64-offset))  // move bits to the left
+                ((self[index_segment+1] & (v_mask >> shift))
+                    << shift)  // move bits to the left
         } else {
-            w1 & n_lowest_bits(len)
+            w1 & v_mask
         }
     }
 
@@ -206,6 +229,35 @@ impl BitAccess for [u64] {
             self[index_segment] |= v << offset;
         }
         r
+    }
+
+    fn conditionally_copy_bits<Pred>(&mut self, src: &Self, predicate: Pred, begin: usize, v_size: u8)
+        where Pred: FnOnce(u64, u64) -> bool
+    {
+        let index_segment = begin / 64;
+        let offset = (begin % 64) as u64;
+        let self_w1 = self[index_segment]>>offset;
+        let mut src_w1 = src[index_segment]>>offset;
+        let end_bit = offset+v_size as u64;
+        let v_mask = n_lowest_bits(v_size);
+        if end_bit > 64 {
+            let shift = 64-offset;
+            let w2_mask = v_mask >> shift;
+            let self_bits = self_w1 | ((self[index_segment+1] & w2_mask) << shift);
+            let src_w2 = src[index_segment+1] & w2_mask;
+            if predicate(self_bits, src_w1 | (src_w2 << shift)) {
+                self[index_segment+1] &= !w2_mask;
+                self[index_segment+1] |= src_w2;
+                self[index_segment] &= !(v_mask << offset);
+                self[index_segment] |= src_w1 << offset;
+            }
+        } else {
+            src_w1 &= v_mask;
+            if predicate(self_w1 & v_mask, src_w1) {
+                self[index_segment] &= !(v_mask << offset);
+                self[index_segment] |= src_w1 << offset;
+            }
+        };
     }
 }
 
@@ -261,6 +313,34 @@ mod tests {
         assert_eq!(b.get_fragment(2, 30), bits2);
         assert_eq!(b.get_fragment(1, 30), 0);
         assert_eq!(b.get_fragment(3, 30), 0);
+    }
+
+    #[test]
+    fn fragments_conditionally_copy() {
+        let src = Box::<[u64]>::with_filled_64bit_segments(2);
+        let mut dst = Box::<[u64]>::with_zeroed_64bit_segments(2);
+
+        dst.conditionally_copy_fragment(&src,
+                                        |old, new| { assert_eq!(old, 0); assert_eq!(new, 0b111); old > new},
+                                        11, 3);
+        assert_eq!(dst.get_fragment(11, 3), 0);
+        assert_eq!(dst.get_fragment(12, 3), 0);
+        dst.conditionally_copy_fragment(&src,
+                                        |old, new| { assert_eq!(old, 0); assert_eq!(new, 0b111); old < new},
+                                        11, 3);
+        assert_eq!(dst.get_fragment(11, 3), 0b111);
+        assert_eq!(dst.get_fragment(12, 3), 0);
+
+        dst.conditionally_copy_fragment(&src,
+            |old, new| { assert_eq!(old, 0); assert_eq!(new, 0b111); old > new},
+            21, 3);
+        assert_eq!(dst.get_fragment(21, 3), 0);
+        assert_eq!(dst.get_fragment(22, 3), 0);
+        dst.conditionally_copy_fragment(&src,
+                                        |old, new| { assert_eq!(old, 0); assert_eq!(new, 0b111); old < new},
+                                        21, 3);
+        assert_eq!(dst.get_fragment(21, 3), 0b111);
+        assert_eq!(dst.get_fragment(22, 3), 0);
     }
 
     #[test]
