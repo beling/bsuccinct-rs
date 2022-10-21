@@ -9,7 +9,7 @@ use crate::read_array;
 use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
 use std::io;
 use std::num::NonZeroUsize;
-use std::ops::{Range, RangeInclusive};
+use std::ops::RangeInclusive;
 use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
 use crate::fp::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bit};
@@ -239,15 +239,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 }).reduce_with(|mut best, new| {
                     if let Some((ref mut best_seeds, ref mut best_counts)) = best {
                         if let Some((new_seeds, new_counts)) = new {
-                            for group_index in 0..level_size_groups {
-                                let best_count = &mut best_counts[group_index];
-                                let new_count = new_counts[group_index];
-                                if new_count > *best_count {
-                                    *best_count = new_count;
-                                    self.conf.bits_per_seed.set_seed(best_seeds, group_index,
-                                                                     self.conf.bits_per_seed.get_seed(&new_seeds, group_index))
-                                }
-                            }
+                            self.update_best_seeds_counts(level_size_groups, &mut best_seeds[..], &mut best_counts[..], &new_seeds[..], &new_counts[..])
                         }
                         best
                     } else { new }
@@ -289,15 +281,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 }).reduce_with(|mut best, new| {
                     if let Some((ref mut best_seeds, ref mut best_counts)) = best {
                         if let Some((new_seeds, new_counts)) = new {
-                            for group_index in 0..level_size_groups {
-                                let best_count = &mut best_counts[group_index];
-                                let new_count = new_counts[group_index];
-                                if new_count > *best_count {
-                                    *best_count = new_count;
-                                    self.conf.bits_per_seed.set_seed(best_seeds, group_index,
-                                                                self.conf.bits_per_seed.get_seed(&new_seeds, group_index))
-                                }
-                            }
+                            self.update_best_seeds_counts(level_size_groups, &mut best_seeds[..], &mut best_counts[..], &new_seeds[..], &new_counts[..])
                         }
                         best
                     } else { new }
