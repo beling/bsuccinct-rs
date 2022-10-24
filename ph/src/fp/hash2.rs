@@ -324,6 +324,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let current_seeds = self.select_seeds_counts(keys, level_size_groups, level_size_segments);
+        //let current_seeds = self.select_seeds_fewatonce_atomic_counts(keys, level_size_groups, level_size_segments);
         let current_array = self.build_array(
             keys,
             level_size_segments, level_size_groups as u32,
@@ -564,7 +565,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let last_seed = (1u32 << self.conf.bits_per_seed.into())-1;
-        let seeds_slice_size = 4;
+        let seeds_slice_size = 8;
         let last_seed_slice = last_seed / seeds_slice_size;
         let (array, seeds) = if let Some(thread_pool) = &self.thread_pool {
             thread_pool.install(|| {

@@ -5,24 +5,47 @@ use bitm::{BitAccess, BitVec, ceiling_div};
 use dyn_size_of::GetSize;
 use binout::{read_int, write_int};
 use crate::read_array;
-use crate::utils::map64_to_32;
+use crate::utils::{map16_to_16, map32_to_32, map64_to_32};
 
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
-#[inline]
+#[inline(always)]
 /*pub(super) fn group_nr(hasher: &mut impl Hasher, key: &impl Hash, level_size_groups: u32) -> u32 {
     key.hash(hasher);
     map64_to_32(hasher.finish(), level_size_groups)
 }*/
 pub fn group_nr(hash: u64, level_size_groups: u32) -> u32 {
-    map64_to_32(hash, level_size_groups)
+    //map64_to_32(hash, level_size_groups)
+    map32_to_32((hash >> 32) as u32, level_size_groups)
 }
 
 #[inline]
-fn mix_bits(mut x: u64) -> u64 {
+fn mix64(mut x: u64) -> u64 {
     x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9u64);
     x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111ebu64);
     x ^ (x >> 31)
+}
+
+#[inline(always)]
+fn mix32(mut x: u32) -> u32 {
+    x = (x ^ (x >> 16)).wrapping_mul(0x21f0aaad);
+    x = (x ^ (x >> 15)).wrapping_mul(0xd35a2d97);
+    x ^ (x >> 15)
+}
+
+/*#[inline(always)]
+fn mix16(mut x: u16) -> u16 {
+    x = (x ^ (x >> 8)).wrapping_mul(0xa3d3);
+    x = (x ^ (x >> 7)).wrapping_mul(0x4b2d);
+    x ^ (x >> 9)
+}*/
+
+#[inline(always)]
+fn mix16fast(mut x: u16) -> u16 {
+    x += x << 7; x ^= x >> 8;
+    x += x << 3; x ^= x >> 2;
+    x += x << 4; x ^= x >> 8;
+    x
 }
 
 /// Implementations of `GroupSize` represent group size in fingerprinting-based minimal perfect hashing with group optimization.
@@ -32,8 +55,11 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
 
     /// Returns `hash` modulo `self`.
     #[inline]
-    fn hash_to_group(&self, hash: u64) -> u8 {
-        map64_to_32(hash, Into::<u8>::into(*self) as u32) as u8
+    fn hash_to_group(&self, hash: u32) -> u8 {
+        //map64_to_32(hash, Into::<u8>::into(*self) as u32) as u8
+        map32_to_32(hash as u32, Into::<u8>::into(*self) as u32) as u8
+        //map16_to_16(hash as u16, Into::<u8>::into(*self) as u16) as u8
+        //map16_to_16(hash as u16, Into::<u8>::into(*self) as u16) as u8
     }
 
     /// Returns index in the group with given seed `group_seed` using `hasher`
@@ -44,9 +70,10 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
         self.hash_to_group(hasher.finish())
     }*/
     fn in_group_index(&self, hash: u64, group_seed: u16) -> u8 {
-        self.hash_to_group(mix_bits(hash ^ group_seed as u64))
-        //self.hash_to_group(hash.rotate_left(group_seed as u32))
-        //self.hash_to_group(hash ^ (group_seed as u64 + 0x9e3779b9 + (hash << 6) + (hash >> 2)))
+        //self.hash_to_group(mix16fast((hash as u16) ^ group_seed as u16))
+        self.hash_to_group(mix32((hash as u32).wrapping_add(group_seed as u32)))
+        //self.hash_to_group(mix32(((hash as u32) & 0xFFFF) | ((group_seed as u32) << 16)))
+        //self.hash_to_group(mix64(hash ^ group_seed as u64))
     }
 
     /// Returns bit index inside the group with number `group` and seed `group_seed`,
@@ -195,7 +222,7 @@ impl TryFrom<u8> for TwoToPowerBits {
 }
 
 impl GroupSize for TwoToPowerBits {
-    #[inline] fn hash_to_group(&self, hash: u64) -> u8 {
+    #[inline] fn hash_to_group(&self, hash: u32) -> u8 {
         hash as u8 & self.mask
     }
 
