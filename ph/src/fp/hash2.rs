@@ -239,7 +239,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     }
 
     /// Select optimal group seeds for the given `keys` and level size.
-    fn select_seeds_prehashed(&self, key_hashes: &[u64], level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
+    fn select_seeds_prehashed_counts(&self, key_hashes: &[u64], level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
     {
         let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
         if let Some(thread_pool) = &self.thread_pool {
@@ -280,7 +280,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
 
     /// Select optimal group seeds for the given `keys` and level size.
-    fn select_seeds<KS, K>(&self, keys: &KS, level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
+    fn select_seeds_counts<KS, K>(&self, keys: &KS, level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
@@ -320,10 +320,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
-    /*fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
+    fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
-        let current_seeds = self.select_seeds_new(keys, level_size_groups, level_size_segments);
+        let current_seeds = self.select_seeds_counts(keys, level_size_groups, level_size_segments);
         let current_array = self.build_array(
             keys,
             level_size_segments, level_size_groups as u32,
@@ -331,7 +331,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             //current_seeds.get_fragment(group_index as usize, conf.bits_per_group_seed) as u16
         );
         self.finish_level_building(keys, level_size_groups, current_array, current_seeds);
-    }*/
+    }
 
     fn finish_level_building<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, current_array: Box<[u64]>, current_seeds: Box<[<SS as SeedSize>::VecElement]>)
         where K: Hash + Sync, KS: KeySet<K> + Sync
@@ -356,7 +356,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         self.input_size = keys.keys_len();
     }
 
-    fn build_next_level_old<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
+    fn build_next_level_prehash_counts<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let level_seed = self.level_nr();
@@ -375,7 +375,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             )
         };
         //let current_seeds = levels.select_seeds(level_size_groups, level_size_segments, &keys);
-        let current_seeds = self.select_seeds_prehashed(&key_hashes, level_size_groups, level_size_segments);
+        let current_seeds = self.select_seeds_prehashed_counts(&key_hashes, level_size_groups, level_size_segments);
         let current_array = self.build_array_for_hashes(
             &key_hashes,
             level_size_segments, level_size_groups as u32,
@@ -430,7 +430,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
     /// Builds levels for all `group_seeds` given using multiple threads.
     /// Returns the concatenation of the levels built.
-    fn build_levels_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, level_size_groups: u32, group_seeds: RangeInclusive<u16>, thread_pool: &ThreadPool) -> Box<[u64]>
+    fn build_levels_atomic_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, level_size_groups: u32, group_seeds: RangeInclusive<u16>, thread_pool: &ThreadPool) -> Box<[u64]>
         where K: Hash + Sync
     {
         let total_array_size = level_size_segments * group_seeds.len();
@@ -457,7 +457,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     }
 
     /// Select optimal group seeds for the given `keys` and level size.
-    fn select_seeds_new<KS, K>(&self, keys: &KS, level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
+    fn select_seeds_fewatonce_atomic_counts<KS, K>(&self, keys: &KS, level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
@@ -466,7 +466,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             let mut seed_first = 0;
             loop {
                 let seed_last = ((seed_first as u32) + 7).min(last_seed as u32) as u16;
-                let levels = self.build_levels_mt(keys, level_size_segments, level_size_groups as u32, seed_first..=seed_last, thread_pool);
+                let levels = self.build_levels_atomic_mt(keys, level_size_segments, level_size_groups as u32, seed_first..=seed_last, thread_pool);
                 result = thread_pool.install(|| {
                     levels.par_chunks(level_size_segments).enumerate().fold(|| None, |mut best: Option<(Box<[SS::VecElement]>, Box<[u8]>)>, (seed, array)| {
                         let seed = seed as u16;
@@ -519,7 +519,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     }
 
     /// Builds levels for all `group_seeds` given and merge them, using a single thread.
-    fn best_level<K>(&self, prev_best: Option<(Box<[u64]>, Box<[SS::VecElement]>)>, keys: &impl KeySet<K>, level_size_segments: usize, level_size_groups: u32, group_seeds: RangeInclusive<u16>) -> (Box<[u64]>, Box<[SS::VecElement]>)
+    fn best_level_fewatonce<K>(&self, prev_best: Option<(Box<[u64]>, Box<[SS::VecElement]>)>, keys: &impl KeySet<K>, level_size_segments: usize, level_size_groups: u32, group_seeds: RangeInclusive<u16>) -> (Box<[u64]>, Box<[SS::VecElement]>)
         where K: Hash + Sync
     {
         let levels_count = group_seeds.len();
@@ -560,18 +560,18 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
-    fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
+    fn build_next_level_fewatonce<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let last_seed = (1u32 << self.conf.bits_per_seed.into())-1;
-        let seeds_slice_size = 8;
+        let seeds_slice_size = 4;
         let last_seed_slice = last_seed / seeds_slice_size;
         let (array, seeds) = if let Some(thread_pool) = &self.thread_pool {
             thread_pool.install(|| {
                 (0..=last_seed_slice).into_par_iter().fold(|| None, |mut best: Option<(Box<[u64]>, Box<[SS::VecElement]>)>, seeds_slice| {
                     let first_seed = seeds_slice * seeds_slice_size;
-                    Some(self.best_level(best, keys, level_size_segments, level_size_groups as u32,
-                                         first_seed as u16..=(first_seed+seeds_slice_size-1).min(last_seed) as u16))
+                    Some(self.best_level_fewatonce(best, keys, level_size_segments, level_size_groups as u32,
+                                                   first_seed as u16..=(first_seed+seeds_slice_size-1).min(last_seed) as u16))
                 }).reduce_with(|mut best, new| {
                     if let Some((ref mut best_arr, ref mut best_seeds)) = best {
                         if let Some((new, new_seeds)) = new {
@@ -585,8 +585,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         } else {
             let mut best = None;
             for first_seed in (0..=last_seed).step_by(seeds_slice_size as usize) {
-                best = Some(self.best_level(best, keys, level_size_segments, level_size_groups as u32,
-                                     first_seed as u16..=(first_seed+seeds_slice_size-1).min(last_seed) as u16))
+                best = Some(self.best_level_fewatonce(best, keys, level_size_segments, level_size_groups as u32,
+                                                      first_seed as u16..=(first_seed+seeds_slice_size-1).min(last_seed) as u16))
             }
             best.unwrap()
         };
