@@ -666,7 +666,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
                 ceiling_div(levels.input_size * levels.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(levels.input_size, level_size_segments * 64);
-            levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
+            levels.build_next_level_prehash_counts(&mut keys, level_size_groups, level_size_segments);
         }
         drop(keys);
         drop(levels.thread_pool);

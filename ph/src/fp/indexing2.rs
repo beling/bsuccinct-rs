@@ -71,7 +71,8 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
     }*/
     fn in_group_index(&self, hash: u64, group_seed: u16) -> u8 {
         //self.hash_to_group(mix16fast((hash as u16) ^ group_seed as u16))
-        self.hash_to_group(mix32((hash as u32).wrapping_add(group_seed as u32)))
+        self.hash_to_group(mix32((hash as u32) ^ (group_seed as u32)))
+        //self.hash_to_group(mix32((hash as u32).wrapping_add(group_seed as u32)))
         //self.hash_to_group(mix32(((hash as u32) & 0xFFFF) | ((group_seed as u32) << 16)))
         //self.hash_to_group(mix64(hash ^ group_seed as u64))
     }
