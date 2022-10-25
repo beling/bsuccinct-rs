@@ -304,7 +304,7 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
 
 fn h2bench<GS, SS, S, K>(hash: S, bits_per_group_seed: SS, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess) -> (f64, BenchmarkResult)
 where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone {
-    ((FPHash2Conf::hash_bps_bpg_lsize_threads(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size, 1), key_access).benchmark_build(&i.0, conf.build_runs).1,
+    ((FPHash2Conf::hash_bps_bpg_lsize_threads(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size, false), key_access).benchmark_build(&i.0, conf.build_runs).1,
      (FPHash2Conf::hash_bps_bpg_lsize(hash.clone(), bits_per_group_seed, bits_per_group, relative_level_size), key_access).benchmark(i, conf).1)
 }
 
@@ -394,8 +394,8 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
         let (st_build_time, b) = if let Some((ref hash, key_access)) = use_fp {
             //let mut r = bbmap::bb::hash::Conf::hash_lsize(/*fnv::FnvBuildHasher::default()*/ hash.clone(), relative_level_size).benchmark(verify).1;
             //(std::mem::replace(&mut r.build_time_seconds, f64::NAN), r)
-            ((FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 1), key_access).benchmark_build(&i.0, conf.build_runs).1,
-             (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, 0), key_access).benchmark(i, conf).1)
+            ((FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, false), key_access).benchmark_build(&i.0, conf.build_runs).1,
+             (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, true), key_access).benchmark(i, conf).1)
         } else {
             (BooMPHFConf { gamma, mt: false }.benchmark_build(&i.0, conf.build_runs).1,
              BooMPHFConf { gamma, mt: true }.benchmark(i, conf).1)

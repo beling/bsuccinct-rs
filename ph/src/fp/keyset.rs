@@ -16,6 +16,16 @@ pub trait KeySet<K> {
     fn for_each_key<F, P>(&self, f: F, retained_hint: P)
         where F: FnMut(&K), P: Fn(&K) -> bool;
 
+    /// Call `f` for each key in the set.
+    ///
+    /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
+    #[inline(always)]
+    fn par_for_each_key<F, P>(&self, f: F, retained_hint: P)
+        where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
+    {
+        self.for_each_key(f, retained_hint);
+    }
+
     /// Call `map` for each key in the set, and return outputs of these calls.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
@@ -27,30 +37,54 @@ pub trait KeySet<K> {
         result
     }
 
-    /// Call `f` for each key in the set.
-    ///
-    /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
-    #[inline(always)]
-    fn par_for_each_key<F, P>(&self, f: F, retained_hint: P, _thread_pool: &ThreadPool)
-        where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
-    {
-        self.for_each_key(f, retained_hint);
-    }
-
     /// Call `map` for each key in the set, and return outputs of these calls.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     #[inline(always)]
-    fn par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P, _thread_pool: &ThreadPool) -> Vec<R>
+    fn par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P) -> Vec<R>
         where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool { self.map_each_key(map, len_hint, retained_hint) }
+
+    #[inline(always)]
+    fn maybe_par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P, use_mt: bool) -> Vec<R>
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
+    {
+        if use_mt {
+            self.par_map_each_key(map, len_hint, retained_hint)
+        } else {
+            self.map_each_key(map, len_hint, retained_hint)
+        }
+    }
 
     /// Retains in `self` keys pointed by the `filter` and remove the rest.
     ///
     /// `filter` shows which keys are not removed at the last level,
     /// `retained_earlier` shows which keys are not removed at previous levels,
     /// `retained_count` returns number of keys retained.
-    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R, thread_pool: Option<&ThreadPool>)
-        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize;
+    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
+        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize;
+
+    /// Retains in `self` keys pointed by the `filter` and remove the rest.
+    ///
+    /// `filter` shows which keys are not removed at the last level,
+    /// `retained_earlier` shows which keys are not removed at previous levels,
+    /// `retained_count` returns number of keys retained.
+    #[inline(always)]
+    fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
+        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        self.retain_keys(filter, retained_earlier, retained_count)
+    }
+
+    #[inline(always)]
+    fn maybe_par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R, use_mt: bool)
+        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        if use_mt /*&& self.has_par_retain_keys()*/ {
+            self.par_retain_keys(filter, retained_earlier, retained_count)
+        } else {
+            self.retain_keys(filter, retained_earlier, retained_count)
+        }
+    }
 }
 
 impl<K: Sync + Send> KeySet<K> for Vec<K> {
@@ -71,14 +105,17 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
         where M: FnMut(&K) -> R, P: Fn(&K) -> bool { self.iter().map(map).collect() }
 
-    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, thread_pool: &ThreadPool)
+    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
-        thread_pool.install(|| { self.into_par_iter().for_each(f) });
+        self.into_par_iter().for_each(f)
     }
 
-    #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P, thread_pool: &ThreadPool) -> Vec<R>
-        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool { thread_pool.install(|| { self.into_par_iter().map(map) }).collect() }
+    #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
+    {
+        self.into_par_iter().map(map).collect()
+    }
 
     /*#[inline(always)] fn retain_keys<F, R>(&mut self, filter: F, _removed_count: R, _thread_pool: Option<&ThreadPool>)
         where F: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
@@ -86,14 +123,16 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
         self.retain(filter)
     }*/
 
-    #[inline(always)] fn retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, _retained_count: R, thread_pool: Option<&ThreadPool>)
+    #[inline(always)] fn retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, _retained_count: R)
+        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    {
+        self.retain(filter)
+    }
+
+    #[inline(always)] fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, _retained_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
-        if let Some(thread_pool) = thread_pool {
-            thread_pool.install(|| { *self = (std::mem::take(self)).into_par_iter().filter(filter).collect(); })
-        } else {
-            self.retain(filter)
-        }
+        *self = (std::mem::take(self)).into_par_iter().filter(filter).collect();
     }
 }
 
@@ -128,24 +167,20 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
         self.slice[0..self.len].into_iter().map(map).collect()
     }
 
-    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, thread_pool: &ThreadPool)
+    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
-        thread_pool.install(|| {
-            self.slice[0..self.len].into_par_iter().for_each(f)
-        })
+        self.slice[0..self.len].into_par_iter().for_each(f)
     }
 
-    #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P, thread_pool: &ThreadPool) -> Vec<R>
+    #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
         where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
     {
-        thread_pool.install(|| {
-            self.slice[0..self.len].into_par_iter().map(map).collect()
-        })
+        self.slice[0..self.len].into_par_iter().map(map).collect()
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R, _thread_pool: Option<&ThreadPool>)
-        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
+        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
         let mut i = 0usize;
         while i < self.len {
@@ -200,31 +235,33 @@ impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
         }
     }
 
-    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, thread_pool: &ThreadPool)
+    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
         if let Some(ref retained) = self.retained {
-            retained.par_for_each_key(f, _retained_hint, thread_pool)
+            retained.par_for_each_key(f, _retained_hint)
         } else {
-            thread_pool.install(|| {
-                (*self.slice).into_par_iter().for_each(f);
-            })
+            (*self.slice).into_par_iter().for_each(f)
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R, thread_pool: Option<&ThreadPool>)
+    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
+        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    {
+        if let Some(ref mut retained) = self.retained {
+            retained.retain_keys(filter, retained_earlier, retained_count)
+        } else {
+            self.retained = Some(self.slice.into_iter().filter_map(|k|filter(k).then(|| k.clone())).collect());
+        }
+    }
+
+    fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         if let Some(ref mut retained) = self.retained {
-            retained.retain_keys(filter, retained_earlier, retained_count, thread_pool)
+            retained.par_retain_keys(filter, retained_earlier, retained_count)
         } else {
-            if let Some(thread_pool) = thread_pool {
-                thread_pool.install(|| {
-                    self.retained = Some(self.slice.into_par_iter().filter_map(|k|filter(k).then(|| k.clone())).collect());
-                })
-            } else {
-                self.retained = Some(self.slice.into_iter().filter_map(|k|filter(k).then(|| k.clone())).collect());
-            }
+            self.retained = Some(self.slice.into_par_iter().filter_map(|k|filter(k).then(|| k.clone())).collect())
         }
     }
 }
@@ -274,52 +311,50 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
         }
     }*/
 
-    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, thread_pool: &ThreadPool)
+    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
-        thread_pool.install(|| {
-            if let Some(ref indices) = self.retained {
-                for (i, v) in indices.into_iter().zip(self.slice.chunks(1<<16)) {
-                    i.into_par_iter().for_each(|i| f(unsafe{v.get_unchecked(*i as usize)}));
-                }
-                /*indices.into_par_iter().zip(self.slice.into_par_iter().chunks(1<<16)).for_each(|(i, v)| {
-                    i.into_par_iter().for_each(|i| f(unsafe{v.get_unchecked(*i as usize)}));
-                });*/
-            } else {
-                (*self.slice).into_par_iter().for_each(f);
+        if let Some(ref indices) = self.retained {
+            for (i, v) in indices.into_iter().zip(self.slice.chunks(1 << 16)) {
+                i.into_par_iter().for_each(|i| f(unsafe { v.get_unchecked(*i as usize) }));
             }
-        })
+            /*indices.into_par_iter().zip(self.slice.into_par_iter().chunks(1<<16)).for_each(|(i, v)| {
+                i.into_par_iter().for_each(|i| f(unsafe{v.get_unchecked(*i as usize)}));
+            });*/
+        } else {
+            (*self.slice).into_par_iter().for_each(f);
+        }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R, thread_pool: Option<&ThreadPool>)
+    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
+        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    {
+        if let Some(ref mut r) = self.retained {
+            let slice = self.slice; // fixes "cannot borrow `self` as immutable because it is also borrowed as mutable"
+            for (mut ci, c) in r.into_iter().enumerate() {
+                ci <<= 16;
+                c.retain(|i| filter(unsafe{slice.get_unchecked(ci | (*i as usize))}));
+            }
+        } else {
+            self.retained = Some(self.slice.chunks(1 << 16).map(|c|
+                c.into_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect()
+            ).collect());
+        }
+    }
+
+    fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
-        if let Some(thread_pool) = thread_pool {
-            thread_pool.install(|| {
-                if let Some(ref mut r) = self.retained {
-                    let slice = self.slice; // fixes "cannot borrow `self` as immutable because it is also borrowed as mutable"
-                    r.into_par_iter().enumerate().for_each(|(mut ci, c)| {
-                        ci <<= 16;
-                        c.retain(|i| filter(unsafe{slice.get_unchecked(ci | (*i as usize))}));
-                    });
-                } else {
-                    self.retained = Some(self.slice.chunks(1 << 16).map(|c|
-                        c.into_par_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect()
-                    ).collect());
-                }
+        if let Some(ref mut r) = self.retained {
+            let slice = self.slice; // fixes "cannot borrow `self` as immutable because it is also borrowed as mutable"
+            r.into_par_iter().enumerate().for_each(|(mut ci, c)| {
+                ci <<= 16;
+                c.retain(|i| filter(unsafe { slice.get_unchecked(ci | (*i as usize)) }));
             });
         } else {
-            if let Some(ref mut r) = self.retained {
-                let slice = self.slice; // fixes "cannot borrow `self` as immutable because it is also borrowed as mutable"
-                for (mut ci, c) in r.into_iter().enumerate() {
-                    ci <<= 16;
-                    c.retain(|i| filter(unsafe{slice.get_unchecked(ci | (*i as usize))}));
-                }
-            } else {
-                self.retained = Some(self.slice.chunks(1 << 16).map(|c|
-                    c.into_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect()
-                ).collect());
-            }
+            self.retained = Some(self.slice.chunks(1 << 16).map(|c|
+                c.into_par_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect()
+            ).collect());
         }
     }
 }
@@ -336,7 +371,6 @@ impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
         Self { slice, retained: None }
     }
 }
-
 
 impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
     fn keys_len(&self) -> usize {
@@ -362,7 +396,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         }
     }
 
-    fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P, _thread_pool: &ThreadPool)
+    fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
         if let Some(ref indices) = self.retained {
@@ -375,37 +409,37 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R, thread_pool: Option<&ThreadPool>)
-        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
+        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
-        if let Some(thread_pool) = thread_pool {
-            thread_pool.install(|| {
-                if let Some(ref mut r) = self.retained {
-                    r.into_par_iter().for_each(|(shift, indices)| {
-                        let slice = &self.slice[*shift..];
-                        indices.retain(|i| filter(unsafe { slice.get_unchecked(*i as usize) }));
-                    });
-                    r.retain(|(_, v)| !v.is_empty());   // parallel version?
-                } else {
-                    self.retained = Some(self.slice.chunks(1 << 16).enumerate().filter_map(|(ci, slice)| {
-                        let v: Vec<_> = slice.into_par_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect();
-                        (!v.is_empty()).then(|| (ci << 16, v))
-                    }).collect());
-                }
+        if let Some(ref mut r) = self.retained {
+            r.retain_mut(|(shift, indices)| {
+                let slice = &self.slice[*shift..];
+                indices.retain(|i| filter(unsafe { slice.get_unchecked(*i as usize) }));
+                !indices.is_empty()
             });
         } else {
-            if let Some(ref mut r) = self.retained {
-                r.retain_mut(|(shift, indices)| {
-                    let slice = &self.slice[*shift..];
-                    indices.retain(|i| filter(unsafe { slice.get_unchecked(*i as usize) }));
-                    !indices.is_empty()
-                });
-            } else {
-                self.retained = Some(self.slice.chunks(1 << 16).enumerate().filter_map(|(ci, slice)| {
-                    let v: Vec<_> = slice.into_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect();
-                    (!v.is_empty()).then(|| (ci << 16, v))
-                }).collect());
-            }
+            self.retained = Some(self.slice.chunks(1 << 16).enumerate().filter_map(|(ci, slice)| {
+                let v: Vec<_> = slice.into_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect();
+                (!v.is_empty()).then(|| (ci << 16, v))
+            }).collect());
+        }
+    }
+
+    fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
+        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        if let Some(ref mut r) = self.retained {
+            r.into_par_iter().for_each(|(shift, indices)| {
+                let slice = &self.slice[*shift..];
+                indices.retain(|i| filter(unsafe { slice.get_unchecked(*i as usize) }));
+            });
+            r.retain(|(_, v)| !v.is_empty());   // parallel version?
+        } else {
+            self.retained = Some(self.slice.chunks(1 << 16).enumerate().filter_map(|(ci, slice)| {
+                let v: Vec<_> = slice.into_par_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect();
+                (!v.is_empty()).then(|| (ci << 16, v))
+            }).collect());
         }
     }
 }
@@ -433,8 +467,8 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
         (self.keys)().filter(retained_hint).for_each(|k| f(&k))
     }
 
-    #[inline] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, retains_count: R, _thread_pool: Option<&ThreadPool>)
-        where F: Fn(&KeyIter::Item) -> bool + Sync + Send, P: Fn(&KeyIter::Item) -> bool + Sync + Send, R: Fn() -> usize
+    #[inline] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, retains_count: R)
+        where F: Fn(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
     {
         self.len = retains_count();
     }
@@ -464,6 +498,18 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedDynamicKeySet<KeyIter
         let len = keys().count();
         Self::with_keys_len_threshold(keys, len, clone_threshold)
     }
+
+    fn build_cache<F, P>(dynamic_key_set: &DynamicKeySet<KeyIter, GetKeyIter>, filter: F, retained_earlier: P, len: usize) -> Self
+        where F: Fn(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool
+    {
+        let mut cache = Vec::with_capacity(len);
+        for k in (dynamic_key_set.keys)() {
+            if retained_earlier(&k) && filter(&k) {
+                cache.push(k.clone())
+            }
+        }
+        Self::Cached(cache)
+    }
 }
 
 impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for CachedDynamicKeySet<KeyIter, GetKeyIter>
@@ -491,34 +537,44 @@ where KeyIter::Item: Sync + Send + Clone
     }
 
     #[inline]
-    fn par_for_each_key<F, P>(&self, f: F, retained_hint: P, thread_pool: &ThreadPool)
+    fn par_for_each_key<F, P>(&self, f: F, retained_hint: P)
         where F: Fn(&KeyIter::Item) + Sync + Send, P: Fn(&KeyIter::Item) -> bool + Sync + Send
     {
         match self {
-            Self::Dynamic((dynamic_key_set, _)) => dynamic_key_set.par_for_each_key(f, retained_hint, thread_pool),
-            Self::Cached(v) => v.par_for_each_key(f, retained_hint, thread_pool)
+            Self::Dynamic((dynamic_key_set, _)) => dynamic_key_set.par_for_each_key(f, retained_hint),
+            Self::Cached(v) => v.par_for_each_key(f, retained_hint)
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R, thread_pool: Option<&ThreadPool>)
+    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
+        where F: Fn(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
+    {
+        match self {
+            Self::Dynamic((dynamic_key_set, clone_threshold)) => {
+                let len = retained_count();
+                if len < *clone_threshold {
+                    *self = Self::build_cache(&dynamic_key_set, filter, retained_earlier, len);
+                } else {
+                    dynamic_key_set.len = len;
+                }
+            },
+            Self::Cached(v) => v.retain_keys(filter, retained_earlier, retained_count)
+        }
+    }
+
+    fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
         where F: Fn(&KeyIter::Item) -> bool + Sync + Send, P: Fn(&KeyIter::Item) -> bool + Sync + Send, R: Fn() -> usize
     {
         match self {
             Self::Dynamic((dynamic_key_set, clone_threshold)) => {
                 let len = retained_count();
                 if len < *clone_threshold {
-                    let mut cache = Vec::with_capacity(len);
-                    for k in (dynamic_key_set.keys)() {
-                        if retained_earlier(&k) && filter(&k) {
-                            cache.push(k.clone())
-                        }
-                    }
-                    *self = Self::Cached(cache);
+                    *self = Self::build_cache(dynamic_key_set, filter, retained_earlier, len);
                 } else {
                     dynamic_key_set.len = len;
                 }
             },
-            Self::Cached(v) => v.retain_keys(filter, retained_earlier, retained_count, thread_pool)
+            Self::Cached(v) => v.par_retain_keys(filter, retained_earlier, retained_count)
         }
     }
 }
