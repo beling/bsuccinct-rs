@@ -181,6 +181,24 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         result
     }
 
+    /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
+    fn build_array_for_hashes_mt<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed, thread_pool: &ThreadPool) -> Box<[u64]>
+        where GetGroupSeed: Fn(u32) -> u16 + Sync  // returns group seed for group with given index
+    {
+        let mut result = vec![0u64; level_size_segments].into_boxed_slice();
+        let result_atom = AtomicU64::from_mut_slice(&mut result);
+        let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
+        thread_pool.install(|| {
+            key_hashes.par_iter().for_each(|hash| {
+                let group = group_nr(*hash, level_size_groups);
+                let bit = self.conf.bits_per_group.bit_index_for_seed(*hash, group_seed(group), group);
+                fphash_sync_add_bit(&result_atom, &collision, bit);
+            });
+        });
+        fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
+        result
+    }
+
     /// Returns fingerprint array for given keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     fn build_array<GetGroupSeed, KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
         where GetGroupSeed: Fn(u32) -> u16,  // returns group seed for group with given index
@@ -239,10 +257,26 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     }
 
     /// Select optimal group seeds for the given `keys` and level size.
-    fn select_seeds_prehashed_counts(&self, key_hashes: &[u64], level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
+    fn select_seeds_prehashed_counts_st(&self, key_hashes: &[u64], level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
     {
         let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
+        let mut best_counts: Box<[u8]> = {
+            let arr = self.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, |_| 0);
+            (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&arr, group_index)).collect()
+        };
+        let mut best_seeds = self.conf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
+        for group_seed in 1..=last_seed {
+            let with_new_seed = self.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, |_| group_seed);
+            Self::update_best_seeds(&mut best_seeds, &mut best_counts, &with_new_seed, group_seed, &self.conf);
+        }
+        best_seeds
+    }
+
+    /// Select optimal group seeds for the given `keys` and level size.
+    fn select_seeds_prehashed_counts(&self, key_hashes: &[u64], level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
+    {
         if let Some(thread_pool) = &self.thread_pool {
+            let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
             thread_pool.install(|| {
                 (0..=last_seed).into_par_iter().fold(|| None, |mut best: Option<(Box<[SS::VecElement]>, Box<[u8]>)>, seed| {
                     let array = self.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, |_| seed);
@@ -265,19 +299,29 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 }).unwrap().unwrap().0
             })
         } else {
+            self.select_seeds_prehashed_counts_st(key_hashes, level_size_groups, level_size_segments)
+        }
+    }
+
+    /// Select optimal group seeds for the given `keys` and level size.
+    fn select_seeds_prehashed_counts_atomic(&self, key_hashes: &[u64], level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
+    {
+        if let Some(thread_pool) = &self.thread_pool {
+            let last_seed = ((1u32 << self.conf.bits_per_seed.into())-1) as u16;
             let mut best_counts: Box<[u8]> = {
-                let arr = self.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, |_| 0);
+                let arr = self.build_array_for_hashes_mt(&key_hashes, level_size_segments, level_size_groups as u32, |_| 0, thread_pool);
                 (0..level_size_groups).into_iter().map(|group_index| self.conf.bits_per_group.ones_in_group(&arr, group_index)).collect()
             };
             let mut best_seeds = self.conf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
             for group_seed in 1..=last_seed {
-                let with_new_seed = self.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, |_| group_seed);
+                let with_new_seed = self.build_array_for_hashes_mt(&key_hashes, level_size_segments, level_size_groups as u32, |_| group_seed, thread_pool);
                 Self::update_best_seeds(&mut best_seeds, &mut best_counts, &with_new_seed, group_seed, &self.conf);
             }
             best_seeds
+        } else {
+            self.select_seeds_prehashed_counts_st(key_hashes, level_size_groups, level_size_segments)
         }
     }
-
 
     /// Select optimal group seeds for the given `keys` and level size.
     fn select_seeds_counts<KS, K>(&self, keys: &KS, level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
@@ -376,7 +420,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             )
         };
         //let current_seeds = levels.select_seeds(level_size_groups, level_size_segments, &keys);
-        let current_seeds = self.select_seeds_prehashed_counts(&key_hashes, level_size_groups, level_size_segments);
+        let current_seeds = self.select_seeds_prehashed_counts_atomic(&key_hashes, level_size_groups, level_size_segments);
         let current_array = self.build_array_for_hashes(
             &key_hashes,
             level_size_segments, level_size_groups as u32,
@@ -565,7 +609,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let last_seed = (1u32 << self.conf.bits_per_seed.into())-1;
-        let seeds_slice_size = 8;
+        let seeds_slice_size = 2;
         let last_seed_slice = last_seed / seeds_slice_size;
         let (array, seeds) = if let Some(thread_pool) = &self.thread_pool {
             thread_pool.install(|| {
@@ -624,13 +668,6 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GetSize for FPHash2<GS, 
 }
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS, SS, S> {
-
-    /*fn get_bit<K: Hash>(&self, groups_before: usize, key: &K, level_nr: u32, level_size_segments: usize) -> bool {
-        let mut hasher = self.hash_builder.build_hasher();
-        let group = groups_before + group_nr(hasher, key, level_nr, level_size_segments);
-        self.array.content[group] & (1 << self.in_group_index(&self.seeds, group)) != 0
-        //(group, (hasher.finish() % 64) as u8)
-    }*/
 
     /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
     pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
