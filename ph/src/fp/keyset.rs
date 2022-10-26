@@ -266,7 +266,10 @@ impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
     }
 }
 
-
+/// KeySet that stores reference to slice with keys,
+/// and indices of this slice that points retained keys.
+/// Indices are stored in vector of vectors of 16-bit integers.
+/// Each vector covers $2^{16}$ consecutive keys.
 pub struct SliceSourceWithRefs<'k, K> {
     slice: &'k [K],
     retained: Option<Vec<Vec<u16>>>,
@@ -301,16 +304,6 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
         }
     }
 
-    /*#[inline(always)] fn map_each_key<R, M, P>(&self, mut map: M, _retained_hint: P) -> Vec<R> where M: FnMut(&K) -> R, P: Fn(&K) -> bool {
-        if let Some(ref indices) = self.retained {
-            indices.into_iter().zip(self.slice.chunks(1<<16))
-                .flat_map(|(i, v)| i.into_iter().map(|i| map(unsafe{v.get_unchecked(*i as usize)})))
-                .collect()
-        } else {
-            self.slice.into_iter().map(map).collect()
-        }
-    }*/
-
     #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
@@ -323,6 +316,22 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
             });*/
         } else {
             (*self.slice).into_par_iter().for_each(f);
+        }
+    }
+
+    fn par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, _retained_hint: P) -> Vec<R>
+        where M: Fn(&K) -> R + Sync + Send, R: Send, P: Fn(&K) -> bool
+    {
+        if let Some(ref indices) = self.retained {
+            let mut result = Vec::with_capacity(len_hint);
+            for (i, v) in indices.into_iter().zip(self.slice.chunks(1 << 16)) {
+                result.par_extend(i.into_par_iter().map(|i| map(unsafe{v.get_unchecked(*i as usize)})))
+            }
+            result
+        } else {
+            //let result = Vec::with_capacity(len_hint)
+            //self.slice.into_par_iter().map(map).collect_into_vec(result)
+            self.slice.into_par_iter().map(map).collect()
         }
     }
 
@@ -406,6 +415,23 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
             }
         } else {
             (*self.slice).into_par_iter().for_each(f);
+        }
+    }
+
+    fn par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, _retained_hint: P) -> Vec<R>
+        where M: Fn(&K) -> R + Sync + Send, R: Send, P: Fn(&K) -> bool
+    {
+        if let Some(ref indices) = self.retained {
+            let mut result = Vec::with_capacity(len_hint);
+            for (shift, indices) in indices {
+                let slice = &self.slice[*shift..];
+                result.par_extend(indices.into_par_iter().map(|i| map(unsafe{slice.get_unchecked(*i as usize)})))
+            }
+            result
+        } else {
+            //let result = Vec::with_capacity(len_hint)
+            //self.slice.into_par_iter().map(map).collect_into_vec(result)
+            (*self.slice).into_par_iter().map(map).collect()
         }
     }
 

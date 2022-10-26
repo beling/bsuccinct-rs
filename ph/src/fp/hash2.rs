@@ -433,18 +433,24 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 |key| self.retained(key),
                 self.use_multiple_threads
             );
-        //let current_seeds = levels.select_seeds(level_size_groups, level_size_segments, &keys);
-        let current_seeds = self.select_seeds_prehashed_counts_atomic(&key_hashes, level_size_groups, level_size_segments);
-        let current_array = self.build_array_for_hashes(
-            &key_hashes,
-            level_size_segments, level_size_groups as u32,
-            |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize)
-            //current_seeds.get_fragment(group_index as usize, conf.bits_per_group_seed) as u16
-        );
-        let level_nr = self.level_nr();
+        let current_seeds = self.select_seeds_prehashed_counts(&key_hashes, level_size_groups, level_size_segments);
+        //let current_seeds = self.select_seeds_prehashed_counts_atomic(&key_hashes, level_size_groups, level_size_segments);
+        let current_array = if self.use_multiple_threads {
+            self.build_array_for_hashes_mt(
+                &key_hashes,
+                level_size_segments, level_size_groups as u32,
+                |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize)
+            )
+        } else {
+            self.build_array_for_hashes(
+                &key_hashes,
+                level_size_segments, level_size_groups as u32,
+                |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize)
+            )
+        };
         keys.maybe_par_retain_keys(
             |key| {
-                let hash = self.conf.hash_builder.hash_one(key, level_nr);
+                let hash = self.conf.hash_builder.hash_one(key, level_seed);
                 let group = group_nr(hash, level_size_groups as u32);
                 let bit_index = self.conf.bits_per_group.bit_index_for_seed(
                     hash,
@@ -622,7 +628,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let last_seed = (1u32 << self.conf.bits_per_seed.into())-1;
-        let seeds_slice_size = 2;
+        let seeds_slice_size = 8;
         let last_seed_slice = last_seed / seeds_slice_size;
         let (array, seeds) = if self.use_multiple_threads {
             (0..=last_seed_slice).into_par_iter().fold(|| None, |mut best: Option<(Box<[u64]>, Box<[SS::VecElement]>)>, seeds_slice| {
@@ -714,7 +720,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
                 ceiling_div(levels.input_size * levels.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(levels.input_size, level_size_segments * 64);
-            levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
+            levels.build_next_level_prehash_counts(&mut keys, level_size_groups, level_size_segments);
         }
         drop(keys);
         stats.end();
