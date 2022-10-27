@@ -537,7 +537,7 @@ fn print_input_stats(setname: &str, strings: &[String]){
 
 fn main() {
     let conf = Conf::parse();
-    println!("rayon uses {} threads", current_num_threads());
+    println!("{} threads available for multi-threaded calculations", current_num_threads());
     match conf.key_source {
         KeySource::xs32 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))); },
         KeySource::xs64 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))); },

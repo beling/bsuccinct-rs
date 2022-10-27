@@ -1,5 +1,3 @@
-use rayon::ThreadPool;
-
 use rayon::prelude::*;
 
 /// `KeySet` represent sets of keys (ot the type `K`) that can be used to construct `FPHash` or `FPHash2`.
@@ -448,13 +446,12 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
     {
         let mut index = 0;
         if let Some(ref mut r) = self.retained {
-            for (mut ci, c) in r.into_iter().enumerate() {
-                ci <<= 16;
+            for c in r {
                 c.retain(|_| (index_filter(index), index += 1).0);
             }
         } else {
             self.retained = Some(self.slice.chunks(1 << 16).map(|c| {
-                c.into_iter().enumerate().filter_map(|(i, _)| (index_filter(index), index += 1).0.then(|| i as u16)).collect()
+                (0..c.len()).filter_map(|i| (index_filter(index), index += 1).0.then(|| i as u16)).collect()
             }).collect());
         }
     }
@@ -465,9 +462,8 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
     {
         if let Some(ref mut r) = self.retained {
             let mut delta = 0;
-            for (mut ci, mut c) in r.into_iter().enumerate() {
+            for c in r {
                 let len_before = c.len();
-                ci <<= 16;
                 *c = c.par_iter().copied().enumerate().filter_map(|(i, k)| index_filter(delta+i).then_some(k)).collect();
                 delta += len_before;
             }
@@ -479,7 +475,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
             self.retained = Some(self.slice.par_chunks(1 << 16).enumerate().map(|(ci, c)| {
                 let delta = ci << 16;
                 //c.into_par_iter().enumerate().filter_map(|(i, k)| index_filter(delta + i).then(|| i as u16)).collect()
-                c.into_iter().enumerate().filter_map(|(i, k)| index_filter(delta + i).then(|| i as u16)).collect()
+                (0..c.len()).filter_map(|i| index_filter(delta + i).then(|| i as u16)).collect()
             }).collect());
         }
     }
@@ -659,6 +655,7 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedDynamicKeySet<KeyIter
     fn build_cache<F, P>(dynamic_key_set: &DynamicKeySet<KeyIter, GetKeyIter>, mut filter: F, retained_earlier: P, len: usize) -> Self
         where F: FnMut(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool
     {
+        // note: some methods relies on fact that this function call filter in natural order of keys
         let mut cache = Vec::with_capacity(len);
         for k in (dynamic_key_set.keys)() {
             if retained_earlier(&k) && filter(&k) {
@@ -704,7 +701,7 @@ where KeyIter::Item: Sync + Send + Clone
     }
 
     #[inline]
-    fn map_each_key<R, M, P>(&self, mut map: M, len_hint: usize, retained_hint: P) -> Vec<R>
+    fn map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P) -> Vec<R>
         where M: FnMut(&KeyIter::Item) -> R, P: Fn(&KeyIter::Item) -> bool
     {
         match self {
@@ -726,6 +723,7 @@ where KeyIter::Item: Sync + Send + Clone
     fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
         where F: FnMut(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
     {
+        // note: retain_keys_with_indices relies on fact that this function call filter in natural order of keys
         match self {
             Self::Dynamic((dynamic_key_set, clone_threshold)) => {
                 let len = retained_count();

@@ -5,7 +5,7 @@ use bitm::{BitAccess, BitVec, ceiling_div};
 use dyn_size_of::GetSize;
 use binout::{read_int, write_int};
 use crate::read_array;
-use crate::utils::{map16_to_16, map32_to_32, map64_to_32};
+use crate::utils::map32_to_32;
 
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
@@ -19,12 +19,12 @@ pub fn group_nr(hash: u64, level_size_groups: u32) -> u32 {
     map32_to_32((hash >> 32) as u32, level_size_groups)
 }
 
-#[inline]
+/*#[inline]
 fn mix64(mut x: u64) -> u64 {
     x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9u64);
     x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111ebu64);
     x ^ (x >> 31)
-}
+}*/
 
 #[inline(always)]
 fn mix32(mut x: u32) -> u32 {
@@ -40,13 +40,13 @@ fn mix16(mut x: u16) -> u16 {
     x ^ (x >> 9)
 }*/
 
-#[inline(always)]
+/*#[inline(always)]
 fn mix16fast(mut x: u16) -> u16 {
     x += x << 7; x ^= x >> 8;
     x += x << 3; x ^= x >> 2;
     x += x << 4; x ^= x >> 8;
     x
-}
+}*/
 
 /// Implementations of `GroupSize` represent group size in fingerprinting-based minimal perfect hashing with group optimization.
 pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFrom<u8, Error=&'static str> {

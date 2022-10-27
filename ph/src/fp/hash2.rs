@@ -2,13 +2,12 @@ use binout::{write_int, read_int};
 use std::hash::Hash;
 use bitm::{BitAccess, BitArrayWithRank, ceiling_div};
 
-use crate::utils::{ArrayWithRank, threads_count};
+use crate::utils::ArrayWithRank;
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 
 use crate::read_array;
 use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
 use std::io;
-use std::num::NonZeroUsize;
 use std::ops::RangeInclusive;
 use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
@@ -16,7 +15,6 @@ use crate::fp::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bi
 use crate::fp::indexing2::group_nr;
 
 use rayon::prelude::*;
-use rayon::{current_num_threads, ThreadPool};
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by `FPHash2` constructors.
@@ -170,7 +168,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             level_sizes: Vec::<u32>::new(),
             arrays: Vec::<Box<[u64]>>::new(),
             group_seeds: Vec::<Box<[SS::VecElement]>>::new(),
-            use_multiple_threads: conf.use_multiple_threads && current_num_threads() > 1,
+            use_multiple_threads: conf.use_multiple_threads && rayon::current_num_threads() > 1,
             conf
         }
     }
@@ -597,7 +595,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 let hash = self.conf.hash_builder.hash_one(key, self.level_nr());
                 let group = group_nr(hash, level_size_groups);
                 let mut delta = 0;
-                for (mut result, group_seed) in results.iter_mut().zip(group_seeds.clone()) {
+                for (result, group_seed) in results.iter_mut().zip(group_seeds.clone()) {
                     let bit = self.conf.bits_per_group.bit_index_for_seed(hash, group_seed, group);
                     fphash_add_bit(result, &mut collision[delta..], bit);
                     delta += level_size_segments;
@@ -634,7 +632,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let seeds_slice_size = 8;
         let last_seed_slice = last_seed / seeds_slice_size;
         let (array, seeds) = if self.use_multiple_threads {
-            (0..=last_seed_slice).into_par_iter().fold(|| None, |mut best: Option<(Box<[u64]>, Box<[SS::VecElement]>)>, seeds_slice| {
+            (0..=last_seed_slice).into_par_iter().fold(|| None, |best: Option<(Box<[u64]>, Box<[SS::VecElement]>)>, seeds_slice| {
                 let first_seed = seeds_slice * seeds_slice_size;
                 Some(self.best_level_fewatonce(best, keys, level_size_segments, level_size_groups as u32,
                                                first_seed as u16..=(first_seed+seeds_slice_size-1).min(last_seed) as u16))
@@ -723,7 +721,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
                 ceiling_div(levels.input_size * levels.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(levels.input_size, level_size_segments * 64);
-            levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
+            levels.build_next_level_prehash_counts(&mut keys, level_size_groups, level_size_segments);
         }
         drop(keys);
         stats.end();

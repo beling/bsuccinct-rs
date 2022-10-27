@@ -2,17 +2,15 @@ use binout::{read_int, write_int};
 use std::hash::Hash;
 use bitm::{BitAccess, BitArrayWithRank, ceiling_div};
 
-use crate::utils::{ArrayWithRank, threads_count};
+use crate::utils::ArrayWithRank;
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils};
 
 use crate::read_array;
 use std::io;
-use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64};
 use std::sync::atomic::Ordering::Relaxed;
 use dyn_size_of::GetSize;
 
-use rayon::{current_num_threads, ThreadPool};
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by `FPHash` constructors.
@@ -175,7 +173,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     fn build_levels<K, BS>(&mut self, keys: &mut impl KeySet<K>, stats: &mut BS)
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
-        let use_mt = self.conf.use_multiple_threads && (keys.has_par_retain_keys() || keys.has_par_for_each_key()) && current_num_threads() > 1;
+        let use_mt = self.conf.use_multiple_threads && (keys.has_par_retain_keys() || keys.has_par_for_each_key()) && rayon::current_num_threads() > 1;
         while self.input_size != 0 {
             let level_size_segments = ceiling_div(self.input_size * self.conf.relative_level_size as usize, 64*100) as u32;
             let level_size = level_size_segments as usize * 64;
