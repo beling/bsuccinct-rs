@@ -2,6 +2,7 @@ use rayon::ThreadPool;
 
 use rayon::prelude::*;
 
+/// `KeySet` represent sets of keys (ot the type `K`) that can be used to construct `FPHash` or `FPHash2`.
 pub trait KeySet<K> {
     /// Returns number of retained keys.
     fn keys_len(&self) -> usize;
@@ -10,13 +11,13 @@ pub trait KeySet<K> {
 
     #[inline(always)] fn has_par_retain_keys(&self) -> bool { false }
 
-    /// Call `f` for each key in the set.
+    /// Call `f` for each key in the set, using single thread.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     fn for_each_key<F, P>(&self, f: F, retained_hint: P)
         where F: FnMut(&K), P: Fn(&K) -> bool;
 
-    /// Call `f` for each key in the set.
+    /// Call `f` for each key in the set, using multiple threads.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     #[inline(always)]
@@ -26,7 +27,7 @@ pub trait KeySet<K> {
         self.for_each_key(f, retained_hint);
     }
 
-    /// Call `map` for each key in the set, and return outputs of these calls.
+    /// Calls `map` for each key in the set, and returns outputs of these calls. Uses single thread.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     fn map_each_key<R, M, P>(&self, mut map: M, len_hint: usize, retained_hint: P) -> Vec<R>
@@ -37,13 +38,14 @@ pub trait KeySet<K> {
         result
     }
 
-    /// Call `map` for each key in the set, and return outputs of these calls.
+    /// Call `map` for each key in the set, and return outputs of these calls. Uses multiple threads.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     #[inline(always)]
     fn par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P) -> Vec<R>
         where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool { self.map_each_key(map, len_hint, retained_hint) }
 
+    /// Calls either `map_each_key` (if `use_mt` is `false`) or `par_map_each_key` (if `use_mt` is `true`).
     #[inline(always)]
     fn maybe_par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P, use_mt: bool) -> Vec<R>
         where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
@@ -55,19 +57,19 @@ pub trait KeySet<K> {
         }
     }
 
-    /// Retains in `self` keys pointed by the `filter` and remove the rest.
+    /// Retains in `self` keys pointed by the `filter` and remove the rest, using single thread.
     ///
-    /// `filter` shows which keys are not removed at the last level,
-    /// `retained_earlier` shows which keys are not removed at previous levels,
-    /// `retained_count` returns number of keys retained.
+    /// `filter` shows the keys to be retained,
+    /// `retained_earlier` shows the keys that have been retained earlier,
+    /// `retained_count` returns number of keys to be retained.
     fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
-        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize;
+        where F: FnMut(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize;
 
-    /// Retains in `self` keys pointed by the `filter` and remove the rest.
+    /// Retains in `self` keys pointed by the `filter` and remove the rest, using multiple threads.
     ///
-    /// `filter` shows which keys are not removed at the last level,
-    /// `retained_earlier` shows which keys are not removed at previous levels,
-    /// `retained_count` returns number of keys retained.
+    /// `filter` shows the keys to be retained,
+    /// `retained_earlier` shows the keys that have been retained earlier,
+    /// `retained_count` returns number of keys to be retained.
     #[inline(always)]
     fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
@@ -75,6 +77,7 @@ pub trait KeySet<K> {
         self.retain_keys(filter, retained_earlier, retained_count)
     }
 
+    /// Calls either `retain_keys` (if `use_mt` is `false`) or `par_retain_keys` (if `use_mt` is `true`).
     #[inline(always)]
     fn maybe_par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R, use_mt: bool)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
@@ -86,24 +89,30 @@ pub trait KeySet<K> {
         }
     }
 
-    /// Retains in `self` keys pointed by the `index_filter` or `filter` and remove the rest.
+    /// Retains in `self` keys pointed by the `index_filter`
+    /// (or `filter` if `self` does not support `index_filter`)
+    /// and remove the rest.
+    /// Uses single thread.
     ///
-    /// `index_filter` shows indices (consistent with `par_map_each_key`) of keys that are not removed at the last level,
-    /// `filter` shows which keys are not removed at the last level,
-    /// `retained_earlier` shows which keys are not removed at previous levels,
-    /// `retained_count` returns number of keys retained.
+    /// `index_filter` shows indices (consistent with `par_map_each_key`) of keys to be retained,
+    /// `filter` shows the keys to be retained,
+    /// `retained_earlier` shows the keys that have been retained earlier,
+    /// `retained_count` returns number of keys to be retained.
     fn retain_keys_with_indices<IF, F, P, R>(&mut self, _index_filter: IF, filter: F, retained_earlier: P, retained_count: R)
         where IF: Fn(usize) -> bool, F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
         self.retain_keys(filter, retained_earlier, retained_count)
     }
 
-    /// Retains in `self` keys pointed by the `index_filter` or `filter` and remove the rest.
+    /// Retains in `self` keys pointed by the `index_filter`
+    /// (or `filter` if `self` does not support `index_filter`)
+    /// and remove the rest.
+    /// Uses multiple threads.
     ///
-    /// `index_filter` shows indices (consistent with `par_map_each_key`) of keys that are not removed at the last level,
-    /// `filter` shows which keys are not removed at the last level,
-    /// `retained_earlier` shows which keys are not removed at previous levels,
-    /// `retained_count` returns number of keys retained.
+    /// `index_filter` shows indices (consistent with `par_map_each_key`) of keys to be retained,
+    /// `filter` shows the keys to be retained,
+    /// `retained_earlier` shows the keys that have been retained earlier,
+    /// `retained_count` returns number of keys to be retained.
     #[inline(always)]
     fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, _index_filter: IF, filter: F, retained_earlier: P, retained_count: R)
         where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
@@ -111,6 +120,7 @@ pub trait KeySet<K> {
         self.par_retain_keys(filter, retained_earlier, retained_count)
     }
 
+    /// Calls either `retain_keys_with_indices` (if `use_mt` is `false`) or `par_retain_keys_with_indices` (if `use_mt` is `true`).
     #[inline(always)]
     fn maybe_par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, retained_earlier: P, retained_count: R, use_mt: bool)
         where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
@@ -154,7 +164,7 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     }
 
     #[inline(always)] fn retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, _retained_count: R)
-        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+        where F: FnMut(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
         self.retain(filter)
     }
@@ -179,6 +189,9 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     }
 }
 
+/// Implements `KeySet`, storing keys in the mutable slice.
+///
+/// Retain operations reorder the slice, putting retained keys at the beginning of the slice.
 pub struct SliceMutSource<'k, K> {
     slice: &'k mut [K],
     len: usize  // how many first elements are in use
@@ -204,16 +217,16 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
         self.slice[0..self.len].iter().for_each(f)
     }
 
-    #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
-        where M: FnMut(&K) -> R, P: Fn(&K) -> bool
-    {
-        self.slice[0..self.len].into_iter().map(map).collect()
-    }
-
     #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
         self.slice[0..self.len].into_par_iter().for_each(f)
+    }
+
+    #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
+        where M: FnMut(&K) -> R, P: Fn(&K) -> bool
+    {
+        self.slice[0..self.len].into_iter().map(map).collect()
     }
 
     #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _len_hint: usize, _retained_hint: P) -> Vec<R>
@@ -222,8 +235,8 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
         self.slice[0..self.len].into_par_iter().map(map).collect()
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
-        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_hint: P, _retained_count: R)
+        where F: FnMut(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
         let mut i = 0usize;
         while i < self.len {
@@ -238,6 +251,9 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
     }
 }
 
+/// Implements `KeySet` that use immutable slice.
+///
+/// Retain operations clone retained keys into the vector.
 pub struct SliceSourceWithClones<'k, K> {
     slice: &'k [K],
     retained: Option<Vec<K>>,
@@ -288,8 +304,8 @@ impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
-        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    fn retain_keys<F, P, R>(&mut self, mut filter: F, retained_earlier: P, retained_count: R)
+        where F: FnMut(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
         if let Some(ref mut retained) = self.retained {
             retained.retain_keys(filter, retained_earlier, retained_count)
@@ -307,9 +323,26 @@ impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
             self.retained = Some(self.slice.into_par_iter().filter_map(|k|filter(k).then(|| k.clone())).collect())
         }
     }
+
+    #[inline(always)] fn retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, retained_earlier: P, retained_count: R)
+        where IF: Fn(usize) -> bool, F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    {
+        let mut index = 0;
+        self.retain_keys(|_| (index_filter(index), index += 1).0, retained_earlier, retained_count)
+    }
+
+    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, retained_earlier: P, retained_count: R)
+        where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        if let Some(ref mut retained) = self.retained {
+            retained.par_retain_keys_with_indices(index_filter, filter, retained_earlier, retained_count)
+        } else {
+            self.retained = Some(self.slice.into_par_iter().enumerate().filter_map(|(i, k)| index_filter(i).then_some(k.clone())).collect())
+        }
+    }
 }
 
-/// KeySet that stores reference to slice with keys,
+/// `KeySet` implementation that stores reference to slice with keys,
 /// and indices of this slice that points retained keys.
 /// Indices are stored in vector of vectors of 16-bit integers.
 /// Each vector covers $2^{16}$ consecutive keys.
@@ -378,8 +411,8 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
-        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_hint: P, _retained_count: R)
+        where F: FnMut(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
         if let Some(ref mut r) = self.retained {
             let slice = self.slice; // fixes "cannot borrow `self` as immutable because it is also borrowed as mutable"
@@ -452,7 +485,11 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
     }
 }
 
-
+/// `KeySet` implementation that stores reference to slice with keys,
+/// and indices of this slice that points retained keys.
+/// Indices are stored in vector of vectors of 16-bit integers.
+/// Each vector covers $2^{16}$ consecutive keys, and is stored together with index of its first element.
+/// Empty vectors of indices ore not stored.
 pub struct SliceSourceWithRefsEmptyCleaning<'k, K> {
     slice: &'k [K],
     //retained: Option<Vec<Vec<u16>>>,
@@ -519,8 +556,8 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _retained_count: R)
-        where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_hint: P, _retained_count: R)
+        where F: FnMut(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
         if let Some(ref mut r) = self.retained {
             r.retain_mut(|(shift, indices)| {
@@ -552,8 +589,12 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
             }).collect());
         }
     }
+
+    // TODO (par_)retain_keys_with_indices
 }
 
+/// Implementation of `KeySet` that stores only the function that returns iterator over all keys
+/// (the iterator can even produce the keys that have been removed earlier by `retain` methods).
 pub struct DynamicKeySet<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> {
     pub keys: GetKeyIter,
     pub len: usize
@@ -578,7 +619,7 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
     }
 
     #[inline] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, retains_count: R)
-        where F: Fn(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
+        where F: FnMut(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
     {
         self.len = retains_count();
     }
@@ -609,8 +650,8 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedDynamicKeySet<KeyIter
         Self::with_keys_len_threshold(keys, len, clone_threshold)
     }
 
-    fn build_cache<F, P>(dynamic_key_set: &DynamicKeySet<KeyIter, GetKeyIter>, filter: F, retained_earlier: P, len: usize) -> Self
-        where F: Fn(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool
+    fn build_cache<F, P>(dynamic_key_set: &DynamicKeySet<KeyIter, GetKeyIter>, mut filter: F, retained_earlier: P, len: usize) -> Self
+        where F: FnMut(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool
     {
         let mut cache = Vec::with_capacity(len);
         for k in (dynamic_key_set.keys)() {
@@ -657,7 +698,7 @@ where KeyIter::Item: Sync + Send + Clone
     }
 
     fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
-        where F: Fn(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
+        where F: FnMut(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
     {
         match self {
             Self::Dynamic((dynamic_key_set, clone_threshold)) => {
