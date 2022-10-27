@@ -85,6 +85,42 @@ pub trait KeySet<K> {
             self.retain_keys(filter, retained_earlier, retained_count)
         }
     }
+
+    /// Retains in `self` keys pointed by the `index_filter` or `filter` and remove the rest.
+    ///
+    /// `index_filter` shows indices (consistent with `par_map_each_key`) of keys that are not removed at the last level,
+    /// `filter` shows which keys are not removed at the last level,
+    /// `retained_earlier` shows which keys are not removed at previous levels,
+    /// `retained_count` returns number of keys retained.
+    fn retain_keys_with_indices<IF, F, P, R>(&mut self, _index_filter: IF, filter: F, retained_earlier: P, retained_count: R)
+        where IF: Fn(usize) -> bool, F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    {
+        self.retain_keys(filter, retained_earlier, retained_count)
+    }
+
+    /// Retains in `self` keys pointed by the `index_filter` or `filter` and remove the rest.
+    ///
+    /// `index_filter` shows indices (consistent with `par_map_each_key`) of keys that are not removed at the last level,
+    /// `filter` shows which keys are not removed at the last level,
+    /// `retained_earlier` shows which keys are not removed at previous levels,
+    /// `retained_count` returns number of keys retained.
+    #[inline(always)]
+    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, _index_filter: IF, filter: F, retained_earlier: P, retained_count: R)
+        where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        self.par_retain_keys(filter, retained_earlier, retained_count)
+    }
+
+    #[inline(always)]
+    fn maybe_par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, retained_earlier: P, retained_count: R, use_mt: bool)
+        where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        if use_mt /*&& self.has_par_retain_keys()*/ {
+            self.par_retain_keys_with_indices(index_filter, filter, retained_earlier, retained_count)
+        } else {
+            self.retain_keys_with_indices(index_filter, filter, retained_earlier, retained_count)
+        }
+    }
 }
 
 impl<K: Sync + Send> KeySet<K> for Vec<K> {
@@ -117,12 +153,6 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
         self.into_par_iter().map(map).collect()
     }
 
-    /*#[inline(always)] fn retain_keys<F, R>(&mut self, filter: F, _removed_count: R, _thread_pool: Option<&ThreadPool>)
-        where F: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
-    {
-        self.retain(filter)
-    }*/
-
     #[inline(always)] fn retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, _retained_count: R)
         where F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
     {
@@ -133,6 +163,19 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         *self = (std::mem::take(self)).into_par_iter().filter(filter).collect();
+    }
+
+    #[inline(always)] fn retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, _retained_count: R)
+        where IF: Fn(usize) -> bool, F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    {
+        let mut index = 0;
+        self.retain(|_| (index_filter(index), index += 1).0)
+    }
+
+    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, _retained_count: R)
+        where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        *self = (std::mem::take(self)).into_par_iter().enumerate().filter_map(|(i, k)| index_filter(i).then_some(k)).collect();
     }
 }
 
@@ -364,6 +407,47 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
             self.retained = Some(self.slice.chunks(1 << 16).map(|c|
                 c.into_par_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect()
             ).collect());
+        }
+    }
+
+    fn retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, _retained_count: R)
+        where IF: Fn(usize) -> bool, F: Fn(&K) -> bool, P: Fn(&K) -> bool, R: Fn() -> usize
+    {
+        let mut index = 0;
+        if let Some(ref mut r) = self.retained {
+            for (mut ci, c) in r.into_iter().enumerate() {
+                ci <<= 16;
+                c.retain(|_| (index_filter(index), index += 1).0);
+            }
+        } else {
+            self.retained = Some(self.slice.chunks(1 << 16).map(|c| {
+                c.into_iter().enumerate().filter_map(|(i, _)| (index_filter(index), index += 1).0.then(|| i as u16)).collect()
+            }).collect());
+        }
+    }
+
+    #[inline(always)]
+    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, _retained_count: R)
+        where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        if let Some(ref mut r) = self.retained {
+            let mut delta = 0;
+            for (mut ci, mut c) in r.into_iter().enumerate() {
+                let len_before = c.len();
+                ci <<= 16;
+                *c = c.par_iter().copied().enumerate().filter_map(|(i, k)| index_filter(delta+i).then_some(k)).collect();
+                delta += len_before;
+            }
+        } else {
+            /*self.retained = Some(self.slice.chunks(1 << 16).enumerate().map(|(ci, c)| {
+                let delta = ci << 16;
+                c.into_par_iter().enumerate().filter_map(|(i, k)| index_filter(delta + i).then(|| i as u16)).collect()
+            }).collect());*/
+            self.retained = Some(self.slice.par_chunks(1 << 16).enumerate().map(|(ci, c)| {
+                let delta = ci << 16;
+                //c.into_par_iter().enumerate().filter_map(|(i, k)| index_filter(delta + i).then(|| i as u16)).collect()
+                c.into_iter().enumerate().filter_map(|(i, k)| index_filter(delta + i).then(|| i as u16)).collect()
+            }).collect());
         }
     }
 }

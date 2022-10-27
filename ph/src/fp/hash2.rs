@@ -214,6 +214,9 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn build_array_for_hashes_mt<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
         where GetGroupSeed: Fn(u32) -> u16 + Sync  // returns group seed for group with given index
     {
+        if !self.use_multiple_threads {
+            return self.build_array_for_hashes(key_hashes, level_size_segments, level_size_groups, group_seed);
+        }
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
@@ -435,26 +438,26 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             );
         let current_seeds = self.select_seeds_prehashed_counts(&key_hashes, level_size_groups, level_size_segments);
         //let current_seeds = self.select_seeds_prehashed_counts_atomic(&key_hashes, level_size_groups, level_size_segments);
-        let current_array = if self.use_multiple_threads {
-            self.build_array_for_hashes_mt(
+        let current_array = self.build_array_for_hashes_mt(
                 &key_hashes,
                 level_size_segments, level_size_groups as u32,
                 |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize)
-            )
-        } else {
-            self.build_array_for_hashes(
-                &key_hashes,
-                level_size_segments, level_size_groups as u32,
-                |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize)
-            )
-        };
-        keys.maybe_par_retain_keys(
+            );
+        keys.maybe_par_retain_keys_with_indices(
+            |i| {
+                let hash = key_hashes[i];
+                let group = group_nr(hash, level_size_groups as u32);
+                let bit_index = self.conf.bits_per_group.bit_index_for_seed(
+                    hash,
+                    self.conf.bits_per_seed.get_seed(&current_seeds, group as usize),
+                    group);
+                !current_array.get_bit(bit_index)
+            },
             |key| {
                 let hash = self.conf.hash_builder.hash_one(key, level_seed);
                 let group = group_nr(hash, level_size_groups as u32);
                 let bit_index = self.conf.bits_per_group.bit_index_for_seed(
                     hash,
-                    //current_seeds.get_fragment(group as usize, conf.bits_per_group_seed) as u16,
                     self.conf.bits_per_seed.get_seed(&current_seeds, group as usize),
                     group);
                 !current_array.get_bit(bit_index)
@@ -720,7 +723,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
                 ceiling_div(levels.input_size * levels.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(levels.input_size, level_size_segments * 64);
-            levels.build_next_level_prehash_counts(&mut keys, level_size_groups, level_size_segments);
+            levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
         }
         drop(keys);
         stats.end();

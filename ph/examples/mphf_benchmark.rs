@@ -13,6 +13,7 @@ use cmph_sys::{cmph_io_struct_vector_adapter,cmph_config_new,cmph_config_set_alg
                CMPH_ALGO_CMPH_CHD,cmph_config_set_graphsize,cmph_config_set_b,cmph_uint32,
                cmph_new,cmph_config_destroy,cmph_io_struct_vector_adapter_destroy,
                cmph_packed_size,cmph_pack,cmph_destroy,cmph_search_packed};
+use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
 use ph::fp::keyset::{CachedDynamicKeySet, DynamicKeySet};
@@ -536,6 +537,7 @@ fn print_input_stats(setname: &str, strings: &[String]){
 
 fn main() {
     let conf = Conf::parse();
+    println!("rayon uses {} threads", current_num_threads());
     match conf.key_source {
         KeySource::xs32 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))); },
         KeySource::xs64 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))); },
