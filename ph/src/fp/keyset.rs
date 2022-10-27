@@ -594,7 +594,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
 }
 
 /// Implementation of `KeySet` that stores only the function that returns iterator over all keys
-/// (the iterator can even produce the keys that have been removed earlier by `retain` methods).
+/// (the iterator can even expose the keys that have been removed earlier by `retain` methods).
 pub struct DynamicKeySet<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> {
     pub keys: GetKeyIter,
     pub len: usize
@@ -625,6 +625,12 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
     }
 }
 
+/// Implementation of `KeySet` that stores the function that returns iterator over all keys
+/// (the iterator can even expose the keys that have been removed earlier by `retain` methods).
+///
+/// When number of keys retained drops below given threshold,
+/// the remaining keys are cached (cloned into the vector),
+/// and later only the cache is used.
 pub enum CachedDynamicKeySet<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> {
     Dynamic((DynamicKeySet<KeyIter, GetKeyIter>, usize)),
     Cached(Vec<KeyIter::Item>)
@@ -697,6 +703,26 @@ where KeyIter::Item: Sync + Send + Clone
         }
     }
 
+    #[inline]
+    fn map_each_key<R, M, P>(&self, mut map: M, len_hint: usize, retained_hint: P) -> Vec<R>
+        where M: FnMut(&KeyIter::Item) -> R, P: Fn(&KeyIter::Item) -> bool
+    {
+        match self {
+            Self::Dynamic((dynamic_key_set, _)) => dynamic_key_set.map_each_key(map, len_hint, retained_hint),
+            Self::Cached(v) => v.map_each_key(map, len_hint, retained_hint)
+        }
+    }
+
+    #[inline]
+    fn par_map_each_key<R, M, P>(&self, map: M, len_hint: usize, retained_hint: P) -> Vec<R>
+        where M: Fn(&KeyIter::Item)->R + Sync + Send, R: Send, P: Fn(&KeyIter::Item) -> bool
+    {
+        match self {
+            Self::Dynamic((dynamic_key_set, _)) => dynamic_key_set.par_map_each_key(map, len_hint, retained_hint),
+            Self::Cached(v) => v.par_map_each_key(map, len_hint, retained_hint)
+        }
+    }
+
     fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, retained_count: R)
         where F: FnMut(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
     {
@@ -726,6 +752,32 @@ where KeyIter::Item: Sync + Send + Clone
                 }
             },
             Self::Cached(v) => v.par_retain_keys(filter, retained_earlier, retained_count)
+        }
+    }
+
+    #[inline]
+    fn retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, retained_earlier: P, retained_count: R)
+        where IF: Fn(usize) -> bool, F: Fn(&KeyIter::Item) -> bool, P: Fn(&KeyIter::Item) -> bool, R: Fn() -> usize
+    {
+        let mut index = 0;
+        self.retain_keys(|_| (index_filter(index), index += 1).0, retained_earlier, retained_count)
+    }
+
+    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, retained_earlier: P, retained_count: R)
+        where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&KeyIter::Item) -> bool + Sync + Send,
+              P: Fn(&KeyIter::Item) -> bool + Sync + Send, R: Fn() -> usize
+    {
+        match self {
+            Self::Dynamic((dynamic_key_set, clone_threshold)) => {
+                let len = retained_count();
+                if len < *clone_threshold {
+                    let mut index = 0;
+                    *self = Self::build_cache(dynamic_key_set, |_| (index_filter(index), index += 1).0, retained_earlier, len);
+                } else {
+                    dynamic_key_set.len = len;
+                }
+            },
+            Self::Cached(v) => v.par_retain_keys_with_indices(index_filter, filter, retained_earlier, retained_count)
         }
     }
 }
