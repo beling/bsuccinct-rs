@@ -193,16 +193,29 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             })
     }
 
+    /// Returns array index for given `hash` of key, size of level in groups, and group seed provided by `group_seed`.
+    #[inline(always)] fn hash_index<GetGroupSeed>(&self, hash: u64, level_size_groups: u32, group_seed: GetGroupSeed) -> usize
+        where GetGroupSeed: FnOnce(u32) -> u16  // returns group seed for group with given index
+    {
+        let group = group_nr(hash, level_size_groups);
+        self.conf.bits_per_group.bit_index_for_seed(hash, group_seed(group), group)
+    }
+
+    /// Returns array index for given `key`, seed and size (in groups) of level, and group seed provided by `group_seed`.
+    #[inline(always)] fn key_index<GetGroupSeed, K>(&self, key: &K, level_seed: u32, level_size_groups: u32, group_seed: GetGroupSeed) -> usize
+        where GetGroupSeed: FnOnce(u32) -> u16, K: Hash
+    {
+        self.hash_index(self.conf.hash_builder.hash_one(key, level_seed), level_size_groups, group_seed)
+    }
+
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     fn build_array_for_hashes<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
-        where GetGroupSeed: Fn(u32) -> u16  // returns group seed for group with given index
+        where GetGroupSeed: Fn(u32) -> u16 + Copy  // returns group seed for group with given index
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         for hash in key_hashes {
-            let group = group_nr(*hash, level_size_groups);
-            let bit = self.conf.bits_per_group.bit_index_for_seed(*hash, group_seed(group), group);
-            fphash_add_bit(&mut result, &mut collision, bit);
+            fphash_add_bit(&mut result, &mut collision, self.hash_index(*hash, level_size_groups, group_seed));
         };
         fphash_remove_collided(&mut result, &collision);
         result
@@ -210,7 +223,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     fn build_array_for_hashes_mt<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
-        where GetGroupSeed: Fn(u32) -> u16 + Sync  // returns group seed for group with given index
+        where GetGroupSeed: Fn(u32) -> u16 + Sync + Copy  // returns group seed for group with given index
     {
         if !self.use_multiple_threads {
             return self.build_array_for_hashes(key_hashes, level_size_segments, level_size_groups, group_seed);
@@ -219,9 +232,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         key_hashes.par_iter().for_each(|hash| {
-            let group = group_nr(*hash, level_size_groups);
-            let bit = self.conf.bits_per_group.bit_index_for_seed(*hash, group_seed(group), group);
-            fphash_sync_add_bit(&result_atom, &collision, bit);
+            fphash_sync_add_bit(&result_atom, &collision, self.hash_index(*hash, level_size_groups, group_seed));
         });
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
         result
@@ -229,16 +240,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
     /// Returns fingerprint array for given keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     fn build_array<GetGroupSeed, KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
-        where GetGroupSeed: Fn(u32) -> u16,  // returns group seed for group with given index
+        where GetGroupSeed: Fn(u32) -> u16 + Copy,  // returns group seed for group with given index
             K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
+        let level_seed = self.level_nr();
         keys.for_each_key(|key| {
-            let hash = self.conf.hash_builder.hash_one(key, self.level_nr());
-            let group = group_nr(hash, level_size_groups);
-            let bit = self.conf.bits_per_group.bit_index_for_seed(hash, group_seed(group), group);
-            fphash_add_bit(&mut result, &mut collision, bit);
+            fphash_add_bit(&mut result, &mut collision, self.key_index(key, level_seed, level_size_groups, group_seed));
         }, |key| self.retained(key));
         fphash_remove_collided(&mut result, &collision);
         result
@@ -442,24 +451,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize)
             );
         keys.maybe_par_retain_keys_with_indices(
-            |i| {
-                let hash = key_hashes[i];
-                let group = group_nr(hash, level_size_groups as u32);
-                let bit_index = self.conf.bits_per_group.bit_index_for_seed(
-                    hash,
-                    self.conf.bits_per_seed.get_seed(&current_seeds, group as usize),
-                    group);
-                !current_array.get_bit(bit_index)
-            },
-            |key| {
-                let hash = self.conf.hash_builder.hash_one(key, level_seed);
-                let group = group_nr(hash, level_size_groups as u32);
-                let bit_index = self.conf.bits_per_group.bit_index_for_seed(
-                    hash,
-                    self.conf.bits_per_seed.get_seed(&current_seeds, group as usize),
-                    group);
-                !current_array.get_bit(bit_index)
-            },
+            |i| !current_array.get_bit(
+                self.hash_index(key_hashes[i], level_size_groups as u32,
+                |group| self.conf.bits_per_seed.get_seed(&current_seeds, group as usize))
+            ),
+            |key| !current_array.get_bit(
+                self.key_index(key, level_seed, level_size_groups as u32,
+                                |group| self.conf.bits_per_seed.get_seed(&current_seeds, group as usize))
+            ),
             |key| self.retained(key),
             || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
             self.use_multiple_threads
@@ -477,9 +476,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let mut result = vec![0u64; total_array_size].into_boxed_slice();
         let mut collision = vec![0u64; total_array_size].into_boxed_slice();
         let level_size = level_size_segments * 64;
+        let seed = self.level_nr();
         keys.for_each_key(
             |key| {
-                let hash = self.conf.hash_builder.hash_one(key, self.level_nr());
+                let hash = self.conf.hash_builder.hash_one(key, seed);
                 let group = group_nr(hash, level_size_groups);
                 let mut delta = 0;
                 for group_seed in group_seeds.clone() {
@@ -504,9 +504,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..total_array_size).map(|_| AtomicU64::default()).collect();
         let level_size = level_size_segments * 64;
+        let seed = self.level_nr();
         keys.par_for_each_key(
             |key| {
-                let hash = self.conf.hash_builder.hash_one(key, self.level_nr());
+                let hash = self.conf.hash_builder.hash_one(key, seed);
                 let group = group_nr(hash, level_size_groups);
                 let mut delta = 0;
                 for group_seed in group_seeds.clone() {
