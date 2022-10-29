@@ -145,9 +145,10 @@ impl<GS: GroupSize, SS: SeedSize, S> FPHash2Conf<GS, SS, S> {
     }
 }
 
-enum Seeds<SSVecElement> {
-    Single(u16),
-    PerGroup(Box<[SSVecElement]>)
+enum Seeds<ArrayValue, SSVecElement> {
+    None,
+    Single(Box<[ArrayValue]>, u16),
+    PerGroup(Box<[ArrayValue]>, Box<[SSVecElement]>)
 }
 
 /// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
@@ -286,29 +287,29 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
-    fn select_best_seeds(&self, level_size_groups: u32,
-                         (mut array1, mut seeds1): (Box<[u64]>, Seeds<SS::VecElement>),
-                         (mut array2, mut seeds2): (Box<[u64]>, Seeds<SS::VecElement>))
-        -> (Box<[u64]>, Seeds<SS::VecElement>)
+    fn select_best_seeds(&self, level_size_groups: u32, s1: Seeds<u64, SS::VecElement>, s2: Seeds<u64, SS::VecElement>)
+        -> Seeds<u64, SS::VecElement>
     {
-        match (seeds1, seeds2) {
-            (Seeds::PerGroup(mut seeds1), Seeds::PerGroup(seeds2)) => {
+        match (s1, s2) {
+            (s1, Seeds::None) => s1,
+            (Seeds::None, s2) => s2,
+            (Seeds::PerGroup(mut array1, mut seeds1), Seeds::PerGroup(array2, seeds2)) => {
                 self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2,
                                  |g| self.conf.bits_per_seed.get_seed(&seeds2, g as usize));
-                (array1, Seeds::PerGroup(seeds1))
+                Seeds::PerGroup(array1, seeds1)
             },
-            (Seeds::PerGroup(mut seeds1), Seeds::Single(seed2)) => {
+            (Seeds::PerGroup(mut array1, mut seeds1), Seeds::Single(array2, seed2)) => {
                 self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2, |_| seed2);
-                (array1, Seeds::PerGroup(seeds1))
+                Seeds::PerGroup(array1, seeds1)
             },
-            (Seeds::Single(seed1), Seeds::PerGroup(mut seeds2)) => {
+            (Seeds::Single(array1, seed1), Seeds::PerGroup(mut array2, mut seeds2)) => {
                 self.update_best(level_size_groups, &mut array2, &mut seeds2, &array1, |_| seed1);
-                (array2, Seeds::PerGroup(seeds2))
+                Seeds::PerGroup(array2, seeds2)
             },
-            (Seeds::Single(seed1), Seeds::Single(mut seed2)) => {
+            (Seeds::Single(mut array1, seed1), Seeds::Single(array2, seed2)) => {
                 let mut seeds1 = self.conf.bits_per_seed.new_seed_vec(seed1, level_size_groups as usize);
                 self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2, |_| seed2);
-                (array1, Seeds::PerGroup(seeds1))
+                Seeds::PerGroup(array1, seeds1)
             }
         }
     }
@@ -708,23 +709,16 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     {
         let last_seed = self.last_seed();
         let (array, seeds) = if self.use_multiple_threads {
-            let (a, s) = (0..=last_seed).into_par_iter().fold(|| None, |best: Option<(Box<[u64]>, Seeds<SS::VecElement>)>, seed| {
-                let with_new_seed = self.build_array(keys, level_size_segments, level_size_groups as u32, |_| seed);
-                if let Some(best) = best {
-                    Some(self.select_best_seeds(level_size_groups as u32, best, (with_new_seed, Single(seed))))
-                } else {
-                    Some((with_new_seed, Single(seed)))
-                }
+            let s = (0..=last_seed).into_par_iter().fold(|| Seeds::None::<u64, SS::VecElement>, |best, seed| {
+                let new_arr = self.build_array(keys, level_size_segments, level_size_groups as u32, |_| seed);
+                self.select_best_seeds(level_size_groups as u32, best, Single(new_arr, seed))
             }).reduce_with(|mut best, new| {
-                if let Some(best) = best {
-                    if let Some(new) = new {
-                        Some(self.select_best_seeds(level_size_groups as u32, best, new))
-                    } else { Some(best) }
-                } else { new }
-            }).unwrap().unwrap();
+                self.select_best_seeds(level_size_groups as u32, best, new)
+            }).unwrap();
             match s {
-                Seeds::Single(seed) => (a, self.conf.bits_per_seed.new_seed_vec(seed, level_size_groups)),
-                Seeds::PerGroup(seeds) => (a, seeds)
+                Seeds::Single(a, seed) => (a, self.conf.bits_per_seed.new_seed_vec(seed, level_size_groups)),
+                Seeds::PerGroup(a, seeds) => (a, seeds),
+                Seeds::None => unreachable!()
             }
         } else {
             let mut best_array = self.build_array(keys, level_size_segments, level_size_groups as u32, |_| 0);
