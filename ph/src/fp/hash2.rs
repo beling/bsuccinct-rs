@@ -314,10 +314,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                                  |g| self.conf.bits_per_seed.get_seed(&seeds2, g as usize));
                 Seeds::PerGroup(array1, seeds1)
             },
-            (s1, Seeds::Single(array2, seed2)) =>
-                self.updated_best(level_size_groups, s1, array2, seed2),
-            (Seeds::Single(array1, seed1), s2) =>
-                self.updated_best(level_size_groups, s2, array1, seed1),
+            (s1, Seeds::Single(array2, seed2)) => self.updated_best(level_size_groups, s1, array2, seed2),
+            (Seeds::Single(array1, seed1), s2) => self.updated_best(level_size_groups, s2, array1, seed1),
             (s1, Seeds::None) => s1,
             (Seeds::None, s2) => s2
         }
