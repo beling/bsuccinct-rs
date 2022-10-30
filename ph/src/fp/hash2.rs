@@ -131,7 +131,7 @@ impl<GS: GroupSize, S> FPHash2Conf<GS, TwoToPowerBitsStatic<2>, S> {
     }
 }
 
-impl<GS: GroupSize, SS: SeedSize, S> FPHash2Conf<GS, SS, S> {
+impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2Conf<GS, SS, S> {
     pub fn hash_bps_bpg(hash: S, bits_per_seed: SS, bits_per_group: GS) -> Self {
         bits_per_seed.validate().unwrap();
         bits_per_group.validate().unwrap();
@@ -143,6 +143,22 @@ impl<GS: GroupSize, SS: SeedSize, S> FPHash2Conf<GS, SS, S> {
     pub fn hash_bps_bpg_lsize_threads(hash: S, bits_per_seed: SS, bits_per_group: GS, relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, use_multiple_threads, ..Self::hash_bps_bpg(hash, bits_per_seed, bits_per_group) }  // 1<<6=64
     }
+
+    /// Returns array index for given `hash` of key, size of level in groups, and group seed provided by `group_seed`.
+    #[inline(always)] pub fn hash_index<GetGroupSeed>(&self, hash: u64, level_size_groups: u32, group_seed: GetGroupSeed) -> usize
+        where GetGroupSeed: FnOnce(u32) -> u16  // returns group seed for group with given index
+    {
+        let group = group_nr(hash, level_size_groups);
+        self.bits_per_group.bit_index_for_seed(hash, group_seed(group), group)
+    }
+
+    /// Returns array index for given `key`, seed and size (in groups) of level, and group seed provided by `group_seed`.
+    #[inline(always)] pub fn key_index<GetGroupSeed, K>(&self, key: &K, level_seed: u32, level_size_groups: u32, group_seed: GetGroupSeed) -> usize
+        where GetGroupSeed: FnOnce(u32) -> u16, K: Hash
+    {
+        self.hash_index(self.hash_builder.hash_one(key, level_seed), level_size_groups, group_seed)
+    }
+
 }
 
 enum Seeds<ArrayValue, SSVecElement> {
@@ -190,25 +206,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn retained<K>(&self, key: &K) -> bool where K: Hash {
         self.arrays.iter().zip(self.group_seeds.iter()).zip(self.level_sizes.iter()).enumerate()
             .all(|(level_seed, ((a, seeds), level_size_groups))| {
-                !a.get_bit(self.key_index(key, level_seed as u32, *level_size_groups,
+                !a.get_bit(self.conf.key_index(key, level_seed as u32, *level_size_groups,
                 |group| self.conf.bits_per_seed.get_seed(seeds, group as usize)))
             })
     }
 
-    /// Returns array index for given `hash` of key, size of level in groups, and group seed provided by `group_seed`.
-    #[inline(always)] fn hash_index<GetGroupSeed>(&self, hash: u64, level_size_groups: u32, group_seed: GetGroupSeed) -> usize
-        where GetGroupSeed: FnOnce(u32) -> u16  // returns group seed for group with given index
-    {
-        let group = group_nr(hash, level_size_groups);
-        self.conf.bits_per_group.bit_index_for_seed(hash, group_seed(group), group)
-    }
-
-    /// Returns array index for given `key`, seed and size (in groups) of level, and group seed provided by `group_seed`.
-    #[inline(always)] fn key_index<GetGroupSeed, K>(&self, key: &K, level_seed: u32, level_size_groups: u32, group_seed: GetGroupSeed) -> usize
-        where GetGroupSeed: FnOnce(u32) -> u16, K: Hash
-    {
-        self.hash_index(self.conf.hash_builder.hash_one(key, level_seed), level_size_groups, group_seed)
-    }
 
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     fn build_array_for_hashes<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
@@ -217,7 +219,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         for hash in key_hashes {
-            fphash_add_bit(&mut result, &mut collision, self.hash_index(*hash, level_size_groups, group_seed));
+            fphash_add_bit(&mut result, &mut collision, self.conf.hash_index(*hash, level_size_groups, group_seed));
         };
         fphash_remove_collided(&mut result, &collision);
         result
@@ -234,7 +236,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         key_hashes.par_iter().for_each(
-            |hash| fphash_sync_add_bit(&result_atom, &collision, self.hash_index(*hash, level_size_groups, group_seed))
+            |hash| fphash_sync_add_bit(&result_atom, &collision, self.conf.hash_index(*hash, level_size_groups, group_seed))
         );
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
         result
@@ -248,7 +250,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         let level_seed = self.level_nr();
-        keys.for_each_key(|key| fphash_add_bit(&mut result, &mut collision, self.key_index(key, level_seed, level_size_groups, group_seed)),
+        keys.for_each_key(|key| fphash_add_bit(&mut result, &mut collision, self.conf.key_index(key, level_seed, level_size_groups, group_seed)),
                           |key| self.retained(key));
         fphash_remove_collided(&mut result, &collision);
         result
@@ -266,7 +268,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         let level_seed = self.level_nr();
         keys.par_for_each_key(
-            |key| fphash_sync_add_bit(&result_atom, &collision, self.key_index(key, level_seed, level_size_groups, group_seed)),
+            |key| fphash_sync_add_bit(&result_atom, &collision, self.conf.key_index(key, level_seed, level_size_groups, group_seed)),
             |key| self.retained(key)
         );
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
@@ -287,30 +289,37 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
+    fn updated_best(&self, level_size_groups: u32, best: Seeds<u64, SS::VecElement>, array2: Box<[u64]>, seed2: u16) -> Seeds<u64, SS::VecElement>
+    {
+        match best {
+            Seeds::None => Seeds::Single(array2, seed2),
+            Seeds::PerGroup(mut array1, mut seeds1) => {
+                self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2, |_| seed2);
+                Seeds::PerGroup(array1, seeds1)
+            },
+            Seeds::Single(mut array1, seed1) => {
+                let mut seeds1 = self.conf.bits_per_seed.new_seed_vec(seed1, level_size_groups as usize);
+                self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2, |_| seed2);
+                Seeds::PerGroup(array1, seeds1)
+            }
+        }
+    }
+
     fn select_best_seeds(&self, level_size_groups: u32, s1: Seeds<u64, SS::VecElement>, s2: Seeds<u64, SS::VecElement>)
         -> Seeds<u64, SS::VecElement>
     {
         match (s1, s2) {
-            (s1, Seeds::None) => s1,
-            (Seeds::None, s2) => s2,
             (Seeds::PerGroup(mut array1, mut seeds1), Seeds::PerGroup(array2, seeds2)) => {
                 self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2,
                                  |g| self.conf.bits_per_seed.get_seed(&seeds2, g as usize));
                 Seeds::PerGroup(array1, seeds1)
             },
-            (Seeds::PerGroup(mut array1, mut seeds1), Seeds::Single(array2, seed2)) => {
-                self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2, |_| seed2);
-                Seeds::PerGroup(array1, seeds1)
-            },
-            (Seeds::Single(array1, seed1), Seeds::PerGroup(mut array2, mut seeds2)) => {
-                self.update_best(level_size_groups, &mut array2, &mut seeds2, &array1, |_| seed1);
-                Seeds::PerGroup(array2, seeds2)
-            },
-            (Seeds::Single(mut array1, seed1), Seeds::Single(array2, seed2)) => {
-                let mut seeds1 = self.conf.bits_per_seed.new_seed_vec(seed1, level_size_groups as usize);
-                self.update_best(level_size_groups, &mut array1, &mut seeds1, &array2, |_| seed2);
-                Seeds::PerGroup(array1, seeds1)
-            }
+            (s1, Seeds::Single(array2, seed2)) =>
+                self.updated_best(level_size_groups, s1, array2, seed2),
+            (Seeds::Single(array1, seed1), s2) =>
+                self.updated_best(level_size_groups, s2, array1, seed1),
+            (s1, Seeds::None) => s1,
+            (Seeds::None, s2) => s2
         }
     }
 
@@ -499,11 +508,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             );
         keys.maybe_par_retain_keys_with_indices(
             |i| !current_array.get_bit(
-                self.hash_index(key_hashes[i], level_size_groups as u32,
+                self.conf.hash_index(key_hashes[i], level_size_groups as u32,
                 |group| self.conf.bits_per_seed.get_seed(&current_seeds, group as usize))
             ),
             |key| !current_array.get_bit(
-                self.key_index(key, level_seed, level_size_groups as u32,
+                self.conf.key_index(key, level_seed, level_size_groups as u32,
                                 |group| self.conf.bits_per_seed.get_seed(&current_seeds, group as usize))
             ),
             |key| self.retained(key),
@@ -711,7 +720,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let (array, seeds) = if self.use_multiple_threads {
             let s = (0..=last_seed).into_par_iter().fold(|| Seeds::None::<u64, SS::VecElement>, |best, seed| {
                 let new_arr = self.build_array(keys, level_size_segments, level_size_groups as u32, |_| seed);
-                self.select_best_seeds(level_size_groups as u32, best, Single(new_arr, seed))
+                self.updated_best(level_size_groups as u32, best, new_arr, seed)
             }).reduce_with(|mut best, new| {
                 self.select_best_seeds(level_size_groups as u32, best, new)
             }).unwrap();
