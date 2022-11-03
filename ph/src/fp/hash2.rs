@@ -453,8 +453,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn build_next_level_counts<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
-        let current_seeds = self.select_seeds_counts(keys, level_size_groups, level_size_segments);
-        //let current_seeds = self.select_seeds_fewatonce_atomic_counts(keys, level_size_groups, level_size_segments);
+        //let current_seeds = self.select_seeds_counts(keys, level_size_groups, level_size_segments);
+        let current_seeds = self.select_seeds_fewatonce_atomic_counts(keys, level_size_groups, level_size_segments);
         let current_array = self.build_array_mt(
             keys,
             level_size_segments, level_size_groups as u32,
@@ -580,16 +580,17 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn select_seeds_fewatonce_atomic_counts<KS, K>(&self, keys: &KS, level_size_groups: usize, level_size_segments: usize) -> Box<[SS::VecElement]>
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
+        let seeds_slice_size = 4;
         let last_seed = self.last_seed();
         if self.use_multiple_threads {
             let mut result = None;
             let mut seed_first = 0;
             loop {
-                let seed_last = ((seed_first as u32) + 7).min(last_seed as u32) as u16;
+                let seed_last = ((seed_first as u32) + seeds_slice_size - 1).min(last_seed as u32) as u16;
                 let levels = self.build_levels_atomic_mt(keys, level_size_segments, level_size_groups as u32, seed_first..=seed_last);
                 result = {
-                    levels.par_chunks(level_size_segments).enumerate().fold(|| None, |mut best: Option<(Box<[SS::VecElement]>, Box<[u8]>)>, (seed, array)| {
-                        let seed = seed as u16;
+                    levels.par_chunks(level_size_segments).enumerate().fold(|| None, |mut best: Option<(Box<[SS::VecElement]>, Box<[u8]>)>, (in_seed, array)| {
+                        let seed = seed_first + in_seed as u16;
                         if let Some((ref mut best_seeds, ref mut best_counts)) = best {
                             Self::update_best_seeds(best_seeds, best_counts, &array, seed, &self.conf);
                             best
@@ -617,7 +618,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             let mut best_seeds = self.conf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
             let mut best_counts: Option<Box<[u8]>> = None;
             loop {
-                let seed_last = ((seed_first as u32) + 7).min(last_seed as u32) as u16;
+                let seed_last = ((seed_first as u32) + seeds_slice_size - 1).min(last_seed as u32) as u16;
                 let levels = self.build_levels_st(keys, level_size_segments, level_size_groups as u32, seed_first..=seed_last);
                 let mut delta_beg = 0;
                 for group_seed in seed_first..=seed_last {
@@ -684,7 +685,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let last_seed = (1u32 << self.conf.bits_per_seed.into())-1;
-        let seeds_slice_size = 8;
+        let seeds_slice_size = 2;
         let last_seed_slice = last_seed / seeds_slice_size;
         let (array, seeds) = if self.use_multiple_threads {
             (0..=last_seed_slice).into_par_iter().fold(|| None, |best: Option<(Box<[u64]>, Box<[SS::VecElement]>)>, seeds_slice| {
@@ -816,7 +817,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
                 ceiling_div(levels.input_size * levels.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(levels.input_size, level_size_segments * 64);
-            levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
+            levels.build_next_level_counts(&mut keys, level_size_groups, level_size_segments);
         }
         drop(keys);
         stats.end();
