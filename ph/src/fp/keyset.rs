@@ -167,10 +167,13 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
         self.retain(filter)
     }
 
-    #[inline(always)] fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, _retained_count: R)
+    #[inline(always)] fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, retained_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
-        *self = (std::mem::take(self)).into_par_iter().filter(filter).collect();
+        let mut result = Vec::with_capacity(retained_count());
+        std::mem::swap(self, &mut result);
+        self.par_extend(result.into_par_iter().filter(filter));
+        //*self = (std::mem::take(self)).into_par_iter().filter(filter).collect();
     }
 
     #[inline(always)] fn retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, _retained_count: R)
@@ -180,10 +183,13 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
         self.retain(|_| (index_filter(index), index += 1).0)
     }
 
-    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, _retained_count: R)
+    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, retained_count: R)
         where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
-        *self = (std::mem::take(self)).into_par_iter().enumerate().filter_map(|(i, k)| index_filter(i).then_some(k)).collect();
+        let mut result = Vec::with_capacity(retained_count());
+        std::mem::swap(self, &mut result);
+        self.par_extend(result.into_par_iter().enumerate().filter_map(|(i, k)| index_filter(i).then_some(k)));
+        //*self = (std::mem::take(self)).into_par_iter().enumerate().filter_map(|(i, k)| index_filter(i).then_some(k)).collect();
     }
 }
 
