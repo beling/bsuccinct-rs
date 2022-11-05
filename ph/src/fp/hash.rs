@@ -106,6 +106,13 @@ pub(crate) fn fphash_remove_collided(result: &mut Box<[u64]>, collision: &[u64])
     }
 }
 
+// Remove from bit-array `result` all bits that are set in `collision`. Uses multiple threads.
+/*pub(crate) fn fphash_par_remove_collided(result: &mut Box<[u64]>, collision: &[u64]) {
+    result.par_iter_mut().zip(collision.par_iter()).for_each(|(r, c)| {
+        *r &= !c;
+    });
+}*/ // works, bot difference is negligible
+
 /// Returns the index of `key` at level with given `seed` and size, using given (seeded) `hash` method.
 #[inline(always)] fn index(key: &impl Hash, hash: &impl BuildSeededHasher, seed: u32, level_size: usize) -> usize {
     utils::map64_to_64(hash.hash_one(key, seed), level_size as u64) as usize
@@ -115,7 +122,9 @@ pub(crate) fn fphash_remove_collided(result: &mut Box<[u64]>, collision: &[u64])
 struct FPHashBuilder<S> {
     arrays: Vec::<Box<[u64]>>,
     input_size: usize,
+    use_multiple_threads: bool,
     conf: FPHashConf<S>
+
 }
 
 impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
@@ -123,6 +132,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
         Self {
             arrays: Vec::<Box<[u64]>>::new(),
             input_size: keys.keys_len(),
+            use_multiple_threads: conf.use_multiple_threads && (keys.has_par_for_each_key() || keys.has_par_retain_keys()) && rayon::current_num_threads() > 1,
             conf
         }
     }
@@ -134,7 +144,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     }
 
     /// Builds level using a single thread.
-    pub fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: u32, seed: u32) -> Box<[u64]>
+    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: u32, seed: u32) -> Box<[u64]>
         where K: Hash
     {
         let level_size_segments = level_size_segments as usize;
@@ -153,7 +163,9 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     fn build_level_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: u32, seed: u32) -> Box<[u64]>
         where K: Hash + Sync
     {
-        if !keys.has_par_for_each_key() { return self.build_level_st(keys, level_size_segments, seed); }
+        if !keys.has_par_for_each_key() {
+            return self.build_level_st(keys, level_size_segments, seed);
+        }
         let level_size_segments = level_size_segments as usize;
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let result_atom = AtomicU64::from_mut_slice(&mut result);
@@ -173,20 +185,19 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     fn build_levels<K, BS>(&mut self, keys: &mut impl KeySet<K>, stats: &mut BS)
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
-        let use_mt = self.conf.use_multiple_threads && (keys.has_par_retain_keys() || keys.has_par_for_each_key()) && rayon::current_num_threads() > 1;
         while self.input_size != 0 {
             let level_size_segments = ceiling_div(self.input_size * self.conf.relative_level_size as usize, 64*100) as u32;
             let level_size = level_size_segments as usize * 64;
             stats.level(self.input_size, level_size);
             let seed = self.level_nr();
-            if use_mt {
+            self.arrays.push(if self.use_multiple_threads {
                 let current_array = self.build_level_mt(keys, level_size_segments, seed);
                 keys.par_retain_keys(
                     |k| !current_array.get_bit(utils::map64_to_64(self.conf.hash.hash_one(&k, seed), level_size as u64) as usize),
                     |k| self.retained(k),
                     || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
                 );
-                self.arrays.push(current_array);
+                current_array
             } else {
                 let current_array = self.build_level_st(keys, level_size_segments, seed);
                 keys.retain_keys(
@@ -194,8 +205,8 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
                     |k| self.retained(k),
                     || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
                 );
-                self.arrays.push(current_array);
-            }
+                current_array
+            });
             self.input_size = keys.keys_len();
         }
     }
