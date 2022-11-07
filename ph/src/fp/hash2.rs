@@ -15,7 +15,6 @@ use crate::fp::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bi
 use crate::fp::indexing2::group_nr;
 
 use rayon::prelude::*;
-use crate::fp::hash2::Seeds::Single;
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by `FPHash2` constructors.
@@ -726,7 +725,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let s = (0..=self.last_seed()).into_par_iter().fold(|| Seeds::None::<u64, SS::VecElement>, |best, seed| {
             let new_arr = self.build_array(keys, level_size_segments, level_size_groups as u32, |_| seed);
             self.updated_best(level_size_groups as u32, best, new_arr, seed)
-        }).reduce_with(|mut best, new| {
+        }).reduce_with(|best, new| {
             self.select_best_seeds(level_size_groups as u32, best, new)
         }).unwrap();
         match s {
