@@ -15,7 +15,6 @@ use crate::fp::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bi
 use crate::fp::indexing2::group_nr;
 
 use rayon::prelude::*;
-use crate::fp::hash2::Seeds::Single;
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by `FPHash2` constructors.
@@ -200,7 +199,6 @@ enum Seeds<ArrayValue, SSVecElement> {
 
 /// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
 struct FPHash2Builder<GS: GroupSize, SS: SeedSize, S> {
-    input_size: usize,
     level_sizes: Vec::<u32>,
     arrays: Vec::<Box<[u64]>>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
@@ -210,9 +208,8 @@ struct FPHash2Builder<GS: GroupSize, SS: SeedSize, S> {
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Builder<GS, SS, S>
 {
-    fn new(input_size: usize, conf: FPHash2Conf<GS, SS, S>) -> Self {
+    fn new(conf: FPHash2Conf<GS, SS, S>) -> Self {
         Self {
-            input_size,
             level_sizes: Vec::<u32>::new(),
             arrays: Vec::<Box<[u64]>>::new(),
             group_seeds: Vec::<Box<[SS::VecElement]>>::new(),
@@ -446,7 +443,6 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let level_seed = self.level_nr();
         let key_hashes = keys.maybe_par_map_each_key(
             |k| self.conf.hash_builder.hash_one(k, level_seed),
-            self.input_size,
             |key| self.retained(key),
             self.use_multiple_threads
         );
@@ -472,11 +468,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                                     |group| self.conf.bits_per_seed.get_seed(&current_seeds, group as usize))
             ),
             |key| self.retained(key),
-            || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
+            || current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
             self.use_multiple_threads
         );
         self.push(current_array, current_seeds, level_size_groups as u32);
-        self.input_size = keys.keys_len();
     }
 
     fn build_next_level_counts<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
@@ -509,11 +504,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 !current_array.get_bit(bit_index)
             },
             |key| self.retained(key),
-            || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
+            || current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
             self.use_multiple_threads
         );
         self.push(current_array, current_seeds, level_size_groups as u32);
-        self.input_size = keys.keys_len();
     }
 
 
@@ -726,7 +720,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let s = (0..=self.last_seed()).into_par_iter().fold(|| Seeds::None::<u64, SS::VecElement>, |best, seed| {
             let new_arr = self.build_array(keys, level_size_segments, level_size_groups as u32, |_| seed);
             self.updated_best(level_size_groups as u32, best, new_arr, seed)
-        }).reduce_with(|mut best, new| {
+        }).reduce_with(|best, new| {
             self.select_best_seeds(level_size_groups as u32, best, new)
         }).unwrap();
         match s {
@@ -753,15 +747,13 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     {
         let (array, seeds) = if !self.use_multiple_threads {
             self.best_array_st(keys, level_size_groups, level_size_segments)
-        } else if level_size_segments >= (1<<18) {
+        } else if level_size_segments >= (1<<17) {
             self.best_array_mt_atomic(keys, level_size_groups, level_size_segments)
         } else {
             self.best_array_mt(keys, level_size_groups, level_size_segments)
         };
         self.finish_level_building(keys, level_size_groups, array, seeds);
     }
-
-
 }
 
 /// Fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
@@ -822,13 +814,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     pub fn with_conf_stats<K, KS, BS>(mut keys: KS, conf: FPHash2Conf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
-        let mut levels = FPHash2Builder::new(keys.keys_len(), conf);
-        while levels.input_size != 0 {
+        let mut levels = FPHash2Builder::new(conf);
+        while keys.keys_len() != 0 {
+            let input_size = keys.keys_len();
             let (level_size_groups, level_size_segments) = levels.conf.bits_per_group.level_size_groups_segments(
-                ceiling_div(levels.input_size * levels.conf.relative_level_size as usize, 100));
+                ceiling_div(input_size * levels.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
-            stats.level(levels.input_size, level_size_segments * 64);
-            levels.build_next_level_prehash_counts(&mut keys, level_size_groups, level_size_segments);
+            stats.level(input_size, level_size_segments * 64);
+            levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
         }
         drop(keys);
         stats.end();
