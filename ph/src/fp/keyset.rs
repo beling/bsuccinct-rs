@@ -595,12 +595,11 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
 
 /// `KeySet` implementation that stores reference to slice with keys,
 /// and indices of this slice that points retained keys.
-/// Indices are stored in vector of vectors of 16-bit integers.
-/// Each vector covers $2^{16}$ consecutive keys, and is stored together with index of its first element.
-/// Empty vectors of indices ore not stored.
+/// Indices are stored in segments of 16-bit integers.
+/// Each segment covers $2^{16}$ consecutive keys, and is stored together with index of its first element.
+/// Empty segments ore not stored.
 pub struct SliceSourceWithRefsEmptyCleaning<'k, K> {
     slice: &'k [K],
-    //retained: Option<Vec<Vec<u16>>>,
     deltas: Vec<u16>,
     segments: Vec<(usize, usize)>,   // each element of the vector is: index in delta, index in slice
 }
@@ -609,11 +608,56 @@ impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
     pub fn new(slice: &'k [K]) -> Self {
         Self { slice, deltas: Vec::new(), segments: Vec::new() }
     }
+
+    fn for_each_in_segment<F: FnMut(&K)>(&self, seg_i: usize, mut f: F) {
+        let slice = &self.slice[self.segments[seg_i].1..];
+        for d in &self.deltas[self.segments[seg_i].0..self.segments[seg_i+1].0] {
+            f(unsafe{slice.get_unchecked(*d as usize)});
+        }
+    }
+
+    fn retain<F, R, E1, E2>(&mut self, mut filter: F, mut remove_count: R, extend_with_segment: E1, extend_with_slice: E2)
+        where F: FnMut(&K) -> bool,
+              R: FnMut() -> usize,
+              E1: Fn(&mut Vec<u16>, &[K], &[u16], &mut F), // extends vector by indices from the given segment of keys pointed by filter
+              E2: Fn(&mut Vec<u16>, &[K], &mut F) // extends vector by indices of slice, of keys pointed by filter
+    {
+        if self.segments.is_empty() {
+            self.deltas.reserve(self.slice.len() - remove_count());
+            self.segments.reserve(ceiling_div(self.slice.len(), 1<<16)+1);
+            let mut slice_index = 0;
+            self.segments.push((0, slice_index));
+            for v in self.slice.chunks(1<<16) {
+                extend_with_slice(&mut self.deltas, v, &mut filter);
+                slice_index += 1<<16;
+                self.segments.push((self.deltas.len(), slice_index));
+            }
+        } else {
+            let mut new_deltas = Vec::with_capacity(self.deltas.len() - remove_count());
+            let mut new_seg_len = 0;    // where to copy segment[seg_i]
+            for seg_i in 0..self.segments.len()-1 {
+                let new_delta_index = new_deltas.len();
+                extend_with_segment(&mut new_deltas,
+                                    &self.slice[self.segments[seg_i].1..],
+                                    &self.deltas[self.segments[seg_i].0..self.segments[seg_i+1].0],
+                                    &mut filter);
+                if new_delta_index != new_deltas.len() {    // segment seg_i is not empty and have to be preserved
+                    self.segments[new_seg_len].0 = new_delta_index;
+                    self.segments[new_seg_len].1 = self.segments[seg_i].1;
+                    new_seg_len += 1;
+                }
+            }
+            self.segments[new_seg_len].0 = new_deltas.len();    // the last delta index of the last segment
+            // note self.segments[new_seg_len].1 is not used any more and we do not need update it
+            self.deltas = new_deltas;   // free some memory
+            self.segments.resize_with(new_seg_len+1, || unreachable!());
+        }
+    }
 }
 
 impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
     #[inline(always)] fn keys_len(&self) -> usize {
-        if self.segments.is_empty() { self.deltas.len() } else { self.slice.len() }
+        if self.segments.is_empty() { self.slice.len() } else { self.deltas.len() }
     }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
@@ -626,12 +670,9 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         if self.segments.is_empty() {
             self.slice.into_iter().for_each(f);
         } else {
-            (0..self.segments.len()-1).into_iter().for_each(|i| {
-                let slice = &self.slice[self.segments[i].1..];
-                for d in &self.deltas[self.segments[i].0..self.segments[i+1].0] {
-                    f(unsafe{slice.get_unchecked(*d as usize)});
-                }
-            });
+            for seg_i in 0..self.segments.len()-1 {
+                self.for_each_in_segment(seg_i, &mut f);
+            };
         }
     }
 
@@ -642,10 +683,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
             (*self.slice).into_par_iter().for_each(f);
         } else {
             (0..self.segments.len()-1).into_par_iter().for_each(|seg_i| {
-                let slice = &self.slice[self.segments[seg_i].1..];
-                for d in &self.deltas[self.segments[seg_i].0..self.segments[seg_i+1].0] {
-                    f(unsafe{slice.get_unchecked(*d as usize)});
-                }
+                self.for_each_in_segment(seg_i, &f);
             });
         }
     }
@@ -668,63 +706,44 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_hint: P, mut remove_count: R)
+    fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_earlier: P, mut remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
     {
-        if self.segments.is_empty() {
-            self.deltas.reserve(self.slice.len() - remove_count());
-            self.segments.reserve(ceiling_div(self.slice.len(), 1<<16)+1);
-            let mut slice_index = 0;
-            self.segments.push((0, slice_index));
-            for v in self.slice.chunks(1<<16) {
-                self.deltas.extend(v.into_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)));
-                slice_index += 1<<16;
-                self.segments.push((self.deltas.len(), slice_index));
-            }
-        } else {
-            let mut new_deltas = Vec::with_capacity(self.deltas.len() - remove_count());
-            let mut new_seg_len = 0;    // where to copy segment[seg_i]
-            for seg_i in 0..self.segments.len()-1 {
-                let v = &self.slice[self.segments[seg_i].1..];
-                let new_delta_index = new_deltas.len();
-                for i in &self.deltas[self.segments[seg_i].0..self.segments[seg_i+1].0] {
-                    //if filter(unsafe{slice.get_unchecked(ci | (*i as usize))}
-                    if filter(unsafe{v.get_unchecked(*i as usize)}) { new_deltas.push(*i); }
+        self.retain(filter, remove_count,
+            |deltas, keys, indices, filter| {
+                for i in indices {
+                    if filter(unsafe{keys.get_unchecked(*i as usize)}) { deltas.push(*i); }
                 }
-                if new_delta_index != new_deltas.len() {    // segment seg_i is not empty and have to be preserved
-                    self.segments[new_seg_len].0 = new_delta_index;
-                    self.segments[new_seg_len].1 = self.segments[seg_i].1;
-                    new_seg_len += 1;
-                }
+            },
+            |deltas, keys, filter| {
+                deltas.extend(keys.into_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)));
             }
-            self.segments[new_seg_len].0 = new_deltas.len();    // the last delta index of the last segment
-            // note self.segments[new_seg_len].1 is not used any more and we do not need update it
-            self.deltas = new_deltas;   // free some memory
-            self.segments.resize_with(new_seg_len+1, || unreachable!());
-        }
+        );
     }
 
-    /*fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _remove_count: R)
+    fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, remove_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
-        if let Some(ref mut r) = self.retained {
-            r.into_par_iter().for_each(|(shift, indices)| {
-                let slice = &self.slice[*shift..];
-                indices.retain(|i| filter(unsafe { slice.get_unchecked(*i as usize) }));
-            });
-            r.retain(|(_, v)| !v.is_empty());   // parallel version?
-            self.len = Self::calc_len(&r);
-        } else {
-            let r = self.slice.chunks(1 << 16).enumerate().filter_map(|(ci, slice)| {
-                let v: Vec<_> = slice.into_par_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect();
-                (!v.is_empty()).then(|| (ci << 16, v))
-            }).collect();
-            self.len = Self::calc_len(&r);
-            self.retained = Some(r);
-        }
-    }*/
+        self.retain(filter, remove_count,
+                    |deltas, keys, indices, filter| {
+                        deltas.par_extend(
+                            (*indices).into_par_iter().copied().filter(|i| filter(unsafe{keys.get_unchecked(*i as usize)}))
+                        );
+                    },
+                    |deltas, keys, filter| {
+                        deltas.par_extend(keys.into_par_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)));
+                    }
+        );
+    }
 
-    // TODO (par_)retain_keys_with_indices
+    fn retain_keys_with_indices<IF, F, P, R>(&mut self, mut index_filter: IF, _filter: F, retained_earlier: P, remove_count: R)
+        where IF: FnMut(usize) -> bool, F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
+    {
+        let mut index = 0;
+        self.retain_keys(|_| (index_filter(index), index += 1).0, retained_earlier, remove_count)
+    }
+
+    // TODO par_retain_keys_with_indices
 }
 
 /// Implementation of `KeySet` that stores only the function that returns iterator over all keys
