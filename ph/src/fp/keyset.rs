@@ -440,9 +440,12 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
         if self.retained.is_empty() {
             (*self.slice).into_par_iter().for_each(f);
         } else {
-            for (i, v) in self.retained.iter().zip(self.slice.chunks(1 << 16)) {
+            /*for (i, v) in self.retained.iter().zip(self.slice.chunks(1 << 16)) {
                 i.into_par_iter().for_each(|i| f(unsafe { v.get_unchecked(*i as usize) }));
-            }
+            }*/
+            self.retained.par_iter().zip(self.slice.par_chunks(1 << 16)).for_each(|(i, v)| {
+                for i in i { f(unsafe { v.get_unchecked(*i as usize) }) };
+            });
         }
     }
 
@@ -577,10 +580,14 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
         if let Some(ref indices) = self.retained {
-            for (shift, indices) in indices {
+            /*for (shift, indices) in indices {
                 let slice = &self.slice[*shift..];
                 indices.into_par_iter().for_each(|i| f(unsafe{slice.get_unchecked(*i as usize)}));
-            }
+            }*/
+            indices.into_par_iter().for_each(|(shift, indices)| {
+                let slice = &self.slice[*shift..];
+                indices.into_iter().for_each(|i| f(unsafe{slice.get_unchecked(*i as usize)}));
+            });
         } else {
             (*self.slice).into_par_iter().for_each(f);
         }
