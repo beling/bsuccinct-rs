@@ -16,7 +16,7 @@ use cmph_sys::{cmph_io_struct_vector_adapter,cmph_config_new,cmph_config_set_alg
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
-use ph::fp::keyset::{CachedKeySet, DynamicKeySet, SliceSourceWithClones};
+use ph::fp::keyset::{CachedKeySet, DynamicKeySet, SliceSourceWithClones, SliceSourceWithRefsEmptyCleaning};
 use ph::seedable_hash::BuildWyHash;
 
 #[allow(non_camel_case_types)]
@@ -213,8 +213,9 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
             KeyAccess::LoMem(clone_threshold) => Self::MPHF::with_conf(
                 CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), clone_threshold),
                 self.0.clone()),
-            KeyAccess::StoreIndices => Self::MPHF::from_slice_with_conf(keys, self.0.clone()),
-            //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/20), self.0.clone()),
+            //KeyAccess::StoreIndices => Self::MPHF::from_slice_with_conf(keys, self.0.clone()),
+            KeyAccess::StoreIndices => Self::MPHF::with_conf(SliceSourceWithRefsEmptyCleaning::new(keys), self.0.clone()),
+            //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/10), self.0.clone()),
             KeyAccess::CopyKeys => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), self.0.clone())
         }
     }
@@ -234,7 +235,7 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
                 CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), clone_threshold),
                 self.0.clone()),
             KeyAccess::StoreIndices => Self::MPHF::from_slice_with_conf(keys, self.0.clone()),
-            //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/20), self.0.clone()),
+            //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/10), self.0.clone()),
             KeyAccess::CopyKeys => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), self.0.clone())
         }
     }

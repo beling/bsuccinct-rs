@@ -541,12 +541,13 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
 pub struct SliceSourceWithRefsEmptyCleaning<'k, K> {
     slice: &'k [K],
     //retained: Option<Vec<Vec<u16>>>,
-    retained: Option<(Vec<(usize, Vec<u16>)>, usize)>,
+    retained: Option<Vec<(usize, Vec<u16>)>>,
+    len: usize
 }
 
 impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
     pub fn new(slice: &'k [K]) -> Self {
-        Self { slice, retained: None }
+        Self { slice, retained: None, len: slice.len() }
     }
 
     fn calc_len(r: &Vec<(usize, Vec<u16>)>) -> usize {
@@ -555,20 +556,14 @@ impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
 }
 
 impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
-    fn keys_len(&self) -> usize {
-        if let Some((_, len)) = self.retained {
-            len
-        } else {
-            self.slice.len()
-        }
-    }
+    #[inline(always)] fn keys_len(&self) -> usize { self.len }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
 
     #[inline(always)] fn has_par_retain_keys(&self) -> bool { true }
 
     fn for_each_key<F, P>(&self, mut f: F, _retained_hint: P) where F: FnMut(&K), P: FnMut(&K) -> bool {
-        if let Some((ref indices, _)) = self.retained {
+        if let Some(ref indices) = self.retained {
             for (shift, indices) in indices {
                 let slice = &self.slice[*shift..];
                 indices.into_iter().for_each(|i| f(unsafe{slice.get_unchecked(*i as usize)}));
@@ -581,7 +576,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
     fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
-        if let Some((ref indices, _)) = self.retained {
+        if let Some(ref indices) = self.retained {
             for (shift, indices) in indices {
                 let slice = &self.slice[*shift..];
                 indices.into_par_iter().for_each(|i| f(unsafe{slice.get_unchecked(*i as usize)}));
@@ -594,8 +589,8 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
     fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
         where M: Fn(&K) -> R + Sync + Send, R: Send, P: Fn(&K) -> bool
     {
-        if let Some((ref indices, len)) = self.retained {
-            let mut result = Vec::with_capacity(len);
+        if let Some(ref indices) = self.retained {
+            let mut result = Vec::with_capacity(self.len);
             for (shift, indices) in indices {
                 let slice = &self.slice[*shift..];
                 result.par_extend(indices.into_par_iter().map(|i| map(unsafe{slice.get_unchecked(*i as usize)})))
@@ -611,12 +606,12 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_hint: P, _remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
     {
-        if let Some((ref mut r, ref mut len)) = self.retained {
-            *len = 0;
+        if let Some(ref mut r) = self.retained {
+            self.len = 0;
             r.retain_mut(|(shift, indices)| {
                 let slice = &self.slice[*shift..];
                 indices.retain(|i| filter(unsafe { slice.get_unchecked(*i as usize) }));
-                *len += indices.len();
+                self.len += indices.len();
                 !indices.is_empty()
             });
         } else {
@@ -624,28 +619,28 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
                 let v: Vec<_> = slice.into_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect();
                 (!v.is_empty()).then(|| (ci << 16, v))
             }).collect();
-            let len = Self::calc_len(&r);
-            self.retained = Some((r, len));
+            self.len = Self::calc_len(&r);
+            self.retained = Some(r);
         }
     }
 
     fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_hint: P, _remove_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
-        if let Some((ref mut r, ref mut len)) = self.retained {
+        if let Some(ref mut r) = self.retained {
             r.into_par_iter().for_each(|(shift, indices)| {
                 let slice = &self.slice[*shift..];
                 indices.retain(|i| filter(unsafe { slice.get_unchecked(*i as usize) }));
             });
             r.retain(|(_, v)| !v.is_empty());   // parallel version?
-            *len = r.iter().map(|v| v.1.len()).sum();
+            self.len = Self::calc_len(&r);
         } else {
             let r = self.slice.chunks(1 << 16).enumerate().filter_map(|(ci, slice)| {
                 let v: Vec<_> = slice.into_par_iter().enumerate().filter_map(|(i, k)| filter(k).then(|| i as u16)).collect();
                 (!v.is_empty()).then(|| (ci << 16, v))
             }).collect();
-            let len = Self::calc_len(&r);
-            self.retained = Some((r, len));
+            self.len = Self::calc_len(&r);
+            self.retained = Some(r);
         }
     }
 

@@ -747,7 +747,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     {
         let (array, seeds) = if !self.use_multiple_threads {
             self.best_array_st(keys, level_size_groups, level_size_segments)
-        } else if level_size_segments >= (1<<18) {
+        } else if level_size_segments >= (1<<17) {
             self.best_array_mt_atomic(keys, level_size_groups, level_size_segments)
         } else {
             self.best_array_mt(keys, level_size_groups, level_size_segments)
@@ -821,7 +821,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
                 ceiling_div(input_size * levels.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(input_size, level_size_segments * 64);
-            levels.build_next_level_prehash_counts(&mut keys, level_size_groups, level_size_segments);
+            levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
         }
         drop(keys);
         stats.end();
