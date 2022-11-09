@@ -420,7 +420,7 @@ impl<'k, K: Sync> SliceSourceWithRefs<'k, K> {
 }
 
 impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
-    fn keys_len(&self) -> usize {
+    #[inline(always)] fn keys_len(&self) -> usize {
         if let Some(ref indices) = self.retained {
             indices.deltas.len()
         } else {
@@ -595,23 +595,23 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
 
 /// `KeySet` implementation that stores reference to slice with keys,
 /// and indices of this slice that points retained keys.
-/// Indices are stored in segments of 16-bit integers.
-/// Each segment covers $2^{16}$ consecutive keys, and is stored together with index of its first element.
+/// Indices are stored partitioned to segments and stored as 16-bit integers.
+/// Each segment covers $2^{16}$ consecutive keys.
 /// Empty segments ore not stored.
 pub struct SliceSourceWithRefsEmptyCleaning<'k, K> {
-    slice: &'k [K],
-    deltas: Vec<u16>,
-    segments: Vec<(usize, usize)>,   // each element of the vector is: index in delta, index in slice
+    keys: &'k [K],
+    indices: Vec<u16>,  // low 16 bits of each index retained so far
+    segments: Vec<(usize, usize)>,   // segments metadata: each element of the vector is (index in keys, index in slice)
 }
 
 impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
     pub fn new(slice: &'k [K]) -> Self {
-        Self { slice, deltas: Vec::new(), segments: Vec::new() }
+        Self { keys: slice, indices: Vec::new(), segments: Vec::new() }
     }
 
     fn for_each_in_segment<F: FnMut(&K)>(&self, seg_i: usize, mut f: F) {
-        let slice = &self.slice[self.segments[seg_i].1..];
-        for d in &self.deltas[self.segments[seg_i].0..self.segments[seg_i+1].0] {
+        let slice = &self.keys[self.segments[seg_i].1..];
+        for d in &self.indices[self.segments[seg_i].0..self.segments[seg_i+1].0] {
             f(unsafe{slice.get_unchecked(*d as usize)});
         }
     }
@@ -624,24 +624,24 @@ impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
             // extra usize in E1 and E2 is index in deltas
     {
         if self.segments.is_empty() {
-            self.deltas.reserve(self.slice.len() - remove_count());
-            self.segments.reserve(ceiling_div(self.slice.len(), 1<<16)+1);
+            self.indices.reserve(self.keys.len() - remove_count());
+            self.segments.reserve(ceiling_div(self.keys.len(), 1<<16)+1);
             let mut slice_index = 0;
             self.segments.push((0, slice_index));
-            for v in self.slice.chunks(1<<16) {
-                extend_with_slice(&mut self.deltas, v, slice_index, &mut filter);
+            for v in self.keys.chunks(1<<16) {
+                extend_with_slice(&mut self.indices, v, slice_index, &mut filter);
                 slice_index += 1<<16;
-                self.segments.push((self.deltas.len(), slice_index));
+                self.segments.push((self.indices.len(), slice_index));
             }
         } else {
-            let mut new_deltas = Vec::with_capacity(self.deltas.len() - remove_count());
+            let mut new_deltas = Vec::with_capacity(self.indices.len() - remove_count());
             let mut new_seg_len = 0;    // where to copy segment[seg_i]
             for seg_i in 0..self.segments.len()-1 {
                 let new_delta_index = new_deltas.len();
                 let si = &self.segments[seg_i];
                 extend_with_segment(&mut new_deltas,
-                                    &self.slice[si.1..],
-                                    &self.deltas[si.0..self.segments[seg_i+1].0],
+                                    &self.keys[si.1..],
+                                    &self.indices[si.0..self.segments[seg_i+1].0],
                                     si.0,
                                     &mut filter);
                 if new_delta_index != new_deltas.len() {    // segment seg_i is not empty and have to be preserved
@@ -652,7 +652,7 @@ impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
             }
             self.segments[new_seg_len].0 = new_deltas.len();    // the last delta index of the last segment
             // note self.segments[new_seg_len].1 is not used any more and we do not need update it
-            self.deltas = new_deltas;   // free some memory
+            self.indices = new_deltas;   // free some memory
             self.segments.resize_with(new_seg_len+1, || unreachable!());
         }
     }
@@ -660,7 +660,7 @@ impl<'k, K: Sync> SliceSourceWithRefsEmptyCleaning<'k, K> {
 
 impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
     #[inline(always)] fn keys_len(&self) -> usize {
-        if self.segments.is_empty() { self.slice.len() } else { self.deltas.len() }
+        if self.segments.is_empty() { self.keys.len() } else { self.indices.len() }
     }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
@@ -671,7 +671,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         where F: FnMut(&K), P: FnMut(&K) -> bool
     {
         if self.segments.is_empty() {
-            self.slice.into_iter().for_each(f);
+            self.keys.into_iter().for_each(f);
         } else {
             for seg_i in 0..self.segments.len()-1 {
                 self.for_each_in_segment(seg_i, &mut f);
@@ -683,7 +683,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
         if self.segments.is_empty() {
-            (*self.slice).into_par_iter().for_each(f);
+            (*self.keys).into_par_iter().for_each(f);
         } else {
             (0..self.segments.len()-1).into_par_iter().for_each(|seg_i| {
                 self.for_each_in_segment(seg_i, &f);
@@ -695,13 +695,13 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         where M: Fn(&K) -> R + Sync + Send, R: Send, P: Fn(&K) -> bool
     {
         if self.segments.is_empty() {
-            (*self.slice).into_par_iter().map(map).collect()
+            (*self.keys).into_par_iter().map(map).collect()
         } else {
-            let mut result = Vec::with_capacity(self.deltas.len());
+            let mut result = Vec::with_capacity(self.indices.len());
             for seg_i in 0..self.segments.len()-1 {
-                let slice = &self.slice[self.segments[seg_i].1..];
+                let slice = &self.keys[self.segments[seg_i].1..];
                 result.par_extend(
-                    self.deltas[self.segments[seg_i].0..self.segments[seg_i+1].0]
+                    self.indices[self.segments[seg_i].0..self.segments[seg_i+1].0]
                         .into_par_iter()
                         .map(|d| map(unsafe{slice.get_unchecked(*d as usize)})));
             };
