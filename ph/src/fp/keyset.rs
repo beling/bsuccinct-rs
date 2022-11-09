@@ -418,7 +418,7 @@ impl<'k, K: Sync> SliceSourceWithRefs<'k, K> {
 }
 
 impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
-    fn keys_len(&self) -> usize { self.len }
+    #[inline(always)] fn keys_len(&self) -> usize { self.len }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
 
