@@ -822,7 +822,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         self.retain_keys(|_| (index_filter(index), index += 1).0, retained_earlier, remove_count)
     }
 
-    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, _retained_earlier: P, remove_count: R)
+    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, remove_count: R)
         where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         if self.segments.is_empty() {
