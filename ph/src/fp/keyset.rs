@@ -600,7 +600,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
 /// Empty segments ore not stored.
 pub struct SliceSourceWithRefsEmptyCleaning<'k, K> {
     keys: &'k [K],
-    indices: Vec<u16>,  // low 16 bits of each index retained so far
+    indices: Vec<u16>,  // lowest 16 bits of each key index retained so far
     segments: Vec<(usize, usize)>,   // segments metadata: each element of the vector is (index in keys, index in slice)
 }
 
