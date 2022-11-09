@@ -682,31 +682,31 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
         }
     }
 
-    fn par_retain_index<F>(&mut self, filter: F)
-        where F: Fn(&K, usize) -> bool + Sync
+    fn par_retain_index<F>(indices: &mut Vec<u16>, segments: &mut Vec<SegmentMetadata>, filter: F)
+        where F: Fn(usize, usize) -> bool + Sync
     {
-        let real_seg_len = self.segments.len()-1;
+        let real_seg_len = segments.len()-1;
         let mut new_lenghts = vec![0; real_seg_len];
-        Self::par_pre_retain(&|ki, ii| filter(&self.keys[ki], ii), &mut self.indices, &mut self.segments[0..real_seg_len], &mut new_lenghts);
+        Self::par_pre_retain(&filter, indices, &mut segments[0..real_seg_len], &mut new_lenghts);
         let mut new_seg_len = 0;    // where to copy segment[seg_i]
         let mut new_indices_len = 0;    // where to copy segment[seg_i]
         for seg_i in 0..real_seg_len {
             let new_seg_i_len = new_lenghts[seg_i] as usize;
             if new_seg_i_len > 0 {
-                self.indices.copy_within(
-                    self.segments[seg_i].first_index .. self.segments[seg_i].first_index + new_seg_i_len,
+                indices.copy_within(
+                    segments[seg_i].first_index .. segments[seg_i].first_index + new_seg_i_len,
                     new_indices_len
                 );
-                self.segments[new_seg_len].first_index = new_indices_len;
-                self.segments[new_seg_len].first_key = self.segments[seg_i].first_key;
+                segments[new_seg_len].first_index = new_indices_len;
+                segments[new_seg_len].first_key = segments[seg_i].first_key;
                 new_indices_len += new_seg_i_len;
                 new_seg_len += 1;
             }
         }
-        self.segments[new_seg_len].first_index = new_indices_len;    // the last indices index of the last segment
+        segments[new_seg_len].first_index = new_indices_len;    // the last indices index of the last segment
         // note self.segments[new_seg_len].1 is not used any more and we do not need update it
-        self.segments.resize_with(new_seg_len+1, || unreachable!());
-        self.indices.resize_with(new_indices_len, || unreachable!());
+        segments.resize_with(new_seg_len+1, || unreachable!());
+        indices.resize_with(new_indices_len, || unreachable!());
     }
 
     fn retain_index<R, E>(&mut self, mut remove_count: R, mut extend_with_segment: E)
@@ -811,7 +811,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
                 indices.par_extend(keys.into_par_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)))
             })
         } else {
-            self.par_retain_index(|k, _| filter(k));
+            Self::par_retain_index(&mut self.indices, &mut self.segments, |k, _| filter(&self.keys[k]));
         }
     }
 
@@ -833,7 +833,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
                 );
             })
         } else {
-            self.par_retain_index(|_, ii| index_filter(ii));
+            Self::par_retain_index(&mut self.indices, &mut self.segments, |_, ii| index_filter(ii));
         }
     }
 }
