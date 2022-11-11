@@ -638,6 +638,21 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
         }
     }
 
+    /*fn par_for_each<F: Fn(&K) + Sync>(&self, f: &F, seg_beg: usize, seg_end: usize) {
+        let len = seg_end - seg_beg;
+        if len > 1 /*&& self.segments[seg_end].first_index - self.segments[seg_beg].first_index > 1024*/ {
+            let mid = seg_beg + len/2;
+            join(
+                || self.par_for_each(f, seg_beg, mid),
+                || self.par_for_each(f, mid, seg_end)
+            );
+        } else {
+            for s in seg_beg..seg_end {
+                self.for_each_in_segment(s, f);
+            }
+        }
+    }*/
+
     /// Copy `indices` accepted by `filter` to the beginning of each segment and stores new lengths of each segment in `new_lengths`.
     fn par_pre_retain<F>(filter: &F, indices: &mut [u16], segments: &[SegmentMetadata], new_lengths: &mut [u32])
         where F: Fn(usize, usize) -> bool + Sync    // filter is called with indices of: keys and indices
@@ -766,6 +781,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
             (0..self.segments.len()-1).into_par_iter().for_each(|seg_i| {
                 self.for_each_in_segment(seg_i, &f);
             });
+            //self.par_for_each(&f, 0, self.segments.len()-1);
         }
     }
 
@@ -807,9 +823,18 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         if self.segments.is_empty() {
+            // TODO zbudowac bitmape wielkosci self.keys.len(), w sposob zblizony do par_retain_index
             self.build_index(remove_count, |indices, keys, _| {
                 indices.par_extend(keys.into_par_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)))
-            })
+            });
+            /*let mut accepted = [false; 1<<16];
+            self.build_index(remove_count, |indices, keys, _| {
+                accepted.par_iter_mut().zip(keys.into_par_iter()).for_each(|(v, k)| {
+                    *v = filter(k);
+                });
+                for i in 0..keys.len() { if accepted[i] { indices.push(i as u16); } }
+                indices.extend((0..keys.len()).filter(|i| buff[*i]));
+            });*/
         } else {
             Self::par_retain_index(&mut self.indices, &mut self.segments, |k, _| filter(&self.keys[k]));
         }
