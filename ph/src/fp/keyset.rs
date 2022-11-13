@@ -2,7 +2,7 @@
 use std::mem;
 use rayon::join;
 use rayon::prelude::*;
-use bitm::ceiling_div;
+use bitm::{BitAccess, ceiling_div};
 
 /// `KeySet` represent sets of keys (ot the type `K`) that can be used to construct `FPHash` or `FPHash2`.
 pub trait KeySet<K> {
@@ -823,10 +823,27 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         if self.segments.is_empty() {
-            // TODO zbudowac bitmape wielkosci self.keys.len(), w sposob zblizony do par_retain_index
-            self.build_index(remove_count, |indices, keys, _| {
-                indices.par_extend(keys.into_par_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)))
-            });
+            self.indices.reserve(self.keys.len() - remove_count());
+            self.segments.reserve(ceiling_div(self.keys.len(), 1 << 16) + 1);
+            let mut slice_index = 0;
+            let mut accepted_keys = Vec::<u64>::new();  // first par_extend should set proper capacity
+            self.segments.push(SegmentMetadata { first_index: 0, first_key: slice_index });
+            for keys in self.keys.chunks(1<<18) {
+                accepted_keys.clear();
+                accepted_keys.par_extend(keys.par_chunks(64).map(|keys| {
+                    let mut r = 0;
+                    for (i, k) in keys.iter().enumerate() {
+                        if filter(k) { r |= 1 << i; }
+                    }
+                    r
+                }));
+                for accepted in accepted_keys.chunks(1 << (16 - 6)) {
+                    self.indices.extend(accepted.bit_ones().map(|b| b as u16));
+                    slice_index += 1 << 16;
+                    self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
+                }
+            }
+
             /*let mut accepted = [false; 1<<16];
             self.build_index(remove_count, |indices, keys, _| {
                 accepted.par_iter_mut().zip(keys.into_par_iter()).for_each(|(v, k)| {
