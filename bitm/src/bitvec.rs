@@ -45,7 +45,7 @@ impl<'a> ExactSizeIterator for OneIndicesIterator<'a> {
     }
 }
 
-impl<'a> FusedIterator for OneIndicesIterator<'a> {}
+impl<'a> FusedIterator for OneIndicesIterator<'a> where std::slice::Iter<'a, u64>: FusedIterator {}
 
 /// The trait that is implemented for the array of `u64` and extends it with methods for
 /// accessing and modifying single bits or arbitrary fragments consisted of few (up to 63) bits.
