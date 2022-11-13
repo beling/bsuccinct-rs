@@ -599,18 +599,36 @@ struct SegmentMetadata {
     first_key: usize,   // first key described by the segment
 }
 
+pub trait RefsIndex: Copy {
+    const SEGMENT_SIZE: usize;
+    fn from_usize(u: usize) -> Self;
+    fn as_usize(self) -> usize;
+}
+
+impl RefsIndex for u8 {
+    const SEGMENT_SIZE: usize = 1<<8;
+    #[inline(always)] fn from_usize(u: usize) -> Self { u as Self }
+    #[inline(always)] fn as_usize(self) -> usize { self as usize }
+}
+
+impl RefsIndex for u16 {
+    const SEGMENT_SIZE: usize = 1<<16;
+    #[inline(always)] fn from_usize(u: usize) -> Self { u as Self }
+    #[inline(always)] fn as_usize(self) -> usize { self as usize }
+}
+
 /// `KeySet` implementation that stores reference to slice with keys,
 /// and indices of this slice that points retained keys.
 /// Indices are stored partitioned to segments and stored as 16-bit integers.
 /// Each segment covers $2^{16}$ consecutive keys.
 /// Empty segments ore not stored.
-pub struct SliceSourceWithRefsEmptyCleaning<'k, K> {
+pub struct SliceSourceWithRefsEmptyCleaning<'k, K, I: RefsIndex = u16> {
     keys: &'k [K],
-    indices: Vec<u16>,  // lowest 16 bits of each key index retained so far
+    indices: Vec<I>,  // lowest 8 or 16 bits of each key index retained so far
     segments: Vec<SegmentMetadata>,   // segments metadata: each element of the vector is (index in indices, index in keys)
 }
 
-impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
+impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefsEmptyCleaning<'k, K, I> {
     pub fn new(slice: &'k [K]) -> Self {
         Self { keys: slice, indices: Vec::new(), segments: Vec::new() }
     }
@@ -618,29 +636,29 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
     #[inline(always)] fn for_each_in_segment<F: FnMut(&K)>(&self, seg_i: usize, mut f: F) {
         let slice = &self.keys[self.segments[seg_i].first_key..];
         for d in &self.indices[self.segments[seg_i].first_index..self.segments[seg_i+1].first_index] {
-            f(unsafe{slice.get_unchecked(*d as usize)});
+            f(unsafe{slice.get_unchecked(d.as_usize())});
         }
     }
 
     fn build_index<R, E>(&mut self, mut remove_count: R, mut extend_with_slice: E)
         where R: FnMut() -> usize,
-              E: FnMut(&mut Vec<u16>, &[K], usize) // extends vector by some indices of slice, of keys pointed by filter
+              E: FnMut(&mut Vec<I>, &[K], usize) // extends vector by some indices of slice, of keys pointed by filter
             // extra usize in E is index in indices
     {
         self.indices.reserve(self.keys.len() - remove_count());
-        self.segments.reserve(ceiling_div(self.keys.len(), 1 << 16) + 1);
+        self.segments.reserve(ceiling_div(self.keys.len(), I::SEGMENT_SIZE) + 1);
         let mut slice_index = 0;
         self.segments.push(SegmentMetadata { first_index: 0, first_key: slice_index });
-        for v in self.keys.chunks(1 << 16) {
+        for v in self.keys.chunks(I::SEGMENT_SIZE) {
             extend_with_slice(&mut self.indices, v, slice_index);
-            slice_index += 1 << 16;
+            slice_index += I::SEGMENT_SIZE;
             self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
         }
     }
 
-    /*fn par_for_each<F: Fn(&K) + Sync>(&self, f: &F, seg_beg: usize, seg_end: usize) {
+    fn par_for_each<F: Fn(&K) + Sync>(&self, f: &F, seg_beg: usize, seg_end: usize) {
         let len = seg_end - seg_beg;
-        if len > 1 /*&& self.segments[seg_end].first_index - self.segments[seg_beg].first_index > 1024*/ {
+        if len > 1 && self.segments[seg_end].first_index - self.segments[seg_beg].first_index > 1024 {
             let mid = seg_beg + len/2;
             join(
                 || self.par_for_each(f, seg_beg, mid),
@@ -651,13 +669,13 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
                 self.for_each_in_segment(s, f);
             }
         }
-    }*/
+    }
 
     /// Copy `indices` accepted by `filter` to the beginning of each segment and stores new lengths of each segment in `new_lengths`.
-    fn par_pre_retain<F>(filter: &F, indices: &mut [u16], segments: &[SegmentMetadata], new_lengths: &mut [u32])
+    fn par_pre_retain<F>(filter: &F, indices: &mut [I], segments: &[SegmentMetadata], new_lengths: &mut [u32])
         where F: Fn(usize, usize) -> bool + Sync    // filter is called with indices of: keys and indices
     {
-        if segments.len() > 1 /*&& indices.len() > 1024*/ {
+        if segments.len() > 1 && indices.len() > 1024 {
             let mid = segments.len()/2;
             let segments = segments.split_at(mid);
             let new_lens = new_lengths.split_at_mut(mid);
@@ -667,18 +685,18 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
                 || Self::par_pre_retain(filter, indices.1, segments.1, new_lens.1)
             );
         } else {
-            let seg = &segments[0];
+            /*let seg = &segments[0];
             let mut len = 0;
             let mut i = 0;
             while i < indices.len() {
-                if filter(seg.first_key + indices[i] as usize, seg.first_index + i) {
+                if filter(seg.first_key + indices[i].as_usize(), seg.first_index + i) {
                     indices[len as usize] = indices[i];
                     len += 1;
                 }
                 i += 1;
             }
-            new_lengths[0] = len;
-            /*for seg_i in 0..segments.len() {
+            new_lengths[0] = len;*/
+            for seg_i in 0..segments.len() {
                 let seg = &segments[seg_i];
                 let first_i = seg.first_index - segments[0].first_index;
                 let last_i = segments.get(seg_i+1).map_or_else(|| indices.len(), |s| s.first_index - segments[0].first_index);
@@ -686,18 +704,18 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
                 let mut len = 0;
                 let mut i = 0;
                 while i < indices.len() {
-                    if filter(seg.first_key + indices[i] as usize) {   // index in self.indices is seg.first_index + i
+                    if filter(seg.first_key + indices[i].as_usize(), seg.first_index + i) {   // index in self.indices is seg.first_index + i
                         indices[len] = indices[i];
                         len += 1;
                     }
                     i += 1;
                 }
                 new_lengths[seg_i] = len as u32;
-            }*/
+            }
         }
     }
 
-    fn par_retain_index<F>(indices: &mut Vec<u16>, segments: &mut Vec<SegmentMetadata>, filter: F)
+    fn par_retain_index<F>(indices: &mut Vec<I>, segments: &mut Vec<SegmentMetadata>, filter: F)
         where F: Fn(usize, usize) -> bool + Sync
     {
         let real_seg_len = segments.len()-1;
@@ -726,7 +744,7 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
 
     fn retain_index<R, E>(&mut self, mut remove_count: R, mut extend_with_segment: E)
         where R: FnMut() -> usize,
-              E: FnMut(&mut Vec<u16>, &[K], &[u16], usize), // extends vector by indices from the given segment of keys pointed by filter
+              E: FnMut(&mut Vec<I>, &[K], &[I], usize), // extends vector by indices from the given segment of keys pointed by filter
             // extra usize in E1 and E2 is index in indices
     {
         let mut new_indices = Vec::with_capacity(self.indices.len() - remove_count());
@@ -751,7 +769,7 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefsEmptyCleaning<'k, K> {
     }
 }
 
-impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
+impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K, I> {
     #[inline(always)] fn keys_len(&self) -> usize {
         if self.segments.is_empty() { self.keys.len() } else { self.indices.len() }
     }
@@ -778,10 +796,10 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         if self.segments.is_empty() {
             (*self.keys).into_par_iter().for_each(f);
         } else {
-            (0..self.segments.len()-1).into_par_iter().for_each(|seg_i| {
+            /*(0..self.segments.len()-1).into_par_iter().for_each(|seg_i| {
                 self.for_each_in_segment(seg_i, &f);
-            });
-            //self.par_for_each(&f, 0, self.segments.len()-1);
+            });*/
+            self.par_for_each(&f, 0, self.segments.len()-1);
         }
     }
 
@@ -797,7 +815,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
                 result.par_extend(
                     self.indices[self.segments[seg_i].first_index..self.segments[seg_i+1].first_index]
                         .into_par_iter()
-                        .map(|d| map(unsafe{slice.get_unchecked(*d as usize)})));
+                        .map(|d| map(unsafe{slice.get_unchecked(d.as_usize())})));
             };
             result
         }
@@ -808,12 +826,12 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
     {
         if self.segments.is_empty() {
             self.build_index(remove_count, |indices, keys, _| {
-                indices.extend(keys.into_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)));
+                indices.extend(keys.into_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(I::from_usize(i))));
             })
         } else {
             self.retain_index(remove_count, |indices, keys, key_subset, _| {
                 for i in key_subset {
-                    if filter(unsafe { keys.get_unchecked(*i as usize) }) { indices.push(*i); }
+                    if filter(unsafe { keys.get_unchecked(i.as_usize()) }) { indices.push(*i); }
                 }
             })
         }
@@ -825,7 +843,9 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
         if self.segments.is_empty() {
             // TODO zbudowac bitmape wielkosci self.keys.len(), w sposob zblizony do par_retain_index
             self.build_index(remove_count, |indices, keys, _| {
-                indices.par_extend(keys.into_par_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(i as u16)))
+                //indices.par_extend(keys.into_par_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(I::from_usize(i))))
+                indices.extend(keys.into_iter().enumerate().filter_map(|(i,k)| filter(k).then_some(I::from_usize(i))));
+                // TODO par_extend znacznie spowalnia I=u8
             });
             /*let mut accepted = [false; 1<<16];
             self.build_index(remove_count, |indices, keys, _| {
@@ -854,7 +874,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefsEmptyCleaning<'k, K> {
             self.build_index(remove_count, |indices, keys, shift| {
                 indices.par_extend(
                     (0..keys.len()).into_par_iter()
-                        .filter_map(|key_nr| index_filter(shift + key_nr).then_some(key_nr as u16))
+                        .filter_map(|key_nr| index_filter(shift + key_nr).then_some(I::from_usize(key_nr)))
                 );
             })
         } else {
