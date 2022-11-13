@@ -1,4 +1,51 @@
+use std::iter::FusedIterator;
 use super::{ceiling_div, n_lowest_bits};
+
+/// Iterator over bits set to one in slice of `u64`.
+pub struct BitOnesIterator<'a> {
+    segment_iter: std::slice::Iter<'a, u64>,
+    first_segment_bit: usize,
+    current_segment: u64
+}
+
+impl<'a> BitOnesIterator<'a> {
+    pub fn new(slice: &'a [u64]) -> Self {
+        let mut segment_iter = slice.into_iter();
+        let current_segment = segment_iter.next().copied().unwrap_or(0);
+        Self {
+            segment_iter,
+            first_segment_bit: 0,
+            current_segment
+        }
+    }
+}
+
+impl<'a> Iterator for BitOnesIterator<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current_segment == 0 {
+            self.current_segment = *self.segment_iter.next()?;
+            self.first_segment_bit += 64;
+        }
+        let result = self.current_segment.trailing_zeros();
+        self.current_segment ^= 1<<result;
+        Some(self.first_segment_bit + (result as usize))
+    }
+
+    #[inline] fn size_hint(&self) -> (usize, Option<usize>) {
+        let result = self.len();
+        (result, Some(result))
+    }
+}
+
+impl<'a> ExactSizeIterator for BitOnesIterator<'a> {
+    #[inline] fn len(&self) -> usize {
+        self.current_segment.count_ones() as usize + self.segment_iter.as_slice().count_ones()
+    }
+}
+
+impl<'a> FusedIterator for BitOnesIterator<'a> {}
 
 /// The trait that is implemented for the array of `u64` and extends it with methods for
 /// accessing and modifying single bits or arbitrary fragments consisted of few (up to 63) bits.
@@ -17,6 +64,15 @@ pub trait BitAccess {
 
     /// Sets bits `[begin, begin+len)` to the content of `v`.
     fn set_bits(&mut self, begin: usize, v: u64, len: u8);
+
+    /// Returns the number of zeros (cleared bits).
+    fn count_zeros(&self) -> usize;
+
+    /// Returns the number of ones (set bits).
+    fn count_ones(&self) -> usize;
+
+    /// Returns iterator over ones (set bits).
+    fn ones_iter(&self) -> BitOnesIterator;
 
     /// Gets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     #[inline(always)] fn get_fragment(&self, index: usize, v_size: u8) -> u64 {
@@ -162,6 +218,18 @@ impl BitAccess for [u64] {
 
     #[inline(always)] fn clear_bit(&mut self, bit_nr: usize) {
         self[bit_nr / 64] &= !((1u64) << (bit_nr % 64) as u64);
+    }
+
+    fn count_zeros(&self) -> usize {
+        self.into_iter().map(|s| s.count_zeros() as usize).sum()
+    }
+
+    fn count_ones(&self) -> usize {
+        self.into_iter().map(|s| s.count_ones() as usize).sum()
+    }
+
+    #[inline(always)] fn ones_iter(&self) -> BitOnesIterator {
+        BitOnesIterator::new(self)
     }
 
     fn get_bits(&self, begin: usize, len: u8) -> u64 {
