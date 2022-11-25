@@ -602,10 +602,10 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
         if self.segments.is_empty() {
             (*self.keys).into_par_iter().for_each(f);
         } else {
-            /*(0..self.segments.len()-1).into_par_iter().for_each(|seg_i| {
+            (0..self.segments.len()-1).into_par_iter().for_each(|seg_i| {
                 self.for_each_in_segment(seg_i, &f);
-            });*/
-            self.par_for_each(&f, 0, self.segments.len()-1);
+            });
+            //self.par_for_each(&f, 0, self.segments.len()-1);
         }
     }
 
