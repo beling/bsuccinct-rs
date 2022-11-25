@@ -2,7 +2,7 @@
 use std::mem;
 use rayon::join;
 use rayon::prelude::*;
-use bitm::ceiling_div;
+use bitm::{BitAccess, ceiling_div};
 
 /// `KeySet` represent sets of keys (ot the type `K`) that can be used to construct `FPHash` or `FPHash2`.
 pub trait KeySet<K> {
@@ -430,7 +430,7 @@ impl RefsIndex for u16 {
 /// Empty segments ore not stored.
 pub struct SliceSourceWithRefs<'k, K, I: RefsIndex = u16> {
     keys: &'k [K],
-    indices: Vec<u16>,  // lowest 16 bits of each key index retained so far
+    indices: Vec<I>,  // lowest 16 bits of each key index retained so far
     segments: Vec<SegmentMetadata>,   // segments metadata: each element of the vector is (index in indices, index in keys)
 }
 
@@ -478,7 +478,7 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
     }
 
     /// Copy `indices` accepted by `filter` to the beginning of each segment and stores new lengths of each segment in `new_lengths`.
-    fn par_pre_retain<F>(filter: &F, indices: &mut [u16], segments: &[SegmentMetadata], new_lengths: &mut [u32])
+    fn par_pre_retain<F>(filter: &F, indices: &mut [I], segments: &[SegmentMetadata], new_lengths: &mut [u32])
         where F: Fn(usize, usize) -> bool + Sync    // filter is called with indices of: keys and indices
     {
         if segments.len() > 1 && indices.len() > 1024 {
@@ -661,9 +661,9 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
                     }
                     r
                 }));
-                for accepted in accepted_keys.chunks(1 << (16 - 6)) {
-                    self.indices.extend(accepted.bit_ones().map(|b| b as u16));
-                    slice_index += 1 << 16;
+                for accepted in accepted_keys.chunks( I::SEGMENT_SIZE >> 6) {
+                    self.indices.extend(accepted.bit_ones().map(|b| I::from_usize(b)));
+                    slice_index += I::SEGMENT_SIZE;
                     self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
                 }
             }

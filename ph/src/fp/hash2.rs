@@ -847,14 +847,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: FPHash2Conf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
-        Self::with_conf_stats(SliceSourceWithRefs::new(keys), conf, stats)
+        Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
     /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: FPHash2Conf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
-        Self::with_conf_stats(SliceSourceWithRefs::new(keys), conf, &mut ())
+        Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
     /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
