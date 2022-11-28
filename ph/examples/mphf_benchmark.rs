@@ -79,16 +79,16 @@ struct Conf {
     key_source: KeySource,
 
     /// The number of random keys to use or maximum number of keys to read from stdin
-    #[arg(short='k', long)]
+    #[arg(short='n', long)]
     keys_num: Option<usize>,
 
     /// Number of foreign keys (to generate or read) used to test the frequency of detection of non-contained keys
     #[arg(short='f', long, default_value_t = 0)]
     foreign_keys_num: usize,
 
-    /// Skip saving detailed results to CSV file
-    #[arg(short='d', long, default_value_t = true)]
-    skip_details: bool,
+    /// Save detailed results to CSV file
+    #[arg(short='d', long, default_value_t = false)]
+    save_csv: bool,
 }
 
 /// Represents average (per value) lookup: level searched, times (seconds).
@@ -192,7 +192,7 @@ trait MPHFBuilder<K: Hash> {
         assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let size_bytes = h.size_bytes();
         let bits_per_value = 8.0 * size_bytes as f64 / i.0.len() as f64;
-        let absent = if !conf.skip_details && Self::CAN_DETECT_ABSENCE {
+        let absent = if conf.save_csv && Self::CAN_DETECT_ABSENCE {
             SearchStats::new(&i.1, |k, s| Self::value(&h, k, s), false, conf.lookup_runs)
         } else {
             SearchStats::nan()
@@ -429,7 +429,7 @@ where K: Hash
 }
 
 fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>)) -> Option<File> {
-    if conf.skip_details { return None; }
+    if !conf.save_csv { return None; }
     let ks_name = match conf.key_source {
         KeySource::xs32 => "32",
         KeySource::xs64 => "64",
