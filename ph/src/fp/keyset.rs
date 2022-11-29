@@ -575,6 +575,16 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
     }
 }
 
+impl<'k, K, I: RefsIndex> SliceSourceWithRefs<'k, K, I> {
+    fn append_segments_from_bitmap(&mut self, slice_index: &mut usize, accepted_keys: &Vec<u64>) {
+        for accepted in accepted_keys.chunks(I::SEGMENT_SIZE / 64) {
+            self.indices.extend(accepted.bit_ones().map(|b| b as u16));
+            *slice_index += I::SEGMENT_SIZE;
+            self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: *slice_index });
+        }
+    }
+}
+
 impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<'k, K, I> {
     #[inline(always)] fn keys_len(&self) -> usize {
         if self.segments.is_empty() { self.keys.len() } else { self.indices.len() }
@@ -661,11 +671,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
                     }
                     r
                 }));
-                for accepted in accepted_keys.chunks( I::SEGMENT_SIZE >> 6) {
-                    self.indices.extend(accepted.bit_ones().map(|b| I::from_usize(b)));
-                    slice_index += I::SEGMENT_SIZE;
-                    self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
-                }
+                self.append_segments_from_bitmap(&mut slice_index, &mut accepted_keys);
             }
 
             /*let mut accepted = [false; 1<<16];
@@ -692,12 +698,30 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
         where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         if self.segments.is_empty() {
-            self.build_index(remove_count, |indices, keys, shift| {
+            self.indices.reserve(self.keys.len() - remove_count());
+            self.segments.reserve(ceiling_div(self.keys.len(), 1 << 16) + 1);
+            let mut slice_index = 0;
+            let mut accepted_keys = Vec::<u64>::new();  // first par_extend should set proper capacity
+            self.segments.push(SegmentMetadata { first_index: 0, first_key: slice_index });
+            for keys_begin in (0..self.keys.len()).step_by(1<<18) {
+                let keys_end = self.keys.len().min(keys_begin + (1<<18));
+                accepted_keys.clear();
+                accepted_keys.par_extend((keys_begin..keys_end).into_par_iter().step_by(64).map(|first_key| {
+                    let mut r = 0;
+                    for i in first_key..keys_end.min(first_key+64) {
+                        if index_filter(i) { r |= 1u64 << (i-first_key); }
+                    }
+                    r
+                }));
+                self.append_segments_from_bitmap(&mut slice_index, &mut accepted_keys);
+            }
+
+            /*self.build_index(remove_count, |indices, keys, shift| {
                 indices.par_extend(
                     (0..keys.len()).into_par_iter()
                         .filter_map(|key_nr| index_filter(shift + key_nr).then_some(I::from_usize(key_nr)))
                 );
-            })
+            })*/
         } else {
             Self::par_retain_index(&mut self.indices, &mut self.segments, |_, ii| index_filter(ii));
         }
