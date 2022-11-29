@@ -671,7 +671,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
                     }
                     r
                 }));
-                self.append_segments_from_bitmap(&mut slice_index, &mut accepted_keys);
+                self.append_segments_from_bitmap(&mut slice_index, &accepted_keys);
             }
 
             /*let mut accepted = [false; 1<<16];
@@ -713,7 +713,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
                     }
                     r
                 }));
-                self.append_segments_from_bitmap(&mut slice_index, &mut accepted_keys);
+                self.append_segments_from_bitmap(&mut slice_index, &accepted_keys);
             }
 
             /*self.build_index(remove_count, |indices, keys, shift| {
