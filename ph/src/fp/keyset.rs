@@ -619,7 +619,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
         }
     }
 
-    fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
+    /*fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
         where M: Fn(&K) -> R + Sync + Send, R: Send, P: Fn(&K) -> bool
     {
         if self.segments.is_empty() {
@@ -635,7 +635,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
             };
             result
         }
-    }
+    }*/ // TODO very slow for I=u8
 
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_earlier: P, remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
