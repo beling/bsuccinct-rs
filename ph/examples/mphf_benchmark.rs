@@ -309,8 +309,12 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
 
 fn h2bench<GS, SS, S, K>(hash: S, bits_per_group_seed: SS, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess) -> (f64, BenchmarkResult)
 where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone {
-    ((FPHash2Builder::with_lsize_mt(FPHash2Conf::hash_bps_bpg(hash.clone(), bits_per_group_seed, bits_per_group), relative_level_size, false), key_access).benchmark_build(&i.0, conf.build_runs).2,
-     (FPHash2Builder::with_lsize_mt(FPHash2Conf::hash_bps_bpg(hash.clone(), bits_per_group_seed, bits_per_group), relative_level_size, true), key_access).benchmark(i, conf).1)
+    let (mphf, _, st_cpu_time) = (FPHash2Builder::with_lsize_mt(FPHash2Conf::hash_bps_bpg(hash.clone(), bits_per_group_seed, bits_per_group), relative_level_size, false), key_access).benchmark_build(&i.0, conf.build_runs);
+    let st_size = mphf.size_bytes();
+    drop(mphf);
+    let (mt_mphf, mt_bench_results) = (FPHash2Builder::with_lsize_mt(FPHash2Conf::hash_bps_bpg(hash.clone(), bits_per_group_seed, bits_per_group), relative_level_size, true), key_access).benchmark(i, conf);
+    if mt_mphf.size_bytes() != st_size { eprintln!("WARNING: FMPHGO ST/MT have different sizes, {} != {}", st_size, mt_mphf.size_bytes()); }
+    (st_cpu_time, mt_bench_results)
 }
 
 fn h2b<GS, S, K>(hash: S, bits_per_group_seed: u8, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess) -> (f64, BenchmarkResult)

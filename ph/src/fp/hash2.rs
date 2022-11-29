@@ -221,14 +221,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
     /// Returns fingerprint array for given keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     #[inline(always)]
-    fn build_array<GetGroupSeed, KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
-        where GetGroupSeed: Fn(u32) -> u16 + Copy,  // returns group seed for group with given index
+    fn build_array<KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u32, group_seed: u16) -> Box<[u64]>
+        where   // returns group seed for group with given index
             K: Hash, KS: KeySet<K>
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         let level_seed = self.level_nr();
-        keys.for_each_key(|key| fphash_add_bit(&mut result, &mut collision, self.conf.key_index(key, level_seed, level_size_groups, group_seed)),
+        keys.for_each_key(|key| fphash_add_bit(&mut result, &mut collision, self.conf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
                           |key| self.retained(key));
         fphash_remove_collided(&mut result, &collision);
         result
@@ -236,8 +236,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     #[inline(always)]
-    fn build_array_mt<GetGroupSeed, KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
-        where GetGroupSeed: Fn(u32) -> u16 + Sync + Copy, K: Hash, KS: KeySet<K>  // returns group seed for group with given index
+    fn build_array_mt<KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u32, group_seed: u16) -> Box<[u64]>
+        where K: Hash, KS: KeySet<K>  // returns group seed for group with given index
     {
         if !self.use_multiple_threads || !keys.has_par_for_each_key() {
             return self.build_array(keys, level_size_segments, level_size_groups, group_seed);
@@ -247,7 +247,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         let level_seed = self.level_nr();
         keys.par_for_each_key(
-            |key| fphash_sync_add_bit(&result_atom, &collision, self.conf.key_index(key, level_seed, level_size_groups, group_seed)),
+            |key| fphash_sync_add_bit(&result_atom, &collision, self.conf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
             |key| self.retained(key)
         );
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
@@ -442,7 +442,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     }
 
     #[inline(always)]
-    fn select_best_array<AB>(&self, build_for_group: AB, level_size_groups: usize) -> (Box<[u64]>, Box<[SS::VecElement]>)
+    fn best_array<AB>(&self, build_for_group: AB, level_size_groups: usize) -> (Box<[u64]>, Box<[SS::VecElement]>)
         where AB: Fn(u16) -> Box<[u64]> // build array for given group nr
     {
         let mut best_array = build_for_group(0);
@@ -455,7 +455,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     }
 
     #[inline(always)]
-    fn select_best_array_mt<AB>(&self, build_for_group: AB, level_size_groups: usize) -> (Box<[u64]>, Box<[SS::VecElement]>)
+    fn best_array_mt<AB>(&self, build_for_group: AB, level_size_groups: usize) -> (Box<[u64]>, Box<[SS::VecElement]>)
         where AB: Fn(u16) -> Box<[u64]> + Sync
     {
         let s = (0..=self.last_seed()).into_par_iter().fold(|| Seeds::None::<u64, SS::VecElement>, |best, seed| {
@@ -471,27 +471,6 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
-    #[inline(always)]
-    fn best_array_st<KS, K>(&self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize) -> (Box<[u64]>, Box<[SS::VecElement]>)
-        where K: Hash, KS: KeySet<K>
-    {
-        self.select_best_array(|g| self.build_array(keys, level_size_segments, level_size_groups as u32, |_| g), level_size_groups)
-    }
-
-    #[inline(always)]
-    fn best_array_mt_atomic<KS, K>(&self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize) -> (Box<[u64]>, Box<[SS::VecElement]>)
-        where K: Hash + Sync, KS: KeySet<K> + Sync
-    {
-        self.select_best_array(|g| self.build_array_mt(keys, level_size_segments, level_size_groups as u32, |_| g), level_size_groups)
-    }
-
-    #[inline(always)]
-    fn best_array_mt<KS, K>(&self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize) -> (Box<[u64]>, Box<[SS::VecElement]>)
-        where K: Hash + Sync, KS: KeySet<K> + Sync
-    {
-        self.select_best_array_mt(|g| self.build_array(keys, level_size_segments, level_size_groups as u32, |_| g), level_size_groups)
-    }
-
     fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
@@ -499,11 +478,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         //    return self.build_next_level_prehash_counts(keys, level_size_groups, level_size_segments);
         //}
         let (array, seeds) = if !self.use_multiple_threads {
-            self.best_array_st(keys, level_size_groups, level_size_segments)
+            self.best_array(|g| self.build_array(keys, level_size_segments, level_size_groups as u32, g), level_size_groups)
         } else if level_size_segments >= (1<<17) {
-            self.best_array_mt_atomic(keys, level_size_groups, level_size_segments)
+            self.best_array(|g| self.build_array_mt(keys, level_size_segments, level_size_groups as u32, g), level_size_groups)
         } else {
-            self.best_array_mt(keys, level_size_groups, level_size_segments)
+            self.best_array_mt(|g| self.build_array(keys, level_size_segments, level_size_groups as u32, g), level_size_groups)
         };
         self.finish_level_building(keys, level_size_groups, array, seeds);
     }
