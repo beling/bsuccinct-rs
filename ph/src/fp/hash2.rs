@@ -104,13 +104,12 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2Conf<GS, SS, S> {
     }
 
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
-    fn build_array_for_hashes<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
-        where GetGroupSeed: Fn(u32) -> u16 + Copy  // returns group seed for group with given index
+    fn build_array_for_hashes(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: u16) -> Box<[u64]>
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         for hash in key_hashes {
-            fphash_add_bit(&mut result, &mut collision, self.hash_index(*hash, level_size_groups, group_seed));
+            fphash_add_bit(&mut result, &mut collision, self.hash_index(*hash, level_size_groups, |_| group_seed));
         };
         fphash_remove_collided(&mut result, &collision);
         result
@@ -119,14 +118,13 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2Conf<GS, SS, S> {
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Conf<GS, SS, S> {
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
-    fn build_array_for_hashes_mt<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
-        where GetGroupSeed: Fn(u32) -> u16 + Sync + Copy  // returns group seed for group with given index
+    fn build_array_for_hashes_mt(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: u16) -> Box<[u64]>
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         key_hashes.par_iter().for_each(
-            |hash| fphash_sync_add_bit(&result_atom, &collision, self.hash_index(*hash, level_size_groups, group_seed))
+            |hash| fphash_sync_add_bit(&result_atom, &collision, self.hash_index(*hash, level_size_groups, |_| group_seed))
         );
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
         result
@@ -335,11 +333,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             self.use_multiple_threads
         );
         let (array, seeds) = if !self.use_multiple_threads {
-            self.best_array(|g| self.conf.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, |_|g), level_size_groups)
+            self.best_array(|g| self.conf.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, g), level_size_groups)
         } else if level_size_segments >= (1<<17) {
-            self.best_array(|g| self.conf.build_array_for_hashes_mt(&key_hashes, level_size_segments, level_size_groups as u32, |_|g), level_size_groups)
+            self.best_array(|g| self.conf.build_array_for_hashes_mt(&key_hashes, level_size_segments, level_size_groups as u32, g), level_size_groups)
         } else {
-            self.best_array_mt(|g| self.conf.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, |_|g), level_size_groups)
+            self.best_array_mt(|g| self.conf.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups as u32, g), level_size_groups)
         };
         keys.maybe_par_retain_keys_with_indices(
             |i| !array.get_bit(
