@@ -557,6 +557,16 @@ impl<'k, K: Sync + 'k> SliceSourceWithRefs<'k, K> {
     }
 }
 
+impl<'k, K> SliceSourceWithRefs<'k, K> {
+    fn append_segments_from_bitmap(&mut self, slice_index: &mut usize, accepted_keys: &Vec<u64>) {
+        for accepted in accepted_keys.chunks(1 << (16 - 6)) {
+            self.indices.extend(accepted.bit_ones().map(|b| b as u16));
+            *slice_index += 1 << 16;
+            self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: *slice_index });
+        }
+    }
+}
+
 impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
     #[inline(always)] fn keys_len(&self) -> usize {
         if self.segments.is_empty() { self.keys.len() } else { self.indices.len() }
@@ -643,11 +653,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
                     }
                     r
                 }));
-                for accepted in accepted_keys.chunks(1 << (16 - 6)) {
-                    self.indices.extend(accepted.bit_ones().map(|b| b as u16));
-                    slice_index += 1 << 16;
-                    self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
-                }
+                self.append_segments_from_bitmap(&mut slice_index, &mut accepted_keys);
             }
 
             /*let mut accepted = [false; 1<<16];
@@ -689,11 +695,7 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
                     }
                     r
                 }));
-                for accepted in accepted_keys.chunks(1 << (16 - 6)) {
-                    self.indices.extend(accepted.bit_ones().map(|b| b as u16));
-                    slice_index += 1 << 16;
-                    self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
-                }
+                self.append_segments_from_bitmap(&mut slice_index, &mut accepted_keys);
             }
 
             /*self.build_index(remove_count, |indices, keys, shift| {
