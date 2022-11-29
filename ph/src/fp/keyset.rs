@@ -619,23 +619,24 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
         }
     }
 
-    /*fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
+    fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
         where M: Fn(&K) -> R + Sync + Send, R: Send, P: Fn(&K) -> bool
     {
         if self.segments.is_empty() {
             (*self.keys).into_par_iter().map(map).collect()
         } else {
             let mut result = Vec::with_capacity(self.indices.len());
-            for seg_i in 0..self.segments.len()-1 {
-                let slice = &self.keys[self.segments[seg_i].first_key..];
-                result.par_extend(
-                    self.indices[self.segments[seg_i].first_index..self.segments[seg_i+1].first_index]
-                        .into_par_iter()
-                        .map(|d| map(unsafe{slice.get_unchecked(d.as_usize())})));
-            };
+            result.par_extend(self.segments.par_windows(2).flat_map(|segs| {
+                let [seg, next_seg] = segs else { unreachable!() };
+                let first_key = seg.first_key;
+                let map = &map;
+                self.indices[seg.first_index..next_seg.first_index]
+                    .into_par_iter()
+                    .map(move |d| map(unsafe{self.keys.get_unchecked(first_key + *d as usize)}))
+            }));
             result
         }
-    }*/ // TODO very slow for I=u8
+    } // TODO very slow for I=u8
 
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_earlier: P, remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
