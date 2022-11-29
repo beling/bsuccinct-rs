@@ -577,8 +577,8 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
 
 impl<'k, K, I: RefsIndex> SliceSourceWithRefs<'k, K, I> {
     fn append_segments_from_bitmap(&mut self, slice_index: &mut usize, accepted_keys: &Vec<u64>) {
-        for accepted in accepted_keys.chunks(I::SEGMENT_SIZE / 64) {
-            self.indices.extend(accepted.bit_ones().map(|b| b as u16));
+        for accepted in accepted_keys.chunks( I::SEGMENT_SIZE >> 6) {
+            self.indices.extend(accepted.bit_ones().map(|b| I::from_usize(b)));
             *slice_index += I::SEGMENT_SIZE;
             self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: *slice_index });
         }
@@ -699,7 +699,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
     {
         if self.segments.is_empty() {
             self.indices.reserve(self.keys.len() - remove_count());
-            self.segments.reserve(ceiling_div(self.keys.len(), 1 << 16) + 1);
+            self.segments.reserve(ceiling_div(self.keys.len(), I::SEGMENT_SIZE) + 1);
             let mut slice_index = 0;
             let mut accepted_keys = Vec::<u64>::new();  // first par_extend should set proper capacity
             self.segments.push(SegmentMetadata { first_index: 0, first_key: slice_index });
