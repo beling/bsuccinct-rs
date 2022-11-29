@@ -8,7 +8,6 @@ use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 use crate::read_array;
 use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
 use std::io;
-use std::ops::RangeInclusive;
 use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
 use crate::fp::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bit};
@@ -483,9 +482,9 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
-        //if keys.keys_len() < self.prehash_threshold {
-         //   return self.build_next_level_prehash_counts(keys, level_size_groups, level_size_segments);
-        //}
+        if keys.keys_len() < self.prehash_threshold {
+            return self.build_next_level_prehash_counts(keys, level_size_groups, level_size_segments);
+        }
         let (array, seeds) = if !self.use_multiple_threads {
             self.best_array_st(keys, level_size_groups, level_size_segments)
         } else if level_size_segments >= (1<<17) {
