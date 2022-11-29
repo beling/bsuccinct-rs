@@ -608,13 +608,14 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
             (*self.keys).into_par_iter().map(map).collect()
         } else {
             let mut result = Vec::with_capacity(self.indices.len());
-            for seg_i in 0..self.segments.len()-1 {
-                let slice = &self.keys[self.segments[seg_i].first_key..];
-                result.par_extend(
-                    self.indices[self.segments[seg_i].first_index..self.segments[seg_i+1].first_index]
-                        .into_par_iter()
-                        .map(|d| map(unsafe{slice.get_unchecked(*d as usize)})));
-            };
+            result.par_extend(self.segments.par_windows(2).flat_map(|segs| {
+                let [seg, next_seg] = segs else { unreachable!() };
+                let first_key = seg.first_key;
+                let map = &map;
+                self.indices[seg.first_index..next_seg.first_index]
+                    .into_par_iter()
+                    .map(move |d| map(unsafe{self.keys.get_unchecked(first_key + *d as usize)}))
+            }));
             result
         }
     }
