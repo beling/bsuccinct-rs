@@ -22,9 +22,7 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     hash_builder: S,
     bits_per_seed: SS,
-    bits_per_group: GS,
-    relative_level_size: u16,
-    use_multiple_threads: bool
+    bits_per_group: GS
 }
 
 impl Default for FPHash2Conf {
@@ -32,24 +30,8 @@ impl Default for FPHash2Conf {
         Self {
             hash_builder: Default::default(),
             bits_per_seed: Default::default(),
-            bits_per_group: TwoToPowerBits::new(4),
-            relative_level_size: 100,
-            use_multiple_threads: true
+            bits_per_group: TwoToPowerBits::new(4)
         }
-    }
-}
-
-impl FPHash2Conf {
-    /// Returns configuration that uses at each level a bit-array of size `relative_level_size`
-    /// given as a percent of number of input keys for the level.
-    pub fn lsize(relative_level_size: u16) -> Self {
-        Self { relative_level_size, ..Default::default() }
-    }
-    /// Returns configuration that uses potentially uses multiple threads to build levels,
-    /// and at each level a bit-array of size `relative_level_size`
-    /// given as a percent of number of input keys for the level.
-    pub fn lsize_threads(relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, use_multiple_threads, ..Default::default() }
     }
 }
 
@@ -61,18 +43,7 @@ impl<SS: SeedSize> FPHash2Conf<TwoToPowerBits, SS> {
             hash_builder: Default::default(),
             bits_per_seed,
             bits_per_group: TwoToPowerBits::new(4),
-            relative_level_size: 100,
-            use_multiple_threads: true
         }
-    }
-    pub fn bps_lsize(bits_per_seed: SS, relative_level_size: u16) -> Self {
-        Self { relative_level_size, ..Self::bps(bits_per_seed) }  // 1<<6=64
-    }
-    pub fn bps_threads(bits_per_seed: SS, use_multiple_threads: bool) -> Self {
-        Self { use_multiple_threads, ..Self::bps(bits_per_seed) }
-    }
-    pub fn bps_lsize_threads(bits_per_seed: SS, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, use_multiple_threads, ..Self::bps(bits_per_seed) }
     }
 }
 
@@ -84,13 +55,7 @@ impl<GS: GroupSize> FPHash2Conf<GS> {
             hash_builder: Default::default(),
             bits_per_seed: Default::default(),
             bits_per_group,
-            relative_level_size: 100,
-            use_multiple_threads: true
         }
-    }
-    pub fn bpg_lsize(bits_per_group: GS, relative_level_size: u16) -> Self {
-        //assert!(bits_per_group_log2 <= 8);
-        Self { relative_level_size, ..Self::bpg(bits_per_group) }  // 1<<6=64
     }
 }
 
@@ -102,15 +67,7 @@ impl<GS: GroupSize, SS: SeedSize> FPHash2Conf<GS, SS> {
             hash_builder: Default::default(),
             bits_per_seed,
             bits_per_group,
-            relative_level_size: 100,
-            use_multiple_threads: true
         }
-    }
-    pub fn bps_bpg_lsize(bits_per_seed: SS, bits_per_group: GS, relative_level_size: u16) -> Self {
-        Self { relative_level_size, ..Self::bps_bpg(bits_per_seed, bits_per_group) }  // 1<<6=64
-    }
-    pub fn bps_bpg_lsize_threads(bits_per_seed: SS, bits_per_group: GS, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, use_multiple_threads, ..Self::bps_bpg(bits_per_seed, bits_per_group) }  // 1<<6=64
     }
 }
 
@@ -120,13 +77,8 @@ impl<GS: GroupSize, S> FPHash2Conf<GS, TwoToPowerBitsStatic<2>, S> {
         Self {
             hash_builder: hash,
             bits_per_seed: Default::default(),
-            bits_per_group, relative_level_size: 100,
-            use_multiple_threads: true
+            bits_per_group,
         }
-    }
-    pub fn hash_bpg_lsize(hash: S, bits_per_group: GS, relative_level_size: u16) -> Self {
-        //assert!(bits_per_group_log2 <= 8);
-        Self { relative_level_size, ..Self::hash_bpg(hash, bits_per_group) }  // 1<<6=64
     }
 }
 
@@ -134,13 +86,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2Conf<GS, SS, S> {
     pub fn hash_bps_bpg(hash: S, bits_per_seed: SS, bits_per_group: GS) -> Self {
         bits_per_seed.validate().unwrap();
         bits_per_group.validate().unwrap();
-        Self { hash_builder: hash, bits_per_seed, bits_per_group, relative_level_size: 100, use_multiple_threads: true }  // 1<<6=64
-    }
-    pub fn hash_bps_bpg_lsize(hash: S, bits_per_seed: SS, bits_per_group: GS, relative_level_size: u16) -> Self {
-        Self { relative_level_size, ..Self::hash_bps_bpg(hash, bits_per_seed, bits_per_group) }  // 1<<6=64
-    }
-    pub fn hash_bps_bpg_lsize_threads(hash: S, bits_per_seed: SS, bits_per_group: GS, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, use_multiple_threads, ..Self::hash_bps_bpg(hash, bits_per_seed, bits_per_group) }  // 1<<6=64
+        Self { hash_builder: hash, bits_per_seed, bits_per_group }  // 1<<6=64
     }
 
     /// Returns array index for given `hash` of key, size of level in groups, and group seed provided by `group_seed`.
@@ -177,9 +123,6 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Con
     fn build_array_for_hashes_mt<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed) -> Box<[u64]>
         where GetGroupSeed: Fn(u32) -> u16 + Sync + Copy  // returns group seed for group with given index
     {
-        if !self.use_multiple_threads {
-            return self.build_array_for_hashes(key_hashes, level_size_segments, level_size_groups, group_seed);
-        }
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
@@ -188,6 +131,16 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Con
         );
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
         result
+    }
+
+    #[inline] fn build_array_for_hashes_maybe_mt<GetGroupSeed>(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u32, group_seed: GetGroupSeed, use_multiple_threads: bool) -> Box<[u64]>
+        where GetGroupSeed: Fn(u32) -> u16 + Sync + Copy  // returns group seed for group with given index
+    {
+        if use_multiple_threads {
+            self.build_array_for_hashes_mt(key_hashes, level_size_segments, level_size_groups, group_seed)
+        } else {
+            self.build_array_for_hashes(key_hashes, level_size_segments, level_size_groups, group_seed)
+        }
     }
 }
 
@@ -198,24 +151,53 @@ enum Seeds<ArrayValue, SSVecElement> {
 }
 
 /// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
-struct FPHash2Builder<GS: GroupSize, SS: SeedSize, S> {
+#[derive(Clone)]
+pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     level_sizes: Vec::<u32>,
     arrays: Vec::<Box<[u64]>>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
+    prehash_threshold: usize,   // maximum keys size to pre-hash
+    relative_level_size: u16,
     use_multiple_threads: bool,
     conf: FPHash2Conf<GS, SS, S>,
+}   // TODO introduce trait to make other builders possible
+
+impl Default for FPHash2Builder {
+    fn default() -> Self { Self::new(Default::default()) }
 }
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Builder<GS, SS, S>
 {
-    fn new(conf: FPHash2Conf<GS, SS, S>) -> Self {
+    const DEFAULT_RELATIVE_LEVEL_SIZE: u16 = 100;
+    const DEFAULT_PREHASH_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
+
+    fn with_lsize_pht_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, prehash_threshold: usize, use_multiple_threads: bool) -> Self {
         Self {
             level_sizes: Vec::<u32>::new(),
             arrays: Vec::<Box<[u64]>>::new(),
             group_seeds: Vec::<Box<[SS::VecElement]>>::new(),
-            use_multiple_threads: conf.use_multiple_threads && rayon::current_num_threads() > 1,
+            prehash_threshold,
+            relative_level_size,
+            use_multiple_threads: use_multiple_threads && rayon::current_num_threads() > 1,
             conf
         }
+    }
+
+    fn new(conf: FPHash2Conf<GS, SS, S>) -> Self {
+        Self::with_lsize_pht_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_PREHASH_THRESHOLD, true)
+    }
+
+    /// Returns builder that uses at each level a bit-array of size `relative_level_size`
+    /// given as a percent of number of input keys for the level.
+    pub fn with_lsize(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16) -> Self {
+        Self::with_lsize_pht_mt(conf, relative_level_size, Self::DEFAULT_PREHASH_THRESHOLD, true)
+    }
+
+    /// Returns builder that potentially uses multiple threads to build levels,
+    /// and at each level a bit-array of size `relative_level_size`
+    /// given as a percent of number of input keys for the level.
+    pub fn with_lsize_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, use_multiple_threads: bool) -> Self {
+        Self::with_lsize_pht_mt(conf, relative_level_size, Self::DEFAULT_PREHASH_THRESHOLD, use_multiple_threads)
     }
 
     fn push(&mut self, array: Box<[u64]>, seeds: Box<[SS::VecElement]>, size_groups: u32) {
@@ -453,10 +435,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         } else {
             self.select_seeds_prehashed_counts_mt(&key_hashes, level_size_groups, level_size_segments)
         };
-        let current_array = self.conf.build_array_for_hashes_mt(
+        let current_array = self.conf.build_array_for_hashes_maybe_mt(
             &key_hashes,
             level_size_segments, level_size_groups as u32,
-            |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize)
+            |group_index| self.conf.bits_per_seed.get_seed(&current_seeds, group_index as usize),
+            self.use_multiple_threads
         );
         keys.maybe_par_retain_keys_with_indices(
             |i| !current_array.get_bit(
@@ -477,8 +460,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn build_next_level_counts<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
-        //let current_seeds = self.select_seeds_counts(keys, level_size_groups, level_size_segments);
-        let current_seeds = self.select_seeds_fewatonce_atomic_counts(keys, level_size_groups, level_size_segments);
+        let current_seeds = self.select_seeds_counts(keys, level_size_groups, level_size_segments);
+        //let current_seeds = self.select_seeds_fewatonce_atomic_counts(keys, level_size_groups, level_size_segments);
         let current_array = self.build_array_mt(
             keys,
             level_size_segments, level_size_groups as u32,
@@ -745,6 +728,9 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
+        //if keys.keys_len() < self.prehash_threshold {
+         //   return self.build_next_level_prehash_counts(keys, level_size_groups, level_size_segments);
+        //}
         let (array, seeds) = if !self.use_multiple_threads {
             self.best_array_st(keys, level_size_groups, level_size_segments)
         } else if level_size_segments >= (1<<17) {
@@ -764,11 +750,7 @@ pub struct FPHash2<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBits
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
     level_size: Box<[u32]>, // number of groups
-    hash_builder: S,
-    bits_per_seed: SS,
-
-    /// number of bits that each group occupies
-    bits_per_group: GS,
+    conf: FPHash2Conf<GS, SS, S>
     // 0..01..1 mask with number of ones = group size (in bits)
     //group_size_mask: u8,
 }
@@ -792,10 +774,13 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
         let mut level_nr = 0u32;
         loop {
             let level_size_groups = *self.level_size.get(level_nr as usize)?;
-            let hash = self.hash_builder.hash_one(key, level_nr);
+            /*let bit_index = self.conf.key_index(key, level_nr, level_size_groups,
+                                                |g| self.conf.bits_per_seed.get_seed(&self.group_seeds, (groups_before + g) as usize)
+            ); // wrong as bit_index_for_seed is called with wrong group */
+            let hash = self.conf.hash_builder.hash_one(key, level_nr);
             let group = groups_before + group_nr(hash, level_size_groups);
-            let seed = self.bits_per_seed.get_seed(&self.group_seeds, group as usize);
-            let bit_index = self.bits_per_group.bit_index_for_seed(hash, seed, group);
+            let seed = self.conf.bits_per_seed.get_seed(&self.group_seeds, group as usize);
+            let bit_index = self.conf.bits_per_group.bit_index_for_seed(hash, seed, group);
             if self.array.content.get_bit(bit_index) {
                 access_stats.found_on_level(level_nr);
                 return Some(self.array.rank(bit_index) as u64);
@@ -811,14 +796,13 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     }
 
     /// Builds `FPHash2` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
-    pub fn with_conf_stats<K, KS, BS>(mut keys: KS, conf: FPHash2Conf<GS, SS, S>, stats: &mut BS) -> Self
+    pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut levels: FPHash2Builder<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
-        let mut levels = FPHash2Builder::new(conf);
         while keys.keys_len() != 0 {
             let input_size = keys.keys_len();
             let (level_size_groups, level_size_segments) = levels.conf.bits_per_group.level_size_groups_segments(
-                ceiling_div(input_size * levels.conf.relative_level_size as usize, 100));
+                ceiling_div(input_size * levels.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(input_size, level_size_segments * 64);
             levels.build_next_level(&mut keys, level_size_groups, level_size_segments);
@@ -830,11 +814,21 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
         Self {
             array,
             group_seeds: group_seeds_concatenated,
-            hash_builder: levels.conf.hash_builder,
+            conf: levels.conf,
             level_size: levels.level_sizes.into_boxed_slice(),
-            bits_per_seed: levels.conf.bits_per_seed,
-            bits_per_group: levels.conf.bits_per_group
         }
+    }
+
+    pub fn with_builder<K, KS>(keys: KS, levels: FPHash2Builder<GS, SS, S>) -> Self
+        where K: Hash + Sync, KS: KeySet<K> + Sync
+    {
+        Self::with_builder_stats(keys, levels, &mut ())
+    }
+
+    pub fn with_conf_stats<K, KS, BS>(keys: KS, conf: FPHash2Conf<GS, SS, S>, stats: &mut BS) -> Self
+        where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
+    {
+        Self::with_builder_stats(keys, FPHash2Builder::new(conf), stats)
     }
 
     pub fn with_conf<K, KS>(keys: KS, conf: FPHash2Conf<GS, SS, S>) -> Self
@@ -874,7 +868,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         std::mem::size_of::<u8>()   // bits_per_group_seed
-            + self.bits_per_group.write_size_bytes()
+            + self.conf.bits_per_group.write_size_bytes()
             + std::mem::size_of::<u32>()    // self.level_size.len()
             + self.level_size.size_bytes_dyn()
             + self.array.content.size_bytes_dyn()
@@ -884,11 +878,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     /// Writes `self` to the `output`.
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
     {
-        self.bits_per_group.write(output)?;
+        self.conf.bits_per_group.write(output)?;
         write_int!(output, self.level_size.len() as u32)?;
         self.level_size.iter().try_for_each(|l| { write_int!(output, l) })?;
         self.array.content.iter().try_for_each(|v| write_int!(output, v))?;
-        self.bits_per_seed.write_seed_vec(output, &self.group_seeds)
+        self.conf.bits_per_seed.write_seed_vec(output, &self.group_seeds)
     }
 
     /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
@@ -907,9 +901,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
             array: array_with_rank,
             group_seeds,
             level_size,
-            bits_per_seed: bits_per_group_seed,
-            bits_per_group,
-            hash_builder: hasher
+            conf: FPHash2Conf {
+                bits_per_seed: bits_per_group_seed,
+                bits_per_group,
+                hash_builder: hasher
+            },
         })
     }
 

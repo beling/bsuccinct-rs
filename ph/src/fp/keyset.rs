@@ -674,12 +674,34 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
         where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         if self.segments.is_empty() {
-            self.build_index(remove_count, |indices, keys, shift| {
+            self.indices.reserve(self.keys.len() - remove_count());
+            self.segments.reserve(ceiling_div(self.keys.len(), 1 << 16) + 1);
+            let mut slice_index = 0;
+            let mut accepted_keys = Vec::<u64>::new();  // first par_extend should set proper capacity
+            self.segments.push(SegmentMetadata { first_index: 0, first_key: slice_index });
+            for keys_begin in (0..self.keys.len()).step_by(1<<18) {
+                let keys_end = self.keys.len().min(keys_begin + (1<<18));
+                accepted_keys.clear();
+                accepted_keys.par_extend((keys_begin..keys_end).into_par_iter().step_by(64).map(|first_key| {
+                    let mut r = 0;
+                    for i in first_key..keys_end.min(first_key+64) {
+                        if index_filter(i) { r |= 1u64 << (i-first_key); }
+                    }
+                    r
+                }));
+                for accepted in accepted_keys.chunks(1 << (16 - 6)) {
+                    self.indices.extend(accepted.bit_ones().map(|b| b as u16));
+                    slice_index += 1 << 16;
+                    self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
+                }
+            }
+
+            /*self.build_index(remove_count, |indices, keys, shift| {
                 indices.par_extend(
                     (0..keys.len()).into_par_iter()
                         .filter_map(|key_nr| index_filter(shift + key_nr).then_some(key_nr as u16))
                 );
-            })
+            })*/
         } else {
             Self::par_retain_index(&mut self.indices, &mut self.segments, |_, ii| index_filter(ii));
         }
