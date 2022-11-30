@@ -659,19 +659,8 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
             self.par_map(result.spare_capacity_mut(), &map, &self.segments);
             unsafe { result.set_len(len); }
             result
-
-            /*let mut result = Vec::with_capacity(self.indices.len());
-            result.par_extend(self.segments.par_windows(2).flat_map(|segs| {
-                let [seg, next_seg] = segs else { unreachable!() };
-                let first_key = seg.first_key;
-                let map = &map;
-                self.indices[seg.first_index..next_seg.first_index]
-                    .into_par_iter()
-                    .map(move |d| map(unsafe{self.keys.get_unchecked(first_key + I::as_usize(*d))}))
-            }));
-            result*/
         }
-    } // TODO slow for I=u8
+    }
 
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_earlier: P, remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
