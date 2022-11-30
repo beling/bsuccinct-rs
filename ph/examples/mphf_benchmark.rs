@@ -19,6 +19,28 @@ use ph::BuildSeededHasher;
 use ph::fp::keyset::{CachedKeySet, DynamicKeySet, SliceSourceWithClones, SliceSourceWithRefs};
 use ph::seedable_hash::BuildWyHash;
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum KeyAccess {
+    /// Only sequential access to the keys is allowed, upto 10% of keys can be cached (for random access).
+    Sequential,  //(usize),
+    /// Random-access, read-only access to the keys is allowed. The algorithm store indices of the remaining keys.
+    Indices,
+    /// Vector of keys can be modified. The method stores remaining keys, and removes the rest from the vector.
+    Copy
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Args)]
+struct FMPHConf {
+    /// Relative level size as percent of number of keys, equals to *100γ*.
+    #[arg(short='l', long)]
+    level_size: Option<u16>,
+    /// How FMPH can access keys.
+    #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
+    key_access: KeyAccess,
+}
+
+
 #[allow(non_camel_case_types)]
 #[derive(Args)]
 struct FMPHGOConf {
@@ -28,12 +50,15 @@ struct FMPHGOConf {
     /// The size of each group, *b*.
     #[arg(short='b', long, value_parser = clap::value_parser!(u8).range(1..63))]
     group_size: Option<u8>,
-    /// Relative level size as percent of number of keys, equal to *100γ*.
+    /// Relative level size as percent of number of keys, equals to *100γ*.
     #[arg(short='l', long)]
     level_size: Option<u16>,
     /// FMPHGO caches 64-bit hashes of keys when their number (at the constructed level) is below this threshold.
     #[arg(short='p', long, default_value_t = usize::MAX)]
     pre_hash_threshold: usize,
+    /// How FMPHGO can access keys.
+    #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
+    key_access: KeyAccess,
 }
 
 #[allow(non_camel_case_types)]
@@ -45,21 +70,13 @@ enum Method {
     /// FMPHGO with all settings
     FMPHGO_all,
     /// FMPH
-    FMPH,
+    FMPH(FMPHConf),
     /// FMPHGO with selected settings
     FMPHGO(FMPHGOConf),
     /// BooMPHF
     Boomphf,
     /// CHD
-    CHD,
-    /// FMPH restricted to sequence access to keys, with coping only 10% of them (for random access)
-    FMPH_lomem,
-    /// FMPHGO restricted to sequence access to keys, with coping only 10% of them (for random access)
-    FMPHGO_lomem,
-    /// FMPH with keys coping
-    FMPH_copy,
-    /// FMPHGO with keys coping
-    FMPHGO_copy
+    CHD
 }
 
 #[allow(non_camel_case_types)]
@@ -220,22 +237,17 @@ trait MPHFBuilder<K: Hash> {
     }
 }
 
-#[derive(Copy, Clone)]
-enum KeyAccess { LoMem(usize), StoreIndices, CopyKeys }
-
 impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (FPHashConf<S>, KeyAccess) {
     type MPHF = FPHash<S>;
 
     fn new(&self, keys: &[K]) -> Self::MPHF {
         match self.1 {
-            KeyAccess::LoMem(0) => Self::MPHF::with_conf(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
-            KeyAccess::LoMem(clone_threshold) => Self::MPHF::with_conf(
-                CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), clone_threshold),
+            //KeyAccess::LoMem(0) => Self::MPHF::with_conf(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
+            KeyAccess::Sequential => Self::MPHF::with_conf(
+                CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
                 self.0.clone()),
-            //KeyAccess::StoreIndices => Self::MPHF::from_slice_with_conf(keys, self.0.clone()),
-            KeyAccess::StoreIndices => Self::MPHF::with_conf(SliceSourceWithRefs::new(keys), self.0.clone()),
-            //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/10), self.0.clone()),
-            KeyAccess::CopyKeys => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), self.0.clone())
+            KeyAccess::Indices => Self::MPHF::with_conf(SliceSourceWithRefs::new(keys), self.0.clone()),
+            KeyAccess::Copy => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), self.0.clone())
         }
     }
 
@@ -249,14 +261,20 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
 
     fn new(&self, keys: &[K]) -> Self::MPHF {
         match self.1 {
-            KeyAccess::LoMem(0) => Self::MPHF::with_builder(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
+            KeyAccess::Sequential => Self::MPHF::with_builder(
+                CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
+                self.0.clone()),
+            KeyAccess::Indices => Self::MPHF::with_builder(SliceSourceWithRefs::new(keys), self.0.clone()),
+            KeyAccess::Copy => Self::MPHF::with_builder(SliceSourceWithClones::new(keys), self.0.clone())
+
+            /*KeyAccess::LoMem(0) => Self::MPHF::with_builder(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
             KeyAccess::LoMem(clone_threshold) => Self::MPHF::with_builder(
                 CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), clone_threshold),
                 self.0.clone()),
             //KeyAccess::StoreIndices => Self::MPHF::from_slice_with_conf(keys, self.0.clone()),
             KeyAccess::StoreIndices => Self::MPHF::with_builder(SliceSourceWithRefs::new(keys), self.0.clone()),
             //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/10), self.0.clone()),
-            KeyAccess::CopyKeys => Self::MPHF::with_builder(SliceSourceWithClones::new(keys), self.0.clone())
+            KeyAccess::CopyKeys => Self::MPHF::with_builder(SliceSourceWithClones::new(keys), self.0.clone())*/
         }
     }
 
@@ -409,17 +427,17 @@ fn fmphgo_benchmark<S, K>(mut csv_file: Option<File>, hash: S, i: &(Vec<K>, Vec<
     }
 }
 
-fn fmph_benchmark<S, K>(mut csv_file: Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, use_fp: Option<(S, KeyAccess)>)
+fn fmph_benchmark<S, K>(mut csv_file: Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, use_fmph: Option<(S, KeyAccess)>)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
 {
     if let Some(ref mut f) = csv_file {
         writeln!(f, "gamma ST_build_time {}", BENCHMARK_HEADER).unwrap()
     }
-    if use_fp.is_some() { print!("FMPH"); } else { print!("boomphf") }
+    if use_fmph.is_some() { print!("FMPH"); } else { print!("boomphf") }
     println!(": gamma results...");
     for relative_level_size in (100..=200).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
-        let (st_build_time, b) = if let Some((ref hash, key_access)) = use_fp {
+        let (st_build_time, b) = if let Some((ref hash, key_access)) = use_fmph {
             //let mut r = bbmap::bb::hash::Conf::hash_lsize(/*fnv::FnvBuildHasher::default()*/ hash.clone(), relative_level_size).benchmark(verify).1;
             //(std::mem::replace(&mut r.build_time_seconds, f64::NAN), r)
             ((FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, false), key_access).benchmark_build(&i.0, conf.build_runs).2,
@@ -463,13 +481,19 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>)) -> Option<File>
 
 fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
-        Method::Most => {}
-        Method::FMPHGO_all => {}
-        Method::FMPH => {
-            fmph_benchmark(file("FMPH", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::StoreIndices)));
+        Method::Most => {
+            fmph_benchmark(file("FMPH", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::Indices)));
+            fmph_benchmark::<BuildWyHash, _>(file("BooMPHF", &conf, i), i, conf, None);
+            fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::Indices);
+        }
+        Method::FMPHGO_all => {
+            fmphgo_benchmark_all(file("FMPHGO_all", &conf, i), BuildWyHash::default(), &i, &conf, KeyAccess::Indices);
+        }
+        Method::FMPH(ref fmphgo_conf) => {
+            fmph_benchmark(file("FMPH", &conf, i), i, conf, Some((BuildWyHash::default(), fmphgo_conf.key_access)));
         }
         Method::FMPHGO(ref fmphgo_conf) => {
-            fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::StoreIndices);
+            fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash::default(), i, conf, fmphgo_conf.key_access);
         }
         Method::Boomphf => {
             fmph_benchmark::<BuildWyHash, _>(file("BooMPHF", &conf, i), i, conf, None);
@@ -481,45 +505,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
                 chd_benchmark(file("CHD", &conf, i), i, conf);
             }
         }
-        Method::FMPH_lomem => {}
-        Method::FMPHGO_lomem => {}
-        Method::FMPH_copy => {}
-        Method::FMPHGO_copy => {}
     }
-
-    /*if conf.method == Method::FMPHGO_all {
-        fmphgo_benchmark_all(file("FMPHGO_all", &conf, i), BuildWyHash::default(), &i, &conf, KeyAccess::StoreIndices);
-    }
-    if conf.method == Method::Boomphf || conf.method == Method::Most {
-        fmph_benchmark::<BuildWyHash, _>(file("BooMPHF", &conf, i), i, conf, None);
-    }
-    if conf.method == Method::FMPH || conf.method == Method::Most {
-        fmph_benchmark(file("FMPH", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::StoreIndices)));
-    }
-    if conf.method == Method::FMPHGO || conf.method == Method::Most {
-        fmphgo_benchmark(file("FMPHGO", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::StoreIndices);
-    }
-    if conf.method == Method::CHD || conf.method == Method::Most {
-        if conf.key_source == KeySource::stdin {
-            eprintln!("Benchmarking CHD with keys from stdin is not supported.")
-        } else {
-            chd_benchmark(file("CHD", &conf, i), i, conf);
-        }
-    }
-    if conf.method == Method::FMPH_copy {
-        fmph_benchmark(file("FMPH_copy", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::CopyKeys)));
-    }
-    if conf.method == Method::FMPHGO_copy {
-        fmphgo_benchmark(file("FMPHGO_copy", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::CopyKeys);
-    }
-    if conf.method == Method::FMPH_lomem {
-        let ten_percent = i.0.len() / 10;
-        fmph_benchmark(file("FMPH_lomem", &conf, i), i, conf, Some((BuildWyHash::default(), KeyAccess::LoMem(ten_percent))));
-    }
-    if conf.method == Method::FMPHGO_lomem {
-        let ten_percent = i.0.len() / 10;
-        fmphgo_benchmark(file("FMPHGO_lomem", &conf, i), BuildWyHash::default(), i, conf, KeyAccess::LoMem(ten_percent));
-    }*/
 }
 
 /// Infinitive iterator over random u32 values generated by xorshift 32 algorithm.
