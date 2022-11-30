@@ -159,7 +159,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     const DEFAULT_RELATIVE_LEVEL_SIZE: u16 = 100;
     const DEFAULT_PREHASH_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
 
-    fn with_lsize_pht_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, prehash_threshold: usize, use_multiple_threads: bool) -> Self {
+    pub fn with_lsize_pht_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, prehash_threshold: usize, use_multiple_threads: bool) -> Self {
         Self {
             level_sizes: Vec::<u32>::new(),
             arrays: Vec::<Box<[u64]>>::new(),
@@ -171,7 +171,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
-    fn new(conf: FPHash2Conf<GS, SS, S>) -> Self {
+    pub fn new(conf: FPHash2Conf<GS, SS, S>) -> Self {
         Self::with_lsize_pht_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_PREHASH_THRESHOLD, true)
     }
 
