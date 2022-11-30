@@ -1,5 +1,6 @@
 
 use std::mem;
+use std::mem::MaybeUninit;
 use rayon::join;
 use rayon::prelude::*;
 use bitm::{BitAccess, ceiling_div};
@@ -478,6 +479,25 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
     }
 
     /// Copy `indices` accepted by `filter` to the beginning of each segment and stores new lengths of each segment in `new_lengths`.
+    fn par_map<R, M>(&self, dst: &mut [MaybeUninit<R>], map: &M, segments: &[SegmentMetadata])
+        where R: Send, M: Fn(&K) -> R + Sync + Send
+    {
+        if segments.len() > 2 {
+            let mid = segments.len()/2;
+            let (dst0, dst1) = dst.split_at_mut(segments[mid].first_index - segments[0].first_index);
+            join(
+                || self.par_map(dst0, map, &segments[..=mid]),
+                || self.par_map(dst1, map, &segments[mid..])
+            );
+        } else {
+            let keys = &self.keys[segments[0].first_key..];
+            for (i, d) in self.indices[segments[0].first_index..segments[1].first_index].into_iter().zip(dst) {
+                d.write(map(unsafe { keys.get_unchecked(*i as usize) }));
+            }
+        }
+    }
+
+    /// Copy `indices` accepted by `filter` to the beginning of each segment and stores new lengths of each segment in `new_lengths`.
     fn par_pre_retain<F>(filter: &F, indices: &mut [I], segments: &[SegmentMetadata], new_lengths: &mut [u32])
         where F: Fn(usize, usize) -> bool + Sync    // filter is called with indices of: keys and indices
     {
@@ -625,7 +645,13 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
         if self.segments.is_empty() {
             (*self.keys).into_par_iter().map(map).collect()
         } else {
-            let mut result = Vec::with_capacity(self.indices.len());
+            let len = self.indices.len();
+            let mut result = Vec::with_capacity(len);
+            self.par_map(result.spare_capacity_mut(), &map, &self.segments);
+            unsafe { result.set_len(len); }
+            result
+
+            /*let mut result = Vec::with_capacity(self.indices.len());
             result.par_extend(self.segments.par_windows(2).flat_map(|segs| {
                 let [seg, next_seg] = segs else { unreachable!() };
                 let first_key = seg.first_key;
@@ -634,7 +660,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
                     .into_par_iter()
                     .map(move |d| map(unsafe{self.keys.get_unchecked(first_key + I::as_usize(*d))}))
             }));
-            result
+            result*/
         }
     }*/ // TODO slow for I=u8
 
