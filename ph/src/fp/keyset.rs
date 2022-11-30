@@ -482,7 +482,7 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
     fn par_map<R, M>(&self, dst: &mut [MaybeUninit<R>], map: &M, segments: &[SegmentMetadata])
         where R: Send, M: Fn(&K) -> R + Sync + Send
     {
-        if segments.len() > 2 {
+        if segments.len() > 2 /*&& dst.len() < 1024*/ {
             let mid = segments.len()/2;
             let (dst0, dst1) = dst.split_at_mut(segments[mid].first_index - segments[0].first_index);
             join(
@@ -492,8 +492,17 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
         } else {
             let keys = &self.keys[segments[0].first_key..];
             for (i, d) in self.indices[segments[0].first_index..segments[1].first_index].into_iter().zip(dst) {
-                d.write(map(unsafe { keys.get_unchecked(*i as usize) }));
+                d.write(map(unsafe { keys.get_unchecked(I::as_usize(*i)) }));
             }
+
+            /*let mut di = 0;
+            for segments in segments.windows(2) {
+                let keys = &self.keys[segments[0].first_key..];
+                for i in self.indices[segments[0].first_index..segments[1].first_index].into_iter() {
+                    dst[di].write(map(unsafe { keys.get_unchecked(I::as_usize(*i)) }));
+                    di += 1;
+                }
+            }*/
         }
     }
 
@@ -639,7 +648,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
         }
     }
 
-    /*fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
+    fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
         where M: Fn(&K) -> R + Sync + Send, R: Send, P: Fn(&K) -> bool
     {
         if self.segments.is_empty() {
@@ -662,7 +671,7 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
             }));
             result*/
         }
-    }*/ // TODO slow for I=u8
+    } // TODO slow for I=u8
 
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_earlier: P, remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize

@@ -214,7 +214,7 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
                 CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), clone_threshold),
                 self.0.clone()),
             //KeyAccess::StoreIndices => Self::MPHF::from_slice_with_conf(keys, self.0.clone()),
-            KeyAccess::StoreIndices => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), self.0.clone()),
+            KeyAccess::StoreIndices => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), self.0.clone()),
             //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/10), self.0.clone()),
             KeyAccess::CopyKeys => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), self.0.clone())
         }
