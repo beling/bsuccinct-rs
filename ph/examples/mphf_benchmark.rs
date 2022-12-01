@@ -4,7 +4,7 @@ use bitm::{BitAccess, BitVec};
 use std::hash::Hash;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{stdout, Write, BufRead, Seek};
-use cpu_time::ProcessTime;
+use cpu_time::{ProcessTime, ThreadTime};
 use std::fs::{File, OpenOptions};
 use std::mem::size_of;
 use std::time::Instant;
@@ -38,27 +38,33 @@ struct FMPHConf {
     /// How FMPH can access keys.
     #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
     key_access: KeyAccess,
+    /// Whether to build FMPH using multiple threads. If not given, FMPH will be built with and without multiple-threads.
+    #[arg(short='t', long)]
+    multiple_threads: Option<bool>,
 }
 
 
 #[allow(non_camel_case_types)]
 #[derive(Args)]
 struct FMPHGOConf {
-    /// Number of bits to store seed of each group, *s*.
+    /// Number of bits to store seed of each group, *s*
     #[arg(short='s', long, value_parser = clap::value_parser!(u8).range(1..16))]
     bits_per_group_seed: Option<u8>,
-    /// The size of each group, *b*.
+    /// The size of each group, *b*
     #[arg(short='b', long, value_parser = clap::value_parser!(u8).range(1..63))]
     group_size: Option<u8>,
-    /// Relative level size as percent of number of keys, equals to *100γ*.
+    /// Relative level size as percent of number of keys, equals to *100γ*
     #[arg(short='l', long)]
     level_size: Option<u16>,
-    /// FMPHGO caches 64-bit hashes of keys when their number (at the constructed level) is below this threshold.
+    /// FMPHGO caches 64-bit hashes of keys when their number (at the constructed level) is below this threshold
     #[arg(short='p', long, default_value_t = usize::MAX)]
     pre_hash_threshold: usize,
-    /// How FMPHGO can access keys.
+    /// How FMPHGO can access keys
     #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
     key_access: KeyAccess,
+    /// Whether to build FMPHGO using multiple threads. If not given, FMPHGO will be built with and without multiple-threads
+    #[arg(short='t', long)]
+    multiple_threads: Option<bool>,
 }
 
 #[allow(non_camel_case_types)]
@@ -75,13 +81,13 @@ enum Method {
     FMPH(FMPHConf),
     /// BooMPHF
     Boomphf {
-        /// Relative level size as percent of number of keys, equals to *100γ*.
+        /// Relative level size as percent of number of keys, equals to *100γ*
         #[arg(short='l', long)]
         level_size: Option<u16>
     },
     /// CHD
     CHD {
-        /// The average number of keys per bucket. By default tests all lambdas from 1 to 6.
+        /// The average number of keys per bucket. By default tests all lambdas from 1 to 6
         #[arg(short='l', long, value_parser = clap::value_parser!(u8).range(1..32))]
         lambda: Option<u8>
     }
@@ -94,7 +100,7 @@ enum KeySource {
     xs32,
     /// Generate 64 bit keys with xor-shift 64
     xs64,
-    /// Standard input.
+    /// Standard input
     stdin
 }
 
@@ -103,7 +109,6 @@ enum KeySource {
 /// Minimal perfect hashing benchmark.
 struct Conf {
     /// Method to run
-    //#[arg(value_enum, default_value_t = Method::Most)]
     #[command(subcommand)]
     method: Method,
 
@@ -190,22 +195,22 @@ impl SearchStats {
     }
 }
 
-const BENCHMARK_HEADER: &'static str = "size_bytes bits_per_value avg_deep avg_lookup_time build_time build_process_time absent_avg_deep absent_avg_lookup_time absences_found";
+const BENCHMARK_HEADER: &'static str = "size_bytes bits_per_value avg_deep avg_lookup_time build_time_st build_time_mt absent_avg_deep absent_avg_lookup_time absences_found";
 
 struct BenchmarkResult {
     included: SearchStats,
     absent: SearchStats,
     size_bytes: usize,
     bits_per_value: f64,
-    build_process_time_seconds: f64,
-    build_time_seconds: f64
+    build_time_st: f64,
+    build_time_mt: f64
 }
 
 impl Display for BenchmarkResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {} {} {} {} {} {} {} {}", self.size_bytes,
                self.bits_per_value, self.included.avg_deep, self.included.avg_lookup_time,
-               self.build_time_seconds, self.build_process_time_seconds,
+               self.build_time_st, self.build_time_mt,
                self.absent.avg_lookup_time, self.absent.avg_lookup_time, self.absent.absences_found
         )
     }
@@ -217,21 +222,40 @@ trait MPHFBuilder<K: Hash> {
     type MPHF: GetSize;
     fn new(&self, keys: &[K]) -> Self::MPHF;
     fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64>;
+    fn build_use_mt(&self) -> bool;
 
-    /// Builds MPHF and measure the time of building. Returns: MPHF, wall-clock time of building, CPU time of building (consumed by the whole process)
-    fn benchmark_build(&self, keys: &[K], repeats: u32) -> (Self::MPHF, f64, f64) {
-        let start_process_moment = ProcessTime::now();
-        let start_moment = Instant::now();
+    /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
+    fn benchmark_build_st(&self, keys: &[K], repeats: u32) -> (Self::MPHF, f64) {
+        let start_moment = ThreadTime::now();   // ProcessTime?
         for _ in 1..repeats { self.new(keys); }
         let h = self.new(keys);
         let build_time_seconds = start_moment.elapsed().as_secs_f64();
-        let build_process_time_seconds = start_process_moment.elapsed().as_secs_f64();
-        (h, build_time_seconds / repeats as f64, build_process_time_seconds / repeats as f64)
+        (h, build_time_seconds / repeats as f64)
+    }
+
+    /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
+    fn benchmark_build_mt(&self, keys: &[K], repeats: u32) -> (Self::MPHF, f64) {
+        let start_moment =  Instant::now();
+        for _ in 1..repeats { self.new(keys); }
+        let h = self.new(keys);
+        let build_time_seconds = start_moment.elapsed().as_secs_f64();
+        (h, build_time_seconds / repeats as f64)
+    }
+
+    /// Builds MPHF and measure the time of building. Returns: MPHF, and either single-thread and multiple-thread time of building, and one NaN.
+    fn benchmark_build(&self, keys: &[K], repeats: u32) -> (Self::MPHF, f64, f64) {
+        if self.build_use_mt() {
+            let (mphf, time_mt) = self.benchmark_build_mt(keys, repeats);
+            (mphf, f64::NAN, time_mt)
+        } else {
+            let (mphf, time_st) = self.benchmark_build_st(keys, repeats);
+            (mphf, time_st, f64::NAN)
+        }
     }
 
     /// Builds, tests, and returns MPHF.
     fn benchmark(&self, i: &(Vec<K>, Vec<K>), conf: &Conf) -> (Self::MPHF, BenchmarkResult) {
-        let (h, build_time_seconds, build_process_time_seconds) = self.benchmark_build(&i.0, conf.build_runs);
+        let (h, build_time_st, build_time_mt) = self.benchmark_build(&i.0, conf.build_runs);
         let included = SearchStats::new(&i.0, |k, s| Self::value(&h, k, s), conf.verify, conf.lookup_runs);
         assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let size_bytes = h.size_bytes();
@@ -241,7 +265,7 @@ trait MPHFBuilder<K: Hash> {
         } else {
             SearchStats::nan()
         };
-        (h, BenchmarkResult { included, absent, size_bytes, bits_per_value, build_process_time_seconds, build_time_seconds })
+        (h, BenchmarkResult { included, absent, size_bytes, bits_per_value, build_time_st, build_time_mt })
     }
 }
 
@@ -261,6 +285,10 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
 
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.get_stats(key, levels)
+    }
+
+    #[inline(always)] fn build_use_mt(&self) -> bool {
+        self.0.use_multiple_threads
     }
 }
 
@@ -288,6 +316,10 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
 
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.get_stats(key, levels)
+    }
+
+    #[inline(always)] fn build_use_mt(&self) -> bool {
+        self.0.use_multiple_threads
     }
 }
 
@@ -332,6 +364,10 @@ impl<K: Hash> MPHFBuilder<K> for CHDConf {
             key as *const K as *const i8,
             size_of::<K>() as u32) as u64 })
     }
+
+    #[inline(always)] fn build_use_mt(&self) -> bool {
+        false
+    }
 }
 
 struct BooMPHFConf { gamma: f64, mt: bool }
@@ -350,61 +386,121 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.try_hash_bench(&key, levels)
     }
+
+    #[inline(always)] fn build_use_mt(&self) -> bool {
+        self.mt
+    }
 }
 
-fn h2bench<GS, SS, S, K>(hash: S, bits_per_group_seed: SS, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, prehash_threshold: usize, key_access: KeyAccess) -> (f64, BenchmarkResult)
-where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone {
-    let (mphf, _, st_cpu_time) = (FPHash2Builder::with_lsize_pht_mt(FPHash2Conf::hash_bps_bpg(hash.clone(), bits_per_group_seed, bits_per_group), relative_level_size, prehash_threshold, false), key_access).benchmark_build(&i.0, conf.build_runs);
-    let st_size = mphf.size_bytes();
-    drop(mphf);
-    let (mt_mphf, mt_bench_results) = (FPHash2Builder::with_lsize_pht_mt(FPHash2Conf::hash_bps_bpg(hash.clone(), bits_per_group_seed, bits_per_group), relative_level_size, prehash_threshold, true), key_access).benchmark(i, conf);
-    if mt_mphf.size_bytes() != st_size { eprintln!("WARNING: FMPHGO ST/MT have different sizes, {} != {}", st_size, mt_mphf.size_bytes()); }
-    (st_cpu_time, mt_bench_results)
+const FMPHGO_HEADER: &'static str = "prehash_threshold bits_per_group_seed relative_level_size bits_per_group";
+
+struct FMPHGOBuildParams<S> {
+    hash: S,
+    relative_level_size: u16,
+    prehash_threshold: usize,
+    key_access: KeyAccess,
+    multiple_threads: Option<bool>
 }
 
-fn h2b<GS, S, K>(hash: S, bits_per_group_seed: u8, bits_per_group: GS, relative_level_size: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, prehash_threshold: usize, key_access: KeyAccess) -> (f64, BenchmarkResult)
+fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
+    where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
+{
+    if let Some(mt) = p.multiple_threads {
+        (FPHash2Builder::with_lsize_pht_mt(
+            FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
+            p.relative_level_size, p.prehash_threshold, mt), p.key_access)
+        .benchmark(i, conf).1
+    } else {
+        let (mphf, build_time_st) = (FPHash2Builder::with_lsize_pht_mt(
+            FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
+            p.relative_level_size, p.prehash_threshold, false), p.key_access)
+            .benchmark_build_st(&i.0, conf.build_runs);
+        let st_size = mphf.size_bytes();
+        drop(mphf);
+        let (mt_mphf, mut results) = (FPHash2Builder::with_lsize_pht_mt(
+            FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
+            p.relative_level_size, p.prehash_threshold, true), p.key_access)
+            .benchmark(i, conf);
+        if mt_mphf.size_bytes() != st_size { eprintln!("WARNING: FMPHGO ST/MT have different sizes, {} != {}", st_size, mt_mphf.size_bytes()); }
+        results.build_time_st = build_time_st;
+        results
+    }
+}
+
+fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
     where GS: GroupSize + Sync + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
     if bits_per_group_seed.is_power_of_two() {
         match bits_per_group_seed {
-            1 => h2bench(hash, TwoToPowerBitsStatic::<0>, bits_per_group, relative_level_size, i, conf, prehash_threshold, key_access),
-            2 => h2bench(hash, TwoToPowerBitsStatic::<1>, bits_per_group, relative_level_size, i, conf, prehash_threshold, key_access),
-            4 => h2bench(hash, TwoToPowerBitsStatic::<2>, bits_per_group, relative_level_size, i, conf, prehash_threshold, key_access),
-            8 => h2bench(hash, Bits8, bits_per_group, relative_level_size, i, conf, prehash_threshold, key_access),
-            16 => h2bench(hash, TwoToPowerBitsStatic::<5>, bits_per_group, relative_level_size, i, conf, prehash_threshold, key_access),
+            1 => h2bench(TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
+            2 => h2bench(TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
+            4 => h2bench(TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
+            8 => h2bench(Bits8, bits_per_group, i, conf, p),
+            16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
             _ => unreachable!()
         }
     } else {
-        h2bench(hash, Bits(bits_per_group_seed), bits_per_group, relative_level_size, i, conf, prehash_threshold, key_access)
+        h2bench(Bits(bits_per_group_seed), bits_per_group, i, conf, p)
     }
 }
 
-fn fmphgo<S, K>(csv_file: &mut Option<File>, hash: &S, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, relative_level_size: u16, bits_per_group: u8, prehash_threshold: usize, key_access: KeyAccess)
-                -> (f64, BenchmarkResult)
+fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams<S>)
+                -> BenchmarkResult
     where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
-    let (st_build_time, b) = if bits_per_group.is_power_of_two() {
-        h2b(hash.clone(), bits_per_group_seed, TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), relative_level_size, i, conf, prehash_threshold, key_access)
+    let b = if bits_per_group.is_power_of_two() {
+        h2b(bits_per_group_seed, TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), i, conf, p)
     } else {
-        h2b(hash.clone(), bits_per_group_seed, Bits(bits_per_group), relative_level_size, i, conf, prehash_threshold, key_access)
+        h2b(bits_per_group_seed, Bits(bits_per_group), i, conf, p)
     };
-    if let Some(ref mut f) = csv_file {
-        writeln!(f, "{} {} {} {} {} {}", prehash_threshold, bits_per_group_seed, relative_level_size, bits_per_group, st_build_time, b).unwrap();
+    if let Some(ref mut f) = file {
+        writeln!(f, "{} {} {} {} {}", p.prehash_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b).unwrap();
     }
-    (st_build_time, b)
+    b
+}
+
+fn fmphgo_benchmark<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams<S>)
+    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
+{
+    let b = fmphgo(file, i, conf, bits_per_group_seed, bits_per_group, p);
+    println!(" {} {} {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}",
+             bits_per_group_seed, bits_per_group, p.relative_level_size as f64/100.0,
+             b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build_time_st*1000.0, b.build_time_mt*1000.0);
+}
+
+fn fmphgo_benchmark_fix_level_size<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams<S>)
+    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
+{
+    if p.relative_level_size == 0 {
+        for relative_level_size in (100..=200).step_by(/*50*/100) {
+            p.relative_level_size = relative_level_size;
+            fmphgo_benchmark(file, i, conf, bits_per_group_seed, bits_per_group, &p);
+        }
+        p.relative_level_size = 0;
+    } else {
+        fmphgo_benchmark(file, i, conf, bits_per_group_seed, bits_per_group, &p);
+    }
 }
 
 fn fmphgo_benchmark_all<S, K>(mut csv_file: Option<File>, hash: S, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
     println!("bps rls \\ bpglog 2 3 4 5 ... 62");
+    let mut p = FMPHGOBuildParams {
+        hash,
+        relative_level_size: 0,
+        prehash_threshold: usize::MAX,
+        key_access,
+        multiple_threads: Some(true)
+    };
     for bits_per_group_seed in 1u8..=10u8 {
         for relative_level_size in (100..=200).step_by(/*50*/100) {
+            p.relative_level_size = relative_level_size;
             print!("{} {}", bits_per_group_seed, relative_level_size);
             //for bits_per_group_log2 in 3u8..=7u8 {
             for bits_per_group in (2u8..=62u8).step_by(2) {
                 //let (_, b) = Conf::bps_bpg_lsize(bits_per_group_seed, TwoToPowerBits::new(bits_per_group_log2), relative_level_size).benchmark(verify);
-                let (_st_build_time, b) = fmphgo(&mut csv_file, &hash, i, conf, bits_per_group_seed, relative_level_size, bits_per_group, usize::MAX, key_access);
+                let b = fmphgo(&mut csv_file, i, conf, bits_per_group_seed, bits_per_group, &p);
                 print!(" {:.2}", b.bits_per_value);
                 stdout().flush().unwrap();
             }
@@ -413,21 +509,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
     }
 }
 
-const FMPHGO_HEADER: &'static str = "prehash_threshold bits_per_group_seed relative_level_size bits_per_group ST_build_time";
 
-fn fmphgo_benchmark<S, K>(mut csv_file: Option<File>, hash: S, i: &(Vec<K>, Vec<K>), conf: &Conf, prehash_threshold: usize, key_access: KeyAccess)
-    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
-{
-    println!("FMPHGO pre-hash threshold={}: s b gamma results...", prehash_threshold);
-    for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
-        for relative_level_size in (100..=200).step_by(/*50*/100) {
-            let (st_build_time, b) = fmphgo(&mut csv_file, &hash, i, conf, bits_per_group_seed, relative_level_size, bits_per_group, prehash_threshold, key_access);
-            println!(" {} {} {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}",
-                     bits_per_group_seed, bits_per_group, relative_level_size as f64/100.0,
-                     b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, st_build_time*1000.0, b.build_time_seconds*1000.0);
-        }
-    }
-}
 
 const FMPH_BENCHMARK_HEADER: &'static str = "gamma ST_build_time";
 
@@ -448,7 +530,8 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
             (BooMPHFConf { gamma, mt: false }.benchmark_build(&i.0, conf.build_runs).2,
              BooMPHFConf { gamma, mt: true }.benchmark(i, conf).1)
         };
-        println!(" {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}", gamma, b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, st_build_time * 1000.0, b.build_time_seconds * 1000.0);
+        println!(" {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}",
+                 gamma, b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build_time_st * 1000.0, b.build_time_mt * 1000.0);
         if let Some(ref mut f) = csv_file {
             writeln!(f, "{} {} {}", gamma, st_build_time, b).unwrap();
         }
@@ -460,7 +543,8 @@ fn chd_benchmark<K: Hash>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), con
     if let Some(ref mut f) = csv_file {
         writeln!(f, "{} {}", lambda, b).unwrap();
     }
-    println!(" {}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms]: {:.0}", lambda, b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build_process_time_seconds * 1_000.0);
+    println!(" {}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms]: {:.0}",
+             lambda, b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build_time_st * 1_000.0);
 }
 
 fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &str) -> Option<File> {
@@ -481,7 +565,38 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
             fmphgo_benchmark_all(file("FMPHGO_all", &conf, i, FMPHGO_HEADER), BuildWyHash::default(), &i, &conf, KeyAccess::Indices);
         }
         Method::FMPHGO(ref fmphgo_conf) => {
-            fmphgo_benchmark(file("FMPHGO", &conf, i, FMPHGO_HEADER), BuildWyHash::default(), i, conf,  fmphgo_conf.pre_hash_threshold, fmphgo_conf.key_access);
+            let mut file = file("FMPHGO", &conf, i, FMPHGO_HEADER);
+            println!("FMPHGO pre-hash threshold={}: s b gamma results...", fmphgo_conf.pre_hash_threshold);
+            let mut p = FMPHGOBuildParams {
+                hash: BuildWyHash::default(),
+                relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
+                prehash_threshold: fmphgo_conf.pre_hash_threshold,
+                key_access: fmphgo_conf.key_access,
+                multiple_threads: fmphgo_conf.multiple_threads
+            };
+            match (fmphgo_conf.bits_per_group_seed, fmphgo_conf.group_size) {
+                (None, None) => {
+                    for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
+                        fmphgo_benchmark_fix_level_size(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p);
+                    }
+                },
+                (Some(bits_per_group_seed), Some(bits_per_group)) =>
+                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p),
+                (Some(1), None) | (None, Some(8)) =>
+                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 1, 8, &mut p),
+                (Some(2), None) =>
+                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 2, 16, &mut p),
+                (Some(4), None) =>
+                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 4, 16, &mut p),
+                (None, Some(16)) => {
+                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 2, 16, &mut p);
+                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 4, 16, &mut p);
+                }
+                (Some(8), None) | (None, Some(32)) =>
+                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 8, 32, &mut p),
+                _ =>
+                    eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
+            }
         }
         Method::FMPH(ref fmph_conf) => {
             fmph_benchmark(i, conf, fmph_conf.level_size, Some((BuildWyHash::default(), fmph_conf.key_access)));

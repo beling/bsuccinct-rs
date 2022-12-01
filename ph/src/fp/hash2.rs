@@ -144,10 +144,10 @@ pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPo
     level_sizes: Vec::<u32>,
     arrays: Vec::<Box<[u64]>>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
-    prehash_threshold: usize,   // maximum keys size to pre-hash
-    relative_level_size: u16,
-    use_multiple_threads: bool,
-    conf: FPHash2Conf<GS, SS, S>,
+    pub prehash_threshold: usize,   // maximum keys size to pre-hash
+    pub relative_level_size: u16,
+    pub use_multiple_threads: bool,
+    pub conf: FPHash2Conf<GS, SS, S>,
 }   // TODO introduce trait to make other builders possible
 
 impl Default for FPHash2Builder {

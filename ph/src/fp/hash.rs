@@ -16,9 +16,9 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// Configuration that is accepted by `FPHash` constructors.
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
-    hash: S,
-    relative_level_size: u16,
-    use_multiple_threads: bool
+    pub hash: S,
+    pub relative_level_size: u16,
+    pub use_multiple_threads: bool
 }
 
 impl Default for FPHashConf {
