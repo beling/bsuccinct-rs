@@ -135,9 +135,9 @@ struct Conf {
     #[arg(short='f', long, default_value_t = 0)]
     foreign_keys_num: usize,
 
-    /// Save detailed results to CSV file
+    /// Save detailed results to CSV-like (but space separated) file
     #[arg(short='d', long, default_value_t = false)]
-    save_csv: bool,
+    save_details: bool,
 }
 
 /// Represents average (per value) lookup: level searched, times (seconds).
@@ -260,7 +260,7 @@ trait MPHFBuilder<K: Hash> {
         assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let size_bytes = h.size_bytes();
         let bits_per_value = 8.0 * size_bytes as f64 / i.0.len() as f64;
-        let absent = if conf.save_csv && Self::CAN_DETECT_ABSENCE {
+        let absent = if conf.save_details && Self::CAN_DETECT_ABSENCE {
             SearchStats::new(&i.1, |k, s| Self::value(&h, k, s), false, conf.lookup_runs)
         } else {
             SearchStats::nan()
@@ -468,7 +468,7 @@ fn fmphgo_benchmark<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &
              b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build_time_st*1000.0, b.build_time_mt*1000.0);
 }
 
-fn fmphgo_benchmark_fix_level_size<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams<S>)
+fn fmphgo_run<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams<S>)
     where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
     if p.relative_level_size == 0 {
@@ -548,7 +548,7 @@ fn chd_benchmark<K: Hash>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), con
 }
 
 fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &str) -> Option<File> {
-    if !conf.save_csv { return None; }
+    if !conf.save_details { return None; }
     let ks_name = match conf.key_source {
         KeySource::xs32 => "32",
         KeySource::xs64 => "64",
@@ -577,25 +577,19 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
             match (fmphgo_conf.bits_per_group_seed, fmphgo_conf.group_size) {
                 (None, None) => {
                     for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
-                        fmphgo_benchmark_fix_level_size(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p);
+                        fmphgo_run(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p);
                     }
                 },
-                (Some(bits_per_group_seed), Some(bits_per_group)) =>
-                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p),
-                (Some(1), None) | (None, Some(8)) =>
-                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 1, 8, &mut p),
-                (Some(2), None) =>
-                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 2, 16, &mut p),
-                (Some(4), None) =>
-                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 4, 16, &mut p),
+                (Some(bits_per_group_seed), Some(bits_per_group)) => fmphgo_run(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p),
+                (Some(1), None) | (None, Some(8)) => fmphgo_run(&mut file, i, conf, 1, 8, &mut p),
+                (Some(2), None) => fmphgo_run(&mut file, i, conf, 2, 16, &mut p),
+                (Some(4), None) => fmphgo_run(&mut file, i, conf, 4, 16, &mut p),
                 (None, Some(16)) => {
-                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 2, 16, &mut p);
-                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 4, 16, &mut p);
+                    fmphgo_run(&mut file, i, conf, 2, 16, &mut p);
+                    fmphgo_run(&mut file, i, conf, 4, 16, &mut p);
                 }
-                (Some(8), None) | (None, Some(32)) =>
-                    fmphgo_benchmark_fix_level_size(&mut file, i, conf, 8, 32, &mut p),
-                _ =>
-                    eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
+                (Some(8), None) | (None, Some(32)) => fmphgo_run(&mut file, i, conf, 8, 32, &mut p),
+                _ => eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
             }
         }
         Method::FMPH(ref fmph_conf) => {
