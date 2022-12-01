@@ -208,6 +208,17 @@ struct BuildStats {
     time_mt: f64
 }
 
+impl Display for BuildStats {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match (!self.time_st.is_nan(), !self.time_mt.is_nan()) {
+            (true, false) => write!(f, "build time [ms] ST: {:.0}", self.time_st * 1_000.0),
+            (false, true) => write!(f, "build time [ms] MT: {:.0}", self.time_mt * 1_000.0),
+            (true, true) => write!(f, "build time [ms] ST, MT: {:.0}, {:.0}", self.time_st * 1_000.0, self.time_mt * 1_000.0),
+            _ => write!(f, "build time is unknown")
+        }
+    }
+}
+
 const BENCHMARK_HEADER: &'static str = "size_bytes bits_per_value avg_deep avg_lookup_time build_time_st build_time_mt absent_avg_deep absent_avg_lookup_time absences_found";
 
 struct BenchmarkResult {
@@ -218,13 +229,25 @@ struct BenchmarkResult {
     build: BuildStats
 }
 
+impl BenchmarkResult {
+    fn all<'a>(&'a self) -> impl Display + 'a {
+        struct All<'a>(&'a BenchmarkResult);
+        impl<'a> Display for All<'a> {
+            fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+                write!(f, "{} {} {} {} {} {} {} {} {}", self.0.size_bytes,
+                       self.0.bits_per_value, self.0.included.avg_deep, self.0.included.avg_lookup_time,
+                       self.0.build.time_st, self.0.build.time_mt,
+                       self.0.absent.avg_lookup_time, self.0.absent.avg_lookup_time, self.0.absent.absences_found
+                )
+            }
+        }
+        All(self)
+    }
+}
+
 impl Display for BenchmarkResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {} {} {} {} {} {} {}", self.size_bytes,
-               self.bits_per_value, self.included.avg_deep, self.included.avg_lookup_time,
-               self.build.time_st, self.build.time_mt,
-               self.absent.avg_lookup_time, self.absent.avg_lookup_time, self.absent.absences_found
-        )
+        write!(f, "size [bits/key]: {:.2}\tlookup time [ns]: {:.0}\t{}", self.bits_per_value, self.included.avg_lookup_time * 1_000_000_000.0, self.build)
     }
 }
 
@@ -450,7 +473,7 @@ fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits
         h2b(bits_per_group_seed, Bits(bits_per_group), i, conf, p)
     };
     if let Some(ref mut f) = file {
-        writeln!(f, "{} {} {} {} {}", p.prehash_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b).unwrap();
+        writeln!(f, "{} {} {} {} {}", p.prehash_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b.all()).unwrap();
     }
     b
 }
@@ -459,9 +482,7 @@ fn fmphgo_benchmark<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &
     where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
     let b = fmphgo(file, i, conf, bits_per_group_seed, bits_per_group, p);
-    println!(" {} {} {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}",
-             bits_per_group_seed, bits_per_group, p.relative_level_size as f64/100.0,
-             b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build.time_st*1000.0, b.build.time_mt*1000.0);
+    println!(" {} {} {:.1}\t{}", bits_per_group_seed, bits_per_group, p.relative_level_size as f64/100.0, b);
 }
 
 fn fmphgo_run<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams<S>)
@@ -521,21 +542,15 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
         } else {
             BooMPHFConf { gamma }.benchmark(i, &conf)
         };
-        println!(" {:.1}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms] ST, MT: {:.0}, {:.0}",
-                 gamma, b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build.time_st * 1000.0, b.build.time_mt * 1000.0);
-        if let Some(ref mut f) = file {
-            writeln!(f, "{} {}", gamma, b).unwrap();
-        }
+        println!(" {:.1}\t{}", gamma, b);
+        if let Some(ref mut f) = file { writeln!(f, "{} {}", gamma, b.all()).unwrap(); }
     }
 }
 
 fn chd_benchmark<K: Hash>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, lambda: u8) {
     let b = CHDConf{ lambda }.benchmark(i, conf);
-    if let Some(ref mut f) = csv_file {
-        writeln!(f, "{} {}", lambda, b).unwrap();
-    }
-    println!(" {}\tsize [bits/key]: {:.2}\tlookup time [ns]: {:.0}\tbuild time [ms]: {:.0}",
-             lambda, b.bits_per_value, b.included.avg_lookup_time * 1_000_000_000.0, b.build.time_st * 1_000.0);
+    if let Some(ref mut f) = csv_file { writeln!(f, "{} {}", lambda, b.all()).unwrap(); }
+    println!(" {}\t{}", lambda, b);
 }
 
 fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &str) -> Option<File> {
