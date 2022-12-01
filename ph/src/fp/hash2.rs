@@ -175,6 +175,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         Self::with_lsize_pht_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_PREHASH_THRESHOLD, true)
     }
 
+    pub fn with_lsize_pht(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, prehash_threshold: usize) -> Self {
+        Self::with_lsize_pht_mt(conf, relative_level_size, prehash_threshold, true)
+    }
+
     /// Returns builder that uses at each level a bit-array of size `relative_level_size`
     /// given as a percent of number of input keys for the level.
     pub fn with_lsize(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16) -> Self {
