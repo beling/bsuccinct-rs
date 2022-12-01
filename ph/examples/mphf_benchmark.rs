@@ -247,10 +247,11 @@ impl BenchmarkResult {
 
 impl Display for BenchmarkResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "size [bits/key]: {:.2}\t{}", self.bits_per_value, self.build)?;
+        write!(f, "size [bits/key]: {:.2}", self.bits_per_value)?;
         if !self.included.avg_lookup_time.is_nan() {
             write!(f, "\tlookup time [ns]: {:.0}", self.included.avg_lookup_time * 1_000_000_000.0)?;
         }
+        write!(f, "\t{}", self.build)?;
         Ok(())
     }
 }

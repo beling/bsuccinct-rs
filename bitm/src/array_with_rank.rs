@@ -14,7 +14,7 @@ pub trait BitArrayWithRank {
 }
 
 /// Returns number of bits set (to one) in `content`.
-#[inline] fn count_bits_in(content: &[u64]) -> u64 {
+#[inline(always)] fn count_bits_in(content: &[u64]) -> u64 {
     content.iter().map(|v| v.count_ones() as u64).sum()
 }
 
