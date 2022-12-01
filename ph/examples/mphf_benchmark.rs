@@ -117,7 +117,7 @@ struct Conf {
     method: Method,
 
     /// Number of times to perform the lookup test
-    #[arg(short='l', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
+    #[arg(short='l', long, default_value_t = 1)]
     lookup_runs: u32,
 
     /// Number of times to perform the construction
@@ -162,7 +162,7 @@ impl SearchStats {
     /// Lookups `h` for all keys in `input` and returns search statistics.
     /// If `verify` is `true`, checks if the MPHF `h` is valid for the given `input`.
     fn new<K: Hash, F: Fn(&K, &mut u64) -> Option<u64>>(input: &[K], h: F, verify: bool, lookup_runs: u32) -> Self {
-        if input.is_empty() { return Self::nan(); }
+        if input.is_empty() || lookup_runs == 0 { return Self::nan(); }
         let mut extra_levels_searched = 0u64;
         let mut not_found = 0usize;
         let start_process_moment = ProcessTime::now();
@@ -303,10 +303,13 @@ trait MPHFBuilder<K: Hash> {
     /// Builds, tests, and returns MPHF.
     fn benchmark(&self, i: &(Vec<K>, Vec<K>), conf: &Conf) -> BenchmarkResult {
         let (h, build) = self.benchmark_build(&i.0, conf);
-        let included = SearchStats::new(&i.0, |k, s| Self::value(&h, k, s), conf.verify, conf.lookup_runs);
-        assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let size_bytes = h.size_bytes();
         let bits_per_value = 8.0 * size_bytes as f64 / i.0.len() as f64;
+        if conf.lookup_runs == 0 {
+            return BenchmarkResult { included: SearchStats::nan(), absent: SearchStats::nan(), size_bytes, bits_per_value, build }
+        }
+        let included = SearchStats::new(&i.0, |k, s| Self::value(&h, k, s), conf.verify, conf.lookup_runs);
+        assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let absent = if conf.save_details && Self::CAN_DETECT_ABSENCE {
             SearchStats::new(&i.1, |k, s| Self::value(&h, k, s), false, conf.lookup_runs)
         } else {
