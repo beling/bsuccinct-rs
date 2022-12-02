@@ -5,18 +5,16 @@ use bitm::{BitAccess, BitVec, ceiling_div};
 use dyn_size_of::GetSize;
 use binout::{read_int, write_int};
 use crate::read_array;
-use crate::utils::map32_to_32;
+use crate::utils::{map32_to_32, map64_to_64};
 
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
 #[inline(always)]
-/*pub(super) fn group_nr(hasher: &mut impl Hasher, key: &impl Hash, level_size_groups: u32) -> u32 {
-    key.hash(hasher);
-    map64_to_32(hasher.finish(), level_size_groups)
-}*/
-pub fn group_nr(hash: u64, level_size_groups: u32) -> u32 {
+pub fn group_nr(hash: u64, level_size_groups: u64) -> u64 {
     //map64_to_32(hash, level_size_groups)
-    map32_to_32((hash >> 32) as u32, level_size_groups)
+    //map32_to_32((hash >> 32) as u32, level_size_groups as u32) as u64
+    //map48_to_64(hash >> 16, level_size_groups)
+    map64_to_64(hash, level_size_groups)    // note that the lowest x bits of hash are ignored by map64_to_64 if level_size_groups < 2^(64-x) and it is save to use the lowest bits by in_group_index
 }
 
 /*#[inline]
@@ -38,9 +36,9 @@ fn mix16(mut x: u16) -> u16 {
     x = (x ^ (x >> 8)).wrapping_mul(0xa3d3);
     x = (x ^ (x >> 7)).wrapping_mul(0x4b2d);
     x ^ (x >> 9)
-}*/
+}
 
-/*#[inline(always)]
+#[inline(always)]
 fn mix16fast(mut x: u16) -> u16 {
     x += x << 7; x ^= x >> 8;
     x += x << 3; x ^= x >> 2;
@@ -54,24 +52,19 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
     fn validate(&self) -> Result<Self, &'static str> { Ok(*self) }
 
     /// Returns `hash` modulo `self`.
-    #[inline]
+    #[inline(always)]
     fn hash_to_group(&self, hash: u32) -> u8 {
-        //map64_to_32(hash, Into::<u8>::into(*self) as u32) as u8
         map32_to_32(hash as u32, Into::<u8>::into(*self) as u32) as u8
-        //map16_to_16(hash as u16, Into::<u8>::into(*self) as u16) as u8
         //map16_to_16(hash as u16, Into::<u8>::into(*self) as u16) as u8
     }
 
     /// Returns index in the group with given seed `group_seed` using `hasher`
     /// which must be modified earlier by `group_nr` function.
-    #[inline]
-    /*fn in_group_index(&self, mut hasher: impl Hasher, group_seed: u16) -> u8 {
-        hasher.write_u16(group_seed);
-        self.hash_to_group(hasher.finish())
-    }*/
+    #[inline(always)]
     fn in_group_index(&self, hash: u64, group_seed: u16) -> u8 {
-        //self.hash_to_group(mix16fast((hash as u16) ^ group_seed as u16))
+        //self.hash_to_group(mix16((hash as u16) ^ group_seed as u16))
         self.hash_to_group(mix32((hash as u32) ^ (group_seed as u32)))
+
         //self.hash_to_group(mix32((hash as u32).wrapping_add(group_seed as u32)))
         //self.hash_to_group(mix32(((hash as u32) & 0xFFFF) | ((group_seed as u32) << 16)))
         //self.hash_to_group(mix64(hash ^ group_seed as u64))
@@ -83,7 +76,7 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
     /*fn bit_index_for_seed(&self, hasher: impl Hasher, group_seed: u16, group: u32) -> usize {
         (*self * group as usize) + self.in_group_index(hasher, group_seed) as usize
     }*/
-    fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: u32) -> usize {
+    fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: u64) -> usize {
         (*self * group as usize) + self.in_group_index(hash, group_seed) as usize
     }
 
@@ -149,7 +142,7 @@ pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
         self.set_seed(vec, index, seed)
     }
 
-    fn concatenate_seed_vecs(&self, level_sizes: &[u32], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
+    fn concatenate_seed_vecs(&self, level_sizes: &[u64], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
         let mut group_seeds_concatenated = self.new_zeroed_seed_vec(level_sizes.iter().map(|v| *v as usize).sum::<usize>());
         let mut dst_group = 0;
         for (l_size, l_seeds) in level_sizes.iter().zip(group_seeds.into_iter()) {
@@ -223,7 +216,7 @@ impl TryFrom<u8> for TwoToPowerBits {
 }
 
 impl GroupSize for TwoToPowerBits {
-    #[inline] fn hash_to_group(&self, hash: u32) -> u8 {
+    #[inline(always)] fn hash_to_group(&self, hash: u32) -> u8 {
         hash as u8 & self.mask
     }
 
@@ -358,7 +351,7 @@ impl SeedSize for Bits8 {
         seeds.iter().try_for_each(|v| write_int!(output, v))
     }
 
-    fn concatenate_seed_vecs(&self, _level_sizes: &[u32], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
+    fn concatenate_seed_vecs(&self, _level_sizes: &[u64], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
         group_seeds.concat().into_boxed_slice()
     }
 }

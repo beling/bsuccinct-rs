@@ -16,9 +16,9 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// Configuration that is accepted by `FPHash` constructors.
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
-    hash: S,
-    relative_level_size: u16,
-    use_multiple_threads: bool
+    pub hash: S,
+    pub relative_level_size: u16,
+    pub use_multiple_threads: bool
 }
 
 impl Default for FPHashConf {
@@ -65,6 +65,7 @@ impl<S> FPHashConf<S> {
 
 /// Set `bit_index` bit in `result`. If it already was set, then set it in `collision`.
 #[cfg(not(feature = "no_branchless_bb"))]
+#[inline]
 pub(crate) fn fphash_add_bit(result: &mut [u64], collision: &mut [u64], bit_index: usize) {
     let index = bit_index / 64;
     let mask = 1u64 << (bit_index % 64) as u64;
@@ -90,6 +91,7 @@ pub(crate) fn fphash_add_bit(result: &mut Box<[u64]>, collision: &mut Box<[u64]>
 }
 
 /// Set `bit_index` bit in `result`. If it already was set, then set it in `collision`.
+#[inline]
 pub(crate) fn fphash_sync_add_bit(result: &[AtomicU64], collision: &[AtomicU64], bit_index: usize) {
     let index = bit_index / 64;
     let mask = 1u64 << (bit_index % 64) as u64;
@@ -124,7 +126,6 @@ struct FPHashBuilder<S> {
     input_size: usize,
     use_multiple_threads: bool,
     conf: FPHashConf<S>
-
 }
 
 impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
@@ -254,12 +255,13 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
 #[derive(Clone)]
 pub struct FPHash<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
-    level_sizes: Box<[u32]>,
+    level_sizes: Box<[u64]>,
     hash_builder: S,
 }
 
 impl<S: BuildSeededHasher> GetSize for FPHash<S> {
     fn size_bytes_dyn(&self) -> usize { self.array.size_bytes_dyn() + self.level_sizes.size_bytes_dyn() }
+    fn size_bytes_content_dyn(&self) -> usize { self.array.size_bytes_content_dyn() + self.level_sizes.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
@@ -300,7 +302,7 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
         builder.build_levels(&mut keys, stats);
         drop(keys);
         stats.end();
-        let level_sizes = builder.arrays.iter().map(|l| l.len() as u32).collect();
+        let level_sizes = builder.arrays.iter().map(|l| l.len() as u64).collect();
         let (array, _)  = ArrayWithRank::build(builder.arrays.concat().into_boxed_slice());
         Self {
             array,
@@ -347,8 +349,8 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
             std::mem::size_of::<u32>()
-                + self.level_sizes.len() * std::mem::size_of::<u32>()
-                + self.array.content.size_bytes_dyn()
+                + self.level_sizes.size_bytes_content_dyn()
+                + self.array.content.size_bytes_content_dyn()
     }
 
     /// Writes `self` to the `output`.
@@ -362,7 +364,7 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
     /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
     pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
     {
-        let levels = read_array!([u32; read u32] from input);
+        let levels = read_array!([u64; read u32] from input);
         let array_content_len = levels.iter().map(|v|*v as usize).sum::<usize>();
         let array_content = read_array!([u64; array_content_len] from input).into_boxed_slice();
         let (array_with_rank, _) = ArrayWithRank::build(array_content);
@@ -413,7 +415,7 @@ mod tests {
     }
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K]) {
-        let h = FPHash::from_slice_with_conf(to_hash, FPHashConf::threads(1));
+        let h = FPHash::from_slice_with_conf(to_hash, FPHashConf::threads(false));
         test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));
         test_read_write(&h);
     }
