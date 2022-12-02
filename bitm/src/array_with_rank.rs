@@ -41,12 +41,12 @@ impl GetSize for ArrayWithRank101111 {
 
 impl BitArrayWithRank for ArrayWithRank101111 {
     fn build(content: Box<[u64]>) -> (Self, u64) {
-        //dbg!(&content);
-        let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), 1<<32));
+        let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), 1<<(32-6)));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), 32));
-        let mut current_rank: u64 = 0;
+        let mut current_total_rank: u64 = 0;
         for content in content.chunks(1<<(32-6)) {  // each l1 chunk has 1<<32 bits = (1<<32)/64 content elements
-            l1ranks.push(current_rank);
+            l1ranks.push(current_total_rank);
+            let mut current_rank: u64 = 0;
             for chunk in content.chunks(32) {   // each chunk has 32*64 = 2048 bits
                 let mut to_append = current_rank;
                 let mut vals = chunk.chunks(8).map(|c| count_bits_in(c)); // each val has 8*64 = 512 bits
@@ -66,8 +66,9 @@ impl BitArrayWithRank for ArrayWithRank101111 {
                 }
                 l2ranks.push(to_append);
             }
+            current_total_rank += current_rank;
         }
-        (Self{content, l1ranks: l1ranks.into_boxed_slice(), l2ranks: l2ranks.into_boxed_slice()}, current_rank)
+        (Self{content, l1ranks: l1ranks.into_boxed_slice(), l2ranks: l2ranks.into_boxed_slice()}, current_total_rank)
     }
 
     fn rank(&self, index: usize) -> u64 {
