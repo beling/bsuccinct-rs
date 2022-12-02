@@ -670,8 +670,8 @@ mod tests {
         test_with_input(&(-50..150).collect::<Vec<_>>(), TwoToPowerBits::new(2));
         test_with_input(&(-50..150).collect::<Vec<_>>(), TwoToPowerBits::new(1));
         test_with_input(&(-50..150).collect::<Vec<_>>(), TwoToPowerBits::new(0));
-        test_with_input(&['a', 'b', 'c', 'd'], TwoToPowerBits::new(7));
-        test_with_input(&['a', 'b', 'c', 'd'], TwoToPowerBits::new(6));
+        //test_with_input(&['a', 'b', 'c', 'd'], TwoToPowerBits::new(7)); // not supported for now, upto 63 bit / group
+        //test_with_input(&['a', 'b', 'c', 'd'], TwoToPowerBits::new(6)); // not supported for now, upto 63 bit / group
         test_with_input(&['a', 'b', 'c', 'd'], TwoToPowerBits::new(5));
         test_with_input(&['a', 'b', 'c', 'd'], TwoToPowerBits::new(4));
         test_with_input(&['a', 'b', 'c', 'd'], TwoToPowerBits::new(3));

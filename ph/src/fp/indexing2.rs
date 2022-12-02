@@ -5,7 +5,7 @@ use bitm::{BitAccess, BitVec, ceiling_div};
 use dyn_size_of::GetSize;
 use binout::{read_int, write_int};
 use crate::read_array;
-use crate::utils::{map32_to_32, map64_to_64};
+use crate::utils::{map32_to_32, map48_to_64, map64_to_64};
 
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
@@ -16,7 +16,8 @@ use crate::utils::{map32_to_32, map64_to_64};
 }*/
 pub fn group_nr(hash: u64, level_size_groups: u64) -> u64 {
     //map64_to_32(hash, level_size_groups)
-    map64_to_64((hash >> 32) as u64, level_size_groups)
+    //map32_to_32((hash >> 32) as u32, level_size_groups as u32) as u64
+    map48_to_64(hash >> 16, level_size_groups)
 }
 
 /*#[inline]
