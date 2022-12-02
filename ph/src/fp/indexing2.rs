@@ -5,7 +5,7 @@ use bitm::{BitAccess, BitVec, ceiling_div};
 use dyn_size_of::GetSize;
 use binout::{read_int, write_int};
 use crate::read_array;
-use crate::utils::map32_to_32;
+use crate::utils::{map32_to_32, map64_to_64};
 
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
@@ -14,9 +14,9 @@ use crate::utils::map32_to_32;
     key.hash(hasher);
     map64_to_32(hasher.finish(), level_size_groups)
 }*/
-pub fn group_nr(hash: u64, level_size_groups: u32) -> u32 {
+pub fn group_nr(hash: u64, level_size_groups: u64) -> u64 {
     //map64_to_32(hash, level_size_groups)
-    map32_to_32((hash >> 32) as u32, level_size_groups)
+    map64_to_64((hash >> 32) as u64, level_size_groups)
 }
 
 /*#[inline]
@@ -83,7 +83,7 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
     /*fn bit_index_for_seed(&self, hasher: impl Hasher, group_seed: u16, group: u32) -> usize {
         (*self * group as usize) + self.in_group_index(hasher, group_seed) as usize
     }*/
-    fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: u32) -> usize {
+    fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: u64) -> usize {
         (*self * group as usize) + self.in_group_index(hash, group_seed) as usize
     }
 
@@ -149,7 +149,7 @@ pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
         self.set_seed(vec, index, seed)
     }
 
-    fn concatenate_seed_vecs(&self, level_sizes: &[u32], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
+    fn concatenate_seed_vecs(&self, level_sizes: &[u64], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
         let mut group_seeds_concatenated = self.new_zeroed_seed_vec(level_sizes.iter().map(|v| *v as usize).sum::<usize>());
         let mut dst_group = 0;
         for (l_size, l_seeds) in level_sizes.iter().zip(group_seeds.into_iter()) {
@@ -358,7 +358,7 @@ impl SeedSize for Bits8 {
         seeds.iter().try_for_each(|v| write_int!(output, v))
     }
 
-    fn concatenate_seed_vecs(&self, _level_sizes: &[u32], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
+    fn concatenate_seed_vecs(&self, _level_sizes: &[u64], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
         group_seeds.concat().into_boxed_slice()
     }
 }

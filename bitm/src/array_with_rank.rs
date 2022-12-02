@@ -45,7 +45,7 @@ impl BitArrayWithRank for ArrayWithRank101111 {
         let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), 1<<32));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), 32));
         let mut current_rank: u64 = 0;
-        for content in content.chunks(1<<32) {  // each l1 chunk has 1<<32 elements
+        for content in content.chunks(1<<(32-6)) {  // each l1 chunk has 1<<32 bits = (1<<32)/64 content elements
             l1ranks.push(current_rank);
             for chunk in content.chunks(32) {   // each chunk has 32*64 = 2048 bits
                 let mut to_append = current_rank;
