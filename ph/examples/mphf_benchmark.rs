@@ -3,7 +3,7 @@ use ph::fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, S
 use bitm::{BitAccess, BitVec};
 use std::hash::Hash;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::{stdout, Write, BufRead, Seek};
+use std::io::{stdout, Write, BufRead};
 use cpu_time::{ProcessTime, ThreadTime};
 use std::fs::{File, OpenOptions};
 use std::mem::size_of;
