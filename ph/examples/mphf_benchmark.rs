@@ -3,7 +3,7 @@ use ph::fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, S
 use bitm::{BitAccess, BitVec};
 use std::hash::Hash;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::{stdout, Write, BufRead, Seek};
+use std::io::{stdout, Write, BufRead};
 use cpu_time::{ProcessTime, ThreadTime};
 use std::fs::{File, OpenOptions};
 use std::mem::size_of;
@@ -139,7 +139,7 @@ struct Conf {
     #[arg(short='f', long, default_value_t = 0)]
     foreign_keys_num: usize,
 
-    /// Whether to build MPHF using single or multiple threads, or try both (default). Ignored by the methods that do not support building with single or multiple threads
+    /// Whether to build MPHF using single or multiple threads, or try both. Ignored by the methods that do not support building with single or multiple threads
     #[arg(short='t', long, value_enum, default_value_t = Threads::Both)]
     threads: Threads,
 
@@ -568,8 +568,10 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &
         KeySource::xs64 => "64",
         KeySource::stdin => "str",
     };
-    let mut file = OpenOptions::new().append(true).create(true).open(format!("{}_{}_{}_{}.csv", method_name, ks_name, i.0.len(), i.1.len())).unwrap();
-    if file.stream_position().unwrap() == 0 { writeln!(file, "{} {}", extra_header, BENCHMARK_HEADER).unwrap(); }
+    let file_name = format!("{}_{}_{}_{}.csv", method_name, ks_name, i.0.len(), i.1.len());
+    let file_already_existed = std::path::Path::new(&file_name).exists();
+    let mut file = OpenOptions::new().append(true).create(true).open(&file_name).unwrap();
+    if !file_already_existed { writeln!(file, "{} {}", extra_header, BENCHMARK_HEADER).unwrap(); }
     Some(file)
 }
 
