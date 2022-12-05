@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum, Subcommand, Args};
-use ph::fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic, FPHash2Builder};
+use ph::fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, SeedSize, TwoToPowerBitsStatic, FPHash2Builder, TwoToPowerBits};
 use bitm::{BitAccess, BitVec};
 use std::hash::Hash;
 use std::fmt::{Debug, Display, Formatter};
@@ -350,7 +350,7 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         let mut conf = self.0.clone();
-        conf.use_multiple_threads = use_multiple_threads;
+        conf.set_use_multiple_threads(use_multiple_threads);
         match self.1 {
             KeyAccess::Sequential => Self::MPHF::with_builder(
                 CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
@@ -457,17 +457,13 @@ fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K
 fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
     where GS: GroupSize + Sync + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
-    if bits_per_group_seed.is_power_of_two() {
-        match bits_per_group_seed {
-            1 => h2bench(TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
-            2 => h2bench(TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
-            4 => h2bench(TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
-            8 => h2bench(Bits8, bits_per_group, i, conf, p),
-            16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
-            _ => unreachable!()
-        }
-    } else {
-        h2bench(Bits(bits_per_group_seed), bits_per_group, i, conf, p)
+    match bits_per_group_seed {
+        1 => h2bench(TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
+        2 => h2bench(TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
+        4 => h2bench(TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
+        8 => h2bench(Bits8, bits_per_group, i, conf, p),
+        16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
+        _ => h2bench(Bits(bits_per_group_seed), bits_per_group, i, conf, p)
     }
 }
 
@@ -476,7 +472,16 @@ fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits
     where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 {
     let b = if bits_per_group.is_power_of_two() {
-        h2b(bits_per_group_seed, TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), i, conf, p)
+        match bits_per_group {
+            //1 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<0>, i, conf, p),
+            //2 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<1>, i, conf, p),
+            //4 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<2>, i, conf, p),
+            8 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<3>, i, conf, p),
+            16 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<4>, i, conf, p),
+            32 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<5>, i, conf, p),
+            //64 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<6>, i, conf, p),
+            _ => h2b(bits_per_group_seed, TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), i, conf, p)
+        }
     } else {
         h2b(bits_per_group_seed, Bits(bits_per_group), i, conf, p)
     };
