@@ -1,3 +1,8 @@
+#![doc = include_str!("../README.md")]
+
+#[cfg(feature = "cmph-sys")] mod cmph;
+#[cfg(feature = "cmph-sys")] use cmph::chd_benchmark;
+
 use clap::{Parser, ValueEnum, Subcommand, Args};
 use ph::fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, SeedSize, TwoToPowerBitsStatic, FPHash2Builder, TwoToPowerBits};
 use bitm::{BitAccess, BitVec};
@@ -6,13 +11,8 @@ use std::fmt::{Debug, Display, Formatter};
 use std::io::{stdout, Write, BufRead};
 use cpu_time::{ProcessTime, ThreadTime};
 use std::fs::{File, OpenOptions};
-use std::mem::size_of;
 use std::time::Instant;
 use boomphf::Mphf;
-use cmph_sys::{cmph_io_struct_vector_adapter,cmph_config_new,cmph_config_set_algo,
-               CMPH_ALGO_CMPH_CHD,cmph_config_set_graphsize,cmph_config_set_b,cmph_uint32,
-               cmph_new,cmph_config_destroy,cmph_io_struct_vector_adapter_destroy,
-               cmph_packed_size,cmph_pack,cmph_destroy,cmph_search_packed};
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
@@ -20,7 +20,7 @@ use ph::fp::keyset::{CachedKeySet, DynamicKeySet, SliceSourceWithClones, SliceSo
 use ph::seedable_hash::BuildWyHash;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum KeyAccess {
+pub enum KeyAccess {
     /// Only sequential access to the keys is allowed, upto 10% of keys can be cached (for random access).
     Sequential,  //(usize),
     /// Random-access, read-only access to the keys is allowed. The algorithm store indices of the remaining keys.
@@ -30,7 +30,7 @@ enum KeyAccess {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum Threads {
+pub enum Threads {
     /// Single thread
     Single = 1,
     /// Multiple threads
@@ -41,40 +41,40 @@ enum Threads {
 
 #[allow(non_camel_case_types)]
 #[derive(Args)]
-struct FMPHConf {
+pub struct FMPHConf {
     /// Relative level size as percent of number of keys, equals to *100γ*.
     #[arg(short='l', long)]
-    level_size: Option<u16>,
+    pub level_size: Option<u16>,
     /// How FMPH can access keys.
     #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
-    key_access: KeyAccess,
+    pub key_access: KeyAccess,
 }
 
 
 #[allow(non_camel_case_types)]
 #[derive(Args)]
-struct FMPHGOConf {
+pub struct FMPHGOConf {
     /// Number of bits to store seed of each group, *s*
     #[arg(short='s', long, value_parser = clap::value_parser!(u8).range(1..16))]
-    bits_per_group_seed: Option<u8>,
+    pub bits_per_group_seed: Option<u8>,
     /// The size of each group, *b*
     #[arg(short='b', long, value_parser = clap::value_parser!(u8).range(1..63))]
-    group_size: Option<u8>,
+    pub group_size: Option<u8>,
     /// Relative level size as percent of number of keys, equals to *100γ*
     #[arg(short='l', long)]
-    level_size: Option<u16>,
+    pub level_size: Option<u16>,
     /// FMPHGO caches 64-bit hashes of keys when their number (at the constructed level) is below this threshold
     #[arg(short='p', long, default_value_t = usize::MAX)]
-    pre_hash_threshold: usize,
+    pub pre_hash_threshold: usize,
     /// How FMPHGO can access keys
     #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
-    key_access: KeyAccess,
+    pub key_access: KeyAccess,
 }
 
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand)]
-enum Method {
+pub enum Method {
     // Most methods
     //Most,
     /// FMPHGO with all settings
@@ -90,7 +90,7 @@ enum Method {
         level_size: Option<u16>
     },
     /// CHD
-    CHD {
+    #[cfg(feature = "cmph-sys")] CHD {
         /// The average number of keys per bucket. By default tests all lambdas from 1 to 6
         #[arg(short='l', long, value_parser = clap::value_parser!(u8).range(1..32))]
         lambda: Option<u8>
@@ -99,7 +99,7 @@ enum Method {
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum KeySource {
+pub enum KeySource {
     /// Generate 32 bit keys with xor-shift 32
     xs32,
     /// Generate 64 bit keys with xor-shift 64
@@ -111,41 +111,41 @@ enum KeySource {
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 /// Minimal perfect hashing benchmark.
-struct Conf {
+pub struct Conf {
     /// Method to run
     #[command(subcommand)]
-    method: Method,
+    pub method: Method,
 
     /// Number of times to perform the lookup test
     #[arg(short='l', long, default_value_t = 1)]
-    lookup_runs: u32,
+    pub lookup_runs: u32,
 
     /// Number of times to perform the construction
     #[arg(short='b', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
-    build_runs: u32,
+    pub build_runs: u32,
 
     /// Whether to check the validity of built MPHFs
     #[arg(short='v', long, default_value_t = false)]
-    verify: bool,
+    pub verify: bool,
 
     #[arg(short='s', long, value_enum, default_value_t = KeySource::stdin)]
-    key_source: KeySource,
+    pub key_source: KeySource,
 
     /// The number of random keys to use or maximum number of keys to read from stdin
     #[arg(short='n', long)]
-    keys_num: Option<usize>,
+    pub keys_num: Option<usize>,
 
     /// Number of foreign keys (to generate or read) used to test the frequency of detection of non-contained keys
     #[arg(short='f', long, default_value_t = 0)]
-    foreign_keys_num: usize,
+    pub foreign_keys_num: usize,
 
     /// Whether to build MPHF using single or multiple threads, or try both. Ignored by the methods that do not support building with single or multiple threads
     #[arg(short='t', long, value_enum, default_value_t = Threads::Both)]
-    threads: Threads,
+    pub threads: Threads,
 
     /// Save detailed results to CSV-like (but space separated) file
     #[arg(short='d', long, default_value_t = false)]
-    save_details: bool,
+    pub save_details: bool,
 }
 
 /// Represents average (per value) lookup: level searched, times (seconds).
@@ -374,50 +374,6 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
     }
 }
 
-struct CHDConf { lambda: u8 }
-
-impl<K: Hash> MPHFBuilder<K> for CHDConf {
-    type MPHF = Box<[u8]>;
-
-    const CAN_DETECT_ABSENCE: bool = false;
-    const BUILD_THREADS: Threads = Threads::Single;
-
-    fn new(&self, keys: &[K], _use_multiple_threads: bool) -> Self::MPHF {
-        unsafe {
-            let source = cmph_io_struct_vector_adapter(
-                keys.as_ptr() as *mut ::std::os::raw::c_void,         // structs
-                size_of::<K>() as u32, // struct_size
-                0,           // key_offset
-                size_of::<K>() as u32, // key_len
-                keys.len() as u32); // nkeys
-
-            let config = cmph_config_new(source);
-            //cmph_config_set_algo(config, CMPH_CHD_PH); // CMPH_CHD or CMPH_BDZ
-            cmph_config_set_algo(config, CMPH_ALGO_CMPH_CHD); // CMPH_CHD or CMPH_BDZ
-            cmph_config_set_graphsize(config, 1.01);
-            cmph_config_set_b(config, self.lambda as cmph_uint32);
-            let hash = cmph_new(config);
-            cmph_config_destroy(config);
-            cmph_io_struct_vector_adapter_destroy(source);//was: cmph_io_vector_adapter_destroy(source);
-            //to_find_perfect_hash.release();
-
-            //let mut packed_hash = vec![MaybeUninit::<u8>::uninit(); cmph_packed_size(hash) as usize].into_boxed_slice();
-            let mut packed_hash = vec![0u8; cmph_packed_size(hash) as usize].into_boxed_slice();
-            cmph_pack(hash, packed_hash.as_mut_ptr() as *mut ::std::os::raw::c_void);
-            cmph_destroy(hash);
-
-            packed_hash
-        }
-    }
-
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
-        Some(unsafe{ cmph_search_packed(
-            mphf.as_ptr() as *mut ::std::os::raw::c_void,
-            key as *const K as *const i8,
-            size_of::<K>() as u32) as u64 })
-    }
-}
-
 struct BooMPHFConf { gamma: f64 }
 
 impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
@@ -560,12 +516,6 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     }
 }
 
-fn chd_benchmark<K: Hash>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, lambda: u8) {
-    let b = CHDConf{ lambda }.benchmark(i, conf);
-    if let Some(ref mut f) = csv_file { writeln!(f, "{} {}", lambda, b.all()).unwrap(); }
-    println!(" {}\t{}", lambda, b);
-}
-
 fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &str) -> Option<File> {
     if !conf.save_details { return None; }
     let ks_name = match conf.key_source {
@@ -618,7 +568,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
         Method::Boomphf{level_size} => {
             fmph_benchmark::<BuildWyHash, _>(i, conf, level_size, None);
         }
-        Method::CHD{lambda} => {
+        #[cfg(feature = "cmph-sys")] Method::CHD{lambda} => {
             if conf.key_source == KeySource::stdin {
                 eprintln!("Benchmarking CHD with keys from stdin is not supported.")
             } else {
