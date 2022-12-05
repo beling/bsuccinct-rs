@@ -12,7 +12,7 @@ use std::io::{stdout, Write, BufRead};
 use cpu_time::{ProcessTime, ThreadTime};
 use std::fs::{File, OpenOptions};
 use std::time::Instant;
-use boomphf::Mphf;
+//use boomphf::Mphf;
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
@@ -374,7 +374,7 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
     }
 }
 
-struct BooMPHFConf { gamma: f64 }
+/*struct BooMPHFConf { gamma: f64 }
 
 impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     type MPHF = Mphf<K>;
@@ -390,7 +390,7 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.try_hash_bench(&key, levels)
     }
-}
+}*/
 
 const FMPHGO_HEADER: &'static str = "prehash_threshold bits_per_group_seed relative_level_size bits_per_group";
 
@@ -509,7 +509,8 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
         let b = if let Some((ref hash, key_access)) = use_fmph {
             (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, false), key_access).benchmark(i, &conf)
         } else {
-            BooMPHFConf { gamma }.benchmark(i, &conf)
+            //BooMPHFConf { gamma }.benchmark(i, &conf)
+            unimplemented!()
         };
         println!(" {:.1}\t{}", gamma, b);
         if let Some(ref mut f) = file { writeln!(f, "{} {}", gamma, b.all()).unwrap(); }
