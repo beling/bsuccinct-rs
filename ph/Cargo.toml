@@ -1,6 +1,6 @@
 [package]
 name = "ph"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -14,14 +14,10 @@ keywords = [ "perfect", "hashing", "minimal", "map", "dictionary" ]
 
 [dependencies]
 bitm = { version=">=0.2", path="../bitm" }
-dyn_size_of = { version=">=0.1", path="../dyn_size_of" }
+dyn_size_of = { version=">=0.3", path="../dyn_size_of" }
 binout = { version=">=0.1", path="../binout" }
 rayon = "1.5"
 wyhash = { version="0.5", optional=true }
 wyhash_git = { git = "https://github.com/eldruin/wyhash-rs", package = "wyhash", optional=true }    # does not work
 fnv = { version="1", optional=true }
-
-[[example]]
-name = "mphf_benchmark"
-required-features = ["wyhash"]
 
