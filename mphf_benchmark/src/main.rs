@@ -23,8 +23,10 @@ use ph::seedable_hash::BuildWyHash;
 pub enum KeyAccess {
     /// Only sequential access to the keys is allowed, upto 10% of keys can be cached (for random access).
     Sequential,  //(usize),
-    /// Random-access, read-only access to the keys is allowed. The algorithm store indices of the remaining keys.
-    Indices,
+    /// Random-access, read-only access to the keys is allowed. The algorithm stores 8-bit indices of the remaining keys.
+    Indices8,
+    /// Random-access, read-only access to the keys is allowed. The algorithm stores 16-bit indices of the remaining keys.
+    Indices16,
     /// Vector of keys can be modified. The method stores remaining keys, and removes the rest from the vector.
     Copy
 }
@@ -46,7 +48,7 @@ pub struct FMPHConf {
     #[arg(short='l', long)]
     pub level_size: Option<u16>,
     /// How FMPH can access keys.
-    #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
+    #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices8)]
     pub key_access: KeyAccess,
 }
 
@@ -67,7 +69,7 @@ pub struct FMPHGOConf {
     #[arg(short='p', long, default_value_t = usize::MAX)]
     pub pre_hash_threshold: usize,
     /// How FMPHGO can access keys
-    #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices)]
+    #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices8)]
     pub key_access: KeyAccess,
 }
 
@@ -335,7 +337,8 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
             KeyAccess::Sequential => Self::MPHF::with_conf(
                 CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
                 conf),
-            KeyAccess::Indices => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
+            KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
+            KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
             KeyAccess::Copy => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), conf)
         }
     }
@@ -355,7 +358,8 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
             KeyAccess::Sequential => Self::MPHF::with_builder(
                 CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
                 conf),
-            KeyAccess::Indices => Self::MPHF::with_builder(SliceSourceWithRefs::<_, u8>::new(keys), conf),
+            KeyAccess::Indices8 => Self::MPHF::with_builder(SliceSourceWithRefs::<_, u8>::new(keys), conf),
+            KeyAccess::Indices16 => Self::MPHF::with_builder(SliceSourceWithRefs::<_, u16>::new(keys), conf),
             KeyAccess::Copy => Self::MPHF::with_builder(SliceSourceWithClones::new(keys), conf)
 
             /*KeyAccess::LoMem(0) => Self::MPHF::with_builder(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
@@ -533,7 +537,7 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &
 fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
         Method::FMPHGO_all => {
-            fmphgo_benchmark_all(file("FMPHGO_all", &conf, i, FMPHGO_HEADER), BuildWyHash::default(), &i, &conf, KeyAccess::Indices);
+            fmphgo_benchmark_all(file("FMPHGO_all", &conf, i, FMPHGO_HEADER), BuildWyHash::default(), &i, &conf, KeyAccess::Indices8);
         }
         Method::FMPHGO(ref fmphgo_conf) => {
             let mut file = file("FMPHGO", &conf, i, FMPHGO_HEADER);
