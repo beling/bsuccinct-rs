@@ -73,9 +73,6 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
     /// Returns bit index inside the group with number `group` and seed `group_seed`,
     /// assigned to the key hashed by the `hasher`.
     #[inline]
-    /*fn bit_index_for_seed(&self, hasher: impl Hasher, group_seed: u16, group: u32) -> usize {
-        (*self * group as usize) + self.in_group_index(hasher, group_seed) as usize
-    }*/
     fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: u64) -> usize {
         (*self * group as usize) + self.in_group_index(hash, group_seed) as usize
     }
@@ -89,14 +86,27 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
         return (desired_total_size / group_size, desired_total_size / 64);
     }
 
-    #[inline] fn ones_in_group(&self, arr: &[u64], group_index: usize) -> u8 {
+    /// Returns number of ones in the group.
+    /*#[inline] fn ones_in_group(&self, arr: &[u64], group_index: usize) -> u8 {
         arr.get_fragment(group_index, (*self).into()).count_ones() as u8
-    }
+    }*/
 
-    #[inline] fn conditionally_copy_group<Pred>(&self, dst: &mut [u64], src: &[u64], group_index: usize, predicate: Pred)
-        where Pred: FnOnce(u64, u64) -> bool
+    // If `predicate` is `true`, copy group with given index, from `src` to `dst`.
+    // Predicate is called with the content of the groups of, successively, `dst` and `src`.
+    //#[inline] fn conditionally_copy_group<Pred>(&self, dst: &mut [u64], src: &[u64], group_index: usize, predicate: Pred)
+    //    where Pred: FnOnce(u64, u64) -> bool {
+    //    dst.conditionally_copy_fragment(src, predicate, group_index, (*self).into())
+    //}
+
+    /// If group with given index has more ones in `dst` than in `src`, then copy it from `src` to `dst` and call `callback`.
+    #[inline(always)] fn copy_group_if_better<CB>(&self, dst: &mut [u64], src: &[u64], group_index: usize, callback: CB)
+        where CB: FnOnce()
     {
-        dst.conditionally_copy_fragment(src, predicate, group_index, (*self).into())
+        dst.conditionally_copy_fragment(src, |best, new|
+            if best.count_ones() < new.count_ones() {
+                callback();
+                true
+            } else { false }, group_index, (*self).into())
     }
 
     /// Returns number of bites that `self.write` writes to the output.
@@ -155,20 +165,20 @@ pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
     }
 
     /// Writes `self` to `output`.
-    fn write(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
+    fn write(&self, output: &mut dyn Write) -> std::io::Result<()> {
         write_int!(output, (*self).into())
     }
 
     /// Reads `Self` from `input`.
-    fn read(input: &mut dyn std::io::Read) -> std::io::Result<Self> {
+    fn read(input: &mut dyn Read) -> std::io::Result<Self> {
         let seed_size = read_int!(input, u8)?;
         let result = TryInto::<Self>::try_into(seed_size).map_err(to_io_error)?;
         result.validate().map_err(to_io_error)
     }
 
-    fn write_seed_vec(&self, output: &mut dyn std::io::Write, seeds: &[Self::VecElement]) -> std::io::Result<()>;
+    fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()>;
 
-    fn read_seed_vec(input: &mut dyn std::io::Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)>;
+    fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)>;
 }
 
 #[derive(Copy, Clone)]
@@ -192,13 +202,13 @@ impl TwoToPowerBits {
 impl Mul<usize> for TwoToPowerBits {
     type Output = usize;
 
-    #[inline] fn mul(self, rhs: usize) -> Self::Output {
+    #[inline(always)] fn mul(self, rhs: usize) -> Self::Output {
         rhs << self.log2size
     }
 }
 
 impl Into<u8> for TwoToPowerBits {
-    #[inline] fn into(self) -> u8 {
+    #[inline(always)] fn into(self) -> u8 {
         1<<self.log2size
     }
 }
@@ -235,7 +245,7 @@ impl GroupSize for TwoToPowerBits {
         (level_size_groups, level_size_segments)
     }
 
-    fn ones_in_group(&self, arr: &[u64], group_index: usize) -> u8 {
+    /*fn ones_in_group(&self, arr: &[u64], group_index: usize) -> u8 {
         if self.log2size >= 6 {
             let log2_segments_per_group = self.log2size - 6;
             let segments_per_group = 1 << log2_segments_per_group;
@@ -244,7 +254,7 @@ impl GroupSize for TwoToPowerBits {
         } else {
             arr.get_fragment(group_index, (*self).into()).count_ones() as u8
         }
-    }
+    }*/
 }
 
 #[derive(Copy, Clone)]
@@ -253,7 +263,7 @@ pub struct Bits(pub u8);
 impl Mul<usize> for Bits {
     type Output = usize;
 
-    #[inline] fn mul(self, rhs: usize) -> Self::Output {
+    #[inline(always)] fn mul(self, rhs: usize) -> Self::Output {
         self.0 as usize * rhs
     }
 }
@@ -363,7 +373,8 @@ pub struct TwoToPowerBitsStatic<const LOG2_BITS: u8>;
 impl<const LOG2_BITS: u8> TwoToPowerBitsStatic<LOG2_BITS> {
     const BITS: u8 = 1 << LOG2_BITS;
     const VALUES_PER_64: u8 = 64 >> LOG2_BITS;
-    const MASK: u16 = ((1u64 << Self::BITS) - 1) as u16;
+    const MASK16: u16 = ((1u64 << Self::BITS) - 1) as u16;
+    const MASK64: u64 = ((1u128 << Self::BITS) - 1) as u64;
     #[inline(always)] const fn shift_for(index: usize) -> u8 {
         ((index % Self::VALUES_PER_64 as usize) as u8) << LOG2_BITS
     }
@@ -396,13 +407,13 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
     }
 
     #[inline(always)] fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16 {
-        (vec[index / Self::VALUES_PER_64 as usize] >> Self::shift_for(index)) as u16 & Self::MASK
+        (vec[index / Self::VALUES_PER_64 as usize] >> Self::shift_for(index)) as u16 & Self::MASK16
     }
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
         let v = &mut vec[index / Self::VALUES_PER_64 as usize];
         let s = Self::shift_for(index);
-        *v &= !((Self::MASK as u64) << s);
+        *v &= !((Self::MASK16 as u64) << s);
         *v |= (seed as u64) << s;
     }
 
@@ -421,5 +432,42 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
     }
 }
 
+impl<const LOG2_BITS: u8> Mul<usize> for TwoToPowerBitsStatic<LOG2_BITS> {
+    type Output = usize;
 
+    #[inline(always)] fn mul(self, rhs: usize) -> Self::Output {
+        rhs << LOG2_BITS
+    }
+}
 
+impl<const LOG2_BITS: u8> GroupSize for TwoToPowerBitsStatic<LOG2_BITS> {
+    fn level_size_groups_segments(&self, desired_total_size: usize) -> (usize, usize) {
+        let level_size_segments;
+        let level_size_groups;
+        if LOG2_BITS > 6 {
+            //level_size_segments = div_up(input_size << segments_per_group_log2, 64) << segments_per_group_log2;
+            //level_size_groups = (level_size_segments >> segments_per_group_log2) as u32;
+            level_size_groups = ceiling_div(desired_total_size, 1usize<<LOG2_BITS);
+            level_size_segments = (level_size_groups as usize) << (LOG2_BITS - 6);
+        } else {
+            level_size_segments = ceiling_div(desired_total_size, 64);
+            level_size_groups = level_size_segments << (6 - LOG2_BITS);
+        }
+        (level_size_groups, level_size_segments)
+    }
+
+    #[inline(always)] fn copy_group_if_better<CB>(&self, dst: &mut [u64], src: &[u64], group_index: usize, callback: CB)
+        where CB: FnOnce()
+    {
+        let vec_index = group_index / Self::VALUES_PER_64 as usize;
+        let shift = Self::shift_for(group_index);
+        let dst_v = &mut dst[vec_index];
+        let best = (*dst_v >> shift) & Self::MASK64;
+        let new = (src[vec_index] >> shift) & Self::MASK64;
+        if best.count_ones() < new.count_ones() {
+            callback();
+            *dst_v &= !(Self::MASK64 << shift);
+            *dst_v |= new << shift;
+        }
+    }
+}
