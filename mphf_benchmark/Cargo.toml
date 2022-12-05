@@ -17,7 +17,7 @@ keywords = [ "perfect", "hashing", "minimal", "mphf" ]
 [dependencies]
 bitm = { version=">=0.2", path="../bitm" }
 rayon = "1.5"
-dyn_size_of = { version=">=0.3", path="../dyn_size_of" }
+dyn_size_of = { version=">=0.4", path="../dyn_size_of" }
 cpu-time = "1"
 ph = { version=">=0.2", path="../ph", features = ["wyhash"] }
 cmph-sys = { version=">=0.1", git = "https://github.com/beling/cmph-sys", optional = true }
