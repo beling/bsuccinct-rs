@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use clap::{Parser, ValueEnum, Subcommand, Args};
 use ph::fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, SeedSize, TwoToPowerBitsStatic, FPHash2Builder, TwoToPowerBits};
 use bitm::{BitAccess, BitVec};
