@@ -1,0 +1,25 @@
+[package]
+name = "mphf_benchmark"
+version = "0.1.0"
+authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+license = "MIT OR Apache-2.0"
+description = "The program for benchmarking Minimal Perfect Hash Functions"
+edition = "2021"
+documentation = "https://docs.rs/mphf_benchmark"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "data-structures", "algorithms", "compression", "science" ]
+keywords = [ "perfect", "hashing", "minimal", "mphf" ]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitm = { version=">=0.2", path="../bitm" }
+rayon = "1.5"
+dyn_size_of = { version=">=0.3", path="../dyn_size_of" }
+cpu-time = "1"
+ph = { version=">=0.2", path="../ph", features = ["wyhash"] }
+cmph-sys = { git = "https://github.com/beling/cmph-sys" }
+boomphf = { git = "https://github.com/beling/rust-boomphf" }
+clap = { version="4.0", features = ["derive"] }
