@@ -96,7 +96,9 @@ pub enum Method {
         /// The average number of keys per bucket. By default tests all lambdas from 1 to 6
         #[arg(short='l', long, value_parser = clap::value_parser!(u8).range(1..32))]
         lambda: Option<u8>
-    }
+    },
+    /// No method is tested
+    None
 }
 
 #[allow(non_camel_case_types)]
@@ -422,7 +424,7 @@ fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K
         2 => h2bench(TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
         4 => h2bench(TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
         8 => h2bench(Bits8, bits_per_group, i, conf, p),
-        16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
+        //16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
         _ => h2bench(Bits(bits_per_group_seed), bits_per_group, i, conf, p)
     }
 }
@@ -513,7 +515,8 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
         let b = if let Some((ref hash, key_access)) = use_fmph {
             (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, false), key_access).benchmark(i, &conf)
         } else {
-            BooMPHFConf { gamma }.benchmark(i, &conf)
+            //BooMPHFConf { gamma }.benchmark(i, &conf)
+            unimplemented!()
         };
         println!(" {:.1}\t{}", gamma, b);
         if let Some(ref mut f) = file { writeln!(f, "{} {}", gamma, b.all()).unwrap(); }
@@ -585,6 +588,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
                 }
             }
         }
+        Method::None => {}
     }
 }
 
@@ -604,7 +608,13 @@ impl Iterator for XorShift32 {
         self.0 ^= self.0 << 5;
         Some(self.0)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::MAX, None)
+    }
 }
+
+impl ExactSizeIterator for XorShift32 {}
 
 /*struct Generate32x<const N: usize>(XorShift32);
 impl<const N: usize> Generate32x<N> {
@@ -637,7 +647,13 @@ impl Iterator for XorShift64 {
         self.0 ^= self.0 << 17;
         Some(self.0)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::MAX, None)
+    }
 }
+
+impl ExactSizeIterator for XorShift64 {}
 
 fn gen_data<I: Iterator>(keys_num: usize, foreign_keys_num: usize, mut generator: I) -> (Vec<I::Item>, Vec<I::Item>) {
     (generator.by_ref().take(keys_num).collect(), generator.take(foreign_keys_num).collect())

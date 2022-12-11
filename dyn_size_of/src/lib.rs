@@ -7,13 +7,13 @@ use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI16, AtomicI32, AtomicI64, A
 pub trait GetSize {
     /// Returns approximate number of bytes occupied by dynamic (heap) part of `self`.
     /// Same as `self.size_bytes() - std::mem::size_of_val(self)`.
-    #[inline] fn size_bytes_dyn(&self) -> usize { self.size_bytes_content_dyn() }
+    #[inline] fn size_bytes_dyn(&self) -> usize { 0 }
 
     /// Returns approximate number of bytes occupied by dynamic (heap) part of `self` content.
     /// It usually equals to `size_bytes_dyn()`.
     /// However, sometimes it is smaller by the amount of memory reserved but not yet used
     /// (e.g., `size_bytes_content_dyn()` only takes into account the length of the vector and not its capacity).
-    #[inline] fn size_bytes_content_dyn(&self) -> usize { 0 }
+    #[inline] fn size_bytes_content_dyn(&self) -> usize { self.size_bytes_dyn() }
 
     /// Returns approximate, total (including heap memory) number of bytes occupied by `self`.
     #[inline] fn size_bytes(&self) -> usize {
@@ -61,7 +61,7 @@ impl<T: GetSize, const N: usize> GetSize for [T; N] {
 
 macro_rules! impl_getsize_methods_for_pointer {
     () => (
-        fn size_bytes_content_dyn(&self) -> ::std::primitive::usize {
+        fn size_bytes_dyn(&self) -> ::std::primitive::usize {
             ::std::ops::Deref::deref(self).size_bytes()
         }
         const USES_DYN_MEM: bool = true;
@@ -73,7 +73,7 @@ impl <T: GetSize> GetSize for Box<T> {
 }
 
 impl <T: GetSize> GetSize for ::std::rc::Rc<T> {
-    fn size_bytes_content_dyn(&self) -> ::std::primitive::usize {
+    fn size_bytes_dyn(&self) -> ::std::primitive::usize {
         // round((size of T + size of strong and weak reference counters) / number of strong references)
         let c = ::std::rc::Rc::strong_count(self);
         (::std::ops::Deref::deref(self).size_bytes() + 2*::std::mem::size_of::<usize>() + c/2) / c
@@ -83,7 +83,7 @@ impl <T: GetSize> GetSize for ::std::rc::Rc<T> {
 
 macro_rules! impl_getsize_methods_for_dyn_arr {
     ($T:ty) => (
-        fn size_bytes_content_dyn(&self) -> ::std::primitive::usize {
+        fn size_bytes_dyn(&self) -> ::std::primitive::usize {
             if <$T>::USES_DYN_MEM {
                 self.iter().map(self::GetSize::size_bytes).sum()
             } else {
