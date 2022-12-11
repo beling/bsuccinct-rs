@@ -3,7 +3,7 @@
 It can test the algorithms included in the following creates:
 - `ph`,
 - `boomphf`,
-- `cmph-sys` (only if compiled with `cmph-sys` feature, and supports only *CHD* algorithm).
+- `cmph-sys` (only if compiled with `cmph-sys` feature, and only *CHD* algorithm is supported).
 
 # Installation
 `mphf_benchmark` can be compiled and installed from sources. To do this, a Rust compiler is needed.
