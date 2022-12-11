@@ -12,7 +12,7 @@ use std::io::{stdout, Write, BufRead};
 use cpu_time::{ProcessTime, ThreadTime};
 use std::fs::{File, OpenOptions};
 use std::time::Instant;
-//use boomphf::Mphf;
+use boomphf::Mphf;
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
@@ -94,7 +94,9 @@ pub enum Method {
         /// The average number of keys per bucket. By default tests all lambdas from 1 to 6
         #[arg(short='l', long, value_parser = clap::value_parser!(u8).range(1..32))]
         lambda: Option<u8>
-    }
+    },
+    /// No method is tested
+    None
 }
 
 #[allow(non_camel_case_types)]
@@ -374,7 +376,7 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
     }
 }
 
-/*struct BooMPHFConf { gamma: f64 }
+struct BooMPHFConf { gamma: f64 }
 
 impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     type MPHF = Mphf<K>;
@@ -390,7 +392,7 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.try_hash_bench(&key, levels)
     }
-}*/
+}
 
 const FMPHGO_HEADER: &'static str = "prehash_threshold bits_per_group_seed relative_level_size bits_per_group";
 
@@ -418,7 +420,7 @@ fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K
         2 => h2bench(TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
         4 => h2bench(TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
         8 => h2bench(Bits8, bits_per_group, i, conf, p),
-        16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
+        //16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
         _ => h2bench(Bits(bits_per_group_seed), bits_per_group, i, conf, p)
     }
 }
@@ -582,6 +584,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
                 }
             }
         }
+        Method::None => {}
     }
 }
 
@@ -601,7 +604,13 @@ impl Iterator for XorShift32 {
         self.0 ^= self.0 << 5;
         Some(self.0)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::MAX, None)
+    }
 }
+
+impl ExactSizeIterator for XorShift32 {}
 
 /*struct Generate32x<const N: usize>(XorShift32);
 impl<const N: usize> Generate32x<N> {
@@ -634,7 +643,13 @@ impl Iterator for XorShift64 {
         self.0 ^= self.0 << 17;
         Some(self.0)
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::MAX, None)
+    }
 }
+
+impl ExactSizeIterator for XorShift64 {}
 
 fn gen_data<I: Iterator>(keys_num: usize, foreign_keys_num: usize, mut generator: I) -> (Vec<I::Item>, Vec<I::Item>) {
     (generator.by_ref().take(keys_num).collect(), generator.take(foreign_keys_num).collect())

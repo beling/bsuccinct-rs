@@ -372,6 +372,7 @@ pub struct TwoToPowerBitsStatic<const LOG2_BITS: u8>;
 
 impl<const LOG2_BITS: u8> TwoToPowerBitsStatic<LOG2_BITS> {
     const BITS: u8 = 1 << LOG2_BITS;
+    const LOG2_MASK: u8 = Self::BITS-1;
     const VALUES_PER_64: u8 = 64 >> LOG2_BITS;
     const MASK16: u16 = ((1u64 << Self::BITS) - 1) as u16;
     const MASK64: u64 = ((1u128 << Self::BITS) - 1) as u64;
@@ -441,6 +442,10 @@ impl<const LOG2_BITS: u8> Mul<usize> for TwoToPowerBitsStatic<LOG2_BITS> {
 }
 
 impl<const LOG2_BITS: u8> GroupSize for TwoToPowerBitsStatic<LOG2_BITS> {
+    #[inline(always)] fn hash_to_group(&self, hash: u32) -> u8 {
+        hash as u8 & Self::LOG2_MASK
+    }
+
     fn level_size_groups_segments(&self, desired_total_size: usize) -> (usize, usize) {
         let level_size_segments;
         let level_size_groups;
