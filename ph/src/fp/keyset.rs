@@ -447,7 +447,7 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
         }
     }
 
-    fn par_for_each<F: Fn(&K) + Sync>(&self, f: &F, seg_beg: usize, seg_end: usize) {
+    /*fn par_for_each<F: Fn(&K) + Sync>(&self, f: &F, seg_beg: usize, seg_end: usize) {
         let len = seg_end - seg_beg;
         if len > 1 && self.segments[seg_end].first_index - self.segments[seg_beg].first_index > 1024 {
             let mid = seg_beg + len/2;
@@ -460,7 +460,7 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
                 self.for_each_in_segment(s, f);
             }
         }
-    }
+    }*/
 
     /// Copy `indices` accepted by `filter` to the beginning of each segment and stores new lengths of each segment in `new_lengths`.
     fn par_map<R, M>(&self, dst: &mut [MaybeUninit<R>], map: &M, segments: &[SegmentMetadata])
