@@ -618,26 +618,29 @@ impl<'k, K: Sync> KeySet<K> for SliceSourceWithRefs<'k, K> {
                 self.segments.push(SegmentMetadata { first_index: self.indices.len(), first_key: slice_index });
             }
         } else {
-            let mut new_indices = Vec::with_capacity(self.indices.len() - remove_count());
+            let mut new_indices_len = 0;
             let mut new_seg_len = 0;    // where to copy segment[seg_i]
             for seg_i in 0..self.segments.len()-1 {
-                let new_delta_index = new_indices.len();
+                let new_delta_index = new_indices_len;
                 let si = &self.segments[seg_i];
                 let keys = &self.keys[si.first_key..];
-                let key_subset = &self.indices[si.first_index..self.segments[seg_i+1].first_index];
-                for i in key_subset {
-                    if filter(unsafe { keys.get_unchecked(*i as usize) }) { new_indices.push(*i); }
+                for i in si.first_index..self.segments[seg_i+1].first_index {
+                    let i = *unsafe { self.indices.get_unchecked(i) };
+                    if filter(unsafe { keys.get_unchecked(i as usize) }) {
+                        self.indices[new_indices_len] = i;
+                        new_indices_len += 1;
+                    }
                 }
-                if new_delta_index != new_indices.len() {    // segment seg_i is not empty and have to be preserved
+                if new_delta_index != new_indices_len {    // segment seg_i is not empty and have to be preserved
                     self.segments[new_seg_len].first_index = new_delta_index;
                     self.segments[new_seg_len].first_key = self.segments[seg_i].first_key;
                     new_seg_len += 1;
                 }
             }
-            self.segments[new_seg_len].first_index = new_indices.len();    // the last delta index of the last segment
+            self.segments[new_seg_len].first_index = new_indices_len;    // the last delta index of the last segment
             // note self.segments[new_seg_len].1 is not used any more and we do not need update it
-            self.indices = new_indices;   // free some memory
             self.segments.resize_with(new_seg_len+1, || unreachable!());
+            self.indices.resize_with(new_indices_len, || unreachable!());
         }
     }
 
