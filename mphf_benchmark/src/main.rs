@@ -511,8 +511,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
         let b = if let Some((ref hash, key_access)) = use_fmph {
             (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, false), key_access).benchmark(i, &conf)
         } else {
-            //BooMPHFConf { gamma }.benchmark(i, &conf)
-            unimplemented!()
+            BooMPHFConf { gamma }.benchmark(i, &conf)
         };
         println!(" {:.1}\t{}", gamma, b);
         if let Some(ref mut f) = file { writeln!(f, "{} {}", gamma, b.all()).unwrap(); }
