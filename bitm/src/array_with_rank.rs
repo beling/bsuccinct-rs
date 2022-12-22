@@ -51,14 +51,14 @@ impl BitArrayWithRank for ArrayWithRank101111 {
                 let mut to_append = current_rank;
                 let mut vals = chunk.chunks(8).map(|c| count_bits_in(c)); // each val has 8*64 = 512 bits
                 if let Some(v) = vals.next() {
-                    let mut chunk_sum = v;
-                    to_append |= chunk_sum << 32;
+                    let mut chunk_sum = v;  // now chunk_sum uses up to 10 bits
+                    to_append |= chunk_sum << (32+11+11);
                     if let Some(v) = vals.next() {
-                        chunk_sum += v;
-                        to_append |= chunk_sum << (32+10);
+                        chunk_sum += v;     // now chunk_sum uses up to 11 bits
+                        to_append |= chunk_sum << (32+11);
                         if let Some(v) = vals.next() {
-                            chunk_sum += v;
-                            to_append |= chunk_sum << (32+11+10);
+                            chunk_sum += v;     // now chunk_sum uses up to 11 bits
+                            to_append |= chunk_sum << 32;
                             if let Some(v) = vals.next() { chunk_sum += v; }
                         }
                     }
@@ -73,14 +73,10 @@ impl BitArrayWithRank for ArrayWithRank101111 {
 
     fn rank(&self, index: usize) -> u64 {
         let block = index / 512;
-        let block_content =  self.l2ranks[index/2048];//self.ranks[block/4];
+        let mut block_content =  self.l2ranks[index/2048];//self.ranks[block/4];
         let mut r = unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + block_content & 0xFFFFFFFFu64; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
-        match block % 4 {
-            1 => r += (block_content >> 32) & 1023,
-            2 => r += (block_content>>(10+32)) & 2047,
-            3 => r += block_content>>(10+11+32),
-            _ => {}
-        }
+        block_content >>= 32;   // remove the lowest 32 bits
+        r += (block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111;
         let word_idx = index / 64;
         r += count_bits_in(&self.content[block * 8..word_idx]);
         /*for w in block * (512 / 64)..word_idx {
