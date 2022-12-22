@@ -322,14 +322,14 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
     #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: FPHashConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
-        Self::with_conf_stats(SliceSourceWithRefs::new(keys), conf, stats)
+        Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
     /// Builds `FPHash` for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: FPHashConf<S>) -> Self
         where K: Hash + Sync
     {
-        Self::with_conf_stats(SliceSourceWithRefs::new(keys), conf, &mut ())
+        Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
     /// Builds `FPHash` for given `keys`, using the configuration `conf`.
@@ -394,7 +394,7 @@ impl FPHash {
 
 impl<K: Hash + Clone + Sync> From<&[K]> for FPHash {
     fn from(keys: &[K]) -> Self {
-        Self::new(SliceSourceWithRefs::new(keys))
+        Self::new(SliceSourceWithRefs::<_, u8>::new(keys))
     }
 }
 
