@@ -494,7 +494,7 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
     fn par_pre_retain<F>(filter: &F, indices: &mut [I], segments: &[SegmentMetadata], new_lengths: &mut [u32])
         where F: Fn(usize, usize) -> bool + Sync    // filter is called with indices of: keys and indices
     {
-        if segments.len() > 1 && indices.len() > 1024 {
+        if segments.len() > 1 && indices.len() > 1024 { // TODO check if it is not better to comment indices.len() > 1024 and then use commented out code below
             let mid = segments.len()/2;
             let segments = segments.split_at(mid);
             let new_lens = new_lengths.split_at_mut(mid);
