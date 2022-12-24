@@ -426,10 +426,10 @@ impl RefsIndex for u16 {
 
 /// `KeySet` implementation that stores reference to slice with keys,
 /// and indices of this slice that points retained keys.
-/// Indices are stored partitioned to segments and stored as 16-bit integers.
-/// Each segment covers $2^{16}$ consecutive keys.
+/// Indices are stored partitioned to segments and stored as 8 (if `I=u8`) or 16-bit (if `I=u16`) integers.
+/// Each segment covers $2^8$ or $2^{16}$ consecutive keys.
 /// Empty segments ore not stored.
-pub struct SliceSourceWithRefs<'k, K, I: RefsIndex = u16> {
+pub struct SliceSourceWithRefs<'k, K, I: RefsIndex = u8> {
     keys: &'k [K],
     indices: Vec<I>,  // lowest 16 bits of each key index retained so far
     segments: Vec<SegmentMetadata>,   // segments metadata: each element of the vector is (index in indices, index in keys)
