@@ -408,20 +408,32 @@ struct SegmentMetadata {
 
 pub trait RefsIndex: Copy {
     const SEGMENT_SIZE: usize;
+    type SizeType: Copy + Send; // type that can store the length of segment, i.e. integers in range [0, 2^SEGMENT_SIZE]
+    const LEN_ZERO: Self::SizeType;
     fn from_usize(u: usize) -> Self;
     fn as_usize(self) -> usize;
+    fn len_from_usize(u: usize) -> Self::SizeType;
+    fn len_as_usize(s: Self::SizeType) -> usize;
 }
 
 impl RefsIndex for u8 {
     const SEGMENT_SIZE: usize = 1<<8;
+    type SizeType = u16;
+    const LEN_ZERO: Self::SizeType = 0;
     #[inline(always)] fn from_usize(u: usize) -> Self { u as Self }
     #[inline(always)] fn as_usize(self) -> usize { self as usize }
+    #[inline(always)] fn len_from_usize(u: usize) -> Self::SizeType { u as Self::SizeType }
+    #[inline(always)] fn len_as_usize(s: Self::SizeType) -> usize { s as usize }
 }
 
 impl RefsIndex for u16 {
     const SEGMENT_SIZE: usize = 1<<16;
+    type SizeType = u32;
+    const LEN_ZERO: Self::SizeType = 0;
     #[inline(always)] fn from_usize(u: usize) -> Self { u as Self }
     #[inline(always)] fn as_usize(self) -> usize { self as usize }
+    #[inline(always)] fn len_from_usize(u: usize) -> Self::SizeType { u as Self::SizeType }
+    #[inline(always)] fn len_as_usize(s: Self::SizeType) -> usize { s as usize }
 }
 
 /// `KeySet` implementation that stores reference to slice with keys,
@@ -491,10 +503,10 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
     }
 
     /// Copy `indices` accepted by `filter` to the beginning of each segment and stores new lengths of each segment in `new_lengths`.
-    fn par_pre_retain<F>(filter: &F, indices: &mut [I], segments: &[SegmentMetadata], new_lengths: &mut [u32])
+    fn par_pre_retain<F>(filter: &F, indices: &mut [I], segments: &[SegmentMetadata], new_lengths: &mut [I::SizeType])
         where F: Fn(usize, usize) -> bool + Sync    // filter is called with indices of: keys and indices
     {
-        if segments.len() > 1 && indices.len() > 1024 { // TODO check if it is not better to comment indices.len() > 1024 and then use commented out code below
+        if segments.len() > 1 && indices.len() > 4096 {
             let mid = segments.len()/2;
             let segments = segments.split_at(mid);
             let new_lens = new_lengths.split_at_mut(mid);
@@ -529,7 +541,7 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
                     }
                     i += 1;
                 }
-                new_lengths[seg_i] = len as u32;
+                new_lengths[seg_i] = I::len_from_usize(len);
             }
         }
     }
@@ -538,12 +550,12 @@ impl<'k, K: Sync + 'k, I: RefsIndex + Send + Sync> SliceSourceWithRefs<'k, K, I>
         where F: Fn(usize, usize) -> bool + Sync
     {
         let real_seg_len = segments.len()-1;
-        let mut new_lenghts = vec![0; real_seg_len];
+        let mut new_lenghts = vec![I::LEN_ZERO; real_seg_len];
         Self::par_pre_retain(&filter, indices, &mut segments[0..real_seg_len], &mut new_lenghts);
         let mut new_seg_len = 0;    // where to copy segment[seg_i]
         let mut new_indices_len = 0;    // where to copy segment[seg_i]
         for seg_i in 0..real_seg_len {
-            let new_seg_i_len = new_lenghts[seg_i] as usize;
+            let new_seg_i_len = I::len_as_usize(new_lenghts[seg_i]);
             if new_seg_i_len > 0 {
                 indices.copy_within(
                     segments[seg_i].first_index .. segments[seg_i].first_index + new_seg_i_len,
