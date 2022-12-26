@@ -17,6 +17,7 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
     pub hash: S,
+    pub prehash_threshold: usize,   // maximum keys size to pre-hash
     pub relative_level_size: u16,
     pub use_multiple_threads: bool
 }
@@ -196,7 +197,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
                 keys.par_retain_keys(
                     |k| !current_array.get_bit(utils::map64_to_64(self.conf.hash.hash_one(&k, seed), level_size as u64) as usize),
                     |k| self.retained(k),
-                    || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
+                    || current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
                 );
                 current_array
             } else {
@@ -204,7 +205,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
                 keys.retain_keys(
                     |k| !current_array.get_bit(utils::map64_to_64(self.conf.hash.hash_one(&k, seed), level_size as u64) as usize),
                     |k| self.retained(k),
-                    || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
+                    || current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
                 );
                 current_array
             });
