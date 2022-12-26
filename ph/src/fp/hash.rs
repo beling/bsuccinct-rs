@@ -17,7 +17,7 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
     pub hash: S,
-    pub prehash_threshold: usize,   // maximum keys size to pre-hash
+    //pub prehash_threshold: usize,   // maximum keys size to pre-hash
     pub relative_level_size: u16,
     pub use_multiple_threads: bool
 }
@@ -146,10 +146,9 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     }
 
     /// Builds level using a single thread.
-    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: u32, seed: u32) -> Box<[u64]>
+    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
         where K: Hash
     {
-        let level_size_segments = level_size_segments as usize;
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         let level_size = level_size_segments * 64;
@@ -162,13 +161,12 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     }
 
     /// Builds level using multiple threads.
-    fn build_level_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: u32, seed: u32) -> Box<[u64]>
+    fn build_level_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
         where K: Hash + Sync
     {
         if !keys.has_par_for_each_key() {
             return self.build_level_st(keys, level_size_segments, seed);
         }
-        let level_size_segments = level_size_segments as usize;
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
@@ -188,8 +186,8 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         while self.input_size != 0 {
-            let level_size_segments = ceiling_div(self.input_size * self.conf.relative_level_size as usize, 64*100) as u32;
-            let level_size = level_size_segments as usize * 64;
+            let level_size_segments = ceiling_div(self.input_size * self.conf.relative_level_size as usize, 64*100);
+            let level_size = level_size_segments * 64;
             stats.level(self.input_size, level_size);
             let seed = self.level_nr();
             self.arrays.push(if self.use_multiple_threads {
