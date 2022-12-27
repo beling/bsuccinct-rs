@@ -512,7 +512,7 @@ fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u1
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
 {
     let mut file = if let Some((_, fc)) = use_fmph {
-        println!("FMPH pre-hash threshold={}: gamma results...", fc.pre_hash_threshold);
+        println!("FMPH hash caching threshold={}: gamma results...", fc.pre_hash_threshold);
         file("FMPH", &conf, i, FMPH_BENCHMARK_HEADER)
     } else {
         println!("boomphf: gamma results...");
@@ -553,7 +553,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
         }
         Method::FMPHGO(ref fmphgo_conf) => {
             let mut file = file("FMPHGO", &conf, i, FMPHGO_HEADER);
-            println!("FMPHGO pre-hash threshold={}: s b gamma results...", fmphgo_conf.pre_hash_threshold);
+            println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.pre_hash_threshold);
             let mut p = FMPHGOBuildParams {
                 hash: BuildWyHash::default(),
                 relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
