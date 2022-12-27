@@ -302,7 +302,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                                     |group| self.conf.bits_per_seed.get_seed(&seeds, group as usize))
             ),
             |key| self.retained(key),
-            || array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
+            || array.count_bit_ones(),
             self.use_multiple_threads
         );
         self.push(array, seeds, level_size_groups);
@@ -332,7 +332,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
                 !array.get_bit(bit_index)
             },
             |key| self.retained(key),
-            || array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
+            || array.count_bit_ones(),
             self.use_multiple_threads
         );
         self.push(array, seeds, level_size_groups as u64);

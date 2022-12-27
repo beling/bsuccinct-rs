@@ -157,18 +157,18 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash, seed as u32, a.len() << 6)))
     }
 
-    fn build_array_for_indices_st(&self, bit_indices: &[u64], level_size_segments: usize) -> Box<[u64]>
+    fn build_array_for_indices_st(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         for bit_index in bit_indices {
-            fphash_add_bit(&mut result, &mut collision, *bit_index as usize);
+            fphash_add_bit(&mut result, &mut collision, *bit_index);
         };
         fphash_remove_collided(&mut result, &collision);
         result
     }
 
-    fn build_array_for_indices(&self, bit_indices: &[u64], level_size_segments: usize) -> Box<[u64]>
+    fn build_array_for_indices(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
     {
         if !self.use_multiple_threads {
             return self.build_array_for_indices_st(bit_indices, level_size_segments)
@@ -177,7 +177,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         bit_indices.par_iter().for_each(
-            |bit_index| fphash_sync_add_bit(&result_atom, &collision, *bit_index as usize)
+            |bit_index| fphash_sync_add_bit(&result_atom, &collision, *bit_index)
         );
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
         result
@@ -230,16 +230,16 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             let seed = self.level_nr();
             let array = if self.input_size < self.conf.prehash_threshold {
                 let bit_indices = keys.maybe_par_map_each_key(
-                    |k| utils::map64_to_64(self.conf.hash.hash_one(k, seed), level_size as u64),
+                    |key| index(key, &self.conf.hash, seed, level_size),
                     |key| self.retained(key),
                     self.use_multiple_threads
                 );
                 let array = self.build_array_for_indices(&bit_indices, level_size_segments);
                 keys.maybe_par_retain_keys_with_indices(
-                    |i| !array.get_bit(bit_indices[i] as usize),
+                    |i| !array.get_bit(bit_indices[i]),
                     |key| !array.get_bit(index(key, &self.conf.hash, seed, level_size)),
                     |key| self.retained(key),
-                    || array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
+                    || array.count_bit_ones(),
                     self.use_multiple_threads
                 );
                 array
@@ -247,17 +247,17 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
                 if self.use_multiple_threads {
                     let current_array = self.build_level_mt(keys, level_size_segments, seed);
                     keys.par_retain_keys(
-                        |k| !current_array.get_bit(utils::map64_to_64(self.conf.hash.hash_one(&k, seed), level_size as u64) as usize),
-                        |k| self.retained(k),
-                        || current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
+                        |key| !current_array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                        |key| self.retained(key),
+                        || current_array.count_bit_ones()
                     );
                     current_array
                 } else {
                     let current_array = self.build_level_st(keys, level_size_segments, seed);
                     keys.retain_keys(
-                        |k| !current_array.get_bit(utils::map64_to_64(self.conf.hash.hash_one(&k, seed), level_size as u64) as usize),
-                        |k| self.retained(k),
-                        || current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
+                        |key| !current_array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                        |key| self.retained(key),
+                        || current_array.count_bit_ones()
                     );
                     current_array
                 }
