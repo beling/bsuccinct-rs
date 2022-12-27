@@ -47,6 +47,9 @@ pub struct FMPHConf {
     /// Relative level size as percent of number of keys, equals to *100γ*.
     #[arg(short='l', long)]
     pub level_size: Option<u16>,
+    /// FMPH caches 64-bit hashes of keys when their number (at the constructed level) is below this threshold
+    #[arg(short='p', long, default_value_t = usize::MAX)]
+    pub pre_hash_threshold: usize,
     /// How FMPH can access keys.
     #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices8)]
     pub key_access: KeyAccess,
@@ -504,7 +507,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 
 const FMPH_BENCHMARK_HEADER: &'static str = "gamma";
 
-fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, KeyAccess)>)
+fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, &FMPHConf)>)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
 {
     let method_name = if use_fmph.is_some() { "FMPH" } else { "BooMPHF" };
@@ -512,8 +515,8 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     let mut file = file(method_name, &conf, i, FMPH_BENCHMARK_HEADER);
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
-        let b = if let Some((ref hash, key_access)) = use_fmph {
-            (FPHashConf::hash_lsize_threads(hash.clone(), relative_level_size, false), key_access).benchmark(i, &conf)
+        let b = if let Some((ref hash, fc)) = use_fmph {
+            (FPHashConf::hash_lsize_pht_mt(hash.clone(), relative_level_size, fc.pre_hash_threshold, false), fc.key_access).benchmark(i, &conf)
         } else {
             BooMPHFConf { gamma }.benchmark(i, &conf)
         };
@@ -569,7 +572,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
             }
         }
         Method::FMPH(ref fmph_conf) => {
-            fmph_benchmark(i, conf, fmph_conf.level_size, Some((BuildWyHash::default(), fmph_conf.key_access)));
+            fmph_benchmark(i, conf, fmph_conf.level_size, Some((BuildWyHash::default(), fmph_conf)));
         }
         Method::Boomphf{level_size} => {
             fmph_benchmark::<BuildWyHash, _>(i, conf, level_size, None);
