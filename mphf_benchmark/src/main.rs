@@ -88,7 +88,7 @@ pub enum Method {
     FMPHGO(FMPHGOConf),
     /// FMPH
     FMPH(FMPHConf),
-    /// BooMPHF
+    /// boomphf
     Boomphf {
         /// Relative level size as percent of number of keys, equals to *100γ*
         #[arg(short='l', long)]
@@ -505,23 +505,30 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 
 
 
-const FMPH_BENCHMARK_HEADER: &'static str = "gamma";
+const FMPH_BENCHMARK_HEADER: &'static str = "prehash_threshold gamma";
+const BOOMPHF_BENCHMARK_HEADER: &'static str = "gamma";
 
 fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, &FMPHConf)>)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
 {
-    let method_name = if use_fmph.is_some() { "FMPH" } else { "BooMPHF" };
-    println!("{}: gamma results...", method_name);
-    let mut file = file(method_name, &conf, i, FMPH_BENCHMARK_HEADER);
+    let mut file = if let Some((_, fc)) = use_fmph {
+        println!("FMPH pre-hash threshold={}: gamma results...", fc.pre_hash_threshold);
+        file("FMPH", &conf, i, FMPH_BENCHMARK_HEADER)
+    } else {
+        println!("boomphf: gamma results...");
+        file("boomphf", &conf, i, BOOMPHF_BENCHMARK_HEADER)
+    };
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
-        let b = if let Some((ref hash, fc)) = use_fmph {
-            (FPHashConf::hash_lsize_pht_mt(hash.clone(), relative_level_size, fc.pre_hash_threshold, false), fc.key_access).benchmark(i, &conf)
+        if let Some((ref hash, fc)) = use_fmph {
+            let b = (FPHashConf::hash_lsize_pht_mt(hash.clone(), relative_level_size, fc.pre_hash_threshold, false), fc.key_access).benchmark(i, &conf);
+            println!(" {:.1}\t{}", gamma, b);
+            if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.pre_hash_threshold, gamma, b.all()).unwrap(); }
         } else {
-            BooMPHFConf { gamma }.benchmark(i, &conf)
+            let b = BooMPHFConf { gamma }.benchmark(i, &conf);
+            println!(" {:.1}\t{}", gamma, b);
+            if let Some(ref mut f) = file { writeln!(f, "{} {}", gamma, b.all()).unwrap(); }
         };
-        println!(" {:.1}\t{}", gamma, b);
-        if let Some(ref mut f) = file { writeln!(f, "{} {}", gamma, b.all()).unwrap(); }
     }
 }
 

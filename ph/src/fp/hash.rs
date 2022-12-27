@@ -157,30 +157,27 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash, seed as u32, a.len() << 6)))
     }
 
-    /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
-    fn build_array_for_hashes_st(&self, key_hashes: &[u64], level_size_segments: usize) -> Box<[u64]>
+    fn build_array_for_indices_st(&self, bit_indices: &[u64], level_size_segments: usize) -> Box<[u64]>
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
-        let level_size = level_size_segments * 64;
-        for hash in key_hashes {
-            fphash_add_bit(&mut result, &mut collision, );
+        for bit_index in bit_indices {
+            fphash_add_bit(&mut result, &mut collision, *bit_index as usize);
         };
         fphash_remove_collided(&mut result, &collision);
         result
     }
 
-    fn build_array_for_hashes(&self, key_hashes: &[u64], level_size_segments: usize) -> Box<[u64]>
+    fn build_array_for_indices(&self, bit_indices: &[u64], level_size_segments: usize) -> Box<[u64]>
     {
         if !self.use_multiple_threads {
-            return self.build_array_for_hashes_st(key_hashes, level_size_segments)
+            return self.build_array_for_indices_st(bit_indices, level_size_segments)
         }
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
-        let level_size = level_size_segments * 64;
-        key_hashes.par_iter().for_each(
-            |hash| fphash_sync_add_bit(&result_atom, &collision, utils::map64_to_64(*hash, level_size as u64) as usize)
+        bit_indices.par_iter().for_each(
+            |bit_index| fphash_sync_add_bit(&result_atom, &collision, *bit_index as usize)
         );
         fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
         result
@@ -232,19 +229,15 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             stats.level(self.input_size, level_size);
             let seed = self.level_nr();
             let array = if self.input_size < self.conf.prehash_threshold {
-                let key_hashes = keys.maybe_par_map_each_key(
-                    |k| self.conf.hash.hash_one(k, seed),
+                let bit_indices = keys.maybe_par_map_each_key(
+                    |k| utils::map64_to_64(self.conf.hash.hash_one(k, seed), level_size as u64),
                     |key| self.retained(key),
                     self.use_multiple_threads
                 );
-                let array = self.build_array_for_hashes(&key_hashes, level_size_segments);
+                let array = self.build_array_for_indices(&bit_indices, level_size_segments);
                 keys.maybe_par_retain_keys_with_indices(
-                    |i| !array.get_bit(
-                        utils::map64_to_64(key_hashes[i], level_size as u64) as usize
-                    ),
-                    |key| !array.get_bit(
-                        index(key, &self.conf.hash, seed, level_size)
-                    ),
+                    |i| !array.get_bit(bit_indices[i] as usize),
+                    |key| !array.get_bit(index(key, &self.conf.hash, seed, level_size)),
                     |key| self.retained(key),
                     || array.iter().map(|v| v.count_ones() as usize).sum::<usize>(),
                     self.use_multiple_threads
