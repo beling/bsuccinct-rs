@@ -9,6 +9,7 @@ use crate::read_array;
 use std::io;
 use std::sync::atomic::{AtomicU64};
 use std::sync::atomic::Ordering::Relaxed;
+use rayon::prelude::*;
 use dyn_size_of::GetSize;
 
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
@@ -17,6 +18,7 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
     pub hash: S,
+    pub prehash_threshold: usize,   // maximum keys size to pre-hash
     pub relative_level_size: u16,
     pub use_multiple_threads: bool
 }
@@ -25,6 +27,7 @@ impl Default for FPHashConf {
     fn default() -> Self {
         Self {
             hash: Default::default(),
+            prehash_threshold: Self::DEFAULT_PREHASH_THRESHOLD,
             relative_level_size: 100,
             use_multiple_threads: true
         }
@@ -33,8 +36,12 @@ impl Default for FPHashConf {
 
 impl FPHashConf {
     /// Returns configuration that potentially uses multiple threads to build `FPHash`.
-    pub fn threads(use_multiple_threads: bool) -> Self {
+    pub fn mt(use_multiple_threads: bool) -> Self {
         Self { use_multiple_threads, ..Default::default() }
+    }
+
+    pub fn pht_mt(prehash_threshold: usize, use_multiple_threads: bool) -> Self {
+        Self { use_multiple_threads, prehash_threshold, ..Default::default() }
     }
 
     /// Returns configuration that uses at each level a bit-array of size `relative_level_size`
@@ -46,20 +53,26 @@ impl FPHashConf {
     /// Returns configuration that potentially uses multiple threads and
     /// at each level a bit-array of size `relative_level_size`
     /// given as a percent of number of input keys for the level.
-    pub fn lsize_threads(relative_level_size: u16, use_multiple_threads: bool) -> Self {
+    pub fn lsize_mt(relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, use_multiple_threads, ..Default::default() }
     }
 }
 
 impl<S> FPHashConf<S> {
+    const DEFAULT_PREHASH_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
+
     pub fn hash(hash: S) -> Self {
-        Self { hash, relative_level_size: 100, use_multiple_threads: true }
+        Self { hash, prehash_threshold: Self::DEFAULT_PREHASH_THRESHOLD, relative_level_size: 100, use_multiple_threads: true }
     }
     pub fn hash_lsize(hash: S, relative_level_size: u16) -> Self {
         Self { relative_level_size, ..Self::hash(hash) }
     }
-    pub fn hash_lsize_threads(hash: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, hash, use_multiple_threads }
+    pub fn hash_lsize_mt(hash: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
+        Self { relative_level_size, hash, use_multiple_threads, prehash_threshold: Self::DEFAULT_PREHASH_THRESHOLD }
+    }
+
+    pub fn hash_lsize_pht_mt(hash: S, relative_level_size: u16, prehash_threshold: usize, use_multiple_threads: bool) -> Self {
+        Self { relative_level_size, hash, use_multiple_threads, prehash_threshold }
     }
 }
 
@@ -144,11 +157,36 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash, seed as u32, a.len() << 6)))
     }
 
+    fn build_array_for_indices_st(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
+    {
+        let mut result = vec![0u64; level_size_segments].into_boxed_slice();
+        let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
+        for bit_index in bit_indices {
+            fphash_add_bit(&mut result, &mut collision, *bit_index);
+        };
+        fphash_remove_collided(&mut result, &collision);
+        result
+    }
+
+    fn build_array_for_indices(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
+    {
+        if !self.use_multiple_threads {
+            return self.build_array_for_indices_st(bit_indices, level_size_segments)
+        }
+        let mut result = vec![0u64; level_size_segments].into_boxed_slice();
+        let result_atom = AtomicU64::from_mut_slice(&mut result);
+        let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
+        bit_indices.par_iter().for_each(
+            |bit_index| fphash_sync_add_bit(&result_atom, &collision, *bit_index)
+        );
+        fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
+        result
+    }
+
     /// Builds level using a single thread.
-    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: u32, seed: u32) -> Box<[u64]>
+    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
         where K: Hash
     {
-        let level_size_segments = level_size_segments as usize;
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         let level_size = level_size_segments * 64;
@@ -161,13 +199,12 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     }
 
     /// Builds level using multiple threads.
-    fn build_level_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: u32, seed: u32) -> Box<[u64]>
+    fn build_level_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
         where K: Hash + Sync
     {
         if !keys.has_par_for_each_key() {
             return self.build_level_st(keys, level_size_segments, seed);
         }
-        let level_size_segments = level_size_segments as usize;
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let result_atom = AtomicU64::from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
@@ -187,27 +224,45 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         while self.input_size != 0 {
-            let level_size_segments = ceiling_div(self.input_size * self.conf.relative_level_size as usize, 64*100) as u32;
-            let level_size = level_size_segments as usize * 64;
+            let level_size_segments = ceiling_div(self.input_size * self.conf.relative_level_size as usize, 64*100);
+            let level_size = level_size_segments * 64;
             stats.level(self.input_size, level_size);
             let seed = self.level_nr();
-            self.arrays.push(if self.use_multiple_threads {
-                let current_array = self.build_level_mt(keys, level_size_segments, seed);
-                keys.par_retain_keys(
-                    |k| !current_array.get_bit(utils::map64_to_64(self.conf.hash.hash_one(&k, seed), level_size as u64) as usize),
-                    |k| self.retained(k),
-                    || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
+            let array = if self.input_size < self.conf.prehash_threshold {
+                let bit_indices = keys.maybe_par_map_each_key(
+                    |key| index(key, &self.conf.hash, seed, level_size),
+                    |key| self.retained(key),
+                    self.use_multiple_threads
                 );
-                current_array
+                let array = self.build_array_for_indices(&bit_indices, level_size_segments);
+                keys.maybe_par_retain_keys_with_indices(
+                    |i| !array.get_bit(bit_indices[i]),
+                    |key| !array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                    |key| self.retained(key),
+                    || array.count_bit_ones(),
+                    self.use_multiple_threads
+                );
+                array
             } else {
-                let current_array = self.build_level_st(keys, level_size_segments, seed);
-                keys.retain_keys(
-                    |k| !current_array.get_bit(utils::map64_to_64(self.conf.hash.hash_one(&k, seed), level_size as u64) as usize),
-                    |k| self.retained(k),
-                    || self.input_size - current_array.iter().map(|v| v.count_ones() as usize).sum::<usize>()
-                );
-                current_array
-            });
+                if self.use_multiple_threads {
+                    let current_array = self.build_level_mt(keys, level_size_segments, seed);
+                    keys.par_retain_keys(
+                        |key| !current_array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                        |key| self.retained(key),
+                        || current_array.count_bit_ones()
+                    );
+                    current_array
+                } else {
+                    let current_array = self.build_level_st(keys, level_size_segments, seed);
+                    keys.retain_keys(
+                        |key| !current_array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                        |key| self.retained(key),
+                        || current_array.count_bit_ones()
+                    );
+                    current_array
+                }
+            };
+            self.arrays.push(array);
             self.input_size = keys.keys_len();
         }
     }
@@ -415,7 +470,7 @@ mod tests {
     }
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K]) {
-        let h = FPHash::from_slice_with_conf(to_hash, FPHashConf::threads(false));
+        let h = FPHash::from_slice_with_conf(to_hash, FPHashConf::mt(false));
         test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));
         test_read_write(&h);
     }
