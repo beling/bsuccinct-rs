@@ -48,8 +48,8 @@ pub struct FMPHConf {
     #[arg(short='l', long)]
     pub level_size: Option<u16>,
     /// FMPH caches 64-bit hashes of keys when their number (at the constructed level) is below this threshold
-    #[arg(short='p', long, default_value_t = usize::MAX)]
-    pub pre_hash_threshold: usize,
+    #[arg(short='c', long, default_value_t = usize::MAX)]
+    pub cache_threshold: usize,
     /// How FMPH can access keys.
     #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices8)]
     pub key_access: KeyAccess,
@@ -69,8 +69,8 @@ pub struct FMPHGOConf {
     #[arg(short='l', long)]
     pub level_size: Option<u16>,
     /// FMPHGO caches 64-bit hashes of keys when their number (at the constructed level) is below this threshold
-    #[arg(short='p', long, default_value_t = usize::MAX)]
-    pub pre_hash_threshold: usize,
+    #[arg(short='c', long, default_value_t = usize::MAX)]
+    pub cache_threshold: usize,
     /// How FMPHGO can access keys
     #[arg(value_enum, short='a', long, default_value_t = KeyAccess::Indices8)]
     pub key_access: KeyAccess,
@@ -512,7 +512,7 @@ fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u1
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
 {
     let mut file = if let Some((_, fc)) = use_fmph {
-        println!("FMPH hash caching threshold={}: gamma results...", fc.pre_hash_threshold);
+        println!("FMPH hash caching threshold={}: gamma results...", fc.cache_threshold);
         file("FMPH", &conf, i, FMPH_BENCHMARK_HEADER)
     } else {
         println!("boomphf: gamma results...");
@@ -521,9 +521,9 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
         if let Some((ref hash, fc)) = use_fmph {
-            let b = (FPHashConf::hash_lsize_pht_mt(hash.clone(), relative_level_size, fc.pre_hash_threshold, false), fc.key_access).benchmark(i, &conf);
+            let b = (FPHashConf::hash_lsize_pht_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
             println!(" {:.1}\t{}", gamma, b);
-            if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.pre_hash_threshold, gamma, b.all()).unwrap(); }
+            if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, gamma, b.all()).unwrap(); }
         } else {
             let b = BooMPHFConf { gamma }.benchmark(i, &conf);
             println!(" {:.1}\t{}", gamma, b);
@@ -553,11 +553,11 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
         }
         Method::FMPHGO(ref fmphgo_conf) => {
             let mut file = file("FMPHGO", &conf, i, FMPHGO_HEADER);
-            println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.pre_hash_threshold);
+            println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.cache_threshold);
             let mut p = FMPHGOBuildParams {
                 hash: BuildWyHash::default(),
                 relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
-                prehash_threshold: fmphgo_conf.pre_hash_threshold,
+                prehash_threshold: fmphgo_conf.cache_threshold,
                 key_access: fmphgo_conf.key_access,
             };
             match (fmphgo_conf.bits_per_group_seed, fmphgo_conf.group_size) {
