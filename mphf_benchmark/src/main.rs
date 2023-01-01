@@ -401,12 +401,12 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     }
 }
 
-const FMPHGO_HEADER: &'static str = "prehash_threshold bits_per_group_seed relative_level_size bits_per_group";
+const FMPHGO_HEADER: &'static str = "cache_threshold bits_per_group_seed relative_level_size bits_per_group";
 
 struct FMPHGOBuildParams<S> {
     hash: S,
     relative_level_size: u16,
-    prehash_threshold: usize,
+    cache_threshold: usize,
     key_access: KeyAccess
 }
 
@@ -415,7 +415,7 @@ fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K
 {
     (FPHash2Builder::with_lsize_pht_mt(
         FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
-        p.relative_level_size, p.prehash_threshold, false), p.key_access)
+        p.relative_level_size, p.cache_threshold, false), p.key_access)
     .benchmark(i, conf)
 }
 
@@ -451,7 +451,7 @@ fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits
         h2b(bits_per_group_seed, Bits(bits_per_group), i, conf, p)
     };
     if let Some(ref mut f) = file {
-        writeln!(f, "{} {} {} {} {}", p.prehash_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b.all()).unwrap();
+        writeln!(f, "{} {} {} {} {}", p.cache_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b.all()).unwrap();
     }
     b
 }
@@ -484,7 +484,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
     let mut p = FMPHGOBuildParams {
         hash,
         relative_level_size: 0,
-        prehash_threshold: usize::MAX,
+        cache_threshold: usize::MAX,
         key_access
     };
     for bits_per_group_seed in 1u8..=10u8 {
@@ -505,7 +505,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 
 
 
-const FMPH_BENCHMARK_HEADER: &'static str = "prehash_threshold relative_level_size";
+const FMPH_BENCHMARK_HEADER: &'static str = "cache_threshold relative_level_size";
 const BOOMPHF_BENCHMARK_HEADER: &'static str = "relative_level_size";
 
 fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, &FMPHConf)>)
@@ -557,7 +557,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
             let mut p = FMPHGOBuildParams {
                 hash: BuildWyHash::default(),
                 relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
-                prehash_threshold: fmphgo_conf.cache_threshold,
+                cache_threshold: fmphgo_conf.cache_threshold,
                 key_access: fmphgo_conf.key_access,
             };
             match (fmphgo_conf.bits_per_group_seed, fmphgo_conf.group_size) {
