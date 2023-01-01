@@ -131,7 +131,7 @@ The authors have accepted our modifications to their program, which, among other
 ensure that both benchmark programs can generate exactly the same keys for testing MPHFs.
 
 For example, the results for RecSplit, PTHash, and CHD,
-for 39,459,925 64-bit integer keys generated uniformly at random with XorShift64,
+for 39,459,925 64-bit integer keys generated uniformly at random with *XorShift64*,
 and with averaging over 30 runs, can be calculated by:
 
 ```shell
@@ -140,7 +140,7 @@ mphf_benchmark pthash -n 39459925 --gen xs64 --num_construction_runs 30 --num_lo
 mphf_benchmark chd -n 39459925 --gen xs64 --num_construction_runs 30 --num_lookup_runs 30
 ```
 
-And similar calls, but using URLs from the uk-2005 collection as keys looks like this:
+And similar calls, but using URLs from the *uk-2005* collection as keys looks like this:
 
 ```shell
 cat uk-2005-nat.urls | mphf_benchmark recsplit -n 39459925 --gen stdin --num_construction_runs 30 --num_lookup_runs 30
