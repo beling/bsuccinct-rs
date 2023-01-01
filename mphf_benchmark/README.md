@@ -151,7 +151,7 @@ cat uk-2005-nat.urls | mphf_benchmark chd -n 39459925 --gen stdin --num_construc
 Again, measuring memory consumption with `memusage` requires running one variant at a time,
 which can be achieved with the `--variant` switch, whose argument is the number of subsequent method variant to test.
 For example, measuring the first variant of RecSplit might look like this
-(note that for URL collection, we use the `mphf_uk2005.sh` script again):
+(note that for the *uk-2005* collection, we use the `mphf_uk2005.sh` script again):
 
 ```shell
 memusage mphf_benchmark recsplit --variant 1 -n 39459925 --gen xs64 --num_construction_runs 1 --num_lookup_runs 0
@@ -159,7 +159,7 @@ memusage mphf_benchmark recsplit --variant 1 -n 500000000 --gen xs64 --num_const
 memusage mphf_uk2005.sh recsplit --variant 1 -n 39459925 --gen stdin --num_construction_runs 1 --num_lookup_runs 0
 ```
 
-A non-existent number (e.g., 9) of the variant can be specified to measure the memory consumption
+A non-existent number (e.g., 9) of the variant can be given to measure the memory consumption
 for the execution of benchmark programs that terminates as soon as the keys are loaded or generated:
 
 ```shell
