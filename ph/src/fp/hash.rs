@@ -18,7 +18,7 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
     pub hash: S,
-    pub prehash_threshold: usize,   // maximum keys size to pre-hash
+    pub cache_threshold: usize,   // maximum size of the keys set to cache hashes
     pub relative_level_size: u16,
     pub use_multiple_threads: bool
 }
@@ -27,7 +27,7 @@ impl Default for FPHashConf {
     fn default() -> Self {
         Self {
             hash: Default::default(),
-            prehash_threshold: Self::DEFAULT_PREHASH_THRESHOLD,
+            cache_threshold: Self::DEFAULT_CACHE_THRESHOLD,
             relative_level_size: 100,
             use_multiple_threads: true
         }
@@ -40,8 +40,8 @@ impl FPHashConf {
         Self { use_multiple_threads, ..Default::default() }
     }
 
-    pub fn pht_mt(prehash_threshold: usize, use_multiple_threads: bool) -> Self {
-        Self { use_multiple_threads, prehash_threshold, ..Default::default() }
+    pub fn ct_mt(cache_threshold: usize, use_multiple_threads: bool) -> Self {
+        Self { use_multiple_threads, cache_threshold, ..Default::default() }
     }
 
     /// Returns configuration that uses at each level a bit-array of size `relative_level_size`
@@ -59,20 +59,20 @@ impl FPHashConf {
 }
 
 impl<S> FPHashConf<S> {
-    const DEFAULT_PREHASH_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
+    const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
 
     pub fn hash(hash: S) -> Self {
-        Self { hash, prehash_threshold: Self::DEFAULT_PREHASH_THRESHOLD, relative_level_size: 100, use_multiple_threads: true }
+        Self { hash, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD, relative_level_size: 100, use_multiple_threads: true }
     }
     pub fn hash_lsize(hash: S, relative_level_size: u16) -> Self {
         Self { relative_level_size, ..Self::hash(hash) }
     }
     pub fn hash_lsize_mt(hash: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, hash, use_multiple_threads, prehash_threshold: Self::DEFAULT_PREHASH_THRESHOLD }
+        Self { relative_level_size, hash, use_multiple_threads, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD }
     }
 
-    pub fn hash_lsize_pht_mt(hash: S, relative_level_size: u16, prehash_threshold: usize, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, hash, use_multiple_threads, prehash_threshold }
+    pub fn hash_lsize_ct_mt(hash: S, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
+        Self { relative_level_size, hash, use_multiple_threads, cache_threshold }
     }
 }
 
@@ -228,7 +228,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             let level_size = level_size_segments * 64;
             stats.level(self.input_size, level_size);
             let seed = self.level_nr();
-            let array = if self.input_size < self.conf.prehash_threshold {
+            let array = if self.input_size < self.conf.cache_threshold {
                 let bit_indices = keys.maybe_par_map_each_key(
                     |key| index(key, &self.conf.hash, seed, level_size),
                     |key| self.retained(key),

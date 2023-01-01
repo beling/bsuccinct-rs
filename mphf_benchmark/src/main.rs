@@ -413,7 +413,7 @@ struct FMPHGOBuildParams<S> {
 fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
     where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
-    (FPHash2Builder::with_lsize_pht_mt(
+    (FPHash2Builder::with_lsize_ct_mt(
         FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
         p.relative_level_size, p.cache_threshold, false), p.key_access)
     .benchmark(i, conf)
@@ -521,7 +521,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
         if let Some((ref hash, fc)) = use_fmph {
-            let b = (FPHashConf::hash_lsize_pht_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
+            let b = (FPHashConf::hash_lsize_ct_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
             println!(" {:.1}\t{}", gamma, b);
             if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, relative_level_size, b.all()).unwrap(); }
         } else {
