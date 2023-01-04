@@ -83,11 +83,11 @@ gzip -d uk-2005-nat.urls.gz
 Then run (we use [cat](https://man7.org/linux/man-pages/man1/cat.1.html) to print the unpacked `uk-nat-2005.urls` file
 to the standard output, which we then redirect to `mphf_benchmark`):
 ```shell
-cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -b 30 -l 30 fmph
-cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -b 30 -l 30 fmph -c 0
-cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -b 30 -l 30 fmphgo
-cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -b 30 -l 30 fmphgo -c 0
-cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -b 30 -l 30 boomphf
+cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -n 39459925 -b 30 -l 30 fmph
+cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -n 39459925 -b 30 -l 30 fmph -c 0
+cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -n 39459925 -b 30 -l 30 fmphgo
+cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -n 39459925 -b 30 -l 30 fmphgo -c 0
+cat uk-nat-2005.urls | mphf_benchmark -d -s stdin -n 39459925 -b 30 -l 30 boomphf
 ```
 
 To measure memory consumption of construction processes,
@@ -111,7 +111,7 @@ cat uk-2005-nat.urls | mphf_benchmark "$@"
 And we run it like this, for example:
 
 ```shell
-memusage mphf_uk2005.sh -s stdin -b 1 -l 0 -t single fmphgo -c 0 -s 1 -l 100
+memusage mphf_uk2005.sh -s stdin -n 39459925 -b 1 -l 0 -t single fmphgo -c 0 -s 1 -l 100
 ```
 
 To subtract the memory occupied by the keys and data unrelated to the construction process
@@ -121,7 +121,7 @@ of benchmark programs that terminates as soon as the keys are loaded or generate
 ```shell
 memusage mphf_benchmark -s xs64 -n 39459925 none
 memusage mphf_benchmark -s xs64 -n 500000000 none
-memusage mphf_uk2005.sh -s stdin none
+memusage mphf_uk2005.sh -s stdin -n 39459925 none
 ```
 
 To benchmark RecSplit, PTHash, and CHD, we use another program with the same name (`mphf_benchmark`),

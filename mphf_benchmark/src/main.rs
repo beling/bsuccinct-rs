@@ -623,7 +623,7 @@ impl Iterator for XorShift32 {
     }
 }
 
-impl ExactSizeIterator for XorShift32 {}
+//impl ExactSizeIterator for XorShift32 {}
 
 /*struct Generate32x<const N: usize>(XorShift32);
 impl<const N: usize> Generate32x<N> {
@@ -662,10 +662,15 @@ impl Iterator for XorShift64 {
     }
 }
 
-impl ExactSizeIterator for XorShift64 {}
+//impl ExactSizeIterator for XorShift64 {}
 
 fn gen_data<I: Iterator>(keys_num: usize, foreign_keys_num: usize, mut generator: I) -> (Vec<I::Item>, Vec<I::Item>) {
-    (generator.by_ref().take(keys_num).collect(), generator.take(foreign_keys_num).collect())
+    let mut keys = Vec::with_capacity(keys_num);
+    keys.extend(generator.by_ref().take(keys_num));
+    let mut foreign = Vec::with_capacity(foreign_keys_num);
+    foreign.extend(generator.take(foreign_keys_num));
+    (keys, foreign)
+    //(generator.by_ref().take(keys_num).collect(), generator.take(foreign_keys_num).collect())
 }
 
 //fn test_data_32x<const N: usize>(how_many: usize) -> (Vec<[u32; N]>, Vec<[u32; N]>) { test_data(how_many, Generate32x::<N>::new(5678)) }
@@ -680,7 +685,7 @@ fn print_input_stats(setname: &str, strings: &[String]){
 
 fn main() {
     let conf: Conf = Conf::parse();
-    println!("multi-threaded calculations use {} threads (to change set the RAYON_NUM_THREADS environment variable)", current_num_threads());
+    println!("multi-threaded calculations use {} threads (to set by the RAYON_NUM_THREADS environment variable)", current_num_threads());
     println!("build and lookup times are averaged over {} and {} runs, respectively", conf.build_runs, conf.lookup_runs);
     match conf.key_source {
         KeySource::xs32 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))); },
