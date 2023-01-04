@@ -16,13 +16,13 @@ use boomphf::Mphf;
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
-use ph::fp::keyset::{CachedKeySet, DynamicKeySet, SliceSourceWithClones, SliceSourceWithRefs};
+use ph::fp::keyset::{SliceSourceWithClones, SliceSourceWithRefs};
 use ph::seedable_hash::BuildWyHash;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum KeyAccess {
-    /// Only sequential access to the keys is allowed, upto 10% of keys can be cached (for random access).
-    Sequential,  //(usize),
+    // Only sequential access to the keys is allowed, upto 10% of keys can be cached (for random access).
+    //Sequential,  //(usize),
     /// Random-access, read-only access to the keys is allowed. The algorithm stores 8-bit indices of the remaining keys.
     Indices8,
     /// Random-access, read-only access to the keys is allowed. The algorithm stores 16-bit indices of the remaining keys.
@@ -339,9 +339,9 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
         conf.use_multiple_threads = use_multiple_threads;
         match self.1 {
             //KeyAccess::LoMem(0) => Self::MPHF::with_conf(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
-            KeyAccess::Sequential => Self::MPHF::with_conf(
-                CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
-                conf),
+            //KeyAccess::Sequential => Self::MPHF::with_conf(
+            //    CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
+            //    conf),
             KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
             KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
             KeyAccess::Copy => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), conf)
@@ -360,9 +360,9 @@ impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: Build
         let mut conf = self.0.clone();
         conf.set_use_multiple_threads(use_multiple_threads);
         match self.1 {
-            KeyAccess::Sequential => Self::MPHF::with_builder(
-                CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
-                conf),
+            //KeyAccess::Sequential => Self::MPHF::with_builder(
+            //    CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
+            //    conf),
             KeyAccess::Indices8 => Self::MPHF::with_builder(SliceSourceWithRefs::<_, u8>::new(keys), conf),
             KeyAccess::Indices16 => Self::MPHF::with_builder(SliceSourceWithRefs::<_, u16>::new(keys), conf),
             KeyAccess::Copy => Self::MPHF::with_builder(SliceSourceWithClones::new(keys), conf)
@@ -401,21 +401,21 @@ impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     }
 }
 
-const FMPHGO_HEADER: &'static str = "prehash_threshold bits_per_group_seed relative_level_size bits_per_group";
+const FMPHGO_HEADER: &'static str = "cache_threshold bits_per_group_seed relative_level_size bits_per_group";
 
 struct FMPHGOBuildParams<S> {
     hash: S,
     relative_level_size: u16,
-    prehash_threshold: usize,
+    cache_threshold: usize,
     key_access: KeyAccess
 }
 
 fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
     where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
-    (FPHash2Builder::with_lsize_pht_mt(
+    (FPHash2Builder::with_lsize_ct_mt(
         FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
-        p.relative_level_size, p.prehash_threshold, false), p.key_access)
+        p.relative_level_size, p.cache_threshold, false), p.key_access)
     .benchmark(i, conf)
 }
 
@@ -451,7 +451,7 @@ fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits
         h2b(bits_per_group_seed, Bits(bits_per_group), i, conf, p)
     };
     if let Some(ref mut f) = file {
-        writeln!(f, "{} {} {} {} {}", p.prehash_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b.all()).unwrap();
+        writeln!(f, "{} {} {} {} {}", p.cache_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b.all()).unwrap();
     }
     b
 }
@@ -484,7 +484,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
     let mut p = FMPHGOBuildParams {
         hash,
         relative_level_size: 0,
-        prehash_threshold: usize::MAX,
+        cache_threshold: usize::MAX,
         key_access
     };
     for bits_per_group_seed in 1u8..=10u8 {
@@ -505,8 +505,8 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
 
 
 
-const FMPH_BENCHMARK_HEADER: &'static str = "prehash_threshold gamma";
-const BOOMPHF_BENCHMARK_HEADER: &'static str = "gamma";
+const FMPH_BENCHMARK_HEADER: &'static str = "cache_threshold relative_level_size";
+const BOOMPHF_BENCHMARK_HEADER: &'static str = "relative_level_size";
 
 fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, &FMPHConf)>)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
@@ -521,13 +521,13 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
         if let Some((ref hash, fc)) = use_fmph {
-            let b = (FPHashConf::hash_lsize_pht_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
+            let b = (FPHashConf::hash_lsize_ct_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
             println!(" {:.1}\t{}", gamma, b);
-            if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, gamma, b.all()).unwrap(); }
+            if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, relative_level_size, b.all()).unwrap(); }
         } else {
             let b = BooMPHFConf { gamma }.benchmark(i, &conf);
             println!(" {:.1}\t{}", gamma, b);
-            if let Some(ref mut f) = file { writeln!(f, "{} {}", gamma, b.all()).unwrap(); }
+            if let Some(ref mut f) = file { writeln!(f, "{} {}", relative_level_size, b.all()).unwrap(); }
         };
     }
 }
@@ -557,7 +557,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
             let mut p = FMPHGOBuildParams {
                 hash: BuildWyHash::default(),
                 relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
-                prehash_threshold: fmphgo_conf.cache_threshold,
+                cache_threshold: fmphgo_conf.cache_threshold,
                 key_access: fmphgo_conf.key_access,
             };
             match (fmphgo_conf.bits_per_group_seed, fmphgo_conf.group_size) {
@@ -623,7 +623,7 @@ impl Iterator for XorShift32 {
     }
 }
 
-impl ExactSizeIterator for XorShift32 {}
+//impl ExactSizeIterator for XorShift32 {}
 
 /*struct Generate32x<const N: usize>(XorShift32);
 impl<const N: usize> Generate32x<N> {
@@ -662,10 +662,15 @@ impl Iterator for XorShift64 {
     }
 }
 
-impl ExactSizeIterator for XorShift64 {}
+//impl ExactSizeIterator for XorShift64 {}
 
 fn gen_data<I: Iterator>(keys_num: usize, foreign_keys_num: usize, mut generator: I) -> (Vec<I::Item>, Vec<I::Item>) {
-    (generator.by_ref().take(keys_num).collect(), generator.take(foreign_keys_num).collect())
+    let mut keys = Vec::with_capacity(keys_num);
+    keys.extend(generator.by_ref().take(keys_num));
+    let mut foreign = Vec::with_capacity(foreign_keys_num);
+    foreign.extend(generator.take(foreign_keys_num));
+    (keys, foreign)
+    //(generator.by_ref().take(keys_num).collect(), generator.take(foreign_keys_num).collect())
 }
 
 //fn test_data_32x<const N: usize>(how_many: usize) -> (Vec<[u32; N]>, Vec<[u32; N]>) { test_data(how_many, Generate32x::<N>::new(5678)) }
@@ -679,8 +684,9 @@ fn print_input_stats(setname: &str, strings: &[String]){
 }
 
 fn main() {
-    let conf = Conf::parse();
-    println!("{} threads available for multi-threaded calculations", current_num_threads());
+    let conf: Conf = Conf::parse();
+    println!("multi-threaded calculations use {} threads (to set by the RAYON_NUM_THREADS environment variable)", current_num_threads());
+    println!("build and lookup times are averaged over {} and {} runs, respectively", conf.build_runs, conf.lookup_runs);
     match conf.key_source {
         KeySource::xs32 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))); },
         KeySource::xs64 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))); },

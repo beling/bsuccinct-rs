@@ -138,7 +138,7 @@ pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPo
     level_sizes: Vec::<u64>,
     arrays: Vec::<Box<[u64]>>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
-    pub prehash_threshold: usize,   // maximum keys size to pre-hash
+    pub cache_threshold: usize,     // maximum size of the keys set to cache hashes
     pub relative_level_size: u16,
     use_multiple_threads: bool,
     pub conf: FPHash2Conf<GS, SS, S>,
@@ -151,7 +151,7 @@ impl Default for FPHash2Builder {
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Builder<GS, SS, S>
 {
     const DEFAULT_RELATIVE_LEVEL_SIZE: u16 = 100;
-    const DEFAULT_PREHASH_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
+    const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
 
     /// Enable / disable building levels with multiple threads.
     pub fn set_use_multiple_threads(&mut self, use_multiple_threads: bool) {
@@ -160,12 +160,12 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
     #[inline(always)] pub fn get_use_multiple_threads(&self) -> bool { self.use_multiple_threads }
 
-    pub fn with_lsize_pht_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, prehash_threshold: usize, use_multiple_threads: bool) -> Self {
+    pub fn with_lsize_ct_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
         Self {
             level_sizes: Vec::<u64>::new(),
             arrays: Vec::<Box<[u64]>>::new(),
             group_seeds: Vec::<Box<[SS::VecElement]>>::new(),
-            prehash_threshold,
+            cache_threshold,
             relative_level_size,
             use_multiple_threads: use_multiple_threads && rayon::current_num_threads() > 1,
             conf
@@ -173,28 +173,28 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     }
 
     pub fn new(conf: FPHash2Conf<GS, SS, S>) -> Self {
-        Self::with_lsize_pht_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_PREHASH_THRESHOLD, true)
+        Self::with_lsize_ct_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_CACHE_THRESHOLD, true)
     }
 
-    pub fn with_lsize_pht(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, prehash_threshold: usize) -> Self {
-        Self::with_lsize_pht_mt(conf, relative_level_size, prehash_threshold, true)
+    pub fn with_lsize_ct(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize) -> Self {
+        Self::with_lsize_ct_mt(conf, relative_level_size, cache_threshold, true)
     }
 
     /// Returns builder that uses at each level a bit-array of size `relative_level_size`
     /// given as a percent of number of input keys for the level.
     pub fn with_lsize(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16) -> Self {
-        Self::with_lsize_pht_mt(conf, relative_level_size, Self::DEFAULT_PREHASH_THRESHOLD, true)
+        Self::with_lsize_ct_mt(conf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, true)
     }
 
     /// Returns builder that potentially uses multiple threads to build levels,
     /// and at each level a bit-array of size `relative_level_size`
     /// given as a percent of number of input keys for the level.
     pub fn with_lsize_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self::with_lsize_pht_mt(conf, relative_level_size, Self::DEFAULT_PREHASH_THRESHOLD, use_multiple_threads)
+        Self::with_lsize_ct_mt(conf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
     }
 
     pub fn with_mt(conf: FPHash2Conf<GS, SS, S>, use_multiple_threads: bool) -> Self {
-        Self::with_lsize_pht_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_PREHASH_THRESHOLD, use_multiple_threads)
+        Self::with_lsize_ct_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
     }
 
     fn push(&mut self, array: Box<[u64]>, seeds: Box<[SS::VecElement]>, size_groups: u64) {
@@ -278,7 +278,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         (best_array, best_seeds)
     }
 
-    fn build_next_level_prehash<KS, K>(&mut self, keys: &mut KS, level_size_groups: u64, level_size_segments: usize)
+    fn build_next_level_with_cache<KS, K>(&mut self, keys: &mut KS, level_size_groups: u64, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         let level_seed = self.level_nr();
@@ -311,8 +311,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
     fn build_next_level<KS, K>(&mut self, keys: &mut KS, level_size_groups: u64, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
-        if keys.keys_len() < self.prehash_threshold {
-            return self.build_next_level_prehash(keys, level_size_groups, level_size_segments);
+        if keys.keys_len() < self.cache_threshold {
+            return self.build_next_level_with_cache(keys, level_size_groups, level_size_segments);
         }
         let (array, seeds) = if self.use_multiple_threads {
             self.best_array(|g| self.build_array_mt(keys, level_size_segments, level_size_groups, g), level_size_groups)
