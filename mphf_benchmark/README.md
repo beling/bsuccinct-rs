@@ -35,7 +35,7 @@ The results for FMPHGO with wide range of parameters and 1,000,000 64-bit intege
 can be calculated by:
 
 ```shell
-mphf_benchmark -d -s xs64 -n 1000000 fmphgo_all
+mphf_benchmark -d -s xs64 -n 1000000 fmphgo-all
 ```
 
 The results for FMPH, FMPHGO and boomphf, for 39,459,925 64-bit integer keys generated uniformly at random,
