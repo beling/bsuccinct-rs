@@ -10,7 +10,7 @@ Included libraries:
 - `dyn_size_of` ([crate](https://crates.io/crates/dyn_size_of), [doc](https://docs.rs/dyn_size_of)) - report approximate amount of memory consumed by variables, including the memory allocated on heap.
 
 Included programs:
-- `mphf_benchmark` ([crate](https://crates.io/crates/mphf_benchmark)) - benchmarking Minimal Perfect Hash Functions (requires nightly).
+- `mphf_benchmark` ([crate](https://crates.io/crates/mphf_benchmark), [doc](https://docs.rs/mphf_benchmark)) - benchmarking Minimal Perfect Hash Functions (requires nightly).
 
 # Installation
 Programs can be compiled and installed from sources. To do this, a Rust compiler is needed.

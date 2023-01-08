@@ -492,7 +492,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
             p.relative_level_size = relative_level_size;
             print!("{} {}", bits_per_group_seed, relative_level_size);
             //for bits_per_group_log2 in 3u8..=7u8 {
-            for bits_per_group in (2u8..=62u8).step_by(2) {
+            for bits_per_group in 2u8..=62u8/*.step_by(2)*/ {
                 //let (_, b) = Conf::bps_bpg_lsize(bits_per_group_seed, TwoToPowerBits::new(bits_per_group_log2), relative_level_size).benchmark(verify);
                 let b = fmphgo(&mut csv_file, i, conf, bits_per_group_seed, bits_per_group, &p);
                 print!(" {:.2}", b.bits_per_value);
