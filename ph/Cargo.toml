@@ -12,6 +12,10 @@ include = [ "**/*.rs", "Cargo.toml", "README.md" ]
 categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
+[features]
+defualt = ["wyhash"]
+sip13 = []  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
+
 [dependencies]
 bitm = { version=">=0.2", path="../bitm" }
 dyn_size_of = { version=">=0.3", path="../dyn_size_of" }

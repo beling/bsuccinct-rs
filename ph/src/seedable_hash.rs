@@ -1,5 +1,9 @@
+use std::hash::{BuildHasher, Hash, Hasher};
+#[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
+use std::{hash::BuildHasherDefault, collections::hash_map::DefaultHasher};
+#[cfg(feature = "Sip13")]
 #[allow(deprecated)]
-use std::hash::{BuildHasher, Hash, Hasher, SipHasher13};
+use std::hash::SipHasher13;
 
 /// A trait for creating instances of [`Hasher`] that are initialized with a seed.
 pub trait BuildSeededHasher {
@@ -32,11 +36,13 @@ impl<BH: BuildHasher> BuildSeededHasher for Seedable<BH> {
     }
 }
 
+#[cfg(feature = "Sip13")]
 #[derive(Default, Copy, Clone)]
-pub struct BuildDefaultSeededHasher;
+pub struct BuildSip13;
 
+#[cfg(feature = "Sip13")]
 #[allow(deprecated)]
-impl BuildSeededHasher for BuildDefaultSeededHasher {
+impl BuildSeededHasher for BuildSip13 {
     type Hasher = SipHasher13;
 
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
@@ -78,3 +84,15 @@ impl BuildSeededHasher for fnv::FnvBuildHasher {
         Self::Hasher::with_key(seed as u64)
     }
 }
+
+#[cfg(feature = "wyhash")]
+pub type BuildDefaultSeededHasher = BuildWyHash;
+
+#[cfg(all(feature = "sip13", not(feature = "wyhash")))]
+pub type BuildDefaultSeededHasher = BuildSip13;
+
+#[cfg(all(feature = "fnv", not(feature = "sip13"), not(feature = "wyhash")))]
+pub type BuildDefaultSeededHasher = fnv::FnvBuildHasher;
+
+#[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
+pub type BuildDefaultSeededHasher = Seedable<BuildHasherDefault<DefaultHasher>>;
