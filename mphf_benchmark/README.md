@@ -15,17 +15,11 @@ Note that these instructions have been tested under GNU/Linux and may require so
 The easiest way to obtain the compiler along with other necessary tools (like `cargo`) is
 to use [rustup](https://www.rust-lang.org/tools/install).
 
-Please follow the instructions at https://www.rust-lang.org/tools/install and
-(as `mphf_benchmark` requires Rust Nightly) select *"Customize installation"* and
-*"nightly"* as *"Default toolchain"* (for all other options the default values can be left).
+Please follow the instructions at https://www.rust-lang.org/tools/install.
 
-In case Rust stable is already installed on the computer, it can be switched to nightly by executing:
+Once Rust is installed, just execute the following to install `mphf_benchmark` with native optimizations:
 
-```rustup default nightly```
-
-Once Rust Nightly is installed, just execute the following to install `mphf_benchmark`:
-
-```cargo install mphf_benchmark```
+```RUSTFLAGS="-C target-cpu=native" cargo install mphf_benchmark```
 
 # Reproducing experiments from the papers
 
@@ -126,7 +120,7 @@ memusage mphf_uk2005.sh -s stdin -n 39459925 none
 
 To benchmark RecSplit, PTHash, and CHD, we use another program with the same name (`mphf_benchmark`),
 but written in C++ by Giulio Ermanno Pibiri and Roberto Trani, and available at
-https://github.com/roberto-trani/mphf_benchmark (this site also contains compilation instructions).
+https://github.com/roberto-trani/mphf_benchmark (this site also contains compilation instructions; it is built with native optimizations by default).
 The authors have accepted our modifications to their program, which, among other things,
 ensure that both benchmark programs can generate exactly the same keys for testing MPHFs.
 

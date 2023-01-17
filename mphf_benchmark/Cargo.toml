@@ -23,3 +23,7 @@ ph = { version=">=0.5.0", path="../ph", features = ["wyhash"] }
 cmph-sys = { version=">=0.1", git = "https://github.com/beling/cmph-sys", optional = true }
 boomphf = { package = "boomphf-patched", version="0.5.9-0", git = "https://github.com/beling/rust-boomphf" }
 clap = { version="4.0", features = ["derive"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
