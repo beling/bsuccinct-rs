@@ -3,7 +3,7 @@ use std::hash::{BuildHasher, Hash, Hasher};
 #[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
 use std::{hash::BuildHasherDefault, collections::hash_map::DefaultHasher};
 
-#[cfg(feature = "Sip13")]
+#[cfg(feature = "sip13")]
 #[allow(deprecated)]
 use std::hash::SipHasher13;
 
@@ -38,11 +38,11 @@ impl<BH: BuildHasher> BuildSeededHasher for Seedable<BH> {
     }
 }
 
-#[cfg(feature = "Sip13")]
+#[cfg(feature = "sip13")]
 #[derive(Default, Copy, Clone)]
 pub struct BuildSip13;
 
-#[cfg(feature = "Sip13")]
+#[cfg(feature = "sip13")]
 #[allow(deprecated)]
 impl BuildSeededHasher for BuildSip13 {
     type Hasher = SipHasher13;

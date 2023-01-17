@@ -13,7 +13,7 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [features]
-defualt = ["wyhash"]
+default = ["wyhash"]
 sip13 = []  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
 
 [dependencies]

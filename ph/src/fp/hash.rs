@@ -121,6 +121,20 @@ pub(crate) fn fphash_remove_collided(result: &mut Box<[u64]>, collision: &[u64])
     }
 }
 
+/// Cast `v` to slice of `AtomicU64`.
+#[inline]
+pub(crate) fn from_mut_slice(v: &mut [u64]) -> &mut [AtomicU64] {
+    use core::mem::align_of;
+    let [] = [(); align_of::<AtomicU64>() - align_of::<u64>()];
+    unsafe { &mut *(v as *mut [u64] as *mut [AtomicU64]) }
+}   // copied from unstable rust, from_mut_slice #94384
+
+/// Cast `v` to slice of `u64`.
+#[inline]
+pub(crate) fn get_mut_slice(v: &mut [AtomicU64]) -> &mut [u64] {
+    unsafe { &mut *(v as *mut [AtomicU64] as *mut [u64]) }
+}   // copied from unstable rust, get_mut_slice #94816
+
 // Remove from bit-array `result` all bits that are set in `collision`. Uses multiple threads.
 /*pub(crate) fn fphash_par_remove_collided(result: &mut Box<[u64]>, collision: &[u64]) {
     result.par_iter_mut().zip(collision.par_iter()).for_each(|(r, c)| {
@@ -174,12 +188,12 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             return self.build_array_for_indices_st(bit_indices, level_size_segments)
         }
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
-        let result_atom = AtomicU64::from_mut_slice(&mut result);
+        let result_atom = from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         bit_indices.par_iter().for_each(
             |bit_index| fphash_sync_add_bit(&result_atom, &collision, *bit_index)
         );
-        fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
+        fphash_remove_collided(&mut result, get_mut_slice(&mut collision));
         result
     }
 
@@ -206,14 +220,14 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             return self.build_level_st(keys, level_size_segments, seed);
         }
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
-        let result_atom = AtomicU64::from_mut_slice(&mut result);
+        let result_atom = from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         let level_size = level_size_segments * 64;
         keys.par_for_each_key(
             |key| fphash_sync_add_bit(&&result_atom, &collision, index(key, &self.conf.hash, seed, level_size)),
             |key| self.retained(key)
         );
-        fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
+        fphash_remove_collided(&mut result, get_mut_slice(&mut collision));
         result
     }
 

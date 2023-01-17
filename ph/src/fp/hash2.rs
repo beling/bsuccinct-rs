@@ -6,6 +6,7 @@ use crate::utils::ArrayWithRank;
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 
 use crate::read_array;
+use super::hash::{from_mut_slice, get_mut_slice};
 use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
 use std::io;
 use std::sync::atomic::AtomicU64;
@@ -122,12 +123,12 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Con
     fn build_array_for_hashes_mt(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u64, group_seed: u16) -> Box<[u64]>
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
-        let result_atom = AtomicU64::from_mut_slice(&mut result);
+        let result_atom = from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         key_hashes.par_iter().for_each(
             |hash| fphash_sync_add_bit(&result_atom, &collision, self.hash_index(*hash, level_size_groups, |_| group_seed))
         );
-        fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
+        fphash_remove_collided(&mut result, get_mut_slice(&mut collision));
         result
     }
 }
@@ -241,14 +242,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
             return self.build_array(keys, level_size_segments, level_size_groups, group_seed);
         }
         let mut result = vec![0u64; level_size_segments as usize].into_boxed_slice();
-        let result_atom = AtomicU64::from_mut_slice(&mut result);
+        let result_atom = from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         let level_seed = self.level_nr();
         keys.par_for_each_key(
             |key| fphash_sync_add_bit(&result_atom, &collision, self.conf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
             |key| self.retained(key)
         );
-        fphash_remove_collided(&mut result, AtomicU64::get_mut_slice(&mut collision));
+        fphash_remove_collided(&mut result, get_mut_slice(&mut collision));
         result
     }
 

@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
-#![feature(atomic_from_mut)]
-#![cfg_attr(feature = "Sip13", feature(hashmap_internals))]
+//#![feature(atomic_from_mut)]
+#![cfg_attr(feature = "sip13", feature(hashmap_internals))]
 
 pub mod utils;
 pub mod stats;
