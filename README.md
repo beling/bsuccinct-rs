@@ -21,10 +21,10 @@ to use [rustup](https://www.rust-lang.org/tools/install).
 Please follow the instructions at https://www.rust-lang.org/tools/install.
 
 ## Installing rust programs
-Once Rust is installed, to compile and install a program from sources, just execute:
+Once Rust is installed, to compile and install a program from sources and with native optimizations, just execute:
 
-```cargo install <program_name>```
+```RUSTFLAGS="-C target-cpu=native" cargo install <program_name>```
 
 for example
 
-```cargo install mphf_benchmark```
+```RUSTFLAGS="-C target-cpu=native" cargo install mphf_benchmark```
