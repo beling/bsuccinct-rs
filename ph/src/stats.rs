@@ -10,23 +10,23 @@ impl BuildStatsCollector for () {
     #[inline(always)] fn end(&mut self) {}
 }
 
-pub struct BuidStatsPrinter<W: Write = std::io::Stdout> {
+pub struct BuildStatsPrinter<W: Write = std::io::Stdout> {
     writer: W,
 }
 
-impl BuidStatsPrinter<std::io::Stdout> {
+impl BuildStatsPrinter<std::io::Stdout> {
     pub fn stdout() -> Self {
         Self { writer: std::io::stdout() }
     }
 }
 
-impl<W: Write> BuidStatsPrinter<W> {
+impl<W: Write> BuildStatsPrinter<W> {
     pub fn new(writer: W) -> Self {
         Self { writer }
     }
 }
 
-impl<W: Write> BuildStatsCollector for BuidStatsPrinter<W> {
+impl<W: Write> BuildStatsCollector for BuildStatsPrinter<W> {
     fn level(&mut self, input_size: usize, level_size: usize) {
         writeln!(self.writer, "{} {}", input_size, level_size).unwrap();
     }
