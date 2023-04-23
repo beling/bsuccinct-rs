@@ -1,4 +1,4 @@
-use binout::{read_int, write_int};
+use binout::write_int;
 use std::hash::Hash;
 use bitm::{BitAccess, BitArrayWithRank, ceiling_div};
 

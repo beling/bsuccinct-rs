@@ -36,21 +36,28 @@ macro_rules! bits_to_store {
 /// # Examples of calls:
 ///
 /// ```
+/// use ph::read_array;
+/// 
 /// // Let l be an integer, v be a vector, and input implement Read.
-/// read_array!([u32, l] from input to v);   // reads l 32-bit integers from input and pushes them to v
-/// v = read_array!([u32, l] from input);    // reads l 32-bit integers from input (as a Vec::<u32>)
-/// v = read_array!([u32, read u8] from input); // reads (from input) number (stored as u8) of elements to read, and read that number of u32 (as a Vec::<u32>)
+/// let l = 1;
+/// let mut v = Vec::new();
+/// let mut input = std::io::repeat(255u8);
+/// 
+/// let v = read_array!([u32; l] from input);    // reads l 32-bit integers from input (as a Vec::<u32>)
+/// assert_eq!(v, vec![u32::MAX]);
+/// read_array!([u32; l] from input to v);   // reads l 32-bit integers from input and pushes them to v
+/// let v = read_array!([u32; read u8] from input); // reads (from input) number (stored as u8) of elements to read, and read that number of u32 (as a Vec::<u32>)
 /// read_array!(l; bits from input);    // reads l (rounded up to a multiple of 64) bits from input as a Vec::<u64>
 /// ```
 #[macro_export]
 macro_rules! read_array {
     ([$cell_t:ty; $len:expr] from $input:ident to $vec:ident) => {{
-        for _ in 0..$len { $vec.push(read_int!($input, $cell_t)?) }
+        for _ in 0..$len { $vec.push($crate::utils::read_int!($input, $cell_t)?) }
     }};
 
     ([$cell_t:ty; read $len_t:ty] from $input:ident) => {{
         //read_array!(read_int!($input, $len_t) $cell_t cells from $input)
-        read_array!([$cell_t; read_int!($input, $len_t)?] from $input)
+        read_array!([$cell_t; $crate::utils::read_int!($input, $len_t)?] from $input)
     }};
 
     ([$cell_t:ty; $len:expr] from $input:ident) => {{
@@ -61,7 +68,7 @@ macro_rules! read_array {
     }};
 
     ($len:expr; bits from $input:ident) => {{
-        read_array!([u64; bitm::ceiling_div($len, 64)] from $input)
+        read_array!([u64; { let l=$len; (l+64-1)/l }] from $input)
     }};
 }
 
