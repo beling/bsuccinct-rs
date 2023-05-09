@@ -79,11 +79,15 @@ macro_rules! read_int {
     v as u8 | (1 << 7)
 }
 
-/// Writes `val` into `output` in *VByte* format.
+/// Writes `val` into `output` in improved *VByte* encoding.
+/// 
+/// For `val` below $2^63$, the encoding is identical to the classic *VByte*.
+/// For larger val, the encoding always stores the most significant byte of `val` as is, using a total of 9 bytes,
+/// whereas a classic VByte could use 10 bytes.
 pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, mut val: u64) -> std::io::Result<()> {
-    if val >= (1 << 35) {
-        output.write_all(&[m(val), m(val >> 7), m(val >> 14), m(val >> 21), m(val >> 28)])?;
-        val >>= 35;
+    if val >= (1 << 28) {
+        output.write_all(&[m(val), m(val >> 7), m(val >> 14), m(val >> 21)])?;
+        val >>= 28;
     }
     if val < (1 << 7) {
         output.write_all(&[val as u8])
@@ -98,7 +102,7 @@ pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, mut val: u64) -> 
     }
 }
 
-/// Returns number of bytes occupied by `val` in *VByte* format. Result is in the range *[1, 10]*.
+/// Returns number of bytes occupied by `val` in improved *VByte* format. Result is in the range *[1, 9]*.
 ///
 /// # Example
 ///
@@ -108,9 +112,10 @@ pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, mut val: u64) -> 
 /// assert_eq!(vbyte_len(0), 1);
 /// assert_eq!(vbyte_len(127), 1);
 /// assert_eq!(vbyte_len(128), 2);
+/// assert_eq!(vbyte_len(u64::MAX), 9);
 /// ```
 pub fn vbyte_len(mut val: u64) -> u8 {
-    let ta = if val < (1 << 35) { 0 } else { val >>= 35; 5 };
+    let ta = if val < (1 << 28) { 0 } else { val >>= 28; 4 };
     ta + if val < (1 << 7)  { 1 }
     else if val < (1 << 14) { 2 }
     else if val < (1 << 21) { 3 }
@@ -121,18 +126,14 @@ pub fn vbyte_len(mut val: u64) -> u8 {
 pub fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<u64> {
     let mut read: u8 = 0;
     let mut result = 0;
-    for shift in [0, 7, 14, 21, 28, 35, 42, 49, 56] {
+    for shift in [0, 7, 14, 21, 28, 35, 42, 49] {
         input.read_exact(std::slice::from_mut(&mut read))?;
         result |= ((read & 0x7F) as u64) << shift;
         if read < 128 { return Ok(result) }
     }
-    // for shift=63 we check for errors:
+    // we have already read 56 bits, and last byte is always saved at 8-bits
     input.read_exact(std::slice::from_mut(&mut read))?;
-    if read < 2 {   // when shift=63 only allowed value are 0 and 1
-        Ok(result | ((read as u64) << 63))
-    } else {
-        Err(std::io::ErrorKind::InvalidData.into())   // last byte is too big
-    }
+    Ok(result | ((read as u64) << 56))
 }
 
 #[cfg(test)]
@@ -156,6 +157,9 @@ mod tests {
         test_vbyte(8912310);
         test_vbyte(2_000_000_000);
         test_vbyte(4_000_000_000);
+        test_vbyte((1<<28)-1);
+        test_vbyte(1<<28);
+        test_vbyte((1<<28)+1);
         test_vbyte((1<<35)-1);
         test_vbyte(1<<35);
         test_vbyte((1<<35)+1);
