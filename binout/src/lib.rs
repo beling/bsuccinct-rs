@@ -1,6 +1,39 @@
 #![doc = include_str!("../README.md")]
-
 #![macro_use]
+
+trait Serializable {
+    /// Returns number of bytes which `write_to` will write.
+    fn write_size_bytes(&self) -> usize;
+
+    /// Serialize `self` to the given `output`.
+    fn write_to<W: std::io::Write + ?Sized>(&self, output: &mut W) -> std::io::Result<()>;
+
+    /// Read from the give `input`.
+    fn read_from<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Self> where Self: Sized;
+}
+
+macro_rules! impl_serializable_for_int {
+    ($selftype:ty) => {
+        impl Serializable for $selftype {
+            fn write_size_bytes(&self) -> usize { ::std::mem::size_of::<$selftype>() }
+            fn write_to<W: std::io::Write + ?Sized>(&self, output: &mut W) -> std::io::Result<()> {
+                ::std::io::Write::write_all(output, &self.to_le_bytes())
+            }
+            fn read_from<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Self> where Self: Sized {
+                let mut buff = [0u8; ::std::mem::size_of::<$selftype>()];
+                let result = ::std::io::Read::read_exact(input, &mut buff);
+                result.map(|()| <$selftype>::from_le_bytes(buff))
+            }
+        }
+    };
+
+    ($x:ty, $($y:ty),+) => (
+        impl_serializable_for_int!($x);
+        impl_serializable_for_int!($($y),+);
+    )
+}
+
+impl_serializable_for_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
 /// Writes primitive (integer) to `output` (which implements `std::io::Write`);
 /// in little-endian bytes order.
@@ -42,12 +75,16 @@ macro_rules! read_int {
 }
 
 /// Returns byte whose 7 least significant bits are copied from `v` and the most significant bit is `1`.
-#[inline(always)] fn m(v: u32) -> u8 {
+#[inline(always)] fn m(v: u64) -> u8 {
     v as u8 | (1 << 7)
 }
 
 /// Writes `val` into `output` in *VByte* format.
-pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, val: u32) -> std::io::Result<()> {
+pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, mut val: u64) -> std::io::Result<()> {
+    if val >= (1 << 35) {
+        output.write_all(&[m(val), m(val >> 7), m(val >> 14), m(val >> 21), m(val >> 28)])?;
+        val >>= 35;
+    }
     if val < (1 << 7) {
         output.write_all(&[val as u8])
     } else if val < (1 << 14) {
@@ -61,7 +98,7 @@ pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, val: u32) -> std:
     }
 }
 
-/// Returns number of bytes occupied by `val` in *VByte* format. Result is in the range *[1, 5]*.
+/// Returns number of bytes occupied by `val` in *VByte* format. Result is in the range *[1, 10]*.
 ///
 /// # Example
 ///
@@ -72,30 +109,37 @@ pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, val: u32) -> std:
 /// assert_eq!(vbyte_len(127), 1);
 /// assert_eq!(vbyte_len(128), 2);
 /// ```
-pub fn vbyte_len(val: u32) -> u8 {
-    if val < (1 << 7) { 1 }
+pub fn vbyte_len(mut val: u64) -> u8 {
+    let ta = if val < (1 << 35) { 0 } else { val >>= 35; 5 };
+    ta + if val < (1 << 7)  { 1 }
     else if val < (1 << 14) { 2 }
     else if val < (1 << 21) { 3 }
     else if val < (1 << 28) { 4 } else { 5 }
 }
 
 /// Returns the value read from `input` and decoded from *VByte* format.
-pub fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<u32> {
+pub fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<u64> {
     let mut read: u8 = 0;
     let mut result = 0;
-    for shift in [0, 7, 14, 21, 28] {
+    for shift in [0, 7, 14, 21, 28, 35, 42, 49, 56] {
         input.read_exact(std::slice::from_mut(&mut read))?;
-        result |= ((read & 0x7F) as u32) << shift;
+        result |= ((read & 0x7F) as u64) << shift;
         if read < 128 { return Ok(result) }
     }
-    Err(std::io::ErrorKind::InvalidData.into())   // too many bytes greater than 128
+    // for shift=63 we check for errors:
+    input.read_exact(std::slice::from_mut(&mut read))?;
+    if read < 2 {   // when shift=63 only allowed value are 0 and 1
+        Ok(result | ((read as u64) << 63))
+    } else {
+        Err(std::io::ErrorKind::InvalidData.into())   // last byte is too big
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn test_vbyte(value: u32) {
+    fn test_vbyte(value: u64) {
         let mut buff = Vec::new();
         assert!(vbyte_write(&mut buff, value).is_ok());
         assert_eq!(buff.len(), vbyte_len(value) as usize);
@@ -112,6 +156,17 @@ mod tests {
         test_vbyte(8912310);
         test_vbyte(2_000_000_000);
         test_vbyte(4_000_000_000);
-        test_vbyte(u32::MAX);
+        test_vbyte((1<<35)-1);
+        test_vbyte(1<<35);
+        test_vbyte((1<<35)+1);
+        test_vbyte((1<<56)-1);
+        test_vbyte(1<<56);
+        test_vbyte((1<<56)+1);
+        test_vbyte((1<<63)-1);
+        test_vbyte(1<<63);
+        test_vbyte((1<<63)+1);
+        test_vbyte(u64::MAX>>1);
+        test_vbyte(u64::MAX-1);
+        test_vbyte(u64::MAX);
     }
 }
