@@ -20,8 +20,7 @@ pub trait Serializer<T: Copy>: Copy {
     fn write_all_values<W, InIter>(output: &mut W, values: InIter) -> std::io::Result<()>
         where W: std::io::Write + ?Sized, InIter: IntoIterator<Item = T>
     {
-        for val in values { Self::write(output, val)?; }
-        Ok(())
+        values.into_iter().try_for_each(|val| Self::write(output, val))
     }
 
     /// Serialize all `values` into the given `output`.
