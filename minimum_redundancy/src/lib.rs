@@ -5,7 +5,7 @@ use std::hash::Hash;
 use co_sort::{co_sort, Permutation};
 
 use std::borrow::Borrow;
-use binout::{vbyte_len, vbyte_read, vbyte_write};
+use binout::{VByte, Serializer};
 use dyn_size_of::GetSize;
 
 mod code;
@@ -162,24 +162,22 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
 
     /// Returns number of bytes which `write_internal_nodes_count` will write.
     pub fn write_internal_nodes_count_bytes(&self) -> usize {
-        let l = self.internal_nodes_count.len()-1;
-        vbyte_len(l as u64) as usize
-            + self.internal_nodes_count[..l].iter().map(|v| vbyte_len(*v as u64) as usize).sum::<usize>()
+        VByte::array_size(&self.internal_nodes_count[..self.internal_nodes_count.len()-1])
     }
 
     /// Writes `internal_nodes_count` to `output` as the following `internal_nodes_count.len()`, VByte values:
     /// `internal_nodes_count.len()-1` (=l), `internal_nodes_count[0]`, `internal_nodes_count[1]`, ..., `internal_nodes_count[l]`
     pub fn write_internal_nodes_count(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
-        let l = self.internal_nodes_count.len()-1;
-        vbyte_write(output, l as u64)?;
-        self.internal_nodes_count[..l].iter().try_for_each(|v| vbyte_write(output, *v as u64))
+        VByte::write_array(output, &self.internal_nodes_count[..self.internal_nodes_count.len()-1])
+        //<VByte as Serializer::<u32>>::write_all(output, &self.internal_nodes_count[..l])
+        //self.internal_nodes_count[..l].iter().try_for_each(|v| vbyte_write(output, *v as u64))
     }
 
     /// Reads (written by `write_internal_nodes_count`) `internal_nodes_count` from `input`.
     pub fn read_internal_nodes_count(input: &mut dyn std::io::Read) -> std::io::Result<Box<[u32]>> {
-        let s = vbyte_read(input)?;
-        let mut v = Vec::<u32>::with_capacity(s as usize + 1);
-        for _ in 0..s { v.push(vbyte_read(input)?.try_into().map_err(|_| std::io::ErrorKind::InvalidData)?); }
+        let s: usize = VByte::read(input)?;
+        let mut v = Vec::<u32>::with_capacity(s + 1);
+        for _ in 0..s { v.push(VByte::read(input)?); }
         v.push(0);
         Ok(v.into_boxed_slice())
     }
@@ -187,7 +185,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     /// Returns number of bytes which `write_values` will write,
     /// assuming that each call to `write_value` writes the number of bytes pointed by `value_size`.
     pub fn write_values_size_bytes(&self, value_size: ValueSize<ValueType>) -> usize {
-        vbyte_len(self.values.len() as u64) as usize +
+        VByte::size(self.values.len()) +
             match value_size {
                 ValueSize::Const(bytes_per_value) => { bytes_per_value*self.values.len() }
                 ValueSize::Variable(f) => { self.values.iter().map(f).sum::<usize>() }
@@ -198,7 +196,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     pub fn write_values<F>(&self, output: &mut dyn std::io::Write, mut write_value: F) -> std::io::Result<()>
         where F: FnMut(&mut dyn std::io::Write, &ValueType) -> std::io::Result<()>
     {
-        vbyte_write(output, self.values.len() as u64)?;
+        VByte::write(output, self.values.len())?;
         self.values.iter().try_for_each(|v| { write_value(output, v) })
     }
 
@@ -206,8 +204,8 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     pub fn read_values<F>(input: &mut dyn std::io::Read, mut read_value: F) -> std::io::Result<Box<[ValueType]>>
         where F: FnMut(&mut dyn std::io::Read) -> std::io::Result<ValueType>
     {
-        let s = vbyte_read(input)?;
-        let mut v = Vec::with_capacity(s as usize);
+        let s = VByte::read(input)?;
+        let mut v = Vec::with_capacity(s);
         for _ in 0..s { v.push(read_value(input)?); }
         Ok(v.into_boxed_slice())
     }

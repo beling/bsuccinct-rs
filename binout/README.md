@@ -1,12 +1,13 @@
-`binout` is the Rust library by Piotr Beling for binary encoding,
-decoding, serialization, deserialization of data.
-It supports slightly improved vbyte format.
+`binout` is the Rust library by Piotr Beling for binary encoding, decoding, serialization, deserialization of integers and arrays of integers.
+It supports slightly improved vbyte/LEB128 format as well as simple, little-endian, as-is serialization.
 
 # Example
 ```rust
-let input = 123;
-let mut buffer = Vec::new();
-binout::vbyte_write(&mut buffer, input).unwrap();
-assert_eq!(binout::vbyte_len(input) as usize, buffer.len());
-assert_eq!(binout::vbyte_read(&mut &buffer[..]).unwrap(), input);
+use binout::{VByte, Serializer};
+
+let value = 123456u64;
+let mut buff = Vec::new();
+assert!(VByte::write(&mut buff, value).is_ok());
+assert_eq!(buff.len(), VByte::size_bytes(value));
+assert_eq!(VByte::read(&mut &buff[..]).unwrap(), value)
 ```

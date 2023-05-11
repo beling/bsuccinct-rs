@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 use std::ops::Mul;
-use binout::{read_int, write_int};
+use binout::{AsIs, VByte, Serializer};
 
 /// Represents the degree of the Huffman tree,
 /// which is equal to the number of different
@@ -9,14 +9,14 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     /// Returns the degree of the Huffman tree as u32.
     fn as_u32(&self) -> u32;
 
-    /// Returns number of bites that `self.write` writes to the output.
+    /// Returns number of bytes that `self.write` writes to the output.
     #[inline(always)] fn write_size_bytes(&self) -> usize {
-        std::mem::size_of::<u32>()
+        VByte::size(self.as_u32())
     }
 
     /// Writes `self` to `output`.
     #[inline(always)] fn write(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write_int!(output, self.as_u32())
+        VByte::write(output, self.as_u32())
     }
 
     /// Reads `Self` from `input`.
@@ -56,11 +56,11 @@ impl TreeDegree for BitsPerFragment {
     }
 
     fn write(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write_int!(output, self.0)
+        AsIs::write(output, self.0)
     }
 
     fn read(input: &mut dyn std::io::Read) -> std::io::Result<Self> {
-        read_int!(input, u8).map(|v| Self(v))
+        AsIs::read(input).map(|v| Self(v))
     }
 
     fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32 {
@@ -105,7 +105,7 @@ impl TreeDegree for Degree {
     }
 
     fn read(input: &mut dyn std::io::Read) -> std::io::Result<Self> {
-        read_int!(input, u32).map(|v| Self(v))
+        VByte::read(input).map(|v| Self(v))
     }
 
     fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32 {
