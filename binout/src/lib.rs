@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+/// Trait implemented by each serializer for the following types:
+/// `u8`, `u16`, `u32`, `u64`, `usize` (which, for portability, is always serialized the same as `u64`).
 pub trait Serializer<T: Copy>: Copy {
 
     /// Either size of each value in bytes (if each value occupies constant size) or `None`.
@@ -109,41 +111,6 @@ macro_rules! impl_le_serializer {
 
 impl_le_serializer!(AsIs, u8, u16, u32, u64);  // , i8, i16, i32, i64, i128, isize
 
-// TODO remove
-/*pub trait Serializable {
-    /// Returns number of bytes which `write_to` will write.
-    fn write_size_bytes(&self) -> usize;
-
-    /// Serialize `self` to the given `output`.
-    fn write_to<W: std::io::Write + ?Sized>(&self, output: &mut W) -> std::io::Result<()>;
-
-    /// Read from the give `input`.
-    fn read_from<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Self> where Self: Sized;
-}
-
-macro_rules! impl_serializable_for_int {
-    ($selftype:ty) => {
-        impl Serializable for $selftype {
-            fn write_size_bytes(&self) -> usize { ::std::mem::size_of::<$selftype>() }
-            fn write_to<W: std::io::Write + ?Sized>(&self, output: &mut W) -> std::io::Result<()> {
-                ::std::io::Write::write_all(output, &self.to_le_bytes())
-            }
-            fn read_from<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Self> where Self: Sized {
-                let mut buff = [0u8; ::std::mem::size_of::<$selftype>()];
-                let result = ::std::io::Read::read_exact(input, &mut buff);
-                result.map(|()| <$selftype>::from_le_bytes(buff))
-            }
-        }
-    };
-
-    ($x:ty, $($y:ty),+) => (
-        impl_serializable_for_int!($x);
-        impl_serializable_for_int!($($y),+);
-    )
-}
-
-impl_serializable_for_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);*/
-
 /// Writes primitive (integer) to `output` (which implements `std::io::Write`);
 /// in little-endian bytes order.
 ///
@@ -186,55 +153,8 @@ macro_rules! read_int {
 /// Returns byte whose 7 least significant bits are copied from `v` and the most significant bit is `1`.
 macro_rules! m { ($v:expr) => { $v as u8 | (1 << 7) } }
 
-/*#[inline(always)] fn m(v: u64) -> u8 {
-    v as u8 | (1 << 7)
-}*/
-
-/// Writes `val` into `output` in improved *VByte* encoding.
-/// 
-/// For `val` below $2^63$, the encoding is identical to the classic *VByte*.
-/// For larger val, the encoding always stores the most significant byte of `val` as is, using a total of 9 bytes,
-/// whereas a classic VByte could use 10 bytes.
-pub fn vbyte_write<W: std::io::Write + ?Sized>(output: &mut W, mut val: u64) -> std::io::Result<()> {
-    if val >= (1 << 28) {
-        output.write_all(&[m!(val), m!(val >> 7), m!(val >> 14), m!(val >> 21)])?;
-        val >>= 28;
-    }
-    if val < (1 << 7) {
-        output.write_all(&[val as u8])
-    } else if val < (1 << 14) {
-        output.write_all(&[m!(val), (val >> 7) as u8])
-    } else if val < (1 << 21) {
-        output.write_all(&[m!(val), m!(val >> 7), (val >> 14) as u8])
-    } else if val < (1 << 28) {
-        output.write_all(&[m!(val), m!(val >> 7), m!(val >> 14), (val >> 21) as u8])
-    } else {
-        output.write_all(&[m!(val), m!(val >> 7), m!(val >> 14), m!(val >> 21), (val >> 28) as u8])
-    }
-}
-
-/// Returns number of bytes occupied by `val` in improved *VByte* format. Result is in the range *[1, 9]*.
-///
-/// # Example
-///
-/// ```
-/// use binout::vbyte_len;
-///
-/// assert_eq!(vbyte_len(0), 1);
-/// assert_eq!(vbyte_len(127), 1);
-/// assert_eq!(vbyte_len(128), 2);
-/// assert_eq!(vbyte_len(u64::MAX), 9);
-/// ```
-pub fn vbyte_len(mut val: u64) -> u8 {
-    let ta = if val < (1 << 28) { 0 } else { val >>= 28; 4 };
-    ta + if val < (1 << 7)  { 1 }
-    else if val < (1 << 14) { 2 }
-    else if val < (1 << 21) { 3 }
-    else if val < (1 << 28) { 4 } else { 5 }
-}
-
 /// Returns the value read from `input` and decoded from *VByte* format.
-pub fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R, max_shift: u8) -> std::io::Result<u64> {
+fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R, max_shift: u8) -> std::io::Result<u64> {
     let mut read: u8 = 0;
     let mut result = 0;
     let mut shift = 0;
@@ -249,6 +169,14 @@ pub fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R, max_shift: u8) -> st
     Ok(result | ((read as u64) << shift))
 }
 
+/// Serializer that uses improved *VByte*/*LEB128* encoding.
+/// 
+/// The encoding is identical to the classic *VByte*/*LEB128* for `u16` and `u32` values.
+/// However:
+/// - `u8` value are always stored as is, using 1 byte.
+/// - For `u64` values below $2^63$, the encoding is identical to the classic *VByte*/*LEB128*;
+///   For larger values, the encoding always stores the most significant byte of value as is, using a total of 9 bytes,
+///   whereas a classic VByte could use 10 bytes.
 #[derive(Clone, Copy)]
 pub struct VByte;
 
