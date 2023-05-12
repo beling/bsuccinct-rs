@@ -333,7 +333,7 @@ impl<S: BuildSeededHasher> GetSize for FPHash<S> {
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S: BuildSeededHasher + Sync> FPHash<S> {
+impl<S: BuildSeededHasher> FPHash<S> {
 
     #[inline(always)] fn index<K: Hash>(&self, k: &K, level_nr: u32, size: usize) -> usize {
         //utils::map64_to_32(self.hash_builder.hash_one(k, level_nr), size as u32) as usize
@@ -357,10 +357,34 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
     }
 
     /// Gets the value associated with the given `key`.
-    pub fn get<K: Hash>(&self, key: &K) -> Option<u64> {
+    #[inline] pub fn get<K: Hash>(&self, key: &K) -> Option<u64> {
         self.get_stats(key, &mut ())
     }
 
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        VByte::array_size(&self.level_sizes) + AsIs::array_content_size(&self.array.content)
+    }
+
+    /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        VByte::write_array(output, &self.level_sizes)?;
+        AsIs::write_all(output, self.array.content.iter())
+    }
+
+    /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
+    pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
+    {
+        let level_sizes = VByte::read_array(input)?.into_boxed_slice();
+        let array_content_len = level_sizes.iter().map(|v|*v as usize).sum::<usize>();
+        let array_content = AsIs::read_n(input, array_content_len)?.into_boxed_slice();
+        let (array_with_rank, _) = ArrayWithRank::build(array_content);
+        Ok(Self { array: array_with_rank, level_sizes, hash_builder: hasher })
+    }
+}
+
+impl<S: BuildSeededHasher + Sync> FPHash<S> {
     /// Builds `FPHash` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
     pub fn with_conf_stats<K, BS>(mut keys: impl KeySet<K>, conf: FPHashConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync,
@@ -412,28 +436,6 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, &mut ())
-    }
-
-    /// Returns number of bytes which `write` will write.
-    pub fn write_bytes(&self) -> usize {
-        VByte::array_size(&self.level_sizes) + AsIs::array_content_size(&self.array.content)
-    }
-
-    /// Writes `self` to the `output`.
-    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
-    {
-        VByte::write_array(output, &self.level_sizes)?;
-        AsIs::write_all(output, self.array.content.iter())
-    }
-
-    /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
-    pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
-    {
-        let level_sizes = VByte::read_array(input)?.into_boxed_slice();
-        let array_content_len = level_sizes.iter().map(|v|*v as usize).sum::<usize>();
-        let array_content = AsIs::read_n(input, array_content_len)?.into_boxed_slice();
-        let (array_with_rank, _) = ArrayWithRank::build(array_content);
-        Ok(Self { array: array_with_rank, level_sizes, hash_builder: hasher })
     }
 }
 
