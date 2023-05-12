@@ -1,11 +1,10 @@
-use binout::write_int;
 use std::hash::Hash;
+use binout::{VByte, Serializer, AsIs};
 use bitm::{BitAccess, BitArrayWithRank, ceiling_div};
 
-use crate::utils::ArrayWithRank;
+use crate::utils::{ArrayWithRank, read_bits};
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 
-use crate::read_array;
 use super::hash::{from_mut_slice, get_mut_slice};
 use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
 use std::io;
@@ -486,21 +485,18 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
 
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
-        std::mem::size_of::<u8>()   // bits_per_group_seed
-            + self.conf.bits_per_group.write_size_bytes()
-            + std::mem::size_of::<u32>()    // self.level_size.len()
-            + self.level_size.size_bytes_content_dyn()
-            + self.array.content.size_bytes_content_dyn()
-            + self.group_seeds.size_bytes_content_dyn()
+        self.conf.bits_per_group.write_size_bytes()
+            + VByte::array_size(&self.level_size)
+            + AsIs::array_content_size(&self.array.content)
+            + std::mem::size_of::<u8>() + self.group_seeds.size_bytes_content_dyn()
     }
 
     /// Writes `self` to the `output`.
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
     {
         self.conf.bits_per_group.write(output)?;
-        write_int!(output, self.level_size.len() as u32)?;
-        self.level_size.iter().try_for_each(|l| { write_int!(output, l) })?;
-        self.array.content.iter().try_for_each(|v| write_int!(output, v))?;
+        VByte::write_array(output, &self.level_size)?;
+        AsIs::write_all(output, self.array.content.iter())?;
         self.conf.bits_per_seed.write_seed_vec(output, &self.group_seeds)
     }
 
@@ -508,10 +504,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
     {
         let bits_per_group = GS::read(input)?;
-        let level_size = read_array!([u64; read u32] from input).into_boxed_slice();
+        let level_size = VByte::read_array(input)?.into_boxed_slice();
         let number_of_groups = level_size.iter().map(|v|*v as usize).sum::<usize>();
 
-        let array_content = read_array!(bits_per_group * number_of_groups; bits from input).into_boxed_slice();
+        let array_content = read_bits(input, bits_per_group * number_of_groups)?;
         let (array_with_rank, _) = ArrayWithRank::build(array_content);
 
         let (bits_per_group_seed, group_seeds) = SS::read_seed_vec(input, number_of_groups)?;

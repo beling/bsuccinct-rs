@@ -1,8 +1,9 @@
-pub use binout::{read_int, write_int};
 use std::num::NonZeroUsize;
 use std::thread::available_parallelism;
+use binout::{AsIs, Serializer};
 #[cfg(feature = "simple_rank")] use bitm::ArrayWithRankSimple;
 #[cfg(not(feature = "simple_rank"))] use bitm::ArrayWithRank101111;
+use bitm::ceiling_div;
 
 #[cfg(feature = "simple_rank")] pub type ArrayWithRank = ArrayWithRankSimple;
 #[cfg(not(feature = "simple_rank"))] pub type ArrayWithRank = ArrayWithRank101111;
@@ -31,45 +32,9 @@ macro_rules! bits_to_store {
     }};
 }
 
-/// Reads array of integers from given `input`.
-///
-/// # Examples of calls:
-///
-/// ```
-/// use ph::read_array;
-/// 
-/// // Let l be an integer, v be a vector, and input implement Read.
-/// let l = 1;
-/// let mut v = Vec::new();
-/// let mut input = std::io::repeat(255u8);
-/// 
-/// let v = read_array!([u32; l] from input);    // reads l 32-bit integers from input (as a Vec::<u32>)
-/// assert_eq!(v, vec![u32::MAX]);
-/// read_array!([u32; l] from input to v);   // reads l 32-bit integers from input and pushes them to v
-/// let v = read_array!([u32; read u8] from input); // reads (from input) number (stored as u8) of elements to read, and read that number of u32 (as a Vec::<u32>)
-/// read_array!(l; bits from input);    // reads l (rounded up to a multiple of 64) bits from input as a Vec::<u64>
-/// ```
-#[macro_export]
-macro_rules! read_array {
-    ([$cell_t:ty; $len:expr] from $input:ident to $vec:ident) => {{
-        for _ in 0..$len { $vec.push($crate::utils::read_int!($input, $cell_t)?) }
-    }};
-
-    ([$cell_t:ty; read $len_t:ty] from $input:ident) => {{
-        //read_array!(read_int!($input, $len_t) $cell_t cells from $input)
-        read_array!([$cell_t; $crate::utils::read_int!($input, $len_t)?] from $input)
-    }};
-
-    ([$cell_t:ty; $len:expr] from $input:ident) => {{
-        let len = ($len) as usize;
-        let mut result = Vec::<$cell_t>::with_capacity(len);
-        read_array!([$cell_t; {len}] from $input to result);
-        result
-    }};
-
-    ($len:expr; bits from $input:ident) => {{
-        read_array!([u64; { let l=$len; (l+64-1)/l }] from $input)
-    }};
+/// Reads `number_of_bits` bits, rounded up to multiple of 64, from `input`.
+pub fn read_bits<R: std::io::Read + ?Sized>(input: &mut R, number_of_bits: usize) -> std::io::Result<Box<[u64]>> {
+    AsIs::read_n(input, ceiling_div(number_of_bits, 64)).map(|v| v.into_boxed_slice())
 }
 
 /// Maps 32-bit `hash` to the range `[0, n)`, where `n` is a 32-bit integer.

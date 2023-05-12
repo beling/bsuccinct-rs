@@ -1,11 +1,10 @@
-use binout::write_int;
 use std::hash::Hash;
+use binout::{AsIs, Serializer, VByte};
 use bitm::{BitAccess, BitArrayWithRank, ceiling_div};
 
 use crate::utils::ArrayWithRank;
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils};
 
-use crate::read_array;
 use std::io;
 use std::sync::atomic::{AtomicU64};
 use std::sync::atomic::Ordering::Relaxed;
@@ -417,27 +416,24 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
 
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
-            std::mem::size_of::<u32>()
-                + self.level_sizes.size_bytes_content_dyn()
-                + self.array.content.size_bytes_content_dyn()
+        VByte::array_size(&self.level_sizes) + AsIs::array_content_size(&self.array.content)
     }
 
     /// Writes `self` to the `output`.
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
     {
-        write_int!(output, self.level_sizes.len() as u32)?;
-        self.level_sizes.iter().try_for_each(|s| write_int!(output, *s))?;
-        self.array.content.iter().try_for_each(|v| write_int!(output, v))
+        VByte::write_array(output, &self.level_sizes)?;
+        AsIs::write_all(output, self.array.content.iter())
     }
 
     /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
     pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
     {
-        let levels = read_array!([u64; read u32] from input);
-        let array_content_len = levels.iter().map(|v|*v as usize).sum::<usize>();
-        let array_content = read_array!([u64; array_content_len] from input).into_boxed_slice();
+        let level_sizes = VByte::read_array(input)?.into_boxed_slice();
+        let array_content_len = level_sizes.iter().map(|v|*v as usize).sum::<usize>();
+        let array_content = AsIs::read_n(input, array_content_len)?.into_boxed_slice();
         let (array_with_rank, _) = ArrayWithRank::build(array_content);
-        Ok(Self { array: array_with_rank, level_sizes: levels.into_boxed_slice(), hash_builder: hasher })
+        Ok(Self { array: array_with_rank, level_sizes, hash_builder: hasher })
     }
 }
 

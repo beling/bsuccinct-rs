@@ -1,11 +1,10 @@
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
 use std::ops::Mul;
+use binout::{AsIs, Serializer};
 use bitm::{BitAccess, BitVec, ceiling_div};
 use dyn_size_of::GetSize;
-use binout::{read_int, write_int};
-use crate::read_array;
-use crate::utils::{map32_to_32, map64_to_64};
+use crate::utils::{map32_to_32, map64_to_64, read_bits};
 
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
@@ -109,19 +108,19 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
             } else { false }, group_index, (*self).into())
     }
 
-    /// Returns number of bites that `self.write` writes to the output.
+    /// Returns number of bytes that `self.write` writes to the output.
     #[inline] fn write_size_bytes(&self) -> usize {
         std::mem::size_of::<u8>()
     }
 
     /// Writes `self` to `output`.
     fn write(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
-        write_int!(output, (*self).into())
+        AsIs::write(output, (*self).into())
     }
 
     /// Reads `Self` from `input`.
     fn read(input: &mut dyn std::io::Read) -> std::io::Result<Self> {
-        let group_size = read_int!(input, u8)?;
+        let group_size: u8 = AsIs::read(input)?;
         let result = TryInto::<Self>::try_into(group_size).map_err(to_io_error)?;
         result.validate().map_err(to_io_error)
     }
@@ -166,12 +165,12 @@ pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
 
     /// Writes `self` to `output`.
     fn write(&self, output: &mut dyn Write) -> std::io::Result<()> {
-        write_int!(output, (*self).into())
+        AsIs::write(output, (*self).into())
     }
 
     /// Reads `Self` from `input`.
     fn read(input: &mut dyn Read) -> std::io::Result<Self> {
-        let seed_size = read_int!(input, u8)?;
+        let seed_size: u8 = AsIs::read(input)?;
         let result = TryInto::<Self>::try_into(seed_size).map_err(to_io_error)?;
         result.validate().map_err(to_io_error)
     }
@@ -311,12 +310,12 @@ impl SeedSize for Bits {
 
     fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {
         SeedSize::write(self, output)?;
-        seeds.iter().try_for_each(|v| write_int!(output, v))
+        AsIs::write_all(output, seeds)
     }
 
     fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)> {
         let bits_per_group_seed = SeedSize::read(input)?;
-        Ok((bits_per_group_seed, read_array!(number_of_seeds * bits_per_group_seed.0 as usize; bits from input).into_boxed_slice()))
+        Ok((bits_per_group_seed, read_bits(input, number_of_seeds * bits_per_group_seed.0 as usize)?))
     }
 }
 
@@ -353,12 +352,12 @@ impl SeedSize for Bits8 {
 
     fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)> {
         let bits_per_group_seed = SeedSize::read(input)?;   // mainly for validation
-        Ok((bits_per_group_seed, read_array!([u8; number_of_seeds] from input).into_boxed_slice()))
+        Ok((bits_per_group_seed, AsIs::read_n(input, number_of_seeds)?.into_boxed_slice()))
     }
 
     fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {
         SeedSize::write(self, output)?;
-        seeds.iter().try_for_each(|v| write_int!(output, v))
+        AsIs::write_all(output, seeds)
     }
 
     fn concatenate_seed_vecs(&self, _level_sizes: &[u64], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
@@ -424,12 +423,12 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
 
     fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {
         SeedSize::write(self, output)?;
-        seeds.iter().try_for_each(|v| write_int!(output, v))
+        AsIs::write_all(output, seeds)
     }
 
     fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)> {
         let bits_per_group_seed = SeedSize::read(input)?;   // mainly for validation
-        Ok((bits_per_group_seed, read_array!(number_of_seeds * Self::BITS as usize; bits from input).into_boxed_slice()))
+        Ok((bits_per_group_seed, read_bits(input, number_of_seeds * Self::BITS as usize)?))
     }
 }
 

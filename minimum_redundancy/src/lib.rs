@@ -333,18 +333,18 @@ mod tests {
 
     fn test_read_write<FS: TreeDegree>(huffman: &Coding<char, FS>) {
         let mut buff = Vec::new();
-        huffman.write_values(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
+        huffman.write_values(&mut buff, |b, v| AsIs::write(b, *v as u8)).unwrap();
         assert_eq!(buff.len(), huffman.write_values_size_bytes(ValueSize::Const(1)));
-        assert_eq!(Coding::<_, FS>::read_values(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap(), huffman.values);
+        assert_eq!(Coding::<_, FS>::read_values(&mut &buff[..], |b| AsIs::read(b).map(|v: u8| v as char)).unwrap(), huffman.values);
         buff.clear();
         huffman.write_internal_nodes_count(&mut buff).unwrap();
         assert_eq!(buff.len(), huffman.write_internal_nodes_count_bytes());
         assert_eq!(Coding::<char, FS>::read_internal_nodes_count(&mut &buff[..]).unwrap(), huffman.internal_nodes_count);
         buff.clear();
-        huffman.write(&mut buff, |b, v| write_int!(b, *v as u8)).unwrap();
+        huffman.write(&mut buff, |b, v| AsIs::write(b, *v as u8)).unwrap();
         assert_eq!(buff.len(), huffman.write_size_bytes(ValueSize::Const(1)));
         assert_eq!(buff.len(), huffman.write_size_bytes(ValueSize::Variable(&|_| 1)));
-        let read = Coding::<_, FS>::read(&mut &buff[..], |b| read_int!(b, u8).map(|v| v as char)).unwrap();
+        let read = Coding::<_, FS>::read(&mut &buff[..], |b| AsIs::read(b).map(|v: u8| v as char)).unwrap();
         assert_eq!(huffman.degree.as_u32(), read.degree.as_u32());
         assert_eq!(huffman.values, read.values);
         assert_eq!(huffman.internal_nodes_count, read.internal_nodes_count);
