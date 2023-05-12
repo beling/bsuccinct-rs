@@ -235,18 +235,39 @@ mod tests {
         assert_eq!(S::read(&mut &buff[..]).unwrap(), value)
     }
 
-    #[test] fn vbyte_u16() {
-        let test_vbyte = test_serializer::<u16, VByte>;
-        test_vbyte(0);
-        test_vbyte(127);
-        test_vbyte(128);
-        test_vbyte(256);
-        test_vbyte(2256);
-        test_vbyte(32256);
-        test_vbyte(u16::MAX>>1);
-        test_vbyte(u16::MAX-1);
-        test_vbyte(u16::MAX);
+    fn test_serializer_array<T: Copy + PartialEq + Debug, S: Serializer<T>>(values: &[T]) {
+        let mut buff = Vec::new();
+        assert!(S::write_array(&mut buff, values).is_ok());
+        assert_eq!(buff.len(), S::array_size(values));
+        assert_eq!(S::read_array(&mut &buff[..]).unwrap(), values)
     }
+
+    fn test_u16<S: Serializer<u16>>() {
+        let test = test_serializer::<u16, S>;
+        test(0);
+        test(127);
+        test(128);
+        test(256);
+        test(2256);
+        test(32256);
+        test(u16::MAX>>1);
+        test(u16::MAX-1);
+        test(u16::MAX);
+    }
+
+    #[test] fn vbyte_u16() { test_u16::<VByte>() }
+
+    #[test] fn asis_u16() { test_u16::<AsIs>() }
+
+    fn test_u16_array<S: Serializer<u16>>() {
+        let test = test_serializer_array::<u16, S>;
+        test(&[]);
+        test(&[127, 128, 256, 2256, 32256, u16::MAX>>1, u16::MAX-1, u16::MAX]);
+    }
+
+    #[test] fn vbyte_u16_array() { test_u16_array::<VByte>() }
+
+    #[test] fn asis_u16_array() { test_u16_array::<AsIs>() }
 
     #[test] fn vbyte_u32() {
         let test_vbyte = test_serializer::<u32, VByte>;
