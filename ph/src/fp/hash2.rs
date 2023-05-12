@@ -363,7 +363,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GetSize for FPHash2<GS, 
     const USES_DYN_MEM: bool = true;
 }
 
-impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS, SS, S> {
+impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
 
     /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
     pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
@@ -392,6 +392,53 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
         self.get_stats(key, &mut ())
     }
 
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        self.conf.bits_per_group.write_size_bytes()
+            + VByte::array_size(&self.level_size)
+            + AsIs::array_content_size(&self.array.content)
+            + std::mem::size_of::<u8>() + self.group_seeds.size_bytes_content_dyn()
+    }
+
+    /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        self.conf.bits_per_group.write(output)?;
+        VByte::write_array(output, &self.level_size)?;
+        AsIs::write_all(output, self.array.content.iter())?;
+        self.conf.bits_per_seed.write_seed_vec(output, &self.group_seeds)
+    }
+
+    /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
+    pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
+    {
+        let bits_per_group = GS::read(input)?;
+        let level_size = VByte::read_array(input)?.into_boxed_slice();
+        let number_of_groups = level_size.iter().map(|v|*v as usize).sum::<usize>();
+
+        let array_content = read_bits(input, bits_per_group * number_of_groups)?;
+        let (array_with_rank, _) = ArrayWithRank::build(array_content);
+
+        let (bits_per_group_seed, group_seeds) = SS::read_seed_vec(input, number_of_groups)?;
+
+        Ok(Self {
+            array: array_with_rank,
+            group_seeds,
+            level_size,
+            conf: FPHash2Conf {
+                bits_per_seed: bits_per_group_seed,
+                bits_per_group,
+                hash_builder: hasher
+            },
+        })
+    }
+
+    pub fn level_sizes(&self) -> &[u64] {
+        &self.level_size
+    }
+}
+
+impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS, SS, S> {
     /// Builds `FPHash2` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
     pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut levels: FPHash2Builder<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
@@ -481,51 +528,6 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, &mut ())
-    }
-
-    /// Returns number of bytes which `write` will write.
-    pub fn write_bytes(&self) -> usize {
-        self.conf.bits_per_group.write_size_bytes()
-            + VByte::array_size(&self.level_size)
-            + AsIs::array_content_size(&self.array.content)
-            + std::mem::size_of::<u8>() + self.group_seeds.size_bytes_content_dyn()
-    }
-
-    /// Writes `self` to the `output`.
-    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
-    {
-        self.conf.bits_per_group.write(output)?;
-        VByte::write_array(output, &self.level_size)?;
-        AsIs::write_all(output, self.array.content.iter())?;
-        self.conf.bits_per_seed.write_seed_vec(output, &self.group_seeds)
-    }
-
-    /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
-    pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
-    {
-        let bits_per_group = GS::read(input)?;
-        let level_size = VByte::read_array(input)?.into_boxed_slice();
-        let number_of_groups = level_size.iter().map(|v|*v as usize).sum::<usize>();
-
-        let array_content = read_bits(input, bits_per_group * number_of_groups)?;
-        let (array_with_rank, _) = ArrayWithRank::build(array_content);
-
-        let (bits_per_group_seed, group_seeds) = SS::read_seed_vec(input, number_of_groups)?;
-
-        Ok(Self {
-            array: array_with_rank,
-            group_seeds,
-            level_size,
-            conf: FPHash2Conf {
-                bits_per_seed: bits_per_group_seed,
-                bits_per_group,
-                hash_builder: hasher
-            },
-        })
-    }
-
-    pub fn level_sizes(&self) -> &[u64] {
-        &self.level_size
     }
 }
 
