@@ -24,7 +24,7 @@ pub trait Serializer<T: Copy>: Copy {
     }
 
     /// Serialize all `values` into the given `output`.
-    fn write_all<'a, W, InIter>(output: &mut W, values: InIter) -> std::io::Result<()>
+    #[inline] fn write_all<'a, W, InIter>(output: &mut W, values: InIter) -> std::io::Result<()>
         where W: std::io::Write + ?Sized, InIter: IntoIterator<Item = &'a T>, T: 'a //, InIter::Item: std::borrow::Borrow<T>
     {
         Self::write_all_values(output, values.into_iter().cloned())
@@ -40,7 +40,7 @@ pub trait Serializer<T: Copy>: Copy {
     }
 
     /// Returns number of bytes which `write_array(output, array)` will write.
-    fn array_size(array: &[T]) -> usize {
+    #[inline] fn array_size(array: &[T]) -> usize {
         VByte::size(array.len()) + Self::array_content_size(array)
     }
 
@@ -88,7 +88,7 @@ macro_rules! impl_le_serializer {
         impl Serializer<$inttype> for $asistype {
             const CONST_SIZE: Option<usize> = Some(::std::mem::size_of::<$inttype>());
 
-            fn size(_val: $inttype) -> usize { ::std::mem::size_of::<$inttype>() }
+            #[inline] fn size(_val: $inttype) -> usize { ::std::mem::size_of::<$inttype>() }
 
             fn write<W: ::std::io::Write + ?Sized>(output: &mut W, val: $inttype) -> ::std::io::Result<()> {
                 ::std::io::Write::write_all(output, &val.to_le_bytes())
