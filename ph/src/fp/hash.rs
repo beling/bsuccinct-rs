@@ -13,12 +13,33 @@ use dyn_size_of::GetSize;
 
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration that is accepted by `FPHash` constructors.
+/// Configuration that is accepted by [`FPHash`] constructors.
+/// 
+/// Configuration details are included in the field descriptions.
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
+    /// The family of hash functions used by the constructed FMPH. (default: [`BuildDefaultSeededHasher`])
     pub hash: S,
-    pub cache_threshold: usize,   // maximum size of the keys set to cache hashes
+
+    /// The threshold for the number of keys below which their hashes will be cached during level construction.
+    /// (default: [`FPHashConf::DEFAULT_CACHE_THRESHOLD`])
+    /// 
+    /// Caching speeds up level construction at the expense of memory consumption during construction
+    /// (caching a single key requires 8 bytes of memory).
+    /// Caching is particularly recommended for keys with complex types whose hashing is slow.
+    /// It is possible to use a value of `0` to disable caching completely, or [`usize::MAX`] to use it on all levels.
+    pub cache_threshold: usize,
+
+    /// Size of each level given as a percentage of the number of level input keys. (default: `100`)
+    /// 
+    /// A value of `100` minimizes the size of the constructed minimum perfect hash function.
+    /// Larger values speed up evaluation at the expense of increased size.
+    /// It does not make sense to use values below 100.
     pub relative_level_size: u16,
+
+    /// Whether to use multiple threads during construction. (default: `true`)
+    /// 
+    /// If `true`, the construction will be performed using the default [rayon] thread pool.
     pub use_multiple_threads: bool
 }
 
@@ -34,42 +55,56 @@ impl Default for FPHashConf {
 }
 
 impl FPHashConf {
-    /// Returns configuration that potentially uses multiple threads to build `FPHash`.
+    /// Returns configuration that potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
     pub fn mt(use_multiple_threads: bool) -> Self {
         Self { use_multiple_threads, ..Default::default() }
     }
 
+    /// Returns configuration that uses custom [`cache_threshold`](FPHashConf::cache_threshold) and
+    /// potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
     pub fn ct_mt(cache_threshold: usize, use_multiple_threads: bool) -> Self {
         Self { use_multiple_threads, cache_threshold, ..Default::default() }
     }
 
-    /// Returns configuration that uses at each level a bit-array of size `relative_level_size`
-    /// given as a percent of number of input keys for the level.
+    /// Returns configuration that uses at each level a bit-array
+    /// of size [`relative_level_size`](FPHashConf::relative_level_size)
+    /// given as a percent of number of level input keys.
     pub fn lsize(relative_level_size: u16) -> Self {
         Self { relative_level_size, ..Default::default() }
     }
 
-    /// Returns configuration that potentially uses multiple threads and
-    /// at each level a bit-array of size `relative_level_size`
-    /// given as a percent of number of input keys for the level.
+    /// Returns configuration that potentially uses [multiple threads](FPHashConf::use_multiple_threads) and
+    /// at each level a bit-array of size [`relative_level_size`](FPHashConf::relative_level_size)
+    /// given as a percent of number of level input keys.
     pub fn lsize_mt(relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, use_multiple_threads, ..Default::default() }
     }
 }
 
 impl<S> FPHashConf<S> {
-    const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
+    /// The default value for [`relative_level_size`](FPHashConf::relative_level_size),
+    /// which results in building the cache with a maximum size of 1GB.
+    pub const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = 1GB
 
+    /// Returns configuration that uses custom [`hash`](FPHashConf::hash).
     pub fn hash(hash: S) -> Self {
         Self { hash, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD, relative_level_size: 100, use_multiple_threads: true }
     }
+
+    /// Returns configuration that uses custom [`hash`](FPHashConf::hash) and [`relative_level_size`](FPHashConf::relative_level_size).
     pub fn hash_lsize(hash: S, relative_level_size: u16) -> Self {
         Self { relative_level_size, ..Self::hash(hash) }
     }
+
+    /// Returns configuration that uses custom [`hash`](FPHashConf::hash), [`relative_level_size`](FPHashConf::relative_level_size)
+    /// and potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
     pub fn hash_lsize_mt(hash: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, hash, use_multiple_threads, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD }
     }
 
+    /// Returns configuration that uses custom [`hash`](FPHashConf::hash),
+    /// [`relative_level_size`](FPHashConf::relative_level_size), [`cache_threshold`](FPHashConf::cache_threshold)
+    /// and potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
     pub fn hash_lsize_ct_mt(hash: S, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, hash, use_multiple_threads, cache_threshold }
     }
@@ -318,8 +353,8 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
 /// Fingerprinting-based minimal perfect hash function (FMPH).
 ///
 /// See:
-/// - A. Limasset, G. Rizk, R. Chikhi, P. Peterlongo, *Fast and Scalable Minimal Perfect Hashing for Massive Key Sets*, SEA 2017
 /// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
+/// - A. Limasset, G. Rizk, R. Chikhi, P. Peterlongo, *Fast and Scalable Minimal Perfect Hashing for Massive Key Sets*, SEA 2017
 #[derive(Clone)]
 pub struct FPHash<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
