@@ -15,7 +15,7 @@ Note that these instructions have been tested under GNU/Linux and may require so
 The easiest way to obtain the compiler along with other necessary tools (like `cargo`) is
 to use [rustup](https://www.rust-lang.org/tools/install).
 
-Please follow the instructions at https://www.rust-lang.org/tools/install.
+Please follow the instructions at <https://www.rust-lang.org/tools/install>.
 
 Once Rust is installed, just execute the following to install `mphf_benchmark` with native optimizations:
 
@@ -24,7 +24,7 @@ Once Rust is installed, just execute the following to install `mphf_benchmark` w
 # Reproducing experiments from the papers
 
 ## Fingerprinting-based minimal perfect hashing revisited
-(Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, DOI: https://doi.org/10.1145/3596453)
+(Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, DOI: <https://doi.org/10.1145/3596453>)
 
 The results for FMPHGO with wide range of parameters and 100,000,000 64-bit integer keys generated uniformly at random,
 can be calculated by:
@@ -69,7 +69,7 @@ mphf_benchmark help <method name>
 
 To perform tests with a collection of *.uk* URLs collected in 2005 by UbiCrawler,
 first download the [uk-2005-nat.urls.gz](http://data.law.di.unimi.it/webdata/uk-2005/uk-2005-nat.urls.gz)
-file from https://law.di.unimi.it/webdata/uk-2005/ and unpack it:
+file from <https://law.di.unimi.it/webdata/uk-2005/> and unpack it:
 
 ```shell
 gzip -d uk-2005-nat.urls.gz
@@ -121,7 +121,7 @@ memusage mphf_uk2005.sh -s stdin -n 39459925 none
 
 To benchmark RecSplit, PTHash, and CHD, we use another program with the same name (`mphf_benchmark`),
 but written in C++ by Giulio Ermanno Pibiri and Roberto Trani, and available at
-https://github.com/roberto-trani/mphf_benchmark (this site also contains compilation instructions; it is built with native optimizations by default).
+<https://github.com/roberto-trani/mphf_benchmark> (this site also contains compilation instructions; it is built with native optimizations by default).
 The authors have accepted our modifications to their program, which, among other things,
 ensure that both benchmark programs can generate exactly the same keys for testing MPHFs.
 

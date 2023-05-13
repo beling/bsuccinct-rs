@@ -342,7 +342,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 /// Fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
 ///
 /// See:
-/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, https://doi.org/10.1145/3596453
+/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 pub struct FPHash2<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,

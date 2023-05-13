@@ -319,7 +319,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
 ///
 /// See:
 /// - A. Limasset, G. Rizk, R. Chikhi, P. Peterlongo, *Fast and Scalable Minimal Perfect Hashing for Massive Key Sets*, SEA 2017
-/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, https://doi.org/10.1145/3596453
+/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 #[derive(Clone)]
 pub struct FPHash<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
