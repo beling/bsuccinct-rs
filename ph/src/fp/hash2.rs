@@ -19,8 +19,11 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// Configuration that is accepted by [`FPHash2`] constructors.
 #[derive(Clone)]
 pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+    /// The family of hash functions used by the constructed FMPHGO. (default: [`BuildDefaultSeededHasher`])
     hash_builder: S,
+    /// Size of seeds (in bits). (default: [`TwoToPowerBitsStatic<2>`])
     bits_per_seed: SS,
+    /// Size of groups (in bits). (default: [`TwoToPowerBits`]`::new(4))
     bits_per_group: GS
 }
 

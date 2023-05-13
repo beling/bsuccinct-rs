@@ -19,7 +19,7 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
     /// The family of hash functions used by the constructed FMPH. (default: [`BuildDefaultSeededHasher`])
-    pub hash: S,
+    pub hash_builder: S,
 
     /// The threshold for the number of keys below which their hashes will be cached during level construction.
     /// (default: [`FPHashConf::DEFAULT_CACHE_THRESHOLD`])
@@ -46,7 +46,7 @@ pub struct FPHashConf<S = BuildDefaultSeededHasher> {
 impl Default for FPHashConf {
     fn default() -> Self {
         Self {
-            hash: Default::default(),
+            hash_builder: Default::default(),
             cache_threshold: Self::DEFAULT_CACHE_THRESHOLD,
             relative_level_size: 100,
             use_multiple_threads: true
@@ -86,27 +86,27 @@ impl<S> FPHashConf<S> {
     /// which results in building the cache with a maximum size of 1GB.
     pub const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = 1GB
 
-    /// Returns configuration that uses custom [`hash`](FPHashConf::hash).
-    pub fn hash(hash: S) -> Self {
-        Self { hash, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD, relative_level_size: 100, use_multiple_threads: true }
+    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder).
+    pub fn hash(hash_builder: S) -> Self {
+        Self { hash_builder, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD, relative_level_size: 100, use_multiple_threads: true }
     }
 
-    /// Returns configuration that uses custom [`hash`](FPHashConf::hash) and [`relative_level_size`](FPHashConf::relative_level_size).
-    pub fn hash_lsize(hash: S, relative_level_size: u16) -> Self {
-        Self { relative_level_size, ..Self::hash(hash) }
+    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder) and [`relative_level_size`](FPHashConf::relative_level_size).
+    pub fn hash_lsize(hash_builder: S, relative_level_size: u16) -> Self {
+        Self { relative_level_size, ..Self::hash(hash_builder) }
     }
 
-    /// Returns configuration that uses custom [`hash`](FPHashConf::hash), [`relative_level_size`](FPHashConf::relative_level_size)
+    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder), [`relative_level_size`](FPHashConf::relative_level_size)
     /// and potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
-    pub fn hash_lsize_mt(hash: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, hash, use_multiple_threads, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD }
+    pub fn hash_lsize_mt(hash_builder: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
+        Self { relative_level_size, hash_builder, use_multiple_threads, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD }
     }
 
-    /// Returns configuration that uses custom [`hash`](FPHashConf::hash),
+    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder),
     /// [`relative_level_size`](FPHashConf::relative_level_size), [`cache_threshold`](FPHashConf::cache_threshold)
     /// and potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
-    pub fn hash_lsize_ct_mt(hash: S, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
-        Self { relative_level_size, hash, use_multiple_threads, cache_threshold }
+    pub fn hash_lsize_ct_mt(hash_builder: S, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
+        Self { relative_level_size, hash_builder, use_multiple_threads, cache_threshold }
     }
 }
 
@@ -202,7 +202,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
     /// Returns whether `key` is retained (`false` if it is already hashed at the levels built so far).
     pub fn retained<K>(&self, key: &K) -> bool where K: Hash {
         self.arrays.iter().enumerate()
-            .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash, seed as u32, a.len() << 6)))
+            .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash_builder, seed as u32, a.len() << 6)))
     }
 
     fn build_array_for_indices_st(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
@@ -239,7 +239,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         let level_size = level_size_segments * 64;
         keys.for_each_key(
-            |key| fphash_add_bit(&mut result, &mut collision, index(key, &self.conf.hash, seed, level_size)),
+            |key| fphash_add_bit(&mut result, &mut collision, index(key, &self.conf.hash_builder, seed, level_size)),
             |key| self.retained(key)
         );
         fphash_remove_collided(&mut result, &collision);
@@ -258,7 +258,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         let level_size = level_size_segments * 64;
         keys.par_for_each_key(
-            |key| fphash_sync_add_bit(&&result_atom, &collision, index(key, &self.conf.hash, seed, level_size)),
+            |key| fphash_sync_add_bit(&&result_atom, &collision, index(key, &self.conf.hash_builder, seed, level_size)),
             |key| self.retained(key)
         );
         fphash_remove_collided(&mut result, get_mut_slice(&mut collision));
@@ -278,14 +278,14 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
             let seed = self.level_nr();
             let array = if self.input_size < self.conf.cache_threshold {
                 let bit_indices = keys.maybe_par_map_each_key(
-                    |key| index(key, &self.conf.hash, seed, level_size),
+                    |key| index(key, &self.conf.hash_builder, seed, level_size),
                     |key| self.retained(key),
                     self.use_multiple_threads
                 );
                 let array = self.build_array_for_indices(&bit_indices, level_size_segments);
                 keys.maybe_par_retain_keys_with_indices(
                     |i| !array.get_bit(bit_indices[i]),
-                    |key| !array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                    |key| !array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
                     |key| self.retained(key),
                     || array.count_bit_ones(),
                     self.use_multiple_threads
@@ -295,7 +295,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
                 if self.use_multiple_threads {
                     let current_array = self.build_level_mt(keys, level_size_segments, seed);
                     keys.par_retain_keys(
-                        |key| !current_array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                        |key| !current_array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
                         |key| self.retained(key),
                         || current_array.count_bit_ones()
                     );
@@ -303,7 +303,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
                 } else {
                     let current_array = self.build_level_st(keys, level_size_segments, seed);
                     keys.retain_keys(
-                        |key| !current_array.get_bit(index(key, &self.conf.hash, seed, level_size)),
+                        |key| !current_array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
                         |key| self.retained(key),
                         || current_array.count_bit_ones()
                     );
@@ -441,7 +441,7 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
         Self {
             array,
             level_sizes,
-            hash_builder: builder.conf.hash
+            hash_builder: builder.conf.hash_builder
         }
     }
 
