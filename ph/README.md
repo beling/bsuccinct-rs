@@ -7,7 +7,7 @@ FMPH and FMPHGO can be constructed for any set *K* (given in advance) of hashabl
 FMPH and FMPHGO are fast (*O(1)*) to evaluate. Their construction requires very little auxiliary memory, takes a short (*O(|K|)*) time (which especially true for FMPH) and, in addition, can be parallelized.
 
 # Bibliography
-When using `ph` for research purposes, please cite the following paper:
+When using `ph` for research purposes, please cite the following paper which provides details on FMPH and FMPHGO:
 
 * Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 
