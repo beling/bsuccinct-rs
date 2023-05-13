@@ -7,7 +7,7 @@ pub trait Serializer<T: Copy>: Copy {
     /// Either size of each value in bytes (if each value occupies constant size) or `None`.
     const CONST_SIZE: Option<usize> = None;
 
-    /// Returns number of bytes which `write(output, val)` will write.
+    /// Returns number of bytes which [`write`](Serializer::write) needs to serialize `val`.
     fn size(val: T) -> usize;
 
     /// Serialize `val` to the given `output`.
@@ -30,7 +30,7 @@ pub trait Serializer<T: Copy>: Copy {
         Self::write_all_values(output, values.into_iter().cloned())
     }
 
-    /// Returns number of bytes occupied by encoded content of the array.
+    /// Returns number of bytes occupied by serialized content of the array.
     fn array_content_size(array: &[T]) -> usize {
         if let Some(each_element_size) = Self::CONST_SIZE {
             each_element_size * array.len()
@@ -39,12 +39,12 @@ pub trait Serializer<T: Copy>: Copy {
         }
     }
 
-    /// Returns number of bytes which `write_array(output, array)` will write.
+    /// Returns number of bytes which [`write_array`](Serializer::write_array) needs to serialize `array`.
     #[inline] fn array_size(array: &[T]) -> usize {
         VByte::size(array.len()) + Self::array_content_size(array)
     }
 
-    /// Serialize `array` to the given `input`. Size of the `array` is stored in `VByte` format.
+    /// Serialize `array` to the given `input`. Size of the `array` is serialized in [`VByte`] format.
     fn write_array<W: std::io::Write + ?Sized>(output: &mut W, array: &[T]) -> std::io::Result<()> {
         VByte::write(output, array.len())?;
         Self::write_all(output, array)
@@ -57,7 +57,7 @@ pub trait Serializer<T: Copy>: Copy {
         Ok(result.into_boxed_slice())
     }
 
-    /// Deserialize array from the given `input`. Size of the array is stored in `VByte` format.
+    /// Deserialize array from the given `input`. Size of the array is serialized in [`VByte`] format.
     fn read_array<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Box<[T]>> {
         let n = VByte::read(input)?;
         Self::read_n(input, n)

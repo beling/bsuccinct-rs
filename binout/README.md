@@ -1,7 +1,7 @@
 `binout` is the Rust library by Piotr Beling for low-level, portable, bytes-oriented,
 binary encoding, decoding, serialization, deserialization of integers and arrays of integers.
 
-It supports slightly improved *VByte*/*LEB128* format as well as simple, little-endian, as-is serialization.
+It supports slightly improved *VByte*/*LEB128* format (see [`VByte`]) as well as simple, little-endian, as-is serialization (see [`AsIs`]).
 
 # Example
 ```rust

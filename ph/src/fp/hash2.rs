@@ -16,7 +16,7 @@ use crate::fp::indexing2::group_nr;
 use rayon::prelude::*;
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration that is accepted by `FPHash2` constructors.
+/// Configuration that is accepted by [`FPHash2`] constructors.
 #[derive(Clone)]
 pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     hash_builder: S,

@@ -15,7 +15,7 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by [`FPHash`] constructors.
 /// 
-/// Configuration details are included in the field descriptions.
+/// See field descriptions for details.
 #[derive(Clone)]
 pub struct FPHashConf<S = BuildDefaultSeededHasher> {
     /// The family of hash functions used by the constructed FMPH. (default: [`BuildDefaultSeededHasher`])
