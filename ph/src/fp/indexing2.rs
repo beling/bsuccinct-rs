@@ -352,7 +352,7 @@ impl SeedSize for Bits8 {
 
     fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)> {
         let bits_per_group_seed = SeedSize::read(input)?;   // mainly for validation
-        Ok((bits_per_group_seed, AsIs::read_n(input, number_of_seeds)?.into_boxed_slice()))
+        Ok((bits_per_group_seed, AsIs::read_n(input, number_of_seeds)?))
     }
 
     fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {

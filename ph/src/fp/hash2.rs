@@ -342,7 +342,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 /// Fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
 ///
 /// See:
-/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*
+/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, https://doi.org/10.1145/3596453
 pub struct FPHash2<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
@@ -366,6 +366,9 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GetSize for FPHash2<GS, 
 impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
 
     /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
+    /// 
+    /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
+    /// If the `key` was not in the input key collection, either `None` or an undetermined value from the specified range is returned.
     pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut groups_before = 0u64;
         let mut level_nr = 0u32;
@@ -388,6 +391,9 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
     }
 
     /// Gets the value associated with the given `key`.
+    /// 
+    /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
+    /// If the `key` was not in the input key collection, either `None` or an undetermined value from the specified range is returned.
     #[inline] pub fn get<K: Hash>(&self, key: &K) -> Option<u64> {
         self.get_stats(key, &mut ())
     }
@@ -413,7 +419,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
     pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
     {
         let bits_per_group = GS::read(input)?;
-        let level_size = VByte::read_array(input)?.into_boxed_slice();
+        let level_size = VByte::read_array(input)?;
         let number_of_groups = level_size.iter().map(|v|*v as usize).sum::<usize>();
 
         let array_content = read_bits(input, bits_per_group * number_of_groups)?;

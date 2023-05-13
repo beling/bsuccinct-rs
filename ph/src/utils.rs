@@ -34,7 +34,7 @@ macro_rules! bits_to_store {
 
 /// Reads `number_of_bits` bits, rounded up to multiple of 64, from `input`.
 pub fn read_bits<R: std::io::Read + ?Sized>(input: &mut R, number_of_bits: usize) -> std::io::Result<Box<[u64]>> {
-    AsIs::read_n(input, ceiling_div(number_of_bits, 64)).map(|v| v.into_boxed_slice())
+    AsIs::read_n(input, ceiling_div(number_of_bits, 64))
 }
 
 /// Maps 32-bit `hash` to the range `[0, n)`, where `n` is a 32-bit integer.

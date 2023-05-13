@@ -51,14 +51,14 @@ pub trait Serializer<T: Copy>: Copy {
     }
 
     /// Deserialize `n` values from the given `input`.
-    fn read_n<R: std::io::Read + ?Sized>(input: &mut R, n: usize) -> std::io::Result<Vec<T>> {
+    fn read_n<R: std::io::Read + ?Sized>(input: &mut R, n: usize) -> std::io::Result<Box<[T]>> {
         let mut result = Vec::with_capacity(n);
         for _ in 0..n { result.push(Self::read(input)?); }
-        Ok(result)
+        Ok(result.into_boxed_slice())
     }
 
     /// Deserialize array from the given `input`. Size of the array is stored in `VByte` format.
-    fn read_array<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Vec<T>> {
+    fn read_array<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Box<[T]>> {
         let n = VByte::read(input)?;
         Self::read_n(input, n)
     }
@@ -239,7 +239,7 @@ mod tests {
         let mut buff = Vec::new();
         assert!(S::write_array(&mut buff, values).is_ok());
         assert_eq!(buff.len(), S::array_size(values));
-        assert_eq!(S::read_array(&mut &buff[..]).unwrap(), values)
+        assert_eq!(values, S::read_array(&mut &buff[..]).unwrap().as_ref())
     }
 
     fn test_u16<S: Serializer<u16>>() {

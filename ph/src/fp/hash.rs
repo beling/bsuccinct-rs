@@ -141,7 +141,7 @@ pub(crate) fn get_mut_slice(v: &mut [AtomicU64]) -> &mut [u64] {
     });
 }*/ // works, bot difference is negligible
 
-/// Returns the index of `key` at level with given `seed` and size, using given (seeded) `hash` method.
+/// Returns the index of `key` at level with given `seed` and size (`level_size`), using given (seeded) `hash` method.
 #[inline(always)] fn index(key: &impl Hash, hash: &impl BuildSeededHasher, seed: u32, level_size: usize) -> usize {
     utils::map64_to_64(hash.hash_one(key, seed), level_size as u64) as usize
 }
@@ -319,7 +319,7 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
 ///
 /// See:
 /// - A. Limasset, G. Rizk, R. Chikhi, P. Peterlongo, *Fast and Scalable Minimal Perfect Hashing for Massive Key Sets*, SEA 2017
-/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*
+/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, https://doi.org/10.1145/3596453
 #[derive(Clone)]
 pub struct FPHash<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
@@ -335,12 +335,16 @@ impl<S: BuildSeededHasher> GetSize for FPHash<S> {
 
 impl<S: BuildSeededHasher> FPHash<S> {
 
+    /// Returns index of the key `k` at the level of the given number (`level_nr`) and `size`.
     #[inline(always)] fn index<K: Hash>(&self, k: &K, level_nr: u32, size: usize) -> usize {
         //utils::map64_to_32(self.hash_builder.hash_one(k, level_nr), size as u32) as usize
         utils::map64_to_64(self.hash_builder.hash_one(k, level_nr), size as u64) as usize
     }
 
     /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
+    /// 
+    /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
+    /// If the `key` was not in the input key collection, either `None` or an undetermined value from the specified range is returned.
     pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut array_begin_index = 0usize;
         let mut level_nr = 0u32;
@@ -357,6 +361,9 @@ impl<S: BuildSeededHasher> FPHash<S> {
     }
 
     /// Gets the value associated with the given `key`.
+    /// 
+    /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
+    /// If the `key` was not in the input key collection, either `None` or an undetermined value from the specified range is returned.
     #[inline] pub fn get<K: Hash>(&self, key: &K) -> Option<u64> {
         self.get_stats(key, &mut ())
     }
@@ -376,9 +383,9 @@ impl<S: BuildSeededHasher> FPHash<S> {
     /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
     pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
     {
-        let level_sizes = VByte::read_array(input)?.into_boxed_slice();
+        let level_sizes = VByte::read_array(input)?;
         let array_content_len = level_sizes.iter().map(|v|*v as usize).sum::<usize>();
-        let array_content = AsIs::read_n(input, array_content_len)?.into_boxed_slice();
+        let array_content = AsIs::read_n(input, array_content_len)?;
         let (array_with_rank, _) = ArrayWithRank::build(array_content);
         Ok(Self { array: array_with_rank, level_sizes, hash_builder: hasher })
     }

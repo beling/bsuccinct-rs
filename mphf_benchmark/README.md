@@ -24,6 +24,7 @@ Once Rust is installed, just execute the following to install `mphf_benchmark` w
 # Reproducing experiments from the papers
 
 ## Fingerprinting-based minimal perfect hashing revisited
+(Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, DOI: https://doi.org/10.1145/3596453)
 
 The results for FMPHGO with wide range of parameters and 100,000,000 64-bit integer keys generated uniformly at random,
 can be calculated by:
