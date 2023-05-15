@@ -22,10 +22,10 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// Good configurations can be obtained by calling one of the following functions:
 /// [default_biggest](FPHash2Conf::default_biggest), [default_bigger](FPHash2Conf::default_bigger),
 /// [default](FPHash2Conf::default), [default_smallest](FPHash2Conf::default_smallest).
-/// The above functions are listed in order of increasing performance (in terms of size and evaluation time)
+/// These functions are listed in order of increasing performance (in terms of size and evaluation time)
 /// and time to construct the minimum perfect hash function.
 /// More details are included in their documentation and paper:
-/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
+/// P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 #[derive(Clone)]
 pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     /// The family of hash functions used by the constructed FMPHGO. (default: [`BuildDefaultSeededHasher`])
