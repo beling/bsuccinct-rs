@@ -7,7 +7,7 @@ use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 
 use super::Bits8;
 use super::hash::{from_mut_slice, get_mut_slice};
-use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
+use super::indexing2::{GroupSize, SeedSize, TwoToPowerBitsStatic};
 use std::io;
 use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
@@ -22,9 +22,9 @@ use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// Good configurations can be obtained by calling one of the following functions:
 /// [default_biggest](FPHash2Conf::default_biggest), [default_bigger](FPHash2Conf::default_bigger),
 /// [default](FPHash2Conf::default), [default_smallest](FPHash2Conf::default_smallest).
-/// These functions are listed in order of increasing performance (in terms of size and evaluation time)
+/// These functions are listed in order of increasing performance (in terms of size and evaluation speed)
 /// and time to construct the minimum perfect hash function.
-/// More details are included in their documentation and paper:
+/// More details are included in their documentation and the paper:
 /// P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 #[derive(Clone)]
 pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
@@ -95,32 +95,8 @@ impl FPHash2Conf<TwoToPowerBitsStatic::<5>, Bits8, BuildDefaultSeededHasher> {
     }
 }
 
-impl<SS: SeedSize> FPHash2Conf<TwoToPowerBits, SS> {
-    /// Returns configuration that uses seeds of size given in bits.
-    pub fn bps(bits_per_seed: SS) -> Self {
-        bits_per_seed.validate().unwrap();
-        Self {
-            hash_builder: Default::default(),
-            bits_per_seed,
-            bits_per_group: TwoToPowerBits::new(4),
-        }
-    }
-}
-
-impl<GS: GroupSize> FPHash2Conf<GS> {
-    /// Returns configuration that uses groups of size given in bits.
-    pub fn bpg(bits_per_group: GS) -> Self {
-        bits_per_group.validate().unwrap();
-        Self {
-            hash_builder: Default::default(),
-            bits_per_seed: Default::default(),
-            bits_per_group,
-        }
-    }
-}
-
 impl<GS: GroupSize, SS: SeedSize> FPHash2Conf<GS, SS> {
-    /// Returns configuration that uses seeds and groups of sizes given in bits.
+    /// Returns a configuration that uses seeds and groups of the sizes given in bits.
     pub fn bps_bpg(bits_per_seed: SS, bits_per_group: GS) -> Self {
         bits_per_seed.validate().unwrap();
         bits_per_group.validate().unwrap();
@@ -132,22 +108,12 @@ impl<GS: GroupSize, SS: SeedSize> FPHash2Conf<GS, SS> {
     }
 }
 
-impl<GS: GroupSize, S> FPHash2Conf<GS, TwoToPowerBitsStatic<2>, S> {
-    pub fn hash_bpg(hash: S, bits_per_group: GS) -> Self {
-        bits_per_group.validate().unwrap();
-        Self {
-            hash_builder: hash,
-            bits_per_seed: Default::default(),
-            bits_per_group,
-        }
-    }
-}
-
 impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2Conf<GS, SS, S> {
-    pub fn hash_bps_bpg(hash: S, bits_per_seed: SS, bits_per_group: GS) -> Self {
+    /// Returns a configuration that uses given family of hash functions and seeds and groups of the sizes given in bits.
+    pub fn hash_bps_bpg(hash_builder: S, bits_per_seed: SS, bits_per_group: GS) -> Self {
         bits_per_seed.validate().unwrap();
         bits_per_group.validate().unwrap();
-        Self { hash_builder: hash, bits_per_seed, bits_per_group }  // 1<<6=64
+        Self { hash_builder, bits_per_seed, bits_per_group }  // 1<<6=64
     }
 
     /// Returns array index for given `hash` of key, size of level in groups, and group seed provided by `group_seed`.
@@ -476,8 +442,8 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
         self.conf.bits_per_seed.write_seed_vec(output, &self.group_seeds)
     }
 
-    /// Reads `Self` from the `input`. Hasher must be the same as the one used to write.
-    pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self>
+    /// Reads `Self` from the `input`. Hash builder must be the same as the one used to write.
+    pub fn read_with_hasher(input: &mut dyn io::Read, hash_builder: S) -> io::Result<Self>
     {
         let bits_per_group = GS::read(input)?;
         let level_size = VByte::read_array(input)?;
@@ -495,7 +461,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
             conf: FPHash2Conf {
                 bits_per_seed: bits_per_group_seed,
                 bits_per_group,
-                hash_builder: hasher
+                hash_builder
             },
         })
     }
@@ -630,7 +596,7 @@ impl<K: Hash + Clone + Sync> From<&[K]> for FPHash2 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_mphf;
+    use crate::{utils::test_mphf, fp::TwoToPowerBits};
     use std::fmt::{Debug, Display};
     use crate::fp::Bits;
 
