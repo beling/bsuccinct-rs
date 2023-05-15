@@ -5,6 +5,7 @@ use bitm::{BitAccess, BitArrayWithRank, ceiling_div};
 use crate::utils::{ArrayWithRank, read_bits};
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 
+use super::Bits8;
 use super::hash::{from_mut_slice, get_mut_slice};
 use super::indexing2::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
 use std::io;
@@ -17,22 +18,79 @@ use rayon::prelude::*;
 use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by [`FPHash2`] constructors.
+/// 
+/// Good configurations can be obtained by calling one of the following functions:
+/// [default_biggest](FPHash2Conf::default_biggest), [default_bigger](FPHash2Conf::default_bigger),
+/// [default](FPHash2Conf::default), [default_smallest](FPHash2Conf::default_smallest).
+/// The above functions are listed in order of increasing performance (in terms of size and evaluation time)
+/// and time to construct the minimum perfect hash function.
+/// More details are included in their documentation and paper:
+/// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 #[derive(Clone)]
-pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     /// The family of hash functions used by the constructed FMPHGO. (default: [`BuildDefaultSeededHasher`])
     hash_builder: S,
-    /// Size of seeds (in bits). (default: [`TwoToPowerBitsStatic<2>`])
+    /// Size of seeds (in bits). (default: 4)
     bits_per_seed: SS,
-    /// Size of groups (in bits). (default: [`TwoToPowerBits`]`::new(4))
+    /// Size of groups (in bits). (default: 16)
     bits_per_group: GS
 }
 
+impl FPHash2Conf<TwoToPowerBitsStatic::<3>, TwoToPowerBitsStatic::<0>, BuildDefaultSeededHasher> {
+    /// Creates a configuration in which the seed and group sizes are 1 and 8 bits respectively,
+    /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
+    /// - size is about 2.52 bits per input key,
+    /// - the expected number of levels visited during the evaluation is about 2.18,
+    /// - construction takes about 4 times less time compared to the [default](FPHash2Conf::default) configuration.
+    pub fn default_biggest() -> Self {
+        Self {
+            hash_builder: Default::default(),
+            bits_per_seed: Default::default(),
+            bits_per_group: Default::default()
+        }
+    }
+}
+
+impl FPHash2Conf<TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic::<1>, BuildDefaultSeededHasher> {
+    /// Creates a configuration in which the seed and group sizes are 2 and 16 bits respectively,
+    /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
+    /// - size is about 2.36 bits per input key,
+    /// - the expected number of levels visited during the evaluation is about 2.04,
+    /// - construction takes about 3 times less time compared to the [default](FPHash2Conf::default) configuration.
+    pub fn default_bigger() -> Self {
+        Self {
+            hash_builder: Default::default(),
+            bits_per_seed: Default::default(),
+            bits_per_group: Default::default()
+        }
+    }
+}
+
 impl Default for FPHash2Conf {
+    /// Creates a configuration in which the seed and group sizes are 4 and 16 bits respectively,
+    /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
+    /// - size is about 2.21 bits per input key,
+    /// - the expected number of levels visited during the evaluation is about 1.73.
     fn default() -> Self {
         Self {
             hash_builder: Default::default(),
             bits_per_seed: Default::default(),
-            bits_per_group: TwoToPowerBits::new(4)
+            bits_per_group: Default::default()
+        }
+    }
+}
+
+impl FPHash2Conf<TwoToPowerBitsStatic::<5>, Bits8, BuildDefaultSeededHasher> {
+    /// Creates a configuration in which the seed and group sizes are 8 and 32 bits respectively,
+    /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
+    /// - size is about 2.10 bits per input key,
+    /// - the expected number of levels visited during the evaluation is about 1.64,
+    /// - construction takes about 13 times longer compared to the [default](FPHash2Conf::default) configuration.
+    pub fn default_smallest() -> Self {
+        Self {
+            hash_builder: Default::default(),
+            bits_per_seed: Default::default(),
+            bits_per_group: Default::default()
         }
     }
 }
@@ -137,7 +195,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Con
 
 /// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
 #[derive(Clone)]
-pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     level_sizes: Vec::<u64>,
     arrays: Vec::<Box<[u64]>>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
@@ -346,7 +404,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 ///
 /// See:
 /// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
-pub struct FPHash2<GS: GroupSize = TwoToPowerBits, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+pub struct FPHash2<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
     level_size: Box<[u64]>, // number of groups

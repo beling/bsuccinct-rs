@@ -32,8 +32,9 @@ pub struct FPHashConf<S = BuildDefaultSeededHasher> {
 
     /// Size of each level given as a percentage of the number of level input keys. (default: `100`)
     /// 
-    /// A value of `100` minimizes the size of the constructed minimum perfect hash function.
+    /// A value of 100 minimizes the size of the constructed minimum perfect hash function.
     /// Larger values speed up evaluation at the expense of increased size.
+    /// For example, the values 100 and 200 lead to the sizes of approximately 2.8 and 3.4 bits per input key, respectively.
     /// It does not make sense to use values below 100.
     pub relative_level_size: u16,
 

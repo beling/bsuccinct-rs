@@ -7,14 +7,15 @@ use std::{hash::BuildHasherDefault, collections::hash_map::DefaultHasher};
 #[allow(deprecated)]
 use std::hash::SipHasher13;
 
-/// A trait for creating instances of [`Hasher`] that are initialized with a seed.
+/// Trait possessed by families of hash functions that allow the creation of
+/// [`Hasher`] instances initialized with a given seed.
 pub trait BuildSeededHasher {
     type Hasher: Hasher;
 
-    /// Creates a new hasher initialized with given `seed`.
+    /// Creates a new hasher initialized with the given `seed`.
     fn build_hasher(&self, seed: u32) -> Self::Hasher;
 
-    /// Calculates the hash of a single value, using given `seed`.
+    /// Calculates the hash of a single value `x`, using given `seed`.
     #[inline]
     fn hash_one<T: Hash>(&self, x: T, seed: u32) -> u64 {
         let mut h = self.build_hasher(seed);
