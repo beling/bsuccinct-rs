@@ -1,3 +1,5 @@
+//! Fingerprint-based minimal perfect hashing.
+
 mod hash;
 pub use hash::{FPHash, FPHashConf};
 
