@@ -1,3 +1,4 @@
+//! Managing sets of keys during construction of minimal perfect hash functions.
 
 use std::mem;
 use std::mem::MaybeUninit;
@@ -5,13 +6,16 @@ use rayon::join;
 use rayon::prelude::*;
 use bitm::{BitAccess, ceiling_div};
 
-/// `KeySet` represent sets of keys (ot the type `K`) that can be used to construct `FPHash` or `FPHash2`.
+/// A trait for accessing and managing sets of keys (of the type `K`) during construction of
+/// [FPHash](super::hash::FPHash) or [FPHash2](super::hash2::FPHash2).
 pub trait KeySet<K> {
     /// Returns number of retained keys. Guarantee to be very fast.
     fn keys_len(&self) -> usize;
 
+    /// Returns `true` only if [Self::par_for_each_key] can use multiple threads.
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { false }
 
+    /// Returns `true` only if [Self::par_retain_keys] can use multiple threads.
     #[inline(always)] fn has_par_retain_keys(&self) -> bool { false }
 
     /// Call `f` for each key in the set, using single thread.
@@ -246,7 +250,7 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     }
 }
 
-/// Implements `KeySet`, storing keys in the mutable slice.
+/// Implements [KeySet], storing keys in the mutable slice.
 ///
 /// Retain operations reorder the slice, putting retained keys at the beginning of the slice.
 pub struct SliceMutSource<'k, K> {
@@ -308,7 +312,7 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
     }
 }
 
-/// Implements `KeySet` that use immutable slice.
+/// Implements [KeySet] that use immutable slice.
 ///
 /// Retain operations clone retained keys into the vector.
 pub struct SliceSourceWithClones<'k, K> {
@@ -424,7 +428,7 @@ impl RefsIndex for u16 {
     #[inline(always)] fn as_usize(self) -> usize { self as usize }
 }
 
-/// `KeySet` implementation that stores reference to slice with keys,
+/// [KeySet] implementation that stores reference to slice with keys,
 /// and indices of this slice that points retained keys.
 /// Indices are stored partitioned to segments and stored as 8 (if `I=u8`) or 16-bit (if `I=u16`) integers.
 /// Each segment covers $2^8$ or $2^{16}$ consecutive keys.
@@ -735,20 +739,25 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
     }
 }
 
-/// Implementation of `KeySet` that stores only the function that returns iterator over all keys
+/// Implementation of [KeySet] that stores only the function that returns iterator over all keys
 /// (the iterator can even expose the keys that have been removed earlier by `retain` methods).
+/// It is usually a good idea to use it within [CachedKeySet], see [CachedKeySet::dynamic].
 pub struct DynamicKeySet<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> {
     pub keys: GetKeyIter,
     pub len: usize,
     pub const_keys_order: bool // true only if keys are always produced in the same order
 }
 
-impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> DynamicKeySet<KeyIter, GetKeyIter>{
+impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> DynamicKeySet<KeyIter, GetKeyIter> {
+    /// Constructs a [DynamicKeySet] that obtains the keys by `keys` function.
+    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     pub fn new(keys: GetKeyIter, const_keys_order: bool) -> Self {
         let len = keys().count();   // TODO faster alternative
         Self { keys, len, const_keys_order }
     }
 
+    /// Constructs a [DynamicKeySet] that obtains the keys by `keys` function (which should produce `len` keys).
+    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     pub fn with_len(keys: GetKeyIter, len: usize, const_keys_order: bool) -> Self {
         Self { keys, len, const_keys_order }
     }
@@ -774,7 +783,8 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
     // TODO retain_keys_into_vec methods
 }
 
-/// Implementation of `KeySet` that stores initially stores another key set,
+/// Implementation of [KeySet] that initially stores another [KeySet] 
+/// (which is usually succinct but slow, such as [DynamicKeySet]),
 /// but when number of keys drops below given threshold,
 /// the remaining keys are cached (cloned into the vector),
 /// and later only the cache is used.
@@ -788,18 +798,25 @@ impl<K, KS> Default for CachedKeySet<K, KS> {
 }
 
 impl<K, KS> CachedKeySet<K, KS> {
+    /// Constructs cached `key_set`. The keys are cloned and cached as soon as their number drops below `clone_threshold`.
     pub fn new(key_set: KS, clone_threshold: usize) -> Self {
         Self::Dynamic(key_set, clone_threshold)
     }
 }
 
 impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicKeySet<KeyIter, GetKeyIter>> {
+    /// Constructs cached [DynamicKeySet] that obtains the keys by `keys` function.
+    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
+    /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
     pub fn dynamic(keys: GetKeyIter, const_keys_order: bool, clone_threshold: usize) -> Self {
         Self::new(DynamicKeySet::new(keys, const_keys_order), clone_threshold)
     }
 }
 
 impl<'k, K: Sync> CachedKeySet<K, SliceSourceWithRefs<'k, K>> {
+    /// Constructs cached [SliceSourceWithRefs] that wraps given `keys`.
+    /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
+    /// After cloning, the keys are placed in a continuous memory area which is friendly to the CPU cache.
     pub fn slice(keys: &'k [K], clone_threshold: usize) -> Self {
         Self::new(SliceSourceWithRefs::new(keys), clone_threshold)
     }
