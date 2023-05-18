@@ -1,3 +1,5 @@
+//! Families of hash functions, seedable hashers.
+
 use std::hash::{BuildHasher, Hash, Hasher};
 
 #[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
