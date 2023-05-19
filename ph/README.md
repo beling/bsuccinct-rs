@@ -1,6 +1,6 @@
 `ph` is the Rust library (by Piotr Beling) of data structures based on perfect hashing.
 
-The library contains an implementation of two variants of the *fingerprint-based minimal perfect hash function* without (*FMPH*, [`FPHash`]) and with (*FMPHGO*, [`FPHash2`]) group optimization.
+The library contains an implementation of two variants of the *fingerprint-based minimal perfect hash function* without (*FMPH*, [`fmph::Function`]) and with (*FMPHGO*, [`fmph::GOFunction`]) group optimization.
 A minimal perfect hash function (MPHF) is a bijection from a key set *K* to the set *{0, 1, ..., |K|−1}*.
 
 FMPH and FMPHGO can be constructed for any set *K* (given in advance) of hashable items and represented using about *2.8* and *2.1* bits per key, respectively.

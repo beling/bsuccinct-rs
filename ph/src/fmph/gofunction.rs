@@ -159,9 +159,9 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOConf<GS,
     }
 }
 
-/// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO).
+/// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO, [GOFunction]).
 #[derive(Clone)]
-pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+pub struct GOBuilder<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     level_sizes: Vec::<u64>,
     arrays: Vec::<Box<[u64]>>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
@@ -171,11 +171,11 @@ pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSiz
     pub conf: GOConf<GS, SS, S>,
 }   // TODO introduce trait to make other builders possible
 
-impl Default for FPHash2Builder {
+impl Default for GOBuilder {
     fn default() -> Self { Self::new(Default::default()) }
 }
 
-impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Builder<GS, SS, S>
+impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<GS, SS, S>
 {
     const DEFAULT_RELATIVE_LEVEL_SIZE: u16 = 100;
     const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
@@ -473,7 +473,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS, SS, S> {
     /// Builds `FPHash2` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
-    pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut levels: FPHash2Builder<GS, SS, S>, stats: &mut BS) -> Self
+    pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut levels: GOBuilder<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
         while keys.keys_len() != 0 {
@@ -496,7 +496,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
         }
     }
 
-    pub fn with_builder<K, KS>(keys: KS, levels: FPHash2Builder<GS, SS, S>) -> Self
+    pub fn with_builder<K, KS>(keys: KS, levels: GOBuilder<GS, SS, S>) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         Self::with_builder_stats(keys, levels, &mut ())
@@ -505,13 +505,13 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     pub fn with_conf_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
-        Self::with_builder_stats(keys, FPHash2Builder::new(conf), stats)
+        Self::with_builder_stats(keys, GOBuilder::new(conf), stats)
     }
 
     pub fn with_conf_mt_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
-        Self::with_builder_stats(keys, FPHash2Builder::with_mt(conf, use_multiple_threads), stats)
+        Self::with_builder_stats(keys, GOBuilder::with_mt(conf, use_multiple_threads), stats)
     }
 
     #[inline] pub fn with_conf<K, KS>(keys: KS, conf: GOConf<GS, SS, S>) -> Self

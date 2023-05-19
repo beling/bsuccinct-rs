@@ -353,7 +353,7 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
     }
 }
 
-impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::FPHash2Builder<GS, SS, S>, KeyAccess) {
+impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::GOBuilder<GS, SS, S>, KeyAccess) {
     type MPHF = fmph::FPHash2<GS, SS, S>;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
@@ -413,7 +413,7 @@ struct FMPHGOBuildParams<S> {
 fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
     where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
-    (fmph::FPHash2Builder::with_lsize_ct_mt(
+    (fmph::GOBuilder::with_lsize_ct_mt(
         fmph::GOConf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
         p.relative_level_size, p.cache_threshold, false), p.key_access)
     .benchmark(i, conf)
