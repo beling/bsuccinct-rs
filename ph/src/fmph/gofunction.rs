@@ -17,7 +17,7 @@ use crate::fmph::goindexing::group_nr;
 use rayon::prelude::*;
 use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration that is accepted by [`GOFunction`] constructors.
+/// Configuration of family of hash functions used by [`GOFunction`] and accepted by its constructors.
 /// 
 /// Good configurations can be obtained by calling one of the following functions:
 /// [default_biggest](GOConf::default_biggest), [default_bigger](GOConf::default_bigger),
