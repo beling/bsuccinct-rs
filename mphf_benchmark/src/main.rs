@@ -4,7 +4,7 @@
 #[cfg(feature = "cmph-sys")] use cmph::chd_benchmark;
 
 use clap::{Parser, ValueEnum, Subcommand, Args};
-use ph::fmph::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, SeedSize, TwoToPowerBitsStatic, FPHash2Builder, TwoToPowerBits};
+use ph::fmph;
 use bitm::{BitAccess, BitVec};
 use std::hash::Hash;
 use std::fmt::{Debug, Display, Formatter};
@@ -331,8 +331,8 @@ trait MPHFBuilder<K: Hash> {
     }
 }
 
-impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (FPHashConf<S>, KeyAccess) {
-    type MPHF = FPHash<S>;
+impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::BuildConf<S>, KeyAccess) {
+    type MPHF = fmph::Function<S>;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         let mut conf = self.0.clone();
@@ -353,8 +353,8 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
     }
 }
 
-impl<K: Hash + Sync + Send + Clone, GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (FPHash2Builder<GS, SS, S>, KeyAccess) {
-    type MPHF = FPHash2<GS, SS, S>;
+impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::FPHash2Builder<GS, SS, S>, KeyAccess) {
+    type MPHF = fmph::FPHash2<GS, SS, S>;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         let mut conf = self.0.clone();
@@ -411,24 +411,24 @@ struct FMPHGOBuildParams<S> {
 }
 
 fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
-    where GS: GroupSize + Sync + Copy, SS: SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
+    where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
-    (FPHash2Builder::with_lsize_ct_mt(
-        FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
+    (fmph::FPHash2Builder::with_lsize_ct_mt(
+        fmph::FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
         p.relative_level_size, p.cache_threshold, false), p.key_access)
     .benchmark(i, conf)
 }
 
 fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
-    where GS: GroupSize + Sync + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
+    where GS: fmph::GroupSize + Sync + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
     match bits_per_group_seed {
-        1 => h2bench(TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
-        2 => h2bench(TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
-        4 => h2bench(TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
-        8 => h2bench(Bits8, bits_per_group, i, conf, p),
+        1 => h2bench(fmph::TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
+        2 => h2bench(fmph::TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
+        4 => h2bench(fmph::TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
+        8 => h2bench(fmph::Bits8, bits_per_group, i, conf, p),
         //16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
-        _ => h2bench(Bits(bits_per_group_seed), bits_per_group, i, conf, p)
+        _ => h2bench(fmph::Bits(bits_per_group_seed), bits_per_group, i, conf, p)
     }
 }
 
@@ -441,14 +441,14 @@ fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits
             //1 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<0>, i, conf, p),
             //2 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<1>, i, conf, p),
             //4 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<2>, i, conf, p),
-            8 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<3>, i, conf, p),
-            16 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<4>, i, conf, p),
-            32 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<5>, i, conf, p),
+            8 => h2b(bits_per_group_seed, fmph::TwoToPowerBitsStatic::<3>, i, conf, p),
+            16 => h2b(bits_per_group_seed, fmph::TwoToPowerBitsStatic::<4>, i, conf, p),
+            32 => h2b(bits_per_group_seed, fmph::TwoToPowerBitsStatic::<5>, i, conf, p),
             //64 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<6>, i, conf, p),
-            _ => h2b(bits_per_group_seed, TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), i, conf, p)
+            _ => h2b(bits_per_group_seed, fmph::TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), i, conf, p)
         }
     } else {
-        h2b(bits_per_group_seed, Bits(bits_per_group), i, conf, p)
+        h2b(bits_per_group_seed, fmph::Bits(bits_per_group), i, conf, p)
     };
     if let Some(ref mut f) = file {
         writeln!(f, "{} {} {} {} {}", p.cache_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b.all()).unwrap();
@@ -521,7 +521,7 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
         if let Some((ref hash, fc)) = use_fmph {
-            let b = (FPHashConf::hash_lsize_ct_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
+            let b = (fmph::BuildConf::hash_lsize_ct_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
             println!(" {:.1}\t{}", gamma, b);
             if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, relative_level_size, b.all()).unwrap(); }
         } else {

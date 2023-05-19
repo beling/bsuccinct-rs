@@ -17,7 +17,7 @@ use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// 
 /// See field descriptions for details.
 #[derive(Clone)]
-pub struct FPHashConf<S = BuildDefaultSeededHasher> {
+pub struct BuildConf<S = BuildDefaultSeededHasher> {
     /// The family of hash functions used by the constructed FMPH. (default: [`BuildDefaultSeededHasher`])
     pub hash_builder: S,
 
@@ -44,7 +44,7 @@ pub struct FPHashConf<S = BuildDefaultSeededHasher> {
     pub use_multiple_threads: bool
 }
 
-impl Default for FPHashConf {
+impl Default for BuildConf {
     fn default() -> Self {
         Self {
             hash_builder: Default::default(),
@@ -55,7 +55,7 @@ impl Default for FPHashConf {
     }
 }
 
-impl FPHashConf {
+impl BuildConf {
     /// Returns configuration that potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
     pub fn mt(use_multiple_threads: bool) -> Self {
         Self { use_multiple_threads, ..Default::default() }
@@ -82,7 +82,7 @@ impl FPHashConf {
     }
 }
 
-impl<S> FPHashConf<S> {
+impl<S> BuildConf<S> {
     /// The default value for [`relative_level_size`](FPHashConf::relative_level_size),
     /// which results in building the cache with a maximum size of 1GB.
     pub const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = 1GB
@@ -183,15 +183,15 @@ pub(crate) fn get_mut_slice(v: &mut [AtomicU64]) -> &mut [u64] {
 }
 
 /// Helper structure for building fingerprinting-based minimal perfect hash function (FMPH).
-struct FPHashBuilder<S> {
+struct Builder<S> {
     arrays: Vec::<Box<[u64]>>,
     input_size: usize,
     use_multiple_threads: bool,
-    conf: FPHashConf<S>
+    conf: BuildConf<S>
 }
 
-impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
-    pub fn new<K>(conf: FPHashConf<S>, keys: &impl KeySet<K>) -> Self {
+impl<S: BuildSeededHasher + Sync> Builder<S> {
+    pub fn new<K>(conf: BuildConf<S>, keys: &impl KeySet<K>) -> Self {
         Self {
             arrays: Vec::<Box<[u64]>>::new(),
             input_size: keys.keys_len(),
@@ -357,19 +357,19 @@ impl<S: BuildSeededHasher + Sync> FPHashBuilder<S> {
 /// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 /// - A. Limasset, G. Rizk, R. Chikhi, P. Peterlongo, *Fast and Scalable Minimal Perfect Hashing for Massive Key Sets*, SEA 2017
 #[derive(Clone)]
-pub struct FPHash<S = BuildDefaultSeededHasher> {
+pub struct Function<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     level_sizes: Box<[u64]>,
     hash_builder: S,
 }
 
-impl<S: BuildSeededHasher> GetSize for FPHash<S> {
+impl<S: BuildSeededHasher> GetSize for Function<S> {
     fn size_bytes_dyn(&self) -> usize { self.array.size_bytes_dyn() + self.level_sizes.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.array.size_bytes_content_dyn() + self.level_sizes.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S: BuildSeededHasher> FPHash<S> {
+impl<S: BuildSeededHasher> Function<S> {
 
     /// Returns index of the key `k` at the level of the given number (`level_nr`) and `size`.
     #[inline(always)] fn index<K: Hash>(&self, k: &K, level_nr: u32, size: usize) -> usize {
@@ -427,13 +427,13 @@ impl<S: BuildSeededHasher> FPHash<S> {
     }
 }
 
-impl<S: BuildSeededHasher + Sync> FPHash<S> {
+impl<S: BuildSeededHasher + Sync> Function<S> {
     /// Builds `FPHash` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
-    pub fn with_conf_stats<K, BS>(mut keys: impl KeySet<K>, conf: FPHashConf<S>, stats: &mut BS) -> Self
+    pub fn with_conf_stats<K, BS>(mut keys: impl KeySet<K>, conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync,
               BS: stats::BuildStatsCollector
     {
-        let mut builder = FPHashBuilder::new(conf, &keys);
+        let mut builder = Builder::new(conf, &keys);
         builder.build_levels(&mut keys, stats);
         drop(keys);
         stats.end();
@@ -447,42 +447,42 @@ impl<S: BuildSeededHasher + Sync> FPHash<S> {
     }
 
     /// Builds `FPHash` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn with_conf<K>(keys: impl KeySet<K>, conf: FPHashConf<S>) -> Self
+    #[inline] pub fn with_conf<K>(keys: impl KeySet<K>, conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(keys, conf, &mut ())
     }
 
     /// Builds `FPHash` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: FPHashConf<S>, stats: &mut BS) -> Self
+    #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
     /// Builds `FPHash` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: FPHashConf<S>) -> Self
+    #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
     /// Builds `FPHash` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: FPHashConf<S>, stats: &mut BS) -> Self
+    #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
     /// Builds `FPHash` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: FPHashConf<S>) -> Self
+    #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, &mut ())
     }
 }
 
-impl FPHash {
+impl Function {
     /// Reads `Self` from the `input`.
     /// Only `FPHash`s that use default hasher can be read by this method.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
@@ -502,7 +502,7 @@ impl FPHash {
     }
 }
 
-impl<K: Hash + Clone + Sync> From<&[K]> for FPHash {
+impl<K: Hash + Clone + Sync> From<&[K]> for Function {
     fn from(keys: &[K]) -> Self {
         Self::new(SliceSourceWithRefs::<_, u8>::new(keys))
     }
@@ -515,17 +515,17 @@ mod tests {
     use std::fmt::Display;
     use crate::utils::test_mphf;
 
-    fn test_read_write(h: &FPHash) {
+    fn test_read_write(h: &Function) {
         let mut buff = Vec::new();
         h.write(&mut buff).unwrap();
         assert_eq!(buff.len(), h.write_bytes());
-        let read = FPHash::read(&mut &buff[..]).unwrap();
+        let read = Function::read(&mut &buff[..]).unwrap();
         assert_eq!(h.level_sizes.len(), read.level_sizes.len());
         assert_eq!(h.array.content, read.array.content);
     }
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K]) {
-        let h = FPHash::from_slice_with_conf(to_hash, FPHashConf::mt(false));
+        let h = Function::from_slice_with_conf(to_hash, BuildConf::mt(false));
         test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));
         test_read_write(&h);
     }
