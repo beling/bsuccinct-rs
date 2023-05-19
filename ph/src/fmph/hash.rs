@@ -11,7 +11,7 @@ use std::sync::atomic::Ordering::Relaxed;
 use rayon::prelude::*;
 use dyn_size_of::GetSize;
 
-use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
+use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by [`FPHash`] constructors.
 /// 

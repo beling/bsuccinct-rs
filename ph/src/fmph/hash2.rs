@@ -11,11 +11,11 @@ use super::indexing2::{GroupSize, SeedSize, TwoToPowerBitsStatic};
 use std::io;
 use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
-use crate::fp::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bit};
-use crate::fp::indexing2::group_nr;
+use crate::fmph::hash::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bit};
+use crate::fmph::indexing2::group_nr;
 
 use rayon::prelude::*;
-use crate::fp::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
+use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
 /// Configuration that is accepted by [`FPHash2`] constructors.
 /// 
@@ -596,9 +596,9 @@ impl<K: Hash + Clone + Sync> From<&[K]> for FPHash2 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::test_mphf, fp::TwoToPowerBits};
+    use crate::{utils::test_mphf, fmph::TwoToPowerBits};
     use std::fmt::{Debug, Display};
-    use crate::fp::Bits;
+    use crate::fmph::Bits;
 
     fn test_read_write<GS: GroupSize + Sync, SS: SeedSize>(h: &FPHash2<GS, SS>)
         where SS::VecElement: std::cmp::PartialEq + Debug

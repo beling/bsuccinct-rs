@@ -4,7 +4,7 @@
 #[cfg(feature = "cmph-sys")] use cmph::chd_benchmark;
 
 use clap::{Parser, ValueEnum, Subcommand, Args};
-use ph::fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, SeedSize, TwoToPowerBitsStatic, FPHash2Builder, TwoToPowerBits};
+use ph::fmph::{FPHash, FPHashConf, FPHash2, FPHash2Conf, Bits, Bits8, GroupSize, SeedSize, TwoToPowerBitsStatic, FPHash2Builder, TwoToPowerBits};
 use bitm::{BitAccess, BitVec};
 use std::hash::Hash;
 use std::fmt::{Debug, Display, Formatter};
@@ -16,7 +16,7 @@ use boomphf::Mphf;
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
-use ph::fp::keyset::{SliceSourceWithClones, SliceSourceWithRefs};
+use ph::fmph::keyset::{SliceSourceWithClones, SliceSourceWithRefs};
 use ph::seedable_hash::BuildWyHash;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]

@@ -8,7 +8,7 @@ pub mod stats;
 pub mod seedable_hash;
 pub use seedable_hash::{BuildSeededHasher, Seedable, BuildDefaultSeededHasher};
 
-pub mod fp;
-pub use fp::{FPHash, FPHashConf, FPHash2, FPHash2Conf};
+pub mod fmph;
+pub use fmph::{FPHash, FPHashConf, FPHash2, FPHash2Conf};
 
 pub use dyn_size_of::GetSize;
