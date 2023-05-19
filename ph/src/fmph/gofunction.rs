@@ -472,7 +472,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
 }
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction<GS, SS, S> {
-    /// Builds `FPHash2` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
+    /// Builds [GOFunction] for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
     pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut levels: GOBuilder<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
@@ -526,7 +526,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction
         Self::with_conf_mt_stats(keys, conf, use_multiple_threads, &mut ())
     }
 
-    /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
+    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
@@ -539,7 +539,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction
         Self::with_conf_mt_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, use_multiple_threads, stats)
     }
 
-    /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
+    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: GOConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
@@ -549,14 +549,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction
     #[inline] pub fn from_slice_with_conf_mt<K>(keys: &[K], conf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self
         where K: Hash + Sync { Self::with_conf_mt_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, use_multiple_threads, &mut ()) }
 
-    /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
+    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
-    /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
+    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: GOConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
@@ -566,21 +566,21 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction
 
 impl<GS: GroupSize + Sync, SS: SeedSize> GOFunction<GS, SS> {
     /// Reads `Self` from the `input`.
-    /// Only `FPHash2`s that use default hasher can be read by this method.
+    /// Only [GOFunction]s that use default hasher can be read by this method.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
         Self::read_with_hasher(input, Default::default())
     }
 }
 
 impl GOFunction {
-    /// Builds `FPHash2` for given `keys`, reporting statistics to `stats`.
+    /// Builds [GOFunction] for given `keys`, reporting statistics to `stats`.
     pub fn from_slice_with_stats<K, BS>(keys: &[K], stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::from_slice_with_conf_stats(keys, Default::default(), stats)
     }
 
-    /// Builds `FPHash2` for given `keys`.
+    /// Builds [GOFunction] for given `keys`.
     pub fn from_slice<K: Hash + Sync>(keys: &[K]) -> Self {
         Self::from_slice_with_conf_stats(keys, Default::default(), &mut ())
     }

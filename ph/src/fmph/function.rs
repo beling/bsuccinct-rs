@@ -428,7 +428,7 @@ impl<S: BuildSeededHasher> Function<S> {
 }
 
 impl<S: BuildSeededHasher + Sync> Function<S> {
-    /// Builds `FPHash` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
+    /// Builds [Function] for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
     pub fn with_conf_stats<K, BS>(mut keys: impl KeySet<K>, conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync,
               BS: stats::BuildStatsCollector
@@ -446,35 +446,35 @@ impl<S: BuildSeededHasher + Sync> Function<S> {
         }
     }
 
-    /// Builds `FPHash` for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the configuration `conf`.
     #[inline] pub fn with_conf<K>(keys: impl KeySet<K>, conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(keys, conf, &mut ())
     }
 
-    /// Builds `FPHash` for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
-    /// Builds `FPHash` for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
-    /// Builds `FPHash` for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
-    /// Builds `FPHash` for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the configuration `conf`.
     #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
@@ -484,19 +484,19 @@ impl<S: BuildSeededHasher + Sync> Function<S> {
 
 impl Function {
     /// Reads `Self` from the `input`.
-    /// Only `FPHash`s that use default hasher can be read by this method.
+    /// Only [Function]s that use default hasher can be read by this method.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
         Self::read_with_hasher(input, Default::default())
     }
 
-    /// Builds `FPHash` for given `keys`, reporting statistics to `stats`.
+    /// Builds [Function] for given `keys`, reporting statistics to `stats`.
     pub fn with_stats<K, BS>(keys: impl KeySet<K>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(keys, Default::default(), stats)
     }
 
-    /// Builds `FPHash` for given `keys`.
+    /// Builds [Function] for given `keys`.
     pub fn new<K: Hash + Sync>(keys: impl KeySet<K>) -> Self {
         Self::with_conf_stats(keys, Default::default(), &mut ())
     }
