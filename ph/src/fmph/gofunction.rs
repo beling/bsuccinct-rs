@@ -27,7 +27,7 @@ use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// More details are included in their documentation and the paper:
 /// P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 #[derive(Clone)]
-pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+pub struct GOConf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     /// The family of hash functions used by the constructed FMPHGO. (default: [`BuildDefaultSeededHasher`])
     hash_builder: S,
     /// Size of seeds (in bits). (default: 4)
@@ -36,7 +36,7 @@ pub struct FPHash2Conf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize =
     bits_per_group: GS
 }
 
-impl FPHash2Conf<TwoToPowerBitsStatic::<3>, TwoToPowerBitsStatic::<0>, BuildDefaultSeededHasher> {
+impl GOConf<TwoToPowerBitsStatic::<3>, TwoToPowerBitsStatic::<0>, BuildDefaultSeededHasher> {
     /// Creates a configuration in which the seed and group sizes are 1 and 8 bits respectively,
     /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
     /// - size is about 2.52 bits per input key,
@@ -51,7 +51,7 @@ impl FPHash2Conf<TwoToPowerBitsStatic::<3>, TwoToPowerBitsStatic::<0>, BuildDefa
     }
 }
 
-impl FPHash2Conf<TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic::<1>, BuildDefaultSeededHasher> {
+impl GOConf<TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic::<1>, BuildDefaultSeededHasher> {
     /// Creates a configuration in which the seed and group sizes are 2 and 16 bits respectively,
     /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
     /// - size is about 2.36 bits per input key,
@@ -66,7 +66,7 @@ impl FPHash2Conf<TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic::<1>, BuildDefa
     }
 }
 
-impl Default for FPHash2Conf {
+impl Default for GOConf {
     /// Creates a configuration in which the seed and group sizes are 4 and 16 bits respectively,
     /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
     /// - size is about 2.21 bits per input key,
@@ -80,7 +80,7 @@ impl Default for FPHash2Conf {
     }
 }
 
-impl FPHash2Conf<TwoToPowerBitsStatic::<5>, Bits8, BuildDefaultSeededHasher> {
+impl GOConf<TwoToPowerBitsStatic::<5>, Bits8, BuildDefaultSeededHasher> {
     /// Creates a configuration in which the seed and group sizes are 8 and 32 bits respectively,
     /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
     /// - size is about 2.10 bits per input key,
@@ -95,7 +95,7 @@ impl FPHash2Conf<TwoToPowerBitsStatic::<5>, Bits8, BuildDefaultSeededHasher> {
     }
 }
 
-impl<GS: GroupSize, SS: SeedSize> FPHash2Conf<GS, SS> {
+impl<GS: GroupSize, SS: SeedSize> GOConf<GS, SS> {
     /// Returns a configuration that uses seeds and groups of the sizes given in bits.
     pub fn bps_bpg(bits_per_seed: SS, bits_per_group: GS) -> Self {
         bits_per_seed.validate().unwrap();
@@ -108,7 +108,7 @@ impl<GS: GroupSize, SS: SeedSize> FPHash2Conf<GS, SS> {
     }
 }
 
-impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2Conf<GS, SS, S> {
+impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOConf<GS, SS, S> {
     /// Returns a configuration that uses given family of hash functions and seeds and groups of the sizes given in bits.
     pub fn hash_bps_bpg(hash_builder: S, bits_per_seed: SS, bits_per_group: GS) -> Self {
         bits_per_seed.validate().unwrap();
@@ -144,7 +144,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2Conf<GS, SS, S> {
     }
 }
 
-impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Conf<GS, SS, S> {
+impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOConf<GS, SS, S> {
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     fn build_array_for_hashes_mt(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u64, group_seed: u16) -> Box<[u64]>
     {
@@ -168,7 +168,7 @@ pub struct FPHash2Builder<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSiz
     pub cache_threshold: usize,     // maximum size of the keys set to cache hashes
     pub relative_level_size: u16,
     use_multiple_threads: bool,
-    pub conf: FPHash2Conf<GS, SS, S>,
+    pub conf: GOConf<GS, SS, S>,
 }   // TODO introduce trait to make other builders possible
 
 impl Default for FPHash2Builder {
@@ -187,7 +187,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
 
     #[inline(always)] pub fn get_use_multiple_threads(&self) -> bool { self.use_multiple_threads }
 
-    pub fn with_lsize_ct_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
+    pub fn with_lsize_ct_mt(conf: GOConf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
         Self {
             level_sizes: Vec::<u64>::new(),
             arrays: Vec::<Box<[u64]>>::new(),
@@ -199,28 +199,28 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2Bui
         }
     }
 
-    pub fn new(conf: FPHash2Conf<GS, SS, S>) -> Self {
+    pub fn new(conf: GOConf<GS, SS, S>) -> Self {
         Self::with_lsize_ct_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_CACHE_THRESHOLD, true)
     }
 
-    pub fn with_lsize_ct(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize) -> Self {
+    pub fn with_lsize_ct(conf: GOConf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize) -> Self {
         Self::with_lsize_ct_mt(conf, relative_level_size, cache_threshold, true)
     }
 
     /// Returns builder that uses at each level a bit-array of size `relative_level_size`
     /// given as a percent of number of input keys for the level.
-    pub fn with_lsize(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16) -> Self {
+    pub fn with_lsize(conf: GOConf<GS, SS, S>, relative_level_size: u16) -> Self {
         Self::with_lsize_ct_mt(conf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, true)
     }
 
     /// Returns builder that potentially uses multiple threads to build levels,
     /// and at each level a bit-array of size `relative_level_size`
     /// given as a percent of number of input keys for the level.
-    pub fn with_lsize_mt(conf: FPHash2Conf<GS, SS, S>, relative_level_size: u16, use_multiple_threads: bool) -> Self {
+    pub fn with_lsize_mt(conf: GOConf<GS, SS, S>, relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self::with_lsize_ct_mt(conf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
     }
 
-    pub fn with_mt(conf: FPHash2Conf<GS, SS, S>, use_multiple_threads: bool) -> Self {
+    pub fn with_mt(conf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self {
         Self::with_lsize_ct_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
     }
 
@@ -374,7 +374,7 @@ pub struct FPHash2<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = Two
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
     level_size: Box<[u64]>, // number of groups
-    conf: FPHash2Conf<GS, SS, S>
+    conf: GOConf<GS, SS, S>
     // 0..01..1 mask with number of ones = group size (in bits)
     //group_size_mask: u8,
 }
@@ -458,7 +458,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
             array: array_with_rank,
             group_seeds,
             level_size,
-            conf: FPHash2Conf {
+            conf: GOConf {
                 bits_per_seed: bits_per_group_seed,
                 bits_per_group,
                 hash_builder
@@ -502,62 +502,62 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
         Self::with_builder_stats(keys, levels, &mut ())
     }
 
-    pub fn with_conf_stats<K, KS, BS>(keys: KS, conf: FPHash2Conf<GS, SS, S>, stats: &mut BS) -> Self
+    pub fn with_conf_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_builder_stats(keys, FPHash2Builder::new(conf), stats)
     }
 
-    pub fn with_conf_mt_stats<K, KS, BS>(keys: KS, conf: FPHash2Conf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
+    pub fn with_conf_mt_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_builder_stats(keys, FPHash2Builder::with_mt(conf, use_multiple_threads), stats)
     }
 
-    #[inline] pub fn with_conf<K, KS>(keys: KS, conf: FPHash2Conf<GS, SS, S>) -> Self
+    #[inline] pub fn with_conf<K, KS>(keys: KS, conf: GOConf<GS, SS, S>) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         Self::with_conf_stats(keys, conf, &mut ())
     }
 
-    #[inline] pub fn with_conf_mt<K, KS>(keys: KS, conf: FPHash2Conf<GS, SS, S>, use_multiple_threads: bool) -> Self
+    #[inline] pub fn with_conf_mt<K, KS>(keys: KS, conf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         Self::with_conf_mt_stats(keys, conf, use_multiple_threads, &mut ())
     }
 
     /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: FPHash2Conf<GS, SS, S>, stats: &mut BS) -> Self
+    #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
-    #[inline] pub fn from_slice_with_conf_mt_stats<K, BS>(keys: &[K], conf: FPHash2Conf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
+    #[inline] pub fn from_slice_with_conf_mt_stats<K, BS>(keys: &[K], conf: GOConf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_mt_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, use_multiple_threads, stats)
     }
 
     /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: FPHash2Conf<GS, SS, S>) -> Self
+    #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: GOConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
-    #[inline] pub fn from_slice_with_conf_mt<K>(keys: &[K], conf: FPHash2Conf<GS, SS, S>, use_multiple_threads: bool) -> Self
+    #[inline] pub fn from_slice_with_conf_mt<K>(keys: &[K], conf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self
         where K: Hash + Sync { Self::with_conf_mt_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, use_multiple_threads, &mut ()) }
 
     /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: FPHash2Conf<GS, SS, S>, stats: &mut BS) -> Self
+    #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
     /// Builds `FPHash2` for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: FPHash2Conf<GS, SS, S>) -> Self
+    #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: GOConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, &mut ())
@@ -619,7 +619,7 @@ mod tests {
     }
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K], bits_per_group: impl GroupSize + Sync) {
-        let conf = FPHash2Conf::bps_bpg(Bits(3), bits_per_group);
+        let conf = GOConf::bps_bpg(Bits(3), bits_per_group);
         let h = FPHash2::from_slice_with_conf_mt(&mut to_hash.to_vec(), conf, false);
         //dbg!(h.size_bytes() as f64 * 8.0/to_hash.len() as f64);
         test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));

@@ -414,7 +414,7 @@ fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K
     where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
 {
     (fmph::FPHash2Builder::with_lsize_ct_mt(
-        fmph::FPHash2Conf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
+        fmph::GOConf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
         p.relative_level_size, p.cache_threshold, false), p.key_access)
     .benchmark(i, conf)
 }

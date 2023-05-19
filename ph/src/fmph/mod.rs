@@ -6,6 +6,6 @@ pub use function::{Function, BuildConf};
 pub mod goindexing;
 pub use goindexing::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic, Bits, Bits8};
 mod gofunction;
-pub use gofunction::{FPHash2, FPHash2Conf, FPHash2Builder};
+pub use gofunction::{FPHash2, GOConf, FPHash2Builder};
 
 pub mod keyset;
