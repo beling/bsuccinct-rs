@@ -16,7 +16,6 @@ Programs can be compiled and installed from sources. To do this, a Rust compiler
 The easiest way to obtain the compiler along with other necessary tools (like `cargo`) is
 to use [rustup](https://www.rust-lang.org/tools/install).
 
-## Installing rust toolchain
 Please follow the instructions at https://www.rust-lang.org/tools/install.
 
 ## Installing rust programs
