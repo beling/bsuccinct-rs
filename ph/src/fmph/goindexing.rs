@@ -1,3 +1,5 @@
+//! Utils for indexing with group optimization.
+
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
 use std::ops::Mul;

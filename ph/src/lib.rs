@@ -9,6 +9,5 @@ pub mod seedable_hash;
 pub use seedable_hash::{BuildSeededHasher, Seedable, BuildDefaultSeededHasher};
 
 pub mod fmph;
-pub use fmph::{Function, BuildConf, GOFunction, GOConf};
 
 pub use dyn_size_of::GetSize;

@@ -13,7 +13,7 @@ use dyn_size_of::GetSize;
 
 use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration that is accepted by [`FPHash`] constructors.
+/// Configuration that is accepted by [`Function`] constructors.
 /// 
 /// See field descriptions for details.
 #[derive(Clone)]
@@ -22,7 +22,7 @@ pub struct BuildConf<S = BuildDefaultSeededHasher> {
     pub hash_builder: S,
 
     /// The threshold for the number of keys below which their hashes will be cached during level construction.
-    /// (default: [`FPHashConf::DEFAULT_CACHE_THRESHOLD`])
+    /// (default: [`BuildConf::DEFAULT_CACHE_THRESHOLD`])
     /// 
     /// Caching speeds up level construction at the expense of memory consumption during construction
     /// (caching a single key requires 8 bytes of memory).
@@ -56,26 +56,26 @@ impl Default for BuildConf {
 }
 
 impl BuildConf {
-    /// Returns configuration that potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
+    /// Returns configuration that potentially uses [multiple threads](BuildConf::use_multiple_threads) to build [Function].
     pub fn mt(use_multiple_threads: bool) -> Self {
         Self { use_multiple_threads, ..Default::default() }
     }
 
-    /// Returns configuration that uses custom [`cache_threshold`](FPHashConf::cache_threshold) and
-    /// potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
+    /// Returns configuration that uses custom [`cache_threshold`](BuildConf::cache_threshold) and
+    /// potentially uses [multiple threads](BuildConf::use_multiple_threads) to build [Function].
     pub fn ct_mt(cache_threshold: usize, use_multiple_threads: bool) -> Self {
         Self { use_multiple_threads, cache_threshold, ..Default::default() }
     }
 
     /// Returns configuration that uses at each level a bit-array
-    /// of size [`relative_level_size`](FPHashConf::relative_level_size)
+    /// of size [`relative_level_size`](BuildConf::relative_level_size)
     /// given as a percent of number of level input keys.
     pub fn lsize(relative_level_size: u16) -> Self {
         Self { relative_level_size, ..Default::default() }
     }
 
-    /// Returns configuration that potentially uses [multiple threads](FPHashConf::use_multiple_threads) and
-    /// at each level a bit-array of size [`relative_level_size`](FPHashConf::relative_level_size)
+    /// Returns configuration that potentially uses [multiple threads](BuildConf::use_multiple_threads) and
+    /// at each level a bit-array of size [`relative_level_size`](BuildConf::relative_level_size)
     /// given as a percent of number of level input keys.
     pub fn lsize_mt(relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, use_multiple_threads, ..Default::default() }
@@ -83,29 +83,29 @@ impl BuildConf {
 }
 
 impl<S> BuildConf<S> {
-    /// The default value for [`relative_level_size`](FPHashConf::relative_level_size),
+    /// The default value for [`relative_level_size`](BuildConf::relative_level_size),
     /// which results in building the cache with a maximum size of 1GB.
     pub const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = 1GB
 
-    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder).
+    /// Returns configuration that uses custom [`hash_builder`](BuildConf::hash_builder).
     pub fn hash(hash_builder: S) -> Self {
         Self { hash_builder, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD, relative_level_size: 100, use_multiple_threads: true }
     }
 
-    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder) and [`relative_level_size`](FPHashConf::relative_level_size).
+    /// Returns configuration that uses custom [`hash_builder`](BuildConf::hash_builder) and [`relative_level_size`](BuildConf::relative_level_size).
     pub fn hash_lsize(hash_builder: S, relative_level_size: u16) -> Self {
         Self { relative_level_size, ..Self::hash(hash_builder) }
     }
 
-    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder), [`relative_level_size`](FPHashConf::relative_level_size)
-    /// and potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
+    /// Returns configuration that uses custom [`hash_builder`](BuildConf::hash_builder), [`relative_level_size`](BuildConf::relative_level_size)
+    /// and potentially uses [multiple threads](BuildConf::use_multiple_threads) to build [Function].
     pub fn hash_lsize_mt(hash_builder: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, hash_builder, use_multiple_threads, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD }
     }
 
-    /// Returns configuration that uses custom [`hash_builder`](FPHashConf::hash_builder),
-    /// [`relative_level_size`](FPHashConf::relative_level_size), [`cache_threshold`](FPHashConf::cache_threshold)
-    /// and potentially uses [multiple threads](FPHashConf::use_multiple_threads) to build `FPHash`.
+    /// Returns configuration that uses custom [`hash_builder`](BuildConf::hash_builder),
+    /// [`relative_level_size`](BuildConf::relative_level_size), [`cache_threshold`](BuildConf::cache_threshold)
+    /// and potentially uses [multiple threads](BuildConf::use_multiple_threads) to build [Function].
     pub fn hash_lsize_ct_mt(hash_builder: S, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, hash_builder, use_multiple_threads, cache_threshold }
     }

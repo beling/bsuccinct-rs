@@ -17,11 +17,11 @@ use crate::fmph::goindexing::group_nr;
 use rayon::prelude::*;
 use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration that is accepted by [`FPHash2`] constructors.
+/// Configuration that is accepted by [`GOFunction`] constructors.
 /// 
 /// Good configurations can be obtained by calling one of the following functions:
-/// [default_biggest](FPHash2Conf::default_biggest), [default_bigger](FPHash2Conf::default_bigger),
-/// [default](FPHash2Conf::default), [default_smallest](FPHash2Conf::default_smallest).
+/// [default_biggest](GOConf::default_biggest), [default_bigger](GOConf::default_bigger),
+/// [default](GOConf::default), [default_smallest](GOConf::default_smallest).
 /// These functions are listed in order of increasing performance (in terms of size and evaluation speed)
 /// and time to construct the minimum perfect hash function.
 /// More details are included in their documentation and the paper:
@@ -41,7 +41,7 @@ impl GOConf<TwoToPowerBitsStatic::<3>, TwoToPowerBitsStatic::<0>, BuildDefaultSe
     /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
     /// - size is about 2.52 bits per input key,
     /// - the expected number of levels visited during the evaluation is about 2.18,
-    /// - construction takes about 4 times less time compared to the [default](FPHash2Conf::default) configuration.
+    /// - construction takes about 4 times less time compared to the [default](GOConf::default) configuration.
     pub fn default_biggest() -> Self {
         Self {
             hash_builder: Default::default(),
@@ -56,7 +56,7 @@ impl GOConf<TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic::<1>, BuildDefaultSe
     /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
     /// - size is about 2.36 bits per input key,
     /// - the expected number of levels visited during the evaluation is about 2.04,
-    /// - construction takes about 3 times less time compared to the [default](FPHash2Conf::default) configuration.
+    /// - construction takes about 3 times less time compared to the [default](GOConf::default) configuration.
     pub fn default_bigger() -> Self {
         Self {
             hash_builder: Default::default(),
@@ -85,7 +85,7 @@ impl GOConf<TwoToPowerBitsStatic::<5>, Bits8, BuildDefaultSeededHasher> {
     /// which (when relative level size is 100) leads to a minimum perfect hash function whose:
     /// - size is about 2.10 bits per input key,
     /// - the expected number of levels visited during the evaluation is about 1.64,
-    /// - construction takes about 13 times longer compared to the [default](FPHash2Conf::default) configuration.
+    /// - construction takes about 13 times longer compared to the [default](GOConf::default) configuration.
     pub fn default_smallest() -> Self {
         Self {
             hash_builder: Default::default(),

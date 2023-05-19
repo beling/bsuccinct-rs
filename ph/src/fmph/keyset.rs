@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use bitm::{BitAccess, ceiling_div};
 
 /// A trait for accessing and managing sets of keys (of the type `K`) during construction of
-/// [FPHash](super::hash::FPHash) or [FPHash2](super::hash2::FPHash2).
+/// [fmph::Function](super::Function) or [fmph::GOFunction](super::GOFunction).
 pub trait KeySet<K> {
     /// Returns number of retained keys. Guarantee to be very fast.
     fn keys_len(&self) -> usize;
