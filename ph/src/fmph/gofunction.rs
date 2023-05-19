@@ -17,7 +17,7 @@ use crate::fmph::goindexing::group_nr;
 use rayon::prelude::*;
 use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration of family of hash functions used by [`GOFunction`] and accepted by its constructors.
+/// Configuration of family of (group-optimized) hash functions used by [`GOFunction`] and accepted by its and [`GOBuildConf`] constructors.
 /// 
 /// Good configurations can be obtained by calling one of the following functions:
 /// [default_biggest](GOConf::default_biggest), [default_bigger](GOConf::default_bigger),
@@ -159,69 +159,93 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOConf<GS,
     }
 }
 
-/// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO, [GOFunction]).
-#[derive(Clone)]
-pub struct GOBuilder<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+/// Build configuration that is accepted by [`GOFunction`] constructors.
+///
+/// See field descriptions for details.
+#[derive(Clone)]    // Also helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO, [GOFunction]).
+pub struct GOBuildConf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     level_sizes: Vec::<u64>,
     arrays: Vec::<Box<[u64]>>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
-    pub cache_threshold: usize,     // maximum size of the keys set to cache hashes
+
+    /// The threshold for the number of keys below which their hashes will be cached during level construction.
+    /// (default: [`GOBuildConf::DEFAULT_CACHE_THRESHOLD`])
+    /// 
+    /// Caching speeds up level construction at the expense of memory consumption during construction
+    /// (caching a single key requires 8 bytes of memory).
+    /// Caching is particularly recommended for keys with complex types whose hashing is slow.
+    /// It is possible to use a value of `0` to disable caching completely, or [`usize::MAX`] to use it on all levels.
+    pub cache_threshold: usize,
+
+    /// Size of each level given as a percentage of the number of level input keys. (default: `100`)
+    /// 
+    /// A value of 100 minimizes the size of the constructed minimum perfect hash function.
+    /// Larger values speed up evaluation at the expense of increased size.
+    /// It does not make sense to use values below 100.
     pub relative_level_size: u16,
-    use_multiple_threads: bool,
-    pub conf: GOConf<GS, SS, S>,
+
+    /// Whether to use multiple threads during construction. (default: `true`)
+    /// 
+    /// If `true`, the construction will be performed using the default [rayon] thread pool.
+    pub use_multiple_threads: bool,
+
+    /// Configuration of family of (group-optimized) hash functions (default: [`GOConf::default`]).
+    pub goconf: GOConf<GS, SS, S>,
 }   // TODO introduce trait to make other builders possible
 
-impl Default for GOBuilder {
+impl Default for GOBuildConf {
     fn default() -> Self { Self::new(Default::default()) }
 }
 
-impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<GS, SS, S>
+impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuildConf<GS, SS, S>
 {
-    const DEFAULT_RELATIVE_LEVEL_SIZE: u16 = 100;
-    const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
+    /// The default value for [`relative_level_size`](GOBuildConf::relative_level_size),
+    /// which results in building the cache with a maximum size of 1GB.
+    pub const DEFAULT_CACHE_THRESHOLD: usize = 1024*1024*128; // *8 bytes = max 1GB for pre-hashing
 
-    /// Enable / disable building levels with multiple threads.
-    pub fn set_use_multiple_threads(&mut self, use_multiple_threads: bool) {
-        self.use_multiple_threads = use_multiple_threads && rayon::current_num_threads() > 1;
-    }
-
-    #[inline(always)] pub fn get_use_multiple_threads(&self) -> bool { self.use_multiple_threads }
-
-    pub fn with_lsize_ct_mt(conf: GOConf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
+    /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf),
+    /// [relative level size](GOBuildConf::relative_level_size), [cache threshold](GOBuildConf::cache_threshold)
+    /// and potentially enabled [multiple threads](GOBuildConf::use_multiple_threads).
+    pub fn with_lsize_ct_mt(goconf: GOConf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize, use_multiple_threads: bool) -> Self {
         Self {
             level_sizes: Vec::<u64>::new(),
             arrays: Vec::<Box<[u64]>>::new(),
             group_seeds: Vec::<Box<[SS::VecElement]>>::new(),
             cache_threshold,
             relative_level_size,
-            use_multiple_threads: use_multiple_threads && rayon::current_num_threads() > 1,
-            conf
+            use_multiple_threads,
+            goconf
         }
     }
 
-    pub fn new(conf: GOConf<GS, SS, S>) -> Self {
-        Self::with_lsize_ct_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_CACHE_THRESHOLD, true)
+    /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf).
+    pub fn new(goconf: GOConf<GS, SS, S>) -> Self {
+        Self::with_lsize_ct_mt(goconf, 100, Self::DEFAULT_CACHE_THRESHOLD, true)
     }
 
-    pub fn with_lsize_ct(conf: GOConf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize) -> Self {
-        Self::with_lsize_ct_mt(conf, relative_level_size, cache_threshold, true)
+    /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf),
+    /// [relative level size](GOBuildConf::relative_level_size) and [cache threshold](GOBuildConf::cache_threshold).
+    pub fn with_lsize_ct(goconf: GOConf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize) -> Self {
+        Self::with_lsize_ct_mt(goconf, relative_level_size, cache_threshold, true)
     }
 
-    /// Returns builder that uses at each level a bit-array of size `relative_level_size`
-    /// given as a percent of number of input keys for the level.
-    pub fn with_lsize(conf: GOConf<GS, SS, S>, relative_level_size: u16) -> Self {
-        Self::with_lsize_ct_mt(conf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, true)
+    /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf)
+    /// and [relative level size](GOBuildConf::relative_level_size).
+    pub fn with_lsize(goconf: GOConf<GS, SS, S>, relative_level_size: u16) -> Self {
+        Self::with_lsize_ct_mt(goconf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, true)
     }
 
-    /// Returns builder that potentially uses multiple threads to build levels,
-    /// and at each level a bit-array of size `relative_level_size`
-    /// given as a percent of number of input keys for the level.
-    pub fn with_lsize_mt(conf: GOConf<GS, SS, S>, relative_level_size: u16, use_multiple_threads: bool) -> Self {
-        Self::with_lsize_ct_mt(conf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
+    /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf),
+    /// [relative level size](GOBuildConf::relative_level_size)
+    /// and potentially enabled [multiple threads](GOBuildConf::use_multiple_threads).
+    pub fn with_lsize_mt(goconf: GOConf<GS, SS, S>, relative_level_size: u16, use_multiple_threads: bool) -> Self {
+        Self::with_lsize_ct_mt(goconf, relative_level_size, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
     }
 
-    pub fn with_mt(conf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self {
-        Self::with_lsize_ct_mt(conf, Self::DEFAULT_RELATIVE_LEVEL_SIZE, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
+    /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf),
+    /// and potentially enabled [multiple threads](GOBuildConf::use_multiple_threads).
+    pub fn with_mt(goconf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self {
+        Self::with_lsize_ct_mt(goconf, 100, Self::DEFAULT_CACHE_THRESHOLD, use_multiple_threads)
     }
 
     fn push(&mut self, array: Box<[u64]>, seeds: Box<[SS::VecElement]>, size_groups: u64) {
@@ -233,14 +257,14 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
     /// Returns number the level about to build (number of levels built so far).
     #[inline(always)] fn level_nr(&self) -> u32 { self.level_sizes.len() as u32 }
 
-    #[inline(always)] fn last_seed(&self) -> u16 { ((1u32 << self.conf.bits_per_seed.into())-1) as u16 }
+    #[inline(always)] fn last_seed(&self) -> u16 { ((1u32 << self.goconf.bits_per_seed.into())-1) as u16 }
 
     /// Returns whether `key` is retained (`false` if it is already hashed at the levels built so far).
     fn retained<K>(&self, key: &K) -> bool where K: Hash {
         self.arrays.iter().zip(self.group_seeds.iter()).zip(self.level_sizes.iter()).enumerate()
             .all(|(level_seed, ((a, seeds), level_size_groups))| {
-                !a.get_bit(self.conf.key_index(key, level_seed as u32, *level_size_groups,
-                |group| self.conf.bits_per_seed.get_seed(seeds, group as usize)))
+                !a.get_bit(self.goconf.key_index(key, level_seed as u32, *level_size_groups,
+                |group| self.goconf.bits_per_seed.get_seed(seeds, group as usize)))
             })
     }
 
@@ -253,7 +277,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         let level_seed = self.level_nr();
-        keys.for_each_key(|key| fphash_add_bit(&mut result, &mut collision, self.conf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
+        keys.for_each_key(|key| fphash_add_bit(&mut result, &mut collision, self.goconf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
                           |key| self.retained(key));
         fphash_remove_collided(&mut result, &collision);
         result
@@ -272,7 +296,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         let level_seed = self.level_nr();
         keys.par_for_each_key(
-            |key| fphash_sync_add_bit(&result_atom, &collision, self.conf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
+            |key| fphash_sync_add_bit(&result_atom, &collision, self.goconf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
             |key| self.retained(key)
         );
         fphash_remove_collided(&mut result, get_mut_slice(&mut collision));
@@ -284,8 +308,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         where GetGroupSeed: Fn(u64) -> u16
     {
         for group_index in 0..level_size_groups {
-            self.conf.bits_per_group.copy_group_if_better(best_array, array, group_index as usize,
-                || self.conf.bits_per_seed.set_seed(best_seeds, group_index as usize, array_seed(group_index))
+            self.goconf.bits_per_group.copy_group_if_better(best_array, array, group_index as usize,
+                || self.goconf.bits_per_seed.set_seed(best_seeds, group_index as usize, array_seed(group_index))
             )
         }
     }
@@ -297,7 +321,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         where AB: Fn(u16) -> Box<[u64]> // build array for given group nr
     {
         let mut best_array = build_for_group(0);
-        let mut best_seeds = self.conf.bits_per_seed.new_zeroed_seed_vec(level_size_groups as usize);
+        let mut best_seeds = self.goconf.bits_per_seed.new_zeroed_seed_vec(level_size_groups as usize);
         for group_seed in 1..=self.last_seed() {
             let with_new_seed = build_for_group(group_seed);
             self.update_best(level_size_groups, &mut best_array, &mut best_seeds, &with_new_seed, |_| group_seed);
@@ -310,23 +334,23 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
     {
         let level_seed = self.level_nr();
         let key_hashes = keys.maybe_par_map_each_key(
-            |k| self.conf.hash_builder.hash_one(k, level_seed),
+            |k| self.goconf.hash_builder.hash_one(k, level_seed),
             |key| self.retained(key),
             self.use_multiple_threads
         );
         let (array, seeds) = if self.use_multiple_threads {
-            self.best_array(|g| self.conf.build_array_for_hashes_mt(&key_hashes, level_size_segments, level_size_groups, g), level_size_groups)
+            self.best_array(|g| self.goconf.build_array_for_hashes_mt(&key_hashes, level_size_segments, level_size_groups, g), level_size_groups)
         } else {
-            self.best_array(|g| self.conf.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups, g), level_size_groups)
+            self.best_array(|g| self.goconf.build_array_for_hashes(&key_hashes, level_size_segments, level_size_groups, g), level_size_groups)
         };
         keys.maybe_par_retain_keys_with_indices(
             |i| !array.get_bit(
-                self.conf.hash_index(key_hashes[i], level_size_groups,
-                                     |group| self.conf.bits_per_seed.get_seed(&seeds, group as usize))
+                self.goconf.hash_index(key_hashes[i], level_size_groups,
+                                     |group| self.goconf.bits_per_seed.get_seed(&seeds, group as usize))
             ),
             |key| !array.get_bit(
-                self.conf.key_index(key, level_seed, level_size_groups,
-                                    |group| self.conf.bits_per_seed.get_seed(&seeds, group as usize))
+                self.goconf.key_index(key, level_seed, level_size_groups,
+                                    |group| self.goconf.bits_per_seed.get_seed(&seeds, group as usize))
             ),
             |key| self.retained(key),
             || array.count_bit_ones(),
@@ -349,12 +373,12 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         let level_nr = self.level_nr();
         keys.maybe_par_retain_keys(
             |key| {
-                let hash = self.conf.hash_builder.hash_one(key, level_nr);
+                let hash = self.goconf.hash_builder.hash_one(key, level_nr);
                 let group = group_nr(hash, level_size_groups as u64);
-                let bit_index = self.conf.bits_per_group.bit_index_for_seed(
+                let bit_index = self.goconf.bits_per_group.bit_index_for_seed(
                     hash,
                     //current_seeds.get_fragment(group as usize, conf.bits_per_group_seed) as u16,
-                    self.conf.bits_per_seed.get_seed(&seeds, group as usize),
+                    self.goconf.bits_per_seed.get_seed(&seeds, group as usize),
                     group);
                 !array.get_bit(bit_index)
             },
@@ -373,7 +397,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
 pub struct GOFunction<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
-    level_size: Box<[u64]>, // number of groups
+    level_sizes: Box<[u64]>, // number of groups
     conf: GOConf<GS, SS, S>
     // 0..01..1 mask with number of ones = group size (in bits)
     //group_size_mask: u8,
@@ -384,7 +408,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GetSize for GOFunction<G
         self.array.size_bytes_dyn()
             //+ self.seeds.len() * std::mem::size_of::<u8>()
             + self.group_seeds.size_bytes_dyn()
-            + self.level_size.size_bytes_dyn()
+            + self.level_sizes.size_bytes_dyn()
     }
 
     const USES_DYN_MEM: bool = true;
@@ -400,7 +424,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
         let mut groups_before = 0u64;
         let mut level_nr = 0u32;
         loop {
-            let level_size_groups = *self.level_size.get(level_nr as usize)?;
+            let level_size_groups = *self.level_sizes.get(level_nr as usize)?;
             /*let bit_index = self.conf.key_index(key, level_nr, level_size_groups,
                                                 |g| self.conf.bits_per_seed.get_seed(&self.group_seeds, (groups_before + g) as usize)
             ); // wrong as bit_index_for_seed is called with wrong group */
@@ -428,7 +452,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         self.conf.bits_per_group.write_size_bytes()
-            + VByte::array_size(&self.level_size)
+            + VByte::array_size(&self.level_sizes)
             + AsIs::array_content_size(&self.array.content)
             + std::mem::size_of::<u8>() + self.group_seeds.size_bytes_content_dyn()
     }
@@ -437,7 +461,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
     {
         self.conf.bits_per_group.write(output)?;
-        VByte::write_array(output, &self.level_size)?;
+        VByte::write_array(output, &self.level_sizes)?;
         AsIs::write_all(output, self.array.content.iter())?;
         self.conf.bits_per_seed.write_seed_vec(output, &self.group_seeds)
     }
@@ -457,7 +481,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
         Ok(Self {
             array: array_with_rank,
             group_seeds,
-            level_size,
+            level_sizes: level_size,
             conf: GOConf {
                 bits_per_seed: bits_per_group_seed,
                 bits_per_group,
@@ -466,37 +490,39 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
         })
     }
 
+    /// Returns sizes of the successive levels.
     pub fn level_sizes(&self) -> &[u64] {
-        &self.level_size
+        &self.level_sizes
     }
 }
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction<GS, SS, S> {
-    /// Builds [GOFunction] for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
-    pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut levels: GOBuilder<GS, SS, S>, stats: &mut BS) -> Self
+    /// Builds [GOFunction] for given `keys`, using given build configuration (`build_conf`) and reporting statistics by `stats`.
+    pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut build_conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
+        if build_conf.use_multiple_threads { build_conf.use_multiple_threads = rayon::current_num_threads() > 1; }
         while keys.keys_len() != 0 {
             let input_size = keys.keys_len();
-            let (level_size_groups, level_size_segments) = levels.conf.bits_per_group.level_size_groups_segments(
-                ceiling_div(input_size * levels.relative_level_size as usize, 100));
+            let (level_size_groups, level_size_segments) = build_conf.goconf.bits_per_group.level_size_groups_segments(
+                ceiling_div(input_size * build_conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(input_size, level_size_segments * 64);
-            levels.build_next_level(&mut keys, level_size_groups as u64, level_size_segments);
+            build_conf.build_next_level(&mut keys, level_size_groups as u64, level_size_segments);
         }
         drop(keys);
         stats.end();
-        let (array, _)  = ArrayWithRank::build(levels.arrays.concat().into_boxed_slice());
-        let group_seeds_concatenated = levels.conf.bits_per_seed.concatenate_seed_vecs(&levels.level_sizes, levels.group_seeds);
+        let (array, _)  = ArrayWithRank::build(build_conf.arrays.concat().into_boxed_slice());
+        let group_seeds_concatenated = build_conf.goconf.bits_per_seed.concatenate_seed_vecs(&build_conf.level_sizes, build_conf.group_seeds);
         Self {
             array,
             group_seeds: group_seeds_concatenated,
-            conf: levels.conf,
-            level_size: levels.level_sizes.into_boxed_slice(),
+            conf: build_conf.goconf,
+            level_sizes: build_conf.level_sizes.into_boxed_slice(),
         }
     }
 
-    pub fn with_builder<K, KS>(keys: KS, levels: GOBuilder<GS, SS, S>) -> Self
+    pub fn with_builder<K, KS>(keys: KS, levels: GOBuildConf<GS, SS, S>) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         Self::with_builder_stats(keys, levels, &mut ())
@@ -505,13 +531,13 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction
     pub fn with_conf_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
-        Self::with_builder_stats(keys, GOBuilder::new(conf), stats)
+        Self::with_builder_stats(keys, GOBuildConf::new(conf), stats)
     }
 
     pub fn with_conf_mt_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
-        Self::with_builder_stats(keys, GOBuilder::with_mt(conf, use_multiple_threads), stats)
+        Self::with_builder_stats(keys, GOBuildConf::with_mt(conf, use_multiple_threads), stats)
     }
 
     #[inline] pub fn with_conf<K, KS>(keys: KS, conf: GOConf<GS, SS, S>) -> Self
@@ -607,13 +633,13 @@ mod tests {
         h.write(&mut buff).unwrap();
         assert_eq!(buff.len(), h.write_bytes());
         let read = GOFunction::<GS, SS>::read(&mut &buff[..]).unwrap();
-        assert_eq!(h.level_size, read.level_size);
+        assert_eq!(h.level_sizes, read.level_sizes);
         assert_eq!(h.array.content, read.array.content);
         assert_eq!(h.group_seeds, read.group_seeds);
     }
 
     fn test_hash2_invariants<GS: GroupSize, SS: SeedSize>(h: &GOFunction<GS, SS>) {
-        let number_of_groups = h.level_size.iter().map(|v| *v as usize).sum::<usize>();
+        let number_of_groups = h.level_sizes.iter().map(|v| *v as usize).sum::<usize>();
         assert_eq!(h.conf.bits_per_group * number_of_groups, h.array.content.len() * 64);
         assert_eq!(ceiling_div(number_of_groups * h.conf.bits_per_seed.into() as usize, 64), h.group_seeds.len());
     }

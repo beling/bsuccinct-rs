@@ -13,7 +13,7 @@ use dyn_size_of::GetSize;
 
 use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration that is accepted by [`Function`] constructors.
+/// Build configuration that is accepted by [`Function`] constructors.
 /// 
 /// See field descriptions for details.
 #[derive(Clone)]
@@ -424,6 +424,11 @@ impl<S: BuildSeededHasher> Function<S> {
         let array_content = AsIs::read_n(input, array_content_len)?;
         let (array_with_rank, _) = ArrayWithRank::build(array_content);
         Ok(Self { array: array_with_rank, level_sizes, hash_builder: hasher })
+    }
+
+    /// Returns sizes of the successive levels.
+    pub fn level_sizes(&self) -> &[u64] {
+        &self.level_sizes
     }
 }
 
