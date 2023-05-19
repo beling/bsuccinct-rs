@@ -524,10 +524,22 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for Function {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::fmt::Display;
-    use crate::utils::test_mphf;
+
+    pub fn test_mphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(mphf_keys: &[K], mphf: G) {
+        use bitm::BitVec;
+        let mut seen = Box::<[u64]>::with_zeroed_bits(mphf_keys.len());
+        for key in mphf_keys {
+            let index = mphf(key);
+            assert!(index.is_some(), "MPHF does not assign the value for the key {} which is in the input", key);
+            let index = index.unwrap() as usize;
+            assert!(index < mphf_keys.len(), "MPHF assigns too large value for the key {}: {}>{}.", key, index, mphf_keys.len());
+            assert!(!seen.get_bit(index), "MPHF assigns the same value to two keys of input, including {}.", key);
+            seen.set_bit(index);
+        }
+    }
 
     fn test_read_write(h: &Function) {
         let mut buff = Vec::new();

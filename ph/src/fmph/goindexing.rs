@@ -182,6 +182,7 @@ pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
     fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)>;
 }
 
+/// Size being the power of two.
 #[derive(Copy, Clone)]
 pub struct TwoToPowerBits {
     log2size: u8,
@@ -189,6 +190,7 @@ pub struct TwoToPowerBits {
 }
 
 impl TwoToPowerBits {
+    /// Returns [`TwoToPowerBits`] that represent two to power of `log2size`.
     pub fn new(log2size: u8) -> Self {
         assert!(log2size <= 7);
         Self { log2size, mask: (1u8<<log2size)-1 }
@@ -258,6 +260,7 @@ impl GroupSize for TwoToPowerBits {
     }*/
 }
 
+/// Size in bits.
 #[derive(Copy, Clone)]
 pub struct Bits(pub u8);
 
@@ -367,7 +370,7 @@ impl SeedSize for Bits8 {
     }
 }
 
-/// Seed size given as a power of two.
+/// Seed size given as a power of two (knowing at compile time).
 #[derive(Copy, Clone, Default)]
 pub struct TwoToPowerBitsStatic<const LOG2_BITS: u8>;
 

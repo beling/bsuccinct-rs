@@ -17,7 +17,7 @@ use crate::fmph::goindexing::group_nr;
 use rayon::prelude::*;
 use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 
-/// Configuration of family of (group-optimized) hash functions used by [`GOFunction`] and accepted by its and [`GOBuildConf`] constructors.
+/// Configuration of family of (group-optimized) hash functions used by [`GOFunction`] and accepted by [`GOBuildConf`] constructors.
 /// 
 /// Good configurations can be obtained by calling one of the following functions:
 /// [default_biggest](GOConf::default_biggest), [default_bigger](GOConf::default_bigger),
@@ -608,7 +608,8 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for GOFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::test_mphf, fmph::TwoToPowerBits};
+    use crate::fmph::function::tests::test_mphf;
+    use crate::fmph::TwoToPowerBits;
     use std::fmt::{Debug, Display};
     use crate::fmph::Bits;
 
