@@ -354,7 +354,7 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
 }
 
 impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::GOBuilder<GS, SS, S>, KeyAccess) {
-    type MPHF = fmph::FPHash2<GS, SS, S>;
+    type MPHF = fmph::GOFunction<GS, SS, S>;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         let mut conf = self.0.clone();

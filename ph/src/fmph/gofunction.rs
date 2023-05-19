@@ -370,7 +370,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
 ///
 /// See:
 /// - P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
-pub struct FPHash2<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
+pub struct GOFunction<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
     level_size: Box<[u64]>, // number of groups
@@ -379,7 +379,7 @@ pub struct FPHash2<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = Two
     //group_size_mask: u8,
 }
 
-impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GetSize for FPHash2<GS, SS, S> {
+impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GetSize for GOFunction<GS, SS, S> {
     fn size_bytes_dyn(&self) -> usize {
         self.array.size_bytes_dyn()
             //+ self.seeds.len() * std::mem::size_of::<u8>()
@@ -390,7 +390,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GetSize for FPHash2<GS, 
     const USES_DYN_MEM: bool = true;
 }
 
-impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
+impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
 
     /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
     /// 
@@ -471,7 +471,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> FPHash2<GS, SS, S> {
     }
 }
 
-impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS, SS, S> {
+impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction<GS, SS, S> {
     /// Builds `FPHash2` for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
     pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut levels: GOBuilder<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
@@ -564,7 +564,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> FPHash2<GS
     }
 }
 
-impl<GS: GroupSize + Sync, SS: SeedSize> FPHash2<GS, SS> {
+impl<GS: GroupSize + Sync, SS: SeedSize> GOFunction<GS, SS> {
     /// Reads `Self` from the `input`.
     /// Only `FPHash2`s that use default hasher can be read by this method.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
@@ -572,7 +572,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize> FPHash2<GS, SS> {
     }
 }
 
-impl FPHash2 {
+impl GOFunction {
     /// Builds `FPHash2` for given `keys`, reporting statistics to `stats`.
     pub fn from_slice_with_stats<K, BS>(keys: &[K], stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
@@ -586,7 +586,7 @@ impl FPHash2 {
     }
 }
 
-impl<K: Hash + Clone + Sync> From<&[K]> for FPHash2 {
+impl<K: Hash + Clone + Sync> From<&[K]> for GOFunction {
     fn from(keys: &[K]) -> Self {
         Self::from_slice(&mut keys.to_owned())
     }
@@ -600,19 +600,19 @@ mod tests {
     use std::fmt::{Debug, Display};
     use crate::fmph::Bits;
 
-    fn test_read_write<GS: GroupSize + Sync, SS: SeedSize>(h: &FPHash2<GS, SS>)
+    fn test_read_write<GS: GroupSize + Sync, SS: SeedSize>(h: &GOFunction<GS, SS>)
         where SS::VecElement: std::cmp::PartialEq + Debug
     {
         let mut buff = Vec::new();
         h.write(&mut buff).unwrap();
         assert_eq!(buff.len(), h.write_bytes());
-        let read = FPHash2::<GS, SS>::read(&mut &buff[..]).unwrap();
+        let read = GOFunction::<GS, SS>::read(&mut &buff[..]).unwrap();
         assert_eq!(h.level_size, read.level_size);
         assert_eq!(h.array.content, read.array.content);
         assert_eq!(h.group_seeds, read.group_seeds);
     }
 
-    fn test_hash2_invariants<GS: GroupSize, SS: SeedSize>(h: &FPHash2<GS, SS>) {
+    fn test_hash2_invariants<GS: GroupSize, SS: SeedSize>(h: &GOFunction<GS, SS>) {
         let number_of_groups = h.level_size.iter().map(|v| *v as usize).sum::<usize>();
         assert_eq!(h.conf.bits_per_group * number_of_groups, h.array.content.len() * 64);
         assert_eq!(ceiling_div(number_of_groups * h.conf.bits_per_seed.into() as usize, 64), h.group_seeds.len());
@@ -620,7 +620,7 @@ mod tests {
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K], bits_per_group: impl GroupSize + Sync) {
         let conf = GOConf::bps_bpg(Bits(3), bits_per_group);
-        let h = FPHash2::from_slice_with_conf_mt(&mut to_hash.to_vec(), conf, false);
+        let h = GOFunction::from_slice_with_conf_mt(&mut to_hash.to_vec(), conf, false);
         //dbg!(h.size_bytes() as f64 * 8.0/to_hash.len() as f64);
         test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));
         test_hash2_invariants(&h);
