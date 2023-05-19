@@ -433,7 +433,7 @@ impl<S: BuildSeededHasher> Function<S> {
 }
 
 impl<S: BuildSeededHasher + Sync> Function<S> {
-    /// Builds [Function] for given `keys`, using the configuration `conf` and reporting statistics to `stats`.
+    /// Builds [Function] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
     pub fn with_conf_stats<K, BS>(mut keys: impl KeySet<K>, conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync,
               BS: stats::BuildStatsCollector
@@ -451,35 +451,39 @@ impl<S: BuildSeededHasher + Sync> Function<S> {
         }
     }
 
-    /// Builds [Function] for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the build configuration `conf`.
     #[inline] pub fn with_conf<K>(keys: impl KeySet<K>, conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(keys, conf, &mut ())
     }
 
-    /// Builds [Function] for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
     #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
-    /// Builds [Function] for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the build configuration `conf`.
     #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
-    /// Builds [Function] for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// Note that `keys` can be reordered during construction.
     #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
-    /// Builds [Function] for given `keys`, using the configuration `conf`.
+    /// Builds [Function] for given `keys`, using the build configuration `conf`.
+    ///
+    /// Note that `keys` can be reordered during construction.
     #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
@@ -494,7 +498,7 @@ impl Function {
         Self::read_with_hasher(input, Default::default())
     }
 
-    /// Builds [Function] for given `keys`, reporting statistics to `stats`.
+    /// Builds [Function] for given `keys`, reporting statistics with `stats`.
     pub fn with_stats<K, BS>(keys: impl KeySet<K>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
@@ -513,6 +517,11 @@ impl<K: Hash + Clone + Sync> From<&[K]> for Function {
     }
 }
 
+impl<K: Hash + Sync + Send> From<Vec<K>> for Function {
+    fn from(keys: Vec<K>) -> Self {
+        Self::new(keys)
+    }
+}
 
 #[cfg(test)]
 mod tests {

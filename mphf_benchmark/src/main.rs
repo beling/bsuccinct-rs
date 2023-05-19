@@ -363,9 +363,9 @@ impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSi
             //KeyAccess::Sequential => Self::MPHF::with_builder(
             //    CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
             //    conf),
-            KeyAccess::Indices8 => Self::MPHF::with_builder(SliceSourceWithRefs::<_, u8>::new(keys), conf),
-            KeyAccess::Indices16 => Self::MPHF::with_builder(SliceSourceWithRefs::<_, u16>::new(keys), conf),
-            KeyAccess::Copy => Self::MPHF::with_builder(SliceSourceWithClones::new(keys), conf)
+            KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
+            KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
+            KeyAccess::Copy => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), conf)
 
             /*KeyAccess::LoMem(0) => Self::MPHF::with_builder(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
             KeyAccess::LoMem(clone_threshold) => Self::MPHF::with_builder(

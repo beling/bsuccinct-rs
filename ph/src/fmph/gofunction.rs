@@ -197,6 +197,10 @@ impl Default for GOBuildConf {
     fn default() -> Self { Self::new(Default::default()) }
 }
 
+impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> From<GOConf<GS, SS, S>> for GOBuildConf<GS, SS, S> {
+    #[inline] fn from(value: GOConf<GS, SS, S>) -> Self { Self::new(value) }
+}
+
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuildConf<GS, SS, S>
 {
     /// The default value for [`relative_level_size`](GOBuildConf::relative_level_size),
@@ -497,93 +501,65 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
 }
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction<GS, SS, S> {
-    /// Builds [GOFunction] for given `keys`, using given build configuration (`build_conf`) and reporting statistics by `stats`.
-    pub fn with_builder_stats<K, KS, BS>(mut keys: KS, mut build_conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
+    /// Builds [GOFunction] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    pub fn with_conf_stats<K, KS, BS>(mut keys: KS, mut conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
-        if build_conf.use_multiple_threads { build_conf.use_multiple_threads = rayon::current_num_threads() > 1; }
+        if conf.use_multiple_threads { conf.use_multiple_threads = rayon::current_num_threads() > 1; }
         while keys.keys_len() != 0 {
             let input_size = keys.keys_len();
-            let (level_size_groups, level_size_segments) = build_conf.goconf.bits_per_group.level_size_groups_segments(
-                ceiling_div(input_size * build_conf.relative_level_size as usize, 100));
+            let (level_size_groups, level_size_segments) = conf.goconf.bits_per_group.level_size_groups_segments(
+                ceiling_div(input_size * conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(input_size, level_size_segments * 64);
-            build_conf.build_next_level(&mut keys, level_size_groups as u64, level_size_segments);
+            conf.build_next_level(&mut keys, level_size_groups as u64, level_size_segments);
         }
         drop(keys);
         stats.end();
-        let (array, _)  = ArrayWithRank::build(build_conf.arrays.concat().into_boxed_slice());
-        let group_seeds_concatenated = build_conf.goconf.bits_per_seed.concatenate_seed_vecs(&build_conf.level_sizes, build_conf.group_seeds);
+        let (array, _)  = ArrayWithRank::build(conf.arrays.concat().into_boxed_slice());
+        let group_seeds_concatenated = conf.goconf.bits_per_seed.concatenate_seed_vecs(&conf.level_sizes, conf.group_seeds);
         Self {
             array,
             group_seeds: group_seeds_concatenated,
-            conf: build_conf.goconf,
-            level_sizes: build_conf.level_sizes.into_boxed_slice(),
+            conf: conf.goconf,
+            level_sizes: conf.level_sizes.into_boxed_slice(),
         }
     }
 
-    pub fn with_builder<K, KS>(keys: KS, levels: GOBuildConf<GS, SS, S>) -> Self
-        where K: Hash + Sync, KS: KeySet<K> + Sync
-    {
-        Self::with_builder_stats(keys, levels, &mut ())
-    }
-
-    pub fn with_conf_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
-        where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
-    {
-        Self::with_builder_stats(keys, GOBuildConf::new(conf), stats)
-    }
-
-    pub fn with_conf_mt_stats<K, KS, BS>(keys: KS, conf: GOConf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
-        where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
-    {
-        Self::with_builder_stats(keys, GOBuildConf::with_mt(conf, use_multiple_threads), stats)
-    }
-
-    #[inline] pub fn with_conf<K, KS>(keys: KS, conf: GOConf<GS, SS, S>) -> Self
+    /// Builds [GOFunction] for given `keys`, using the build configuration `conf`.
+    pub fn with_conf<K, KS>(keys: KS, conf: GOBuildConf<GS, SS, S>) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         Self::with_conf_stats(keys, conf, &mut ())
     }
 
-    #[inline] pub fn with_conf_mt<K, KS>(keys: KS, conf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self
-        where K: Hash + Sync, KS: KeySet<K> + Sync
-    {
-        Self::with_conf_mt_stats(keys, conf, use_multiple_threads, &mut ())
-    }
-
-    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
+    /// Builds [GOFunction] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
-    #[inline] pub fn from_slice_with_conf_mt_stats<K, BS>(keys: &[K], conf: GOConf<GS, SS, S>, use_multiple_threads: bool, stats: &mut BS) -> Self
-        where K: Hash + Sync, BS: stats::BuildStatsCollector
-    {
-        Self::with_conf_mt_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, use_multiple_threads, stats)
-    }
-
     /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: GOConf<GS, SS, S>) -> Self
+    #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: GOBuildConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
-    #[inline] pub fn from_slice_with_conf_mt<K>(keys: &[K], conf: GOConf<GS, SS, S>, use_multiple_threads: bool) -> Self
-        where K: Hash + Sync { Self::with_conf_mt_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, use_multiple_threads, &mut ()) }
-
-    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: GOConf<GS, SS, S>, stats: &mut BS) -> Self
+    /// Builds [GOFunction] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// Note that `keys` can be reordered during construction.
+    #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
-    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
-    #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: GOConf<GS, SS, S>) -> Self
+    /// Builds [GOFunction] for given `keys`, using the build configuration `conf`.
+    /// 
+    /// Note that `keys` can be reordered during construction.
+    #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: GOBuildConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, &mut ())
@@ -599,7 +575,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize> GOFunction<GS, SS> {
 }
 
 impl GOFunction {
-    /// Builds [GOFunction] for given `keys`, reporting statistics to `stats`.
+    /// Builds [GOFunction] for given `keys`, reporting statistics with `stats`.
     pub fn from_slice_with_stats<K, BS>(keys: &[K], stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
@@ -610,6 +586,11 @@ impl GOFunction {
     pub fn from_slice<K: Hash + Sync>(keys: &[K]) -> Self {
         Self::from_slice_with_conf_stats(keys, Default::default(), &mut ())
     }
+
+    /// Builds [GOFunction] for given `keys`.
+    pub fn new<K: Hash + Sync, KS: KeySet<K> + Sync>(keys: KS) -> Self {
+        Self::with_conf_stats(keys, Default::default(), &mut ())
+    }
 }
 
 impl<K: Hash + Clone + Sync> From<&[K]> for GOFunction {
@@ -618,6 +599,11 @@ impl<K: Hash + Clone + Sync> From<&[K]> for GOFunction {
     }
 }
 
+impl<K: Hash + Sync + Send> From<Vec<K>> for GOFunction {
+    fn from(keys: Vec<K>) -> Self {
+        Self::new(keys)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -645,8 +631,8 @@ mod tests {
     }
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K], bits_per_group: impl GroupSize + Sync) {
-        let conf = GOConf::bps_bpg(Bits(3), bits_per_group);
-        let h = GOFunction::from_slice_with_conf_mt(&mut to_hash.to_vec(), conf, false);
+        let goconf = GOConf::bps_bpg(Bits(3), bits_per_group);
+        let h = GOFunction::from_slice_with_conf(to_hash, GOBuildConf::with_mt(goconf, false));
         //dbg!(h.size_bytes() as f64 * 8.0/to_hash.len() as f64);
         test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));
         test_hash2_invariants(&h);
