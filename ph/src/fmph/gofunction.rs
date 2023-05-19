@@ -7,12 +7,12 @@ use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 
 use super::Bits8;
 use super::function::{from_mut_slice, get_mut_slice};
-use super::indexing2::{GroupSize, SeedSize, TwoToPowerBitsStatic};
+use super::goindexing::{GroupSize, SeedSize, TwoToPowerBitsStatic};
 use std::io;
 use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
 use crate::fmph::function::{fphash_add_bit, fphash_remove_collided, fphash_sync_add_bit};
-use crate::fmph::indexing2::group_nr;
+use crate::fmph::goindexing::group_nr;
 
 use rayon::prelude::*;
 use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
