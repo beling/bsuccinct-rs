@@ -13,8 +13,8 @@ categories = [ "compression", "algorithms", "data-structures", "encoding", "scie
 keywords = [ "compression", "decompression", "huffman", "huffman_coding", "canonical" ]
 
 [dependencies]
-dyn_size_of = { version=">=0.1", path="../dyn_size_of" }
-binout = { version=">=0.2", path="../binout" }
+dyn_size_of = { version="0.4", path="../dyn_size_of" }
+binout = { version="0.2", path="../binout" }
 fsum = { version="0.1", path="../fsum" }
 co_sort = "0.2.*"
 

@@ -65,6 +65,9 @@ pub trait BitAccess {
     /// Sets bits `[begin, begin+len)` to the content of `v`.
     fn set_bits(&mut self, begin: usize, v: u64, len: u8);
 
+    /// Xor at least `len` bits of `v` with bits of `self`, `begging` from given index.
+    fn xor_bits(&mut self, begin: usize, v: u64, len: u8);
+
     /// Returns the number of zeros (cleared bits).
     fn count_bit_zeros(&self) -> usize;
 
@@ -88,6 +91,11 @@ pub trait BitAccess {
     /// Sets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
     #[inline(always)] fn set_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.set_bits(index * v_size as usize, v, v_size);
+    }
+
+    /// Xor at least `v_size` bits of `v` with bits of `self`, begging from `index*v_size`.
+    #[inline(always)] fn xor_fragment(&mut self, index: usize, v: u64, v_size: u8) {
+        self.xor_bits(index * v_size as usize, v, v_size);
     }
 
     /// Swaps ranges of bits: [`index1*v_size`, `index1*v_size+v_size`) with [`index2*v_size`, `index2*v_size+v_size`).
@@ -261,6 +269,16 @@ impl BitAccess for [u64] {
         self[index_segment] |= v << offset;
     }
 
+    fn xor_bits(&mut self, begin: usize, v: u64, len: u8) {
+        let index_segment = begin / 64;
+        let offset = (begin % 64) as u64;   // the lowest bit to xored in index_segment
+        if offset + len as u64 > 64 {
+            let shift = 64-offset;
+            self[index_segment+1] ^= v >> shift;
+        }
+        self[index_segment] ^= v << offset;
+    }
+
     fn init_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         debug_assert!({let f = self.get_fragment(index, v_size); f == 0 || f == v});
         let index_bit = index * v_size as usize;
@@ -327,6 +345,8 @@ impl BitAccess for [u64] {
             }
         };
     }
+
+
 }
 
 #[cfg(test)]
@@ -427,6 +447,10 @@ mod tests {
         assert!(b.get_bit(74));
         b.set_bit(73);
         assert!(b.get_bit(73));
+        b.xor_bits(72, 0b011, 3);
+        assert!(!b.get_bit(72));
+        assert!(!b.get_bit(73));
+        assert!(b.get_bit(74));
     }
 
     #[test]
