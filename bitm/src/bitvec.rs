@@ -9,6 +9,7 @@ pub struct BitOnesIterator<'a> {
 }
 
 impl<'a> BitOnesIterator<'a> {
+    /// Constructs iterator over bits set in the given `slice`.
     pub fn new(slice: &'a [u64]) -> Self {
         let mut segment_iter = slice.into_iter();
         let current_segment = segment_iter.next().copied().unwrap_or(0);
@@ -153,23 +154,28 @@ pub trait BitAccess {
 
 /// The trait that is implemented for `Box<[u64]>` and extends it with bit-oriented constructors.
 pub trait BitVec where Self: Sized {
+    /// Returns vector of `segments_len` 64 bit segments, each segment initialized to `segments_value`.
     fn with_64bit_segments(segments_value: u64, segments_len: usize) -> Self;
 
     /// Returns vector of bits filled with `words_count` `word`s of length `word_len_bits` bits each.
     fn with_bitwords(word: u64, word_len_bits: u8, words_count: usize) -> Self;
 
+    /// Returns vector of `segments_len` 64 bit segments, with all bits set to `0`.
     #[inline(always)] fn with_zeroed_64bit_segments(segments_len: usize) -> Self {
         Self::with_64bit_segments(0, segments_len)
     }
 
+    /// Returns vector of `segments_len` 64 bit segments, with all bits set to `1`.
     #[inline(always)] fn with_filled_64bit_segments(segments_len: usize) -> Self {
         Self::with_64bit_segments(u64::MAX, segments_len)
     }
 
+    /// Returns vector of `bit_len` bits, all set to `0`.
     #[inline(always)] fn with_zeroed_bits(bit_len: usize) -> Self {
         Self::with_zeroed_64bit_segments(ceiling_div(bit_len, 64))
     }
 
+    /// Returns vector of `bit_len` bits, all set to `1`.
     #[inline(always)] fn with_filled_bits(bit_len: usize) -> Self {
         Self::with_filled_64bit_segments(ceiling_div(bit_len, 64))
     }
