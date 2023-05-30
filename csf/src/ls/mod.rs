@@ -3,7 +3,7 @@
 pub mod graph3;
 mod map;
 mod conf;
-pub use conf::{MapConf, BufferManager};
+pub use conf::{MapConf, BufferManager, FillRandomly, FillWithPattern};
 pub use map::Map;
 mod cmap;
 pub use cmap::CMap;
