@@ -1,17 +1,21 @@
 use bitm::{BitAccess, BitVec};
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher};
 
-pub trait BufferManager {
-    /// Construct array of n*bits_per_value bits.
+/// Trait for pre-filling vector of values in [`ls::Map`](crate::ls::Map).
+/// 
+/// Pre-filling affects the values returned for keys not contained in the map.
+pub trait ValuesPreFiller {
+    /// Construct array of `n*bits_per_value` bits.
     fn create(&mut self, n: usize, bits_per_value: u8) -> Box<[u64]>;
 
-    /// Init cell with given index to given value in array constructed by create.
+    /// Init cell with given `index` to given `value` in the `array` constructed by [`Self::create`].
     #[inline(always)] fn init(&self, array: &mut [u64], index: usize, value: u64, bits_per_value: u8) {
         array.set_fragment(index, value, bits_per_value);
     }
 }
 
-impl BufferManager for () {
+/// Pre-fills the value vector of [`ls::Map`](crate::ls::Map) with zeros.
+impl ValuesPreFiller for () {
     fn create(&mut self, n: usize, bits_per_value: u8) -> Box<[u64]> {
         Box::<[u64]>::with_zeroed_bits(n * bits_per_value as usize)
     }
@@ -21,19 +25,21 @@ impl BufferManager for () {
     }
 }
 
+/// Pre-fills each 64-bit fragment of the value vector of [`ls::Map`](crate::ls::Map) with given pattern.
 #[derive(Copy, Clone)]
-pub struct FillWithPattern{pattern: u64}
+pub struct FillWithPattern(u64);
 
-impl BufferManager for FillWithPattern {
+impl ValuesPreFiller for FillWithPattern {
     fn create(&mut self, n: usize, bits_per_value: u8) -> Box<[u64]> {
-        Box::<[u64]>::with_64bit_segments(self.pattern, bitm::ceiling_div(n * bits_per_value as usize, 64), )
+        Box::<[u64]>::with_64bit_segments(self.0, bitm::ceiling_div(n * bits_per_value as usize, 64), )
     }
 }
 
+/// Pre-fills the value vector of [`ls::Map`](crate::ls::Map) with random values.
 #[derive(Copy, Clone)]
 pub struct FillRandomly{seed: u64}
 
-impl BufferManager for FillRandomly {
+impl ValuesPreFiller for FillRandomly {
     fn create(&mut self, n: usize, bits_per_value: u8) -> Box<[u64]> {
         (0..bitm::ceiling_div(n * bits_per_value as usize, 64)).map(|_| {
             self.seed ^= self.seed << 13;
@@ -44,10 +50,11 @@ impl BufferManager for FillRandomly {
     }
 }
 
+/// Configuration accepted by [`ls::Map`](crate::ls::Map) constructors.
 #[derive(Default, Copy, Clone)]
-pub struct MapConf<BM = (), S = BuildDefaultSeededHasher> {
+pub struct MapConf<VPF = (), S = BuildDefaultSeededHasher> {
     pub hash_builder: S,
-    pub buffer_manager: BM
+    pub value_prefiller: VPF
 }
 
 /*impl<S: Default> Default for BDZConf<(), S> {
@@ -57,35 +64,40 @@ pub struct MapConf<BM = (), S = BuildDefaultSeededHasher> {
 }*/
 
 impl MapConf {
-    pub fn new() -> Self { Default::default() }
+    #[inline] pub fn new() -> Self { Default::default() }
 }
 
 impl<S: BuildSeededHasher> MapConf<(), S> {
-    pub fn hash(hash_builder: S) -> Self {
-        Self { hash_builder, buffer_manager: Default::default() }
+    /// Constructs configuration with custom `hash_builder`.
+    #[inline] pub fn hash(hash_builder: S) -> Self {
+        Self { hash_builder, value_prefiller: Default::default() }
     }
 }
 
-impl<BM: BufferManager> MapConf<BM> {
-    pub fn bm(buffer_manager: BM) -> Self {
-        Self { hash_builder: Default::default(), buffer_manager }
+impl<BM: ValuesPreFiller> MapConf<BM> {
+    /// Constructs configuration with custom `value_prefiller`.
+    #[inline] pub fn prefiller(value_prefiller: BM) -> Self {
+        Self { hash_builder: Default::default(), value_prefiller }
     }
 }
 
 impl MapConf<FillWithPattern> {
-    pub fn pattern(pattern: u64) -> Self {
-        Self { hash_builder: Default::default(), buffer_manager: FillWithPattern{pattern} }
+    /// Constructs configuration with [`FillWithPattern`] value pre-filler.
+    #[inline] pub fn pattern(pattern: u64) -> Self {
+        Self::prefiller(FillWithPattern(pattern))
     }
 }
 
 impl MapConf<FillRandomly> {
-    pub fn randomly(seed: u64) -> Self {
-        Self { hash_builder: Default::default(), buffer_manager: FillRandomly{seed} }
+    /// Constructs configuration with [`FillRandomly`] value pre-filler.
+    #[inline] pub fn randomly(seed: u64) -> Self {
+        Self::prefiller(FillRandomly{seed})
     }
 }
 
-impl<BM: BufferManager, S: BuildSeededHasher> MapConf<BM, S> {
-    pub fn bm_hash(buffer_manager: BM, hash_builder: S) -> Self {
-        Self { hash_builder, buffer_manager }
+impl<VPF: ValuesPreFiller, S: BuildSeededHasher> MapConf<VPF, S> {
+    /// Constructs configuration with custom `value_prefiller` and `hash_builder`.
+    #[inline] pub fn prefiller_hash(value_prefiller: VPF, hash_builder: S) -> Self {
+        Self { hash_builder, value_prefiller }
     }
 }

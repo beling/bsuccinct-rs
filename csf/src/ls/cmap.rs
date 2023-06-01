@@ -3,7 +3,7 @@ use std::hash::{BuildHasherDefault, Hash};
 use std::collections::hash_map::DefaultHasher;
 use super::Map;
 use crate::coding::{Coding, Decoder, SerializableCoding, BuildCoding};
-use super::conf::{MapConf, BufferManager};
+use super::conf::{MapConf, ValuesPreFiller};
 use bitm::{BitAccess, BitVec};
 use ph::stats::AccessStatsCollector;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -179,7 +179,7 @@ impl<C: Coding, /*V: Hash+Eq+Clone,*/ S: BuildSeededHasher> CMap<C, S> {
               V: std::borrow::Borrow<<C as Coding>::Value> + 'a,
               KvIntoIter: IntoIterator<Item=(&'a K, &'a V)> + 'a,
               FKvIntoIter: Fn() -> KvIntoIter,
-              BM: BufferManager // buffer creator (and initializer)
+              BM: ValuesPreFiller // buffer creator (and initializer)
     {
         let encoder = value_coding.encoder();
         let keys_len = map().into_iter().map(|(_,v)| value_coding.len_of_encoded(&encoder, v) as usize).sum();
@@ -218,13 +218,13 @@ impl<C: Coding, /*V: Hash+Eq+Clone,*/ S: BuildSeededHasher> CMap<C, S> {
 
     #[inline(always)]
     pub fn try_from_map_with_coding_conf<K, MS, BM, V>(map: &HashMap<K, V, MS>, value_coding: C, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
-        where K: Hash, BM: BufferManager, V: std::borrow::Borrow<<C as Coding>::Value> {
+        where K: Hash, BM: ValuesPreFiller, V: std::borrow::Borrow<<C as Coding>::Value> {
         Self::try_from_mapf_with_coding_conf(|| map, value_coding, conf, bdz_extra_bits_per_fragment)
     }
 
     #[inline(always)]
     pub fn try_from_kv_with_coding_conf<K, BM, V>(keys: &[K], values: &[V], value_coding: C, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
-        where K: Hash, BM: BufferManager, V: std::borrow::Borrow<<C as Coding>::Value> {
+        where K: Hash, BM: ValuesPreFiller, V: std::borrow::Borrow<<C as Coding>::Value> {
         Self::try_from_mapf_with_coding_conf(|| keys.iter().zip(values), value_coding, conf, bdz_extra_bits_per_fragment)
     }
 
@@ -265,7 +265,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
     #[inline(always)]
     pub fn try_from_map_with_builder_bpf_conf<K, MS, BM, BC>(map: &HashMap<K, C::Value, MS>, build_coding: &BC, bits_per_fragment: u8, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
         where K: Hash,
-              BM: BufferManager,
+              BM: ValuesPreFiller,
               BC: BuildCoding<C::Value, Coding=C>
     {
         Self::try_from_mapf_with_coding_conf(|| map,
@@ -276,7 +276,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
     #[inline(always)]
     pub fn try_from_map_with_builder_conf<K, MS, BM, BC>(map: &HashMap<K, C::Value, MS>, build_coding: &BC, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
         where K: Hash,
-              BM: BufferManager,
+              BM: ValuesPreFiller,
               BC: BuildCoding<C::Value, Coding=C>
     {
         Self::try_from_mapf_with_coding_conf(|| map,
@@ -287,7 +287,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
     #[inline(always)]
     pub fn try_from_kv_with_builder_bpf_conf<K, BM, BC>(keys: &[K], values: &[C::Value], build_coding: &BC, bits_per_fragment: u8, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
         where K: Hash,
-              BM: BufferManager,
+              BM: ValuesPreFiller,
               BC: BuildCoding<C::Value, Coding=C>
     {
         Self::try_from_kv_with_coding_conf(keys, values, build_coding.build_from_iter(values.iter(), bits_per_fragment), conf, bdz_extra_bits_per_fragment)
@@ -296,7 +296,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
     #[inline(always)]
     pub fn try_from_kv_with_builder_conf<K, BM, BC>(keys: &[K], values: &[C::Value], build_coding: &BC, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
         where K: Hash,
-              BM: BufferManager,
+              BM: ValuesPreFiller,
               BC: BuildCoding<C::Value, Coding=C>
     {
         Self::try_from_kv_with_coding_conf(keys, values, build_coding.build_from_iter(values.iter(), 0), conf, bdz_extra_bits_per_fragment)
@@ -307,7 +307,7 @@ impl<V: Hash+Eq+Clone, S: BuildSeededHasher> CMap<minimum_redundancy::Coding<V>,
     #[inline(always)]
     pub fn try_from_map_with_conf<K, MS, BM>(map: &HashMap<K, V, MS>, bits_per_fragment: u8, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
         where K: Hash,
-              BM: BufferManager
+              BM: ValuesPreFiller
     {
         Self::try_from_mapf_with_coding_conf(|| map,
                                              minimum_redundancy::Coding::<V>::from_iter(BitsPerFragment(bits_per_fragment), map.values()),
@@ -316,7 +316,7 @@ impl<V: Hash+Eq+Clone, S: BuildSeededHasher> CMap<minimum_redundancy::Coding<V>,
 
     #[inline(always)]
     pub fn try_from_kv_with_conf<K, BM>(keys: &[K], values: &[V], bits_per_fragment: u8, conf: MapConf<BM, S>, bdz_extra_bits_per_fragment: u8) -> Option<Self>
-        where K: Hash, BM: BufferManager {
+        where K: Hash, BM: ValuesPreFiller {
         Self::try_from_kv_with_coding_conf(keys, values, minimum_redundancy::Coding::<V>::from_iter(BitsPerFragment(bits_per_fragment), values.iter()), conf, bdz_extra_bits_per_fragment)
     }
 }
@@ -395,7 +395,7 @@ mod tests {
     use super::*;
     use maplit::hashmap;
 
-    fn bdzhmap_3pairs_conf<BM: BufferManager>(conf: MapConf<BM>, bits_per_fragment: u8, bdz_extra_bits_per_fragment: u8) {
+    fn bdzhmap_3pairs_conf<BM: ValuesPreFiller>(conf: MapConf<BM>, bits_per_fragment: u8, bdz_extra_bits_per_fragment: u8) {
         let bdzhmap = CMap::try_from_map_with_conf(&hashmap!('a'=>0u8, 'b'=>3u8, 'c'=>8u8), bits_per_fragment, conf, bdz_extra_bits_per_fragment).unwrap();
         assert_eq!(bdzhmap.get(&'a'), Some(&0));
         assert_eq!(bdzhmap.get(&'b'), Some(&3));
@@ -432,7 +432,7 @@ mod tests {
         bdzhmap_3pairs_conf(MapConf::pattern(123u64), 2, 2);
     }
 
-    fn bdzhmap_8pairs_conf<BM: BufferManager>(conf: MapConf<BM>, bits_per_fragment: u8, bdz_extra_bits_per_fragment: u8) {
+    fn bdzhmap_8pairs_conf<BM: ValuesPreFiller>(conf: MapConf<BM>, bits_per_fragment: u8, bdz_extra_bits_per_fragment: u8) {
         let bdzhmap = CMap::try_from_map_with_conf(&hashmap!(
                 'a' => 1u8, 'b' => 2u8, 'c' => 1u8, 'd' => 3u8,
                 'e' => 4u8, 'f' => 1u8, 'g' => 5u8, 'h' => 6u8), bits_per_fragment, conf, bdz_extra_bits_per_fragment).unwrap();
