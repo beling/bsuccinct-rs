@@ -143,7 +143,7 @@ impl<S: BuildSeededHasher> Map<S> {
             let mut values = Box::with_zeroed_bits(keys_len * bits_per_value as usize);
             let mut values_count = 0;
             let queue = g.peel_with_values(keys_len, |v| {
-                 values.set_fragment(values_count, *v, bits_per_value);
+                 values.init_fragment(values_count, *v, bits_per_value);
                  values_count += 1;
             });
             if queue.len() == keys_len {
