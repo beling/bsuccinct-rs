@@ -28,8 +28,8 @@ pub trait BitArrayWithRank {
 #[derive(Clone)]
 pub struct ArrayWithRank101111 {
     pub content: Box<[u64]>,  // BitVec
-    pub l1ranks: Box<[u64]>,    // Each cell holds one rank using 64 bits
-    pub l2ranks: Box<[u64]>   // Each cell holds 4 ranks using [bits]: 32 (absolute), 10, 11, 11 (deltas).
+    pub l1ranks: Box<[u64]>,  // Each cell holds one rank using 64 bits
+    pub l2ranks: Box<[u64]>   // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
 }
 
 impl GetSize for ArrayWithRank101111 {
