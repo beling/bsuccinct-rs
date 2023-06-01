@@ -108,6 +108,7 @@ impl Map<BuildDefaultSeededHasher> {
 
 impl<S: BuildSeededHasher> Map<S> {
 
+    /// Returns [`Map`] that assigns `0` to each key.
     fn always_map_to_zero(hash_builder: S) -> Self {
         Self {  // max == 0, and so each get of map can return 0
             values: Box::new([0, 0, 0]),
@@ -118,6 +119,7 @@ impl<S: BuildSeededHasher> Map<S> {
         }
     }
 
+    /// Part of [`Self::try_with_conf_fn`] implementation.
     #[inline(always)] fn try_with_vertex_t_conf_fn<VI, K, KBorrow, KVIntoIterator, FKVIntoIterator, BM>(
         kv: FKVIntoIterator, kv_len: usize, number_of_vertices: usize, third_of_vertices_len: usize,
         bits_per_value: u8, mut conf: MapConf<BM, S>
@@ -281,7 +283,7 @@ impl<S: BuildSeededHasher> Map<S> {
         self.values.get_fragment(self.index(key, fun_number), self.bits_per_value)
     }
 
-    /// Returns value assigned to the given `key`.
+    /// Returns value assigned to the given `key`. If the `key` was not in the input collection, an unpredictable value is returned.
     #[inline(always)]
     pub fn get<K: Hash>(&self, key: &K) -> u64 {
         self.value_part(key, 0) ^ self.value_part(key, 1) ^ self.value_part(key, 2)
