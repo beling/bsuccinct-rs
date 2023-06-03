@@ -15,6 +15,7 @@ pub struct CMapConf<
     pub coding: CB,
     pub level_size_chooser: LSC,
     pub collision_solver: CSB,
+    /// The family of hash functions used by the constructed [`fp::CMap`](crate::fp::CMap). (default: [`BuildDefaultSeededHasher`])
     pub hash: S,
     //stats: BS
 }

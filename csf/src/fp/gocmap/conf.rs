@@ -15,6 +15,7 @@ pub struct GOCMapConf<
     pub bits_per_seed: SS,
     pub bits_per_group: GS,
     pub level_size_chooser: LSC,
+    /// The family of hash functions used by the constructed [`fp::GOCMap`](crate::fp::GOCMap). (default: [`BuildDefaultSeededHasher`])
     pub hash_builder: S,
 }
 
