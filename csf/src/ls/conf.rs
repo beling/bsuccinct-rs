@@ -53,7 +53,12 @@ impl ValuesPreFiller for FillRandomly {
 /// Configuration accepted by [`ls::Map`](crate::ls::Map) constructors.
 #[derive(Default, Copy, Clone)]
 pub struct MapConf<VPF = (), S = BuildDefaultSeededHasher> {
+    /// The family of hash functions used by the constructed [`ls::Map`](crate::ls::Map). (default: [`BuildDefaultSeededHasher`])
     pub hash_builder: S,
+
+    /// Pre-filler for vector of values in [`ls::Map`](crate::ls::Map).
+    /// It affects the values returned for keys not contained in the map.
+    /// Default pre-filler initializes the value vector with zeros.
     pub value_prefiller: VPF
 }
 
@@ -64,6 +69,7 @@ pub struct MapConf<VPF = (), S = BuildDefaultSeededHasher> {
 }*/
 
 impl MapConf {
+    /// Constructs default configuration.
     #[inline] pub fn new() -> Self { Default::default() }
 }
 

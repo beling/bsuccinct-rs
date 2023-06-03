@@ -11,9 +11,9 @@ use crate::bits_to_store;
 use super::graph3::{HyperGraph, VertexIndex};
 use super::conf::{MapConf, ValuesPreFiller};
 
-/// Static function that maps keys to values stored at `bits_per_value` bits each.
+/// Static function that maps keys to integer values of given bit-size.
 /// 
-/// Its construction is based on solving linear system of equations by hypergraphs peeling.
+/// Its construction is based on solving linear system of equations by hyper-graphs peeling.
 /// 
 /// The implementation is based on the paper:
 /// - D. Belazzougui, P. Boldi, G. Ottaviano, R. Venturini, S. Vigna, *Cache-Oblivious Peeling of Random Hypergraphs*, 

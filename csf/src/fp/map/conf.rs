@@ -2,6 +2,7 @@ use crate::fp::collision_solver::{CollisionSolverBuilder, LoMemAcceptEquals};
 use crate::fp::OptimalLevelSize;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher};
 
+/// Configuration accepted by [`fp::Map`](crate::fp::Map) constructors.
 //#[derive(Default)]
 #[derive(Clone)]
 pub struct MapConf<
@@ -13,6 +14,7 @@ pub struct MapConf<
     pub bits_per_value: u8,
     pub level_size_chooser: LSC,
     pub collision_solver: CSB,
+    /// The family of hash functions used by the constructed [`fp::Map`](crate::fp::Map). (default: [`BuildDefaultSeededHasher`])
     pub hash: S,
     //stats: BS
 }

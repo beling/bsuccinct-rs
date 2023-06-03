@@ -28,7 +28,7 @@ use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 /// P. Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 #[derive(Clone)]
 pub struct GOConf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
-    /// The family of hash functions used by the constructed FMPHGO. (default: [`BuildDefaultSeededHasher`])
+    /// The family of hash functions used by the constructed [`GOFunction`]. (default: [`BuildDefaultSeededHasher`])
     hash_builder: S,
     /// Size of seeds (in bits). (default: 4)
     bits_per_seed: SS,

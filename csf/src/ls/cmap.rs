@@ -115,10 +115,10 @@ impl<'k, 'cl, Key, Value, KeyValueIntoIterator> IntoIterator for &'cl BDZHKeyInt
     }
 }*/
 
-/// Static function that maps keys to values.
+/// Compressed static function that is based on solving linear systems and maps keys to values.
 /// 
-/// It uses `Map` to store fragments of value codes and
-/// usually `minimum_redundancy::Coding` to compress values.
+/// It uses [`Map`] based on solving linear system to store fragments of value codes and
+/// usually [`minimum_redundancy::Coding`] to compress values.
 pub struct CMap<C /*= Coding<V>*/, S = BuildDefaultSeededHasher> {
     pub value_fragments: Map<S>,
     pub value_coding: C,
