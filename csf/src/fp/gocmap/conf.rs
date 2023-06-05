@@ -1,30 +1,27 @@
 use crate::fp::OptimalLevelSize;
-use ph::{BuildDefaultSeededHasher, BuildSeededHasher};
-use ph::fmph::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic};
+use ph::fmph::GOConf;
+use ph::{BuildDefaultSeededHasher};
+use ph::fmph::{GroupSize, SeedSize, TwoToPowerBitsStatic};
 use crate::coding::BuildMinimumRedundancy;
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct GOCMapConf<
-    GS: GroupSize = TwoToPowerBits,
-    SS: SeedSize = TwoToPowerBitsStatic<2>,
     BC = BuildMinimumRedundancy,
     LSC = OptimalLevelSize,
-    S = BuildDefaultSeededHasher
+    GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher
 > {
     pub coding: BC,
-    pub bits_per_seed: SS,
-    pub bits_per_group: GS,
+    /// Configuration of family of (group-optimized) hash functions (default: [`GOConf::default`]).
+    pub goconf: GOConf<GS, SS, S>,
+    /// Chooses the size of level for the given level input.
     pub level_size_chooser: LSC,
-    /// The family of hash functions used by the constructed [`fp::GOCMap`](crate::fp::GOCMap). (default: [`BuildDefaultSeededHasher`])
-    pub hash_builder: S,
 }
 
 impl Default for GOCMapConf {
     fn default() -> Self { Self {
         coding: Default::default(),
-        bits_per_seed: Default::default(), bits_per_group: TwoToPowerBits::new(4),
+        goconf: Default::default(),
         level_size_chooser: Default::default(),
-        hash_builder: Default::default(),
     } }
 }
 
@@ -34,148 +31,54 @@ impl GOCMapConf {
     }
 }
 
-impl<BC> GOCMapConf<TwoToPowerBits, TwoToPowerBitsStatic<2>, BC, OptimalLevelSize, BuildDefaultSeededHasher> {
+impl<BC> GOCMapConf<BC, OptimalLevelSize, TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic<2>, BuildDefaultSeededHasher> {
     pub fn coding(coding: BC) -> Self {
         Self {
             coding,
-            bits_per_seed: Default::default(),
-            bits_per_group: TwoToPowerBits::new(4),
+            goconf: Default::default(),
             level_size_chooser: Default::default(),
-            hash_builder: Default::default(),
         }
     }
 }
 
-impl<SS: SeedSize> GOCMapConf<TwoToPowerBits, SS, BuildMinimumRedundancy, OptimalLevelSize, BuildDefaultSeededHasher> {
-    pub fn bps(bits_per_seed: SS) -> Self {
-        bits_per_seed.validate().unwrap();
+impl<GS: GroupSize, SS: SeedSize, S> GOCMapConf<BuildMinimumRedundancy, OptimalLevelSize, GS, SS, S> {
+    pub fn groups(goconf: GOConf<GS, SS, S>) -> Self {
         Self {
             coding: Default::default(),
-            bits_per_seed,
-            bits_per_group: TwoToPowerBits::new(4),
+            goconf,
             level_size_chooser: Default::default(),
-            hash_builder: Default::default(),
         }
     }
 }
 
-impl<SS: SeedSize, BC> GOCMapConf<TwoToPowerBits, SS, BC, OptimalLevelSize, BuildDefaultSeededHasher> {
-    pub fn coding_bps(coding: BC, bits_per_seed: SS) -> Self {
-        bits_per_seed.validate().unwrap();
+impl<BC, GS: GroupSize, SS: SeedSize, S> GOCMapConf<BC, OptimalLevelSize, GS, SS, S> {
+    pub fn groups_coding(goconf: GOConf<GS, SS, S>, coding: BC) -> Self {
         Self {
             coding,
-            bits_per_seed,
-            bits_per_group: TwoToPowerBits::new(4),
+            goconf,
             level_size_chooser: Default::default(),
-            hash_builder: Default::default(),
         }
     }
 }
 
-impl<GS: GroupSize> GOCMapConf<GS, TwoToPowerBitsStatic<2>, BuildMinimumRedundancy, OptimalLevelSize, BuildDefaultSeededHasher> {
-    pub fn bpg(bits_per_group: GS) -> Self {
-        bits_per_group.validate().unwrap();
-        Self {
-            coding: Default::default(),
-            bits_per_seed: Default::default(),
-            bits_per_group,
-            level_size_chooser: Default::default(),
-            hash_builder: Default::default(),
-        }
-    }
-}
-
-impl<GS: GroupSize, BC> GOCMapConf<GS, TwoToPowerBitsStatic<2>, BC, OptimalLevelSize, BuildDefaultSeededHasher> {
-    pub fn coding_bpg(coding: BC, bits_per_group: GS) -> Self {
-        bits_per_group.validate().unwrap();
-        Self {
-            coding,
-            bits_per_seed: Default::default(),
-            bits_per_group,
-            level_size_chooser: Default::default(),
-            hash_builder: Default::default(),
-        }
-    }
-}
-
-impl<GS: GroupSize, SS: SeedSize> GOCMapConf<GS, SS, BuildMinimumRedundancy, OptimalLevelSize, BuildDefaultSeededHasher> {
-    pub fn bps_bpg(bits_per_seed: SS, bits_per_group: GS) -> Self {
-        bits_per_seed.validate().unwrap();
-        bits_per_group.validate().unwrap();
-        Self {
-            coding: Default::default(),
-            bits_per_seed,
-            bits_per_group,
-            level_size_chooser: Default::default(),
-            hash_builder: Default::default(),
-        }
-    }
-}
-
-impl<GS: GroupSize, SS: SeedSize, BC> GOCMapConf<GS, SS, BC, OptimalLevelSize, BuildDefaultSeededHasher> {
-    pub fn coding_bps_bpg(coding: BC, bits_per_seed: SS, bits_per_group: GS) -> Self {
-        bits_per_seed.validate().unwrap();
-        bits_per_group.validate().unwrap();
-        Self {
-            coding,
-            bits_per_seed,
-            bits_per_group,
-            level_size_chooser: Default::default(),
-            hash_builder: Default::default(),
-        }
-    }
-}
-
-impl<BC, LSC> GOCMapConf<TwoToPowerBits, TwoToPowerBitsStatic<2>, BC, LSC, BuildDefaultSeededHasher> {
+impl<BC, LSC> GOCMapConf<BC, LSC, TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic<2>, BuildDefaultSeededHasher> {
     pub fn lsize_coding(level_size_chooser: LSC, coding: BC) -> Self {
         Self {
             coding,
-            bits_per_seed: Default::default(),
-            bits_per_group: TwoToPowerBits::new(4),
+            goconf: Default::default(),
             level_size_chooser,
-            hash_builder: Default::default(),
         }
     }
 }
 
-impl<LSC> GOCMapConf<TwoToPowerBits, TwoToPowerBitsStatic<2>, BuildMinimumRedundancy, LSC> {
+impl<LSC> GOCMapConf<BuildMinimumRedundancy, LSC, TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic<2>, BuildDefaultSeededHasher> {
     pub fn lsize(level_size_chooser: LSC) -> Self {
         Self::lsize_coding(level_size_chooser, BuildMinimumRedundancy::default())
     }
 }
 
-impl<BC, S: BuildSeededHasher> GOCMapConf<TwoToPowerBits, TwoToPowerBitsStatic<2>, BC, OptimalLevelSize, S> {
-    pub fn hash_coding(hash_builder: S, coding: BC) -> Self {
-        Self {
-            coding,
-            bits_per_seed: Default::default(),
-            bits_per_group: TwoToPowerBits::new(4),
-            level_size_chooser: Default::default(),
-            hash_builder
-        }
-    }
-}
-
-impl<S: BuildSeededHasher> GOCMapConf<TwoToPowerBits, TwoToPowerBitsStatic<2>, BuildMinimumRedundancy, OptimalLevelSize, S> {
-    pub fn hash(hash_builder: S) -> Self {
-        Self::hash_coding(hash_builder, BuildMinimumRedundancy::default())
-    }
-}
-
-impl<BC, LSC, S: BuildSeededHasher> GOCMapConf<TwoToPowerBits, TwoToPowerBitsStatic<2>, BC, LSC, S> {
-    pub fn lsize_hash_coding(level_size_chooser: LSC, hash_builder: S, coding: BC) -> Self {
-        Self {
-            coding,
-            bits_per_seed: Default::default(),
-            bits_per_group: TwoToPowerBits::new(4),
-            level_size_chooser,
-            hash_builder
-        }
-    }
-}
-
-impl<LSC, S: BuildSeededHasher> GOCMapConf<TwoToPowerBits, TwoToPowerBitsStatic<2>, BuildMinimumRedundancy, LSC, S> {
-    pub fn lsize_hash(level_size_chooser: LSC, hash_builder: S) -> Self {
-        Self::lsize_hash_coding(level_size_chooser, hash_builder, BuildMinimumRedundancy::default())
+impl<BC, LSC, GS: GroupSize, SS: SeedSize, S> GOCMapConf<BC, LSC, GS, SS, S> {
+    pub fn groups_lsize_coding(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC, coding: BC) -> Self {
+        Self { coding, goconf, level_size_chooser }
     }
 }

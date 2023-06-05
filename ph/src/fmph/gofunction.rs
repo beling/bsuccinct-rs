@@ -29,11 +29,11 @@ use crate::fmph::keyset::{KeySet, SliceMutSource, SliceSourceWithRefs};
 #[derive(Clone)]
 pub struct GOConf<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     /// The family of hash functions used by the constructed [`GOFunction`]. (default: [`BuildDefaultSeededHasher`])
-    hash_builder: S,
+    pub hash_builder: S,
     /// Size of seeds (in bits). (default: 4)
-    bits_per_seed: SS,
+    pub bits_per_seed: SS,
     /// Size of groups (in bits). (default: 16)
-    bits_per_group: GS
+    pub bits_per_group: GS
 }
 
 impl GOConf<TwoToPowerBitsStatic::<3>, TwoToPowerBitsStatic::<0>, BuildDefaultSeededHasher> {
@@ -98,8 +98,6 @@ impl GOConf<TwoToPowerBitsStatic::<5>, Bits8, BuildDefaultSeededHasher> {
 impl<GS: GroupSize, SS: SeedSize> GOConf<GS, SS> {
     /// Returns a configuration that uses seeds and groups of the sizes given in bits.
     pub fn bps_bpg(bits_per_seed: SS, bits_per_group: GS) -> Self {
-        bits_per_seed.validate().unwrap();
-        bits_per_group.validate().unwrap();
         Self {
             hash_builder: Default::default(),
             bits_per_seed,
@@ -109,10 +107,14 @@ impl<GS: GroupSize, SS: SeedSize> GOConf<GS, SS> {
 }
 
 impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOConf<GS, SS, S> {
+    /// Panics if the configuration is incorrect.
+    pub fn validate(&self) {
+        self.bits_per_seed.validate().unwrap();
+        self.bits_per_group.validate().unwrap();
+    }
+
     /// Returns a configuration that uses given family of hash functions and seeds and groups of the sizes given in bits.
     pub fn hash_bps_bpg(hash_builder: S, bits_per_seed: SS, bits_per_group: GS) -> Self {
-        bits_per_seed.validate().unwrap();
-        bits_per_group.validate().unwrap();
         Self { hash_builder, bits_per_seed, bits_per_group }  // 1<<6=64
     }
 
@@ -505,6 +507,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction
     pub fn with_conf_stats<K, KS, BS>(mut keys: KS, mut conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
+        conf.goconf.validate();
         if conf.use_multiple_threads { conf.use_multiple_threads = rayon::current_num_threads() > 1; }
         while keys.keys_len() != 0 {
             let input_size = keys.keys_len();
