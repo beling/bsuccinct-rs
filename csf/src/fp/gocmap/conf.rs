@@ -4,6 +4,7 @@ use ph::{BuildDefaultSeededHasher};
 use ph::fmph::{GroupSize, SeedSize, TwoToPowerBitsStatic};
 use crate::coding::BuildMinimumRedundancy;
 
+/// Configuration accepted by [`fp::GOCMap`](crate::fp::GOCMap) constructors.
 #[derive(Clone)]
 pub struct GOCMapConf<
     BC = BuildMinimumRedundancy,

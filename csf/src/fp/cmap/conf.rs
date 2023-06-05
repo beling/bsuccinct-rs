@@ -3,6 +3,7 @@ use ph::{BuildDefaultSeededHasher, BuildSeededHasher};
 use crate::fp::collision_solver::{CollisionSolverBuilder, LoMemAcceptEquals};
 use crate::coding::BuildMinimumRedundancy;
 
+/// Configuration accepted by [`fp::CMap`](crate::fp::CMap) constructors.
 //#[derive(Default)]
 #[derive(Copy, Clone)]
 pub struct CMapConf<
