@@ -52,6 +52,12 @@ impl<GS: GroupSize, SS: SeedSize, S> GOCMapConf<BuildMinimumRedundancy, OptimalL
     }
 }
 
+impl<GS: GroupSize, SS: SeedSize, S> From<GOConf<GS, SS, S>> for GOCMapConf<BuildMinimumRedundancy, OptimalLevelSize, GS, SS, S> {
+    #[inline] fn from(value: GOConf<GS, SS, S>) -> Self {
+        Self::groups(value)
+    }
+}
+
 impl<BC, GS: GroupSize, SS: SeedSize, S> GOCMapConf<BC, OptimalLevelSize, GS, SS, S> {
     pub fn groups_coding(goconf: GOConf<GS, SS, S>, coding: BC) -> Self {
         Self {
