@@ -426,7 +426,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// 
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection, either `None` or an undetermined value from the specified range is returned.
-    pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
+    pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut groups_before = 0u64;
         let mut level_nr = 0u32;
         loop {
@@ -451,7 +451,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// 
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection, either `None` or an undetermined value from the specified range is returned.
-    #[inline] pub fn get<K: Hash>(&self, key: &K) -> Option<u64> {
+    #[inline] pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u64> {
         self.get_stats(key, &mut ())
     }
 
