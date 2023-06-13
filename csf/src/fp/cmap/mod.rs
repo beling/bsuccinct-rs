@@ -38,14 +38,14 @@ impl<C: GetSize, S> GetSize for CMap<C, S> {
 }
 
 impl<C, S: BuildSeededHasher> CMap<C, S> {
-    #[inline(always)] fn index<K: Hash>(&self, k: &K, level_nr: u32, size: usize) -> usize {
+    #[inline(always)] fn index<K: Hash + ?Sized>(&self, k: &K, level_nr: u32, size: usize) -> usize {
         utils::map64_to_64(self.hash_builder.hash_one(k, level_nr), size as u64) as usize
     }
 }
 
 impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
     /// Gets the value associated with the given key `k` and reports statistics to `access_stats`.
-    pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
+    pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
         let mut result_decoder = self.value_coding.decoder();
         let mut array_begin_index = 0usize;
         let mut level = 0u32;
@@ -72,7 +72,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
 
     /// Gets the value associated with the given key `k`.
     #[inline(always)]
-    pub fn get<K: Hash>(&self, k: &K) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
+    pub fn get<K: Hash + ?Sized>(&self, k: &K) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
         self.get_stats(k, &mut ())
     }
 

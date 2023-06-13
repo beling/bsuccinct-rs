@@ -347,7 +347,7 @@ impl<V: Hash+Eq+Clone> CMap<minimum_redundancy::Coding<V>> {
 impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
 
     /// Gets the value associated with the given key `k` and reports statistics to `access_stats`.
-    pub fn get_stats<K: Hash, A: AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
+    pub fn get_stats<K: Hash + ?Sized, A: AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
         let mut result_decoder = self.value_coding.decoder();
         let mut fragment_nr = 0u8;
         if self.value_fragments.bits_per_value == self.value_coding.bits_per_fragment() { // extra bits are not used
@@ -384,7 +384,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
     }
 
     /// Gets the value associated with the given key `k`.
-    #[inline(always)] pub fn get<K: Hash>(&self, k: &K) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
+    #[inline(always)] pub fn get<K: Hash + ?Sized>(&self, k: &K) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
         self.get_stats(k, &mut ())
     }
 }
