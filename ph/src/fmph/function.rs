@@ -61,6 +61,11 @@ impl BuildConf {
         Self { use_multiple_threads, ..Default::default() }
     }
 
+    /// Returns configuration that uses custom [`cache_threshold`](BuildConf::cache_threshold) to build [Function].
+    pub fn ct(cache_threshold: usize) -> Self {
+        Self { cache_threshold, ..Default::default() }
+    }
+
     /// Returns configuration that uses custom [`cache_threshold`](BuildConf::cache_threshold) and
     /// potentially uses [multiple threads](BuildConf::use_multiple_threads) to build [Function].
     pub fn ct_mt(cache_threshold: usize, use_multiple_threads: bool) -> Self {
@@ -72,6 +77,12 @@ impl BuildConf {
     /// given as a percent of number of level input keys.
     pub fn lsize(relative_level_size: u16) -> Self {
         Self { relative_level_size, ..Default::default() }
+    }
+
+    /// Returns configuration that uses custom [`relative_level_size`](BuildConf::relative_level_size)
+    /// and [`cache_threshold`](BuildConf::cache_threshold) to build [Function].
+    pub fn lsize_ct(relative_level_size: u16, cache_threshold: usize) -> Self {
+        Self { relative_level_size, cache_threshold, ..Default::default() }
     }
 
     /// Returns configuration that potentially uses [multiple threads](BuildConf::use_multiple_threads) and
@@ -101,6 +112,13 @@ impl<S> BuildConf<S> {
     /// and potentially uses [multiple threads](BuildConf::use_multiple_threads) to build [Function].
     pub fn hash_lsize_mt(hash_builder: S, relative_level_size: u16, use_multiple_threads: bool) -> Self {
         Self { relative_level_size, hash_builder, use_multiple_threads, cache_threshold: Self::DEFAULT_CACHE_THRESHOLD }
+    }
+
+    /// Returns configuration that uses custom [`hash_builder`](BuildConf::hash_builder),
+    /// [`relative_level_size`](BuildConf::relative_level_size) and [`cache_threshold`](BuildConf::cache_threshold)
+    /// to build [Function].
+    pub fn hash_lsize_ct(hash_builder: S, relative_level_size: u16, cache_threshold: usize) -> Self {
+        Self { relative_level_size, hash_builder, use_multiple_threads: true, cache_threshold }
     }
 
     /// Returns configuration that uses custom [`hash_builder`](BuildConf::hash_builder),
@@ -561,5 +579,12 @@ pub(crate) mod tests {
         test_with_input(&[1, 2, 5]);
         test_with_input(&(-50..150).collect::<Vec<_>>());
         test_with_input(&['a', 'b', 'c', 'd']);
+    }
+
+    #[test]
+    fn test_large_size() {
+        let keys = (-20000..20000).collect::<Vec<_>>();
+        assert!(Function::from(&keys[..]).size_bytes() as f64 * (8.0/40000.0) < 2.9);
+        assert!(Function::from_slice_with_conf(&keys[..], BuildConf::lsize(200)).size_bytes() as f64 * (8.0/40000.0) < 3.5);
     }
 }

@@ -229,6 +229,12 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuildCon
         Self::with_lsize_ct_mt(goconf, 100, Self::DEFAULT_CACHE_THRESHOLD, true)
     }
 
+    /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf)
+    /// and [cache threshold](GOBuildConf::cache_threshold).
+    pub fn with_ct(goconf: GOConf<GS, SS, S>, cache_threshold: usize) -> Self {
+        Self::with_lsize_ct_mt(goconf, 100, cache_threshold, true)
+    }
+
     /// Returns configuration with custom [group-optimized family of hash functions](GOBuildConf::goconf),
     /// [relative level size](GOBuildConf::relative_level_size) and [cache threshold](GOBuildConf::cache_threshold).
     pub fn with_lsize_ct(goconf: GOConf<GS, SS, S>, relative_level_size: u16, cache_threshold: usize) -> Self {
@@ -713,5 +719,15 @@ mod tests {
         test_with_input(&keys, Bits(55));
         test_with_input(&keys, Bits(60));
         test_with_input(&keys, Bits(63));
+    }
+
+    #[test]
+    //#[ignore = "too slow"]
+    fn test_large_size() {
+        let keys = (-20000..20000).collect::<Vec<_>>();
+        assert!(GOFunction::from_slice_with_conf(&keys[..], GOConf::default_biggest().into()).size_bytes() as f64 * (8.0/40000.0) < 2.57);
+        assert!(GOFunction::from_slice_with_conf(&keys[..], GOConf::default_bigger().into()).size_bytes() as f64 * (8.0/40000.0) < 2.4);
+        assert!(GOFunction::from(&keys[..]).size_bytes() as f64 * (8.0/40000.0) < 2.26);
+        assert!(GOFunction::from_slice_with_conf(&keys[..], GOConf::default_smallest().into()).size_bytes() as f64 * (8.0/40000.0) < 2.15);
     }
 }
