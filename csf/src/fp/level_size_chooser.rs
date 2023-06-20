@@ -31,11 +31,11 @@ pub trait SimpleLevelSizeChooser {
 /// Choose level size as a percent of the input size.
 #[derive(Copy, Clone)]
 pub struct ProportionalLevelSize {
-    percent: u8
+    percent: u16
 }
 
 impl ProportionalLevelSize {
-    pub fn with_percent(percent: u8) -> Self { Self{percent} }
+    pub fn with_percent(percent: u16) -> Self { Self{percent} }
 }
 
 impl Default for ProportionalLevelSize {
