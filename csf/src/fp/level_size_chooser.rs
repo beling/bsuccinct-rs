@@ -31,7 +31,7 @@ pub trait SimpleLevelSizeChooser {
 /// Choose level size as a percent of the input size.
 #[derive(Copy, Clone)]
 pub struct ProportionalLevelSize {
-    percent: u16
+    pub percent: u16
 }
 
 impl ProportionalLevelSize {
@@ -184,7 +184,7 @@ impl fmt::Display for OptimalLevelSize {
 
 #[derive(Copy, Clone)]
 pub struct OptimalGroupedLevelSize {
-    divider: u8
+    pub divider: u8
 }
 
 impl Default for OptimalGroupedLevelSize {
