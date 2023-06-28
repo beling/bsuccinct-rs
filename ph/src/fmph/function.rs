@@ -290,6 +290,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     fn build_levels<K, BS>(&mut self, keys: &mut impl KeySet<K>, stats: &mut BS)
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
+        let mut levels_without_reduction = 0;   // number of levels without any reduction in number of the keys
         while self.input_size != 0 {
             let level_size_segments = ceiling_div(self.input_size * self.conf.relative_level_size as usize, 64*100);
             let level_size = level_size_segments * 64;
@@ -330,7 +331,27 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
                 }
             };
             self.arrays.push(array);
+            let prev_input_size = self.input_size;
             self.input_size = keys.keys_len();
+            if self.input_size == prev_input_size {
+                levels_without_reduction += 1;
+                if levels_without_reduction == 10 {
+                    self.arrays.truncate(self.arrays.len()-levels_without_reduction);
+                    break;
+                }
+            } else {
+                levels_without_reduction = 0;
+            }
+        }
+    }
+
+    pub fn finish(self) -> Function<S> {
+        let level_sizes = self.arrays.iter().map(|l| l.len() as u64).collect();
+        let (array, _)  = ArrayWithRank::build(self.arrays.concat().into_boxed_slice());
+        Function::<S> {
+            array,
+            level_sizes,
+            hash_builder: self.conf.hash_builder
         }
     }
 
@@ -451,57 +472,112 @@ impl<S: BuildSeededHasher> Function<S> {
 }
 
 impl<S: BuildSeededHasher + Sync> Function<S> {
-    /// Builds [Function] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
-    pub fn with_conf_stats<K, BS>(mut keys: impl KeySet<K>, conf: BuildConf<S>, stats: &mut BS) -> Self
-        where K: Hash + Sync,
-              BS: stats::BuildStatsCollector
+    /// Constructs [`Function`] for given input `keys`,
+    /// using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// If the construction fails, it returns a pair consisting of:
+    /// a function handling only part of the keys
+    /// (that returns numbers in the interval [0, number of keys handled))
+    /// and a set of the remaining keys.
+    /// If needed, the keys from this set can be placed in another data structure
+    /// (e.g. [`std::collections::HashMap`]) to handle all the keys.
+    /// 
+    /// If the construction fails, it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    pub fn try_with_conf_stats_or_partial<K, BS, KS>(mut keys: KS, conf: BuildConf<S>, stats: &mut BS) -> Result<Self, (Self, KS)>
+        where K: Hash + Sync, KS: KeySet<K>, BS: stats::BuildStatsCollector
+    {
+        let mut builder = Builder::new(conf, &keys);
+        builder.build_levels(&mut keys, stats);
+        if builder.input_size == 0 {
+            drop(keys);
+            stats.end();
+            Ok(builder.finish())
+        } else {
+            stats.end();
+            Err((builder.finish(), keys))
+        }
+    }
+
+    /// Constructs [`Function`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// `None` is returned if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    pub fn try_with_conf_stats<K, BS, KS>(mut keys: KS, conf: BuildConf<S>, stats: &mut BS) -> Option<Self>
+        where K: Hash + Sync, KS: KeySet<K>, BS: stats::BuildStatsCollector
     {
         let mut builder = Builder::new(conf, &keys);
         builder.build_levels(&mut keys, stats);
         drop(keys);
         stats.end();
-        let level_sizes = builder.arrays.iter().map(|l| l.len() as u64).collect();
-        let (array, _)  = ArrayWithRank::build(builder.arrays.concat().into_boxed_slice());
-        Self {
-            array,
-            level_sizes,
-            hash_builder: builder.conf.hash_builder
-        }
+        (builder.input_size == 0).then(|| builder.finish())
     }
 
-    /// Builds [Function] for given `keys`, using the build configuration `conf`.
+    /// Constructs [`Function`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    #[inline]
+    pub fn with_conf_stats<K, BS>(keys: impl KeySet<K>, conf: BuildConf<S>, stats: &mut BS) -> Self
+    where K: Hash + Sync, BS: stats::BuildStatsCollector
+    {
+        Self::try_with_conf_stats(keys, conf, stats).expect("Constructing fmph::Function failed. Probably the input contains duplicate keys.")
+    }
+
+    /// Constructs [Function] for given `keys`, using the build configuration `conf`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn with_conf<K>(keys: impl KeySet<K>, conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(keys, conf, &mut ())
     }
 
-    /// Builds [Function] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// Constructs [`Function`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
-    /// Builds [Function] for given `keys`, using the build configuration `conf`.
+    /// Constructs [`Function`] for given `keys`, using the build configuration `conf`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
-    /// Builds [Function] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
-    /// 
+    /// Constructs [`Function`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
     /// Note that `keys` can be reordered during construction.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+
     #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: BuildConf<S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
-    /// Builds [Function] for given `keys`, using the build configuration `conf`.
-    ///
+    /// Constructs [`Function`] for given `keys`, using the build configuration `conf`.
     /// Note that `keys` can be reordered during construction.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: BuildConf<S>) -> Self
         where K: Hash + Sync
     {
@@ -517,6 +593,10 @@ impl Function {
     }
 
     /// Builds [Function] for given `keys`, reporting statistics with `stats`.
+    /// 
+    /// Panics if constructing [`Function`] fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     pub fn with_stats<K, BS>(keys: impl KeySet<K>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
@@ -524,6 +604,10 @@ impl Function {
     }
 
     /// Builds [Function] for given `keys`.
+    /// 
+    /// Panics if constructing [`Function`] fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     pub fn new<K: Hash + Sync>(keys: impl KeySet<K>) -> Self {
         Self::with_conf_stats(keys, Default::default(), &mut ())
     }
@@ -543,22 +627,24 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for Function {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::stats::BuildStatsPrinter;
-
     use super::*;
     use std::fmt::Display;
 
-    pub fn test_mphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(mphf_keys: &[K], mphf: G) {
+    pub fn test_mphf_iter<K: std::fmt::Display, G: Fn(&K)->Option<u64>>(len: usize, keys: impl IntoIterator<Item=K>, mphf: G) {
         use bitm::BitVec;
-        let mut seen = Box::<[u64]>::with_zeroed_bits(mphf_keys.len());
-        for key in mphf_keys {
-            let index = mphf(key);
+        let mut seen = Box::<[u64]>::with_zeroed_bits(len);
+        for key in keys {
+            let index = mphf(&key);
             assert!(index.is_some(), "MPHF does not assign the value for the key {} which is in the input", key);
             let index = index.unwrap() as usize;
-            assert!(index < mphf_keys.len(), "MPHF assigns too large value for the key {}: {}>{}.", key, index, mphf_keys.len());
-            assert!(!seen.get_bit(index), "MPHF assigns the same value to two keys of input, including {}.", key);
+            assert!(index < len, "MPHF assigns too large value for the key {}: {}>{}.", key, index, len);
+            assert!(!seen.get_bit(index), "MPHF assigns {} to {} and some other key included in the input", index, key);
             seen.set_bit(index);
         }
+    }
+
+    pub fn test_mphf<K: std::fmt::Display+Clone, G: Fn(&K)->Option<u64>>(mphf_keys: &[K], mphf: G) {
+        test_mphf_iter(mphf_keys.len(), mphf_keys.iter().cloned(), mphf);
     }
 
     fn test_read_write(h: &Function) {
@@ -572,7 +658,7 @@ pub(crate) mod tests {
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K]) {
         let h = Function::from_slice_with_conf(to_hash, BuildConf::mt(false));
-        test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));
+        test_mphf(to_hash, |key| h.get(key));
         test_read_write(&h);
     }
 
@@ -591,9 +677,42 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_dynamic() {
+        const LEN: u64 = 50_000;
+        let f = Function::new(
+            crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, 10_000));
+        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
+    }
+
+    #[test]
     #[ignore = "too slow"]
-    fn test_size_over_2to32_size() {
-        let f = Function::with_stats(crate::fmph::keyset::CachedKeySet::dynamic(|| 0..5_000_000_000u64, true, 1_000_000_000), &mut BuildStatsPrinter::stdout());
-        assert!(f.size_bytes() as f64 * (8.0/5_000_000_000.0) < 2.9);
+    fn test_fmph_for_over_2to32_keys() {
+        const LEN: u64 = 5_000_000_000;
+        let f = Function::with_conf_stats(
+            crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, 1_000_000_000),
+            BuildConf::mt(false),
+             &mut crate::stats::BuildStatsPrinter::stdout());
+        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
+    }
+
+    #[test]
+    fn test_duplicates() {
+        assert!(Function::try_with_conf_stats(vec![1, 1], Default::default(), &mut ()).is_none());
+        assert!(Function::try_with_conf_stats(vec![1, 2, 3, 1, 4], Default::default(), &mut ()).is_none());
+    }
+
+    #[test]
+    fn test_duplicates_partial() {
+        let keys = vec![1, 2, 3, 1, 4];
+        let r = Function::try_with_conf_stats_or_partial(keys, Default::default(), &mut ());
+        if let Err((mphf, mut remaining)) = r {
+            remaining.sort();
+            assert_eq!(remaining, vec![1, 1]);
+            test_mphf(&[2, 3, 4], |key| mphf.get(key));
+        } else {
+            assert!(false)
+        }
     }
 }

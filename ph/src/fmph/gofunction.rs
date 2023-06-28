@@ -617,7 +617,7 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for GOFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fmph::function::tests::test_mphf;
+    use crate::fmph::function::tests::{test_mphf, test_mphf_iter};
     use crate::fmph::TwoToPowerBits;
     use std::fmt::{Debug, Display};
     use crate::fmph::Bits;
@@ -644,7 +644,7 @@ mod tests {
         let goconf = GOConf::bps_bpg(Bits(3), bits_per_group);
         let h = GOFunction::from_slice_with_conf(to_hash, GOBuildConf::with_mt(goconf, false));
         //dbg!(h.size_bytes() as f64 * 8.0/to_hash.len() as f64);
-        test_mphf(to_hash, |key| h.get(key).map(|i| i as usize));
+        test_mphf(to_hash, |key| h.get(key));
         test_hash2_invariants(&h);
         test_read_write(&h);
     }
@@ -722,12 +722,23 @@ mod tests {
     }
 
     #[test]
-    //#[ignore = "too slow"]
     fn test_large_size() {
         let keys = (-20000..20000).collect::<Vec<_>>();
         assert!(GOFunction::from_slice_with_conf(&keys[..], GOConf::default_biggest().into()).size_bytes() as f64 * (8.0/40000.0) < 2.57);
         assert!(GOFunction::from_slice_with_conf(&keys[..], GOConf::default_bigger().into()).size_bytes() as f64 * (8.0/40000.0) < 2.4);
         assert!(GOFunction::from(&keys[..]).size_bytes() as f64 * (8.0/40000.0) < 2.26);
         assert!(GOFunction::from_slice_with_conf(&keys[..], GOConf::default_smallest().into()).size_bytes() as f64 * (8.0/40000.0) < 2.15);
+    }
+
+    #[test]
+    #[ignore = "too slow"]
+    fn test_fmphgo_for_over_2to32_keys() {
+        const LEN: u64 = 5_000_000_000;
+        let f = GOFunction::with_conf_stats(
+            crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, 1_000_000_000),
+            GOConf::default_biggest().into(),
+             &mut crate::stats::BuildStatsPrinter::stdout());
+        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.57);
     }
 }

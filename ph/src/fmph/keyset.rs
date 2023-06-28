@@ -783,8 +783,8 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
     // TODO retain_keys_into_vec methods
 }
 
-/// Implementation of [KeySet] that initially stores another [KeySet] 
-/// (which is usually succinct but slow, such as [DynamicKeySet]),
+/// Implementation of [`KeySet`] that initially stores another [`KeySet`] 
+/// (which is usually succinct but slow, such as [`DynamicKeySet`]),
 /// but when number of keys drops below given threshold,
 /// the remaining keys are cached (cloned into the vector),
 /// and later only the cache is used.

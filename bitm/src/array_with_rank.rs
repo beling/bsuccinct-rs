@@ -222,4 +222,16 @@ mod tests {
     fn content_simple() {
         test_content::<ArrayWithRankSimple>();
     }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit() {
+        const SEGMENTS: usize = 1<<(33-6);
+        let (a, c) = ArrayWithRank101111::build(vec![0b01_01_01_01; SEGMENTS].into_boxed_slice());
+        assert_eq!(c as usize, SEGMENTS * 4);
+        assert_eq!(a.rank(1<<32), (1<<(32-6)) * 4);
+        assert_eq!(a.rank((1<<32)+1), (1<<(32-6)) * 4 + 1);
+        assert_eq!(a.rank((1<<32)+2), (1<<(32-6)) * 4 + 1);
+        assert_eq!(a.rank((1<<32)+3), (1<<(32-6)) * 4 + 2);
+    }
 }
