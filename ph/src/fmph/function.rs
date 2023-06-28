@@ -543,6 +543,8 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for Function {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::stats::BuildStatsPrinter;
+
     use super::*;
     use std::fmt::Display;
 
@@ -586,5 +588,12 @@ pub(crate) mod tests {
         let keys = (-20000..20000).collect::<Vec<_>>();
         assert!(Function::from(&keys[..]).size_bytes() as f64 * (8.0/40000.0) < 2.9);
         assert!(Function::from_slice_with_conf(&keys[..], BuildConf::lsize(200)).size_bytes() as f64 * (8.0/40000.0) < 3.5);
+    }
+
+    #[test]
+    #[ignore = "too slow"]
+    fn test_size_over_2to32_size() {
+        let f = Function::with_stats(crate::fmph::keyset::CachedKeySet::dynamic(|| 0..5_000_000_000u64, true, 1_000_000_000), &mut BuildStatsPrinter::stdout());
+        assert!(f.size_bytes() as f64 * (8.0/5_000_000_000.0) < 2.9);
     }
 }

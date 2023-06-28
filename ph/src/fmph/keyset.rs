@@ -774,10 +774,10 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
         (self.keys)().filter(retained_hint).for_each(|k| f(&k))
     }
 
-    #[inline] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, mut retains_count: R)
+    #[inline] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, mut remove_count: R)
         where F: FnMut(&KeyIter::Item) -> bool, P: FnMut(&KeyIter::Item) -> bool, R: FnMut() -> usize
     {
-        self.len = retains_count();
+        self.len -= remove_count();
     }
 
     // TODO retain_keys_into_vec methods
