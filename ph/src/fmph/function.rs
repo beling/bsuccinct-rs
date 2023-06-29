@@ -337,12 +337,14 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
                 levels_without_reduction += 1;
                 if levels_without_reduction == 10 {
                     self.arrays.truncate(self.arrays.len()-levels_without_reduction);
+                    stats.end(self.input_size);
                     break;
                 }
             } else {
                 levels_without_reduction = 0;
             }
         }
+        stats.end(0)
     }
 
     pub fn finish(self) -> Function<S> {
@@ -475,27 +477,27 @@ impl<S: BuildSeededHasher + Sync> Function<S> {
     /// Constructs [`Function`] for given input `keys`,
     /// using the build configuration `conf` and reporting statistics with `stats`.
     /// 
-    /// If the construction fails, it returns a pair consisting of:
-    /// a function handling only part of the keys
-    /// (that returns numbers in the interval [0, number of keys handled))
-    /// and a set of the remaining keys.
-    /// If needed, the keys from this set can be placed in another data structure
-    /// (e.g. [`std::collections::HashMap`]) to handle all the keys.
+    /// If the construction fails, it returns `Err` with a triple *(f, k, s)*, where:
+    /// - *f* is a [`Function`] handling only part of the keys
+    ///   (that returns numbers in the interval *[0, s-k.keys_len())*);
+    /// - *k* is a set of the remaining keys,
+    /// - *s* is the initial number of keys.
+    /// If needed, the keys from *k* can be placed in another data structure to handle all the keys.
     /// 
     /// If the construction fails, it is almost certain that the input contains either duplicate keys
     /// or keys indistinguishable by any hash function from the family used.
-    pub fn try_with_conf_stats_or_partial<K, BS, KS>(mut keys: KS, conf: BuildConf<S>, stats: &mut BS) -> Result<Self, (Self, KS)>
+    /// The duplicate keys will be included in the *k* set.
+    pub fn try_with_conf_stats_or_partial<K, BS, KS>(mut keys: KS, conf: BuildConf<S>, stats: &mut BS) -> Result<Self, (Self, KS, usize)>
         where K: Hash + Sync, KS: KeySet<K>, BS: stats::BuildStatsCollector
     {
         let mut builder = Builder::new(conf, &keys);
+        let initial_size = builder.input_size;
         builder.build_levels(&mut keys, stats);
         if builder.input_size == 0 {
             drop(keys);
-            stats.end();
             Ok(builder.finish())
         } else {
-            stats.end();
-            Err((builder.finish(), keys))
+            Err((builder.finish(), keys, initial_size))
         }
     }
 
@@ -510,7 +512,6 @@ impl<S: BuildSeededHasher + Sync> Function<S> {
         let mut builder = Builder::new(conf, &keys);
         builder.build_levels(&mut keys, stats);
         drop(keys);
-        stats.end();
         (builder.input_size == 0).then(|| builder.finish())
     }
 
@@ -519,7 +520,6 @@ impl<S: BuildSeededHasher + Sync> Function<S> {
     /// Panics if the construction fails.
     /// Then it is almost certain that the input contains either duplicate keys
     /// or keys indistinguishable by any hash function from the family used.
-    #[inline]
     pub fn with_conf_stats<K, BS>(keys: impl KeySet<K>, conf: BuildConf<S>, stats: &mut BS) -> Self
     where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
@@ -706,8 +706,10 @@ pub(crate) mod tests {
     #[test]
     fn test_duplicates_partial() {
         let keys = vec![1, 2, 3, 1, 4];
+        let expected_initial_len = keys.len();
         let r = Function::try_with_conf_stats_or_partial(keys, Default::default(), &mut ());
-        if let Err((mphf, mut remaining)) = r {
+        if let Err((mphf, mut remaining, initial_len)) = r {
+            assert_eq!(initial_len, expected_initial_len);
             remaining.sort();
             assert_eq!(remaining, vec![1, 1]);
             test_mphf(&[2, 3, 4], |key| mphf.get(key));

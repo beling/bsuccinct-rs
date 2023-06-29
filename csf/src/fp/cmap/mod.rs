@@ -161,7 +161,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
                 level += 1;
             }
         }
-        stats.end();
+        stats.end(0);
         Self {
             array,
             value_fragments: output_value_fragments,

@@ -206,7 +206,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
                 level_nr += 1;
             }
         }
-        stats.end();
+        stats.end(0);
         Self {
             array,
             value_fragments: output_value_fragments,

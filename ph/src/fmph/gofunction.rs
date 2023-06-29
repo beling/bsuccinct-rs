@@ -386,7 +386,8 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         self.push(array, seeds, level_size_groups);
     }
 
-    fn build_levels<KS, K, BS>(&mut self, keys: &mut KS, stats: &mut BS)
+    /// Returns true after successful building.
+    fn build_levels<KS, K, BS>(&mut self, keys: &mut KS, stats: &mut BS) -> bool
     where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
         let mut levels_without_reduction = 0;   // number of levels without any reduction in number of the keys
@@ -432,12 +433,15 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
                     self.arrays.truncate(len);
                     self.group_seeds.truncate(len);
                     self.level_sizes.truncate(len);
-                    break;
+                    stats.end(input_size);
+                    return false;
                 }
             } else {
                 levels_without_reduction = 0;
             }
         }
+        stats.end(0);
+        return true;
     }
 
     pub fn finish(self) -> GOFunction<GS, SS, S> {
@@ -559,50 +563,107 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
 }
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction<GS, SS, S> {
-    /// Builds [`GOFunction`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
-    pub fn with_conf_stats<K, KS, BS>(mut keys: KS, conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
+    /// Constructs [`GOFunction`] for given input `keys`,
+    /// using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// If the construction fails, it returns `Err` with a triple *(f, k, s)*, where:
+    /// - *f* is a [`GOFunction`] handling only part of the keys
+    ///   (that returns numbers in the interval *[0, s-k.keys_len())*);
+    /// - *k* is a set of the remaining keys,
+    /// - *s* is the initial number of keys.
+    /// If needed, the keys from *k* can be placed in another data structure to handle all the keys.
+    /// 
+    /// If the construction fails, it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    /// The duplicate keys will be included in the *k* set.
+    pub fn try_with_conf_stats_or_partial<K, KS, BS>(mut keys: KS, conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Result<Self, (Self, KS, usize)>
         where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
     {
         let mut builder = GOBuilder::new(conf);
-        builder.build_levels(&mut keys, stats);
-        drop(keys);
-        stats.end();
-        builder.finish()
+        let initial_size = keys.keys_len();
+        if builder.build_levels(&mut keys, stats) {
+            drop(keys);
+            Ok(builder.finish())
+        } else {
+            Err((builder.finish(), keys, initial_size))
+        }
     }
 
-    /// Builds [GOFunction] for given `keys`, using the build configuration `conf`.
-    pub fn with_conf<K, KS>(keys: KS, conf: GOBuildConf<GS, SS, S>) -> Self
+    /// Constructs [`GOFunction`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// `None` is returned if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    pub fn try_with_conf_stats<K, KS, BS>(mut keys: KS, conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Option<Self>
+        where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
+    {
+        let mut builder = GOBuilder::new(conf);
+        builder.build_levels(&mut keys, stats).then(|| {
+            drop(keys);
+            builder.finish()
+        })
+    }
+
+    /// Builds [`GOFunction`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    ///
+    /// Panics if the construction fails.
+    pub fn with_conf_stats<K, KS, BS>(keys: KS, conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
+        where K: Hash + Sync, KS: KeySet<K> + Sync, BS: stats::BuildStatsCollector
+    {
+        Self::try_with_conf_stats(keys, conf, stats).expect("Constructing fmph::GOFunction failed. Probably the input contains duplicate keys.")
+    }
+
+    /// Builds [`GOFunction`] for given `keys`, using the build configuration `conf`.
+    ///
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    #[inline] pub fn with_conf<K, KS>(keys: KS, conf: GOBuildConf<GS, SS, S>) -> Self
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
         Self::with_conf_stats(keys, conf, &mut ())
     }
 
-    /// Builds [GOFunction] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// Builds [`GOFunction`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
+    ///
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn from_slice_with_conf_stats<K, BS>(keys: &[K], conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, stats)
     }
 
-    /// Builds [GOFunction] for given `keys`, using the configuration `conf`.
+    /// Builds [`GOFunction`] for given `keys`, using the configuration `conf`.
+    ///
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn from_slice_with_conf<K>(keys: &[K], conf: GOBuildConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
         Self::with_conf_stats(SliceSourceWithRefs::<_, u8>::new(keys), conf, &mut ())
     }
 
-    /// Builds [GOFunction] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
-    /// 
+    /// Builds [`GOFunction`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
     /// Note that `keys` can be reordered during construction.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn from_slice_mut_with_conf_stats<K, BS>(keys: &mut [K], conf: GOBuildConf<GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SliceMutSource::new(keys), conf, stats)
     }
 
-    /// Builds [GOFunction] for given `keys`, using the build configuration `conf`.
-    /// 
+    /// Builds [`GOFunction`] for given `keys`, using the build configuration `conf`.
     /// Note that `keys` can be reordered during construction.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     #[inline] pub fn from_slice_mut_with_conf<K>(keys: &mut [K], conf: GOBuildConf<GS, SS, S>) -> Self
         where K: Hash + Sync
     {
@@ -612,26 +673,38 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOFunction
 
 impl<GS: GroupSize + Sync, SS: SeedSize> GOFunction<GS, SS> {
     /// Reads `Self` from the `input`.
-    /// Only [GOFunction]s that use default hasher can be read by this method.
+    /// Only [`GOFunction`]s that use default hasher can be read by this method.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
         Self::read_with_hasher(input, Default::default())
     }
 }
 
 impl GOFunction {
-    /// Builds [GOFunction] for given `keys`, reporting statistics with `stats`.
+    /// Builds [`GOFunction`] for given `keys`, reporting statistics with `stats`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     pub fn from_slice_with_stats<K, BS>(keys: &[K], stats: &mut BS) -> Self
         where K: Hash + Sync, BS: stats::BuildStatsCollector
     {
         Self::from_slice_with_conf_stats(keys, Default::default(), stats)
     }
 
-    /// Builds [GOFunction] for given `keys`.
+    /// Builds [`GOFunction`] for given `keys`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     pub fn from_slice<K: Hash + Sync>(keys: &[K]) -> Self {
         Self::from_slice_with_conf_stats(keys, Default::default(), &mut ())
     }
 
-    /// Builds [GOFunction] for given `keys`.
+    /// Builds [`GOFunction`] for given `keys`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
     pub fn new<K: Hash + Sync, KS: KeySet<K> + Sync>(keys: KS) -> Self {
         Self::with_conf_stats(keys, Default::default(), &mut ())
     }
@@ -775,5 +848,26 @@ mod tests {
              &mut crate::stats::BuildStatsPrinter::stdout());
         test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.57);
+    }
+
+    #[test]
+    fn test_duplicates() {
+        assert!(GOFunction::try_with_conf_stats(vec![1, 1], Default::default(), &mut ()).is_none());
+        assert!(GOFunction::try_with_conf_stats(vec![1, 2, 3, 1, 4], Default::default(), &mut ()).is_none());
+    }
+
+    #[test]
+    fn test_duplicates_partial() {
+        let keys = vec![1, 2, 3, 1, 4];
+        let expected_initial_len = keys.len();
+        let r = GOFunction::try_with_conf_stats_or_partial(keys, Default::default(), &mut ());
+        if let Err((mphf, mut remaining, initial_len)) = r {
+            assert_eq!(initial_len, expected_initial_len);
+            remaining.sort();
+            assert_eq!(remaining, vec![1, 1]);
+            test_mphf(&[2, 3, 4], |key| mphf.get(key));
+        } else {
+            assert!(false)
+        }
     }
 }

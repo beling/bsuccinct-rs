@@ -130,7 +130,7 @@ impl<S: BuildSeededHasher> Map<S> {
                 level += 1;
             }
         }
-        stats.end();
+        stats.end(0);
         Self {
             array,
             values: output_value_fragments,
