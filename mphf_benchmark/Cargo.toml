@@ -1,6 +1,6 @@
 [package]
 name = "mphf_benchmark"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
 description = "The program for benchmarking Minimal Perfect Hash Functions"
@@ -19,7 +19,7 @@ bitm = { version="0.2", path="../bitm" }
 rayon = "1.5"
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 cpu-time = "1"
-ph = { version="0.6", path="../ph", features = ["wyhash"] }
+ph = { version="0.7", path="../ph", features = ["wyhash"] }
 cmph-sys = { version=">=0.1", git = "https://github.com/beling/cmph-sys", optional = true }
 boomphf = { package = "boomphf-patched", version="0.5.9-0", git = "https://github.com/beling/rust-boomphf" }
 clap = { version="4.0", features = ["derive"] }
