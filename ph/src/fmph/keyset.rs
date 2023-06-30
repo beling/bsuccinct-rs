@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use bitm::{BitAccess, ceiling_div};
 
 /// A trait for accessing and managing sets of keys (of the type `K`) during construction of
-/// [fmph::Function](super::Function) or [fmph::GOFunction](super::GOFunction).
+/// [`fmph::Function`](super::Function) or [`fmph::GOFunction`](super::GOFunction).
 pub trait KeySet<K> {
     /// Returns number of retained keys. Guarantee to be very fast.
     fn keys_len(&self) -> usize;
@@ -245,7 +245,7 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     }
 }
 
-/// Implements [KeySet], storing keys in the mutable slice.
+/// Implements [`KeySet`], storing keys in the mutable slice.
 ///
 /// Retain operations reorder the slice, putting retained keys at the beginning of the slice.
 pub struct SliceMutSource<'k, K> {
@@ -307,7 +307,7 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
     }
 }
 
-/// Implements [KeySet] that use immutable slice.
+/// Implements [`KeySet`] that use immutable slice.
 ///
 /// Retain operations clone retained keys into the vector.
 pub struct SliceSourceWithClones<'k, K> {
@@ -421,11 +421,11 @@ impl RefsIndex for u16 {
     #[inline(always)] fn as_usize(self) -> usize { self as usize }
 }
 
-/// [KeySet] implementation that stores reference to slice with keys,
+/// [`KeySet`] implementation that stores reference to slice with keys,
 /// and indices of this slice that points retained keys.
 /// Indices are stored partitioned to segments and stored as 8 (if `I=u8`) or 16-bit (if `I=u16`) integers.
 /// Each segment covers $2^8$ or $2^{16}$ consecutive keys.
-/// Empty segments ore not stored.
+/// Empty segments are not stored.
 pub struct SliceSourceWithRefs<'k, K, I: RefsIndex = u8> {
     keys: &'k [K],
     indices: Vec<I>,  // lowest 16 bits of each key index retained so far
@@ -730,9 +730,9 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
     }
 }
 
-/// Implementation of [KeySet] that stores only the function that returns iterator over all keys
+/// Implementation of [`KeySet`] that stores only the function that returns iterator over all keys
 /// (the iterator can even expose the keys that have been removed earlier by `retain` methods).
-/// It is usually a good idea to use it within [CachedKeySet], see [CachedKeySet::dynamic].
+/// It is usually a good idea to use it within [`CachedKeySet`], see [`CachedKeySet::dynamic`].
 pub struct DynamicKeySet<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> {
     pub keys: GetKeyIter,
     pub len: usize,
@@ -796,11 +796,18 @@ impl<K, KS> CachedKeySet<K, KS> {
 }
 
 impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicKeySet<KeyIter, GetKeyIter>> {
-    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function.
+    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function that returns iterator over keys.
     /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
     pub fn dynamic(keys: GetKeyIter, const_keys_order: bool, clone_threshold: usize) -> Self {
         Self::new(DynamicKeySet::new(keys, const_keys_order), clone_threshold)
+    }
+
+    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function that returns iterator over exactly `len` keys.
+    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
+    /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
+    pub fn dynamic_with_len(keys: GetKeyIter, len: usize, const_keys_order: bool, clone_threshold: usize) -> Self {
+        Self::new(DynamicKeySet::with_len(keys, len, const_keys_order), clone_threshold)
     }
 }
 
@@ -857,7 +864,7 @@ impl<K: Clone + Sync + Send, KS: KeySet<K>> KeySet<K> for CachedKeySet<K, KS>
     fn keys_len(&self) -> usize {
         match self {
             Self::Dynamic(dynamic_key_set, _) => dynamic_key_set.keys_len(),
-            Self::Cached(v) => v.len()
+            Self::Cached(v) => v.keys_len()
         }
     }
 
