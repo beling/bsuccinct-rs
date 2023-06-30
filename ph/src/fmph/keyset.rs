@@ -799,6 +799,16 @@ impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicK
     /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function that returns iterator over keys.
     /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
+    /// 
+    /// # Example
+    /// 
+    /// ```
+    /// use ph::fmph::keyset::{KeySet, CachedKeySet};
+    /// // Constructing a dynamic key set consisting of the squares of the integers from 1 to 100,
+    /// // part of which will be cached by the first call of any of the retain methods.
+    /// let ks = CachedKeySet::dynamic(|| (1..=100).map(|v| v*v), true, usize::MAX);
+    /// assert_eq!(ks.keys_len(), 100);
+    /// ```
     pub fn dynamic(keys: GetKeyIter, const_keys_order: bool, clone_threshold: usize) -> Self {
         Self::new(DynamicKeySet::new(keys, const_keys_order), clone_threshold)
     }
@@ -806,6 +816,16 @@ impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicK
     /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function that returns iterator over exactly `len` keys.
     /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
+    ///
+    /// # Example
+    /// 
+    /// ```
+    /// use ph::fmph::keyset::{KeySet, CachedKeySet};
+    /// // Constructing a dynamic key set consisting of the squares of the integers from 1 to 100,
+    /// // part of which will be cached by the first call of any of the retain methods.
+    /// let ks = CachedKeySet::dynamic_with_len(|| (1..=100).map(|v| v*v), 100, true, usize::MAX);
+    /// assert_eq!(ks.keys_len(), 100);
+    /// ```
     pub fn dynamic_with_len(keys: GetKeyIter, len: usize, const_keys_order: bool, clone_threshold: usize) -> Self {
         Self::new(DynamicKeySet::with_len(keys, len, const_keys_order), clone_threshold)
     }
