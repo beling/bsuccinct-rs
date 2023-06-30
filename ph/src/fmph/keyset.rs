@@ -800,6 +800,8 @@ impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicK
     /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
     /// 
+    /// If the number of keys is known, it is more efficient to call [`CachedKeySet::dynamic_with_len`] instead.
+    /// 
     /// # Example
     /// 
     /// ```
@@ -816,7 +818,7 @@ impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicK
     /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function that returns iterator over exactly `len` keys.
     /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
-    ///
+    /// 
     /// # Example
     /// 
     /// ```
