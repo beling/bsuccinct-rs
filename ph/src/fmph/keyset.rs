@@ -805,7 +805,7 @@ impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicK
     /// ```
     /// use ph::fmph::keyset::{KeySet, CachedKeySet};
     /// // Constructing a dynamic key set consisting of the squares of the integers from 1 to 100,
-    /// // part of which will be cached by the first call of any of the retain methods.
+    /// // part of which will be cached by the first call of any of the retain methods:
     /// let ks = CachedKeySet::dynamic(|| (1..=100).map(|v| v*v), true, usize::MAX);
     /// assert_eq!(ks.keys_len(), 100);
     /// ```
@@ -822,7 +822,7 @@ impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicK
     /// ```
     /// use ph::fmph::keyset::{KeySet, CachedKeySet};
     /// // Constructing a dynamic key set consisting of the squares of the integers from 1 to 100,
-    /// // part of which will be cached by the first call of any of the retain methods.
+    /// // part of which will be cached by the first call of any of the retain methods:
     /// let ks = CachedKeySet::dynamic_with_len(|| (1..=100).map(|v| v*v), 100, true, usize::MAX);
     /// assert_eq!(ks.keys_len(), 100);
     /// ```
