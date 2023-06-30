@@ -267,10 +267,10 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Builds level possibly (if `keys` can be iterated in parallel) using multiple threads
-    fn build_level_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
+    fn build_level<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
         where K: Hash + Sync
     {
-        if !keys.has_par_for_each_key() {
+        if !(self.conf.use_multiple_threads && keys.has_par_for_each_key()) {
             return self.build_level_st(keys, level_size_segments, seed);
         }
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
@@ -315,23 +315,14 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
                 array
             } else {
                 // build level without hash caching:
-                if self.conf.use_multiple_threads {
-                    let current_array = self.build_level_mt(keys, level_size_segments, seed);
-                    keys.par_retain_keys(
-                        |key| !current_array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
-                        |key| self.retained(key),
-                        || current_array.count_bit_ones()
-                    );
-                    current_array
-                } else {
-                    let current_array = self.build_level_st(keys, level_size_segments, seed);
-                    keys.retain_keys(
-                        |key| !current_array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
-                        |key| self.retained(key),
-                        || current_array.count_bit_ones()
-                    );
-                    current_array
-                }
+                let current_array = self.build_level(keys, level_size_segments, seed);
+                keys.maybe_par_retain_keys(
+                    |key| !current_array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
+                    |key| self.retained(key),
+                    || current_array.count_bit_ones(),
+                    self.conf.use_multiple_threads               
+                );
+                current_array
             };
             self.arrays.push(array);
             let prev_input_size = self.input_size;
