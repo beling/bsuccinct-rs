@@ -204,16 +204,15 @@ pub(crate) fn get_mut_slice(v: &mut [AtomicU64]) -> &mut [u64] {
 struct Builder<S> {
     arrays: Vec::<Box<[u64]>>,
     input_size: usize,
-    use_multiple_threads: bool,
     conf: BuildConf<S>
 }
 
 impl<S: BuildSeededHasher + Sync> Builder<S> {
-    pub fn new<K>(conf: BuildConf<S>, keys: &impl KeySet<K>) -> Self {
+    pub fn new<K>(mut conf: BuildConf<S>, keys: &impl KeySet<K>) -> Self {
+        if conf.use_multiple_threads { conf.use_multiple_threads = rayon::current_num_threads() > 1; }
         Self {
             arrays: Vec::<Box<[u64]>>::new(),
             input_size: keys.keys_len(),
-            use_multiple_threads: conf.use_multiple_threads && (keys.has_par_for_each_key() || keys.has_par_retain_keys()) && rayon::current_num_threads() > 1,
             conf
         }
     }
@@ -224,6 +223,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
             .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash_builder, seed as u32, a.len() << 6)))
     }
 
+    /// Build level for given sequence of key indices using a single thread
     fn build_array_for_indices_st(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
     {
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
@@ -235,9 +235,10 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
         result
     }
 
+    /// Build level for given sequence of key indices possibly using multiple threads.
     fn build_array_for_indices(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
     {
-        if !self.use_multiple_threads {
+        if !self.conf.use_multiple_threads {
             return self.build_array_for_indices_st(bit_indices, level_size_segments)
         }
         let mut result = vec![0u64; level_size_segments].into_boxed_slice();
@@ -265,7 +266,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
         result
     }
 
-    /// Builds level using multiple threads.
+    /// Builds level possibly (if `keys` can be iterated in parallel) using multiple threads
     fn build_level_mt<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
         where K: Hash + Sync
     {
@@ -284,7 +285,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
         result
     }
 
-    /// Returns number the level about to build (number of levels built so far).
+    /// Returns number of the level about to build (number of levels built so far).
     #[inline(always)] fn level_nr(&self) -> u32 { self.arrays.len() as u32 }
 
     fn build_levels<K, BS>(&mut self, keys: &mut impl KeySet<K>, stats: &mut BS)
@@ -297,10 +298,11 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
             stats.level(self.input_size, level_size);
             let seed = self.level_nr();
             let array = if self.input_size < self.conf.cache_threshold {
+                // build level with hash caching:
                 let bit_indices = keys.maybe_par_map_each_key(
                     |key| index(key, &self.conf.hash_builder, seed, level_size),
                     |key| self.retained(key),
-                    self.use_multiple_threads
+                    self.conf.use_multiple_threads
                 );
                 let array = self.build_array_for_indices(&bit_indices, level_size_segments);
                 keys.maybe_par_retain_keys_with_indices(
@@ -308,11 +310,12 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
                     |key| !array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
                     |key| self.retained(key),
                     || array.count_bit_ones(),
-                    self.use_multiple_threads
+                    self.conf.use_multiple_threads
                 );
                 array
             } else {
-                if self.use_multiple_threads {
+                // build level without hash caching:
+                if self.conf.use_multiple_threads {
                     let current_array = self.build_level_mt(keys, level_size_segments, seed);
                     keys.par_retain_keys(
                         |key| !current_array.get_bit(index(key, &self.conf.hash_builder, seed, level_size)),
@@ -689,10 +692,9 @@ pub(crate) mod tests {
     #[ignore = "too slow"]
     fn test_fmph_for_over_2to32_keys() {
         const LEN: u64 = 5_000_000_000;
-        let f = Function::with_conf_stats(
+        let f = Function::with_stats(
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, usize::MAX/*1_000_000_000*/),
-            BuildConf::mt(false),
-             &mut crate::stats::BuildStatsPrinter::stdout());
+            &mut crate::stats::BuildStatsPrinter::stdout());
         test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
     }

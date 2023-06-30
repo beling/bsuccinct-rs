@@ -15,9 +15,6 @@ pub trait KeySet<K> {
     /// Returns `true` only if [Self::par_for_each_key] can use multiple threads.
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { false }
 
-    /// Returns `true` only if [Self::par_retain_keys] can use multiple threads.
-    #[inline(always)] fn has_par_retain_keys(&self) -> bool { false }
-
     /// Call `f` for each key in the set, using single thread.
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
@@ -161,8 +158,6 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
-
-    #[inline(always)] fn has_par_retain_keys(&self) -> bool { true }
 
     #[inline(always)] fn for_each_key<F, P>(&self, f: F, _retained_hint: P)
         where F: FnMut(&K), P: FnMut(&K) -> bool
@@ -336,8 +331,6 @@ impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
     }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
-
-    #[inline(always)] fn has_par_retain_keys(&self) -> bool { true }
 
     #[inline(always)] fn for_each_key<F, P>(&self, f: F, retained_hint: P) where F: FnMut(&K), P: FnMut(&K) -> bool {
         if let Some(ref retained) = self.retained {
@@ -582,8 +575,6 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
     }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
-
-    #[inline(always)] fn has_par_retain_keys(&self) -> bool { true }
 
     #[inline(always)] fn for_each_key<F, P>(&self, mut f: F, _retained_hint: P)
         where F: FnMut(&K), P: FnMut(&K) -> bool
@@ -870,9 +861,12 @@ impl<K: Clone + Sync + Send, KS: KeySet<K>> KeySet<K> for CachedKeySet<K, KS>
         }
     }
 
-    fn has_par_for_each_key(&self) -> bool { true }  // as it is true for cached version
-
-    fn has_par_retain_keys(&self) -> bool { true }  // as it is true for cached version
+    fn has_par_for_each_key(&self) -> bool {
+        match self {
+            Self::Dynamic(dynamic_key_set, _) => dynamic_key_set.has_par_for_each_key(),
+            Self::Cached(v) => v.has_par_for_each_key()
+        }
+    }
 
     #[inline]
     fn for_each_key<F, P>(&self, f: F, retained_hint: P)

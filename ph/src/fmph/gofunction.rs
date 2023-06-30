@@ -401,6 +401,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
             if input_size < self.conf.cache_threshold {
                 self.build_next_level_with_cache(keys, level_size_groups, level_size_segments);
             } else {
+                // build level without hash caching:
                 let (array, seeds) = if self.conf.use_multiple_threads {
                     self.conf.best_array(|g| self.build_array_mt(keys, level_size_segments, level_size_groups, g), level_size_groups)
                 } else {
@@ -844,8 +845,8 @@ mod tests {
         const LEN: u64 = 5_000_000_000;
         let f = GOFunction::with_conf_stats(
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, usize::MAX),
-            GOBuildConf::with_mt(GOConf::default_biggest(), false),
-             &mut crate::stats::BuildStatsPrinter::stdout());
+            GOConf::default_biggest().into(),
+            &mut crate::stats::BuildStatsPrinter::stdout());
         test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.57);
     }
