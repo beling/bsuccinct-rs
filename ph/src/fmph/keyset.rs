@@ -805,7 +805,7 @@ impl<K, KS> CachedKeySet<K, KS> {
 }
 
 impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicKeySet<KeyIter, GetKeyIter>> {
-    /// Constructs cached [DynamicKeySet] that obtains the keys by `keys` function.
+    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function.
     /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
     pub fn dynamic(keys: GetKeyIter, const_keys_order: bool, clone_threshold: usize) -> Self {
@@ -814,7 +814,7 @@ impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicK
 }
 
 impl<'k, K: Sync> CachedKeySet<K, SliceSourceWithRefs<'k, K>> {
-    /// Constructs cached [SliceSourceWithRefs] that wraps given `keys`.
+    /// Constructs cached [`SliceSourceWithRefs`] that wraps given `keys`.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
     /// After cloning, the keys are placed in a continuous memory area which is friendly to the CPU cache.
     pub fn slice(keys: &'k [K], clone_threshold: usize) -> Self {

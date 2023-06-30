@@ -690,7 +690,7 @@ pub(crate) mod tests {
     fn test_fmph_for_over_2to32_keys() {
         const LEN: u64 = 5_000_000_000;
         let f = Function::with_conf_stats(
-            crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, 1_000_000_000),
+            crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, usize::MAX/*1_000_000_000*/),
             BuildConf::mt(false),
              &mut crate::stats::BuildStatsPrinter::stdout());
         test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
