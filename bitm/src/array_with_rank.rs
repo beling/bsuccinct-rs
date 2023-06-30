@@ -74,7 +74,7 @@ impl BitArrayWithRank for ArrayWithRank101111 {
     fn rank(&self, index: usize) -> u64 {
         let block = index / 512;
         let mut block_content =  self.l2ranks[index/2048];//self.ranks[block/4];
-        let mut r = unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + block_content & 0xFFFFFFFFu64; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        let mut r = unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64); // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
         block_content >>= 32;   // remove the lowest 32 bits
         r += (block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111;
         let word_idx = index / 64;
@@ -229,9 +229,26 @@ mod tests {
         const SEGMENTS: usize = 1<<(33-6);
         let (a, c) = ArrayWithRank101111::build(vec![0b01_01_01_01; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS * 4);
+        assert_eq!(a.rank(0), 0);
+        assert_eq!(a.rank(1), 1);
+        assert_eq!(a.rank(2), 1);
         assert_eq!(a.rank(1<<32), (1<<(32-6)) * 4);
         assert_eq!(a.rank((1<<32)+1), (1<<(32-6)) * 4 + 1);
         assert_eq!(a.rank((1<<32)+2), (1<<(32-6)) * 4 + 1);
         assert_eq!(a.rank((1<<32)+3), (1<<(32-6)) * 4 + 2);
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_filled() {
+        const SEGMENTS: usize = 1<<(33-6);
+        let (a, c) = ArrayWithRank101111::build(vec![u64::MAX; SEGMENTS].into_boxed_slice());
+        assert_eq!(c as usize, SEGMENTS * 64);
+        assert_eq!(a.rank(0), 0);
+        assert_eq!(a.rank(1), 1);
+        assert_eq!(a.rank(2), 2);
+        for i in (1<<32)..(1<<32)+2048 {
+            assert_eq!(a.rank(i), i as u64);    
+        }
     }
 }
