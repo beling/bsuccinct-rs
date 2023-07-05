@@ -142,34 +142,34 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
 
     #[inline(always)] fn for_each_key<F, P>(&self, f: F, _retained_hint: P)
-        where F: FnMut(&K), P: FnMut(&K) -> bool
+        where F: FnMut(&K)
     {
         self.iter().for_each(f)
     }
 
     #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
-        where M: FnMut(&K) -> R, P: FnMut(&K) -> bool { self.iter().map(map).collect() }
+        where M: FnMut(&K) -> R { self.iter().map(map).collect() }
 
     #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
-        where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
+        where F: Fn(&K) + Sync + Send
     {
         self.into_par_iter().for_each(f)
     }
 
     #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
-        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
+        where M: Fn(&K)->R + Sync + Send, R: Send
     {
         self.into_par_iter().map(map).collect()
     }
 
     #[inline(always)] fn retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, _remove_count: R)
-        where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
+        where F: FnMut(&K) -> bool
     {
         self.retain(filter)
     }
 
     #[inline(always)] fn par_retain_keys<F, P, R>(&mut self, filter: F, _retained_earlier: P, remove_count: R)
-        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+        where F: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         let mut result = Vec::with_capacity(self.len() - remove_count());
         std::mem::swap(self, &mut result);
@@ -178,14 +178,14 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     }
 
     #[inline(always)] fn retain_keys_with_indices<IF, F, P, R>(&mut self, mut index_filter: IF, _filter: F, _retained_earlier: P, _remove_count: R)
-        where IF: FnMut(usize) -> bool, F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
+        where IF: FnMut(usize) -> bool
     {
         let mut index = 0;
         self.retain(|_| (index_filter(index), index += 1).0)
     }
 
     fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, _filter: F, _retained_earlier: P, remove_count: R)
-        where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
+        where IF: Fn(usize) -> bool + Sync + Send, R: Fn() -> usize
     {
         let mut result = Vec::with_capacity(self.len() - remove_count());
         std::mem::swap(self, &mut result);
@@ -194,13 +194,11 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
     }
 
     #[inline(always)] fn into_vec<P>(self, _retained_hint: P) -> Vec<K>
-        where P: FnMut(&K) -> bool, K: Clone, Self: Sized
     {
         self
     }
 
     #[inline(always)] fn par_into_vec<P>(self, _retained_hint: P) -> Vec<K>
-    where P: Fn(&K) -> bool + Sync + Send, Self: Sized, K: Clone + Send
     {
         self
     }
@@ -230,30 +228,30 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
 
-    #[inline(always)] fn for_each_key<F, P>(&self, f: F, _retained_hint: P) where F: FnMut(&K), P: FnMut(&K) -> bool {
+    #[inline(always)] fn for_each_key<F, P>(&self, f: F, _retained_hint: P) where F: FnMut(&K) {
         self.slice[0..self.len].iter().for_each(f)
     }
 
     #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, _retained_hint: P)
-        where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
+        where F: Fn(&K) + Sync + Send
     {
         self.slice[0..self.len].into_par_iter().for_each(f)
     }
 
     #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
-        where M: FnMut(&K) -> R, P: FnMut(&K) -> bool
+        where M: FnMut(&K) -> R
     {
         self.slice[0..self.len].into_iter().map(map).collect()
     }
 
     #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, _retained_hint: P) -> Vec<R>
-        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
+        where M: Fn(&K)->R + Sync + Send, R: Send
     {
         self.slice[0..self.len].into_par_iter().map(map).collect()
     }
 
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_hint: P, _remove_count: R)
-        where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
+        where F: FnMut(&K) -> bool
     {
         let mut i = 0usize;
         while i < self.len {
@@ -270,68 +268,65 @@ impl<'k, K: Sync> KeySet<K> for SliceMutSource<'k, K> {
 
 /// Implements [`KeySet`] that use immutable slice.
 ///
-/// Retain operations clone retained keys into the vector.
-pub struct SliceSourceWithClones<'k, K> {
+/// It does not use any index for pointing remain keys.
+/// That is why it is recommended to use it with [`CachedKeySet`].
+pub struct ImmutableSlice<'k, K> {
     slice: &'k [K],
-    retained: Option<Vec<K>>,
+    len: usize  // how many elements are in use
 }
 
-impl<'k, K: Sync> SliceSourceWithClones<'k, K> {
+impl<'k, K: Sync> ImmutableSlice<'k, K> {
     pub fn new(slice: &'k [K]) -> Self {
-        Self { slice, retained: None }
+        Self { slice, len: slice.len() }
+    }
+
+    pub fn cached(slice: &'k [K], clone_threshold: usize) -> CachedKeySet<K, ImmutableSlice<K>> {
+        CachedKeySet::new(ImmutableSlice::new(slice), clone_threshold)
     }
 }
 
-impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
-    fn keys_len(&self) -> usize {
-        if let Some(ref retained) = self.retained {
-            retained.len()
-        } else {
-            self.slice.len()
-        }
-    }
+impl<'k, K: Sync + Send + Clone> KeySet<K> for ImmutableSlice<'k, K> {
+    #[inline(always)] fn keys_len(&self) -> usize { self.len }
 
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { true }
 
-    #[inline(always)] fn for_each_key<F, P>(&self, f: F, retained_hint: P) where F: FnMut(&K), P: FnMut(&K) -> bool {
-        if let Some(ref retained) = self.retained {
-            retained.for_each_key(f, retained_hint)
-        } else {
+    #[inline(always)] fn for_each_key<F, P>(&self, mut f: F, mut retained_hint: P)
+    where F: FnMut(&K), P: FnMut(&K) -> bool
+    {
+        if self.slice.len() == self.len {
             self.slice.into_iter().for_each(f)
+        } else {
+            for k in self.slice { if retained_hint(k) { f(k) } }
         }
     }
 
-    #[inline(always)] fn map_each_key<R, M, P>(&self, map: M, retained_hint: P) -> Vec<R>
+    #[inline(always)] fn map_each_key<R, M, P>(&self, mut map: M, mut retained_hint: P) -> Vec<R>
         where M: FnMut(&K) -> R, P: FnMut(&K) -> bool
     {
-        if let Some(ref retained) = self.retained {
-            retained.map_each_key(map, retained_hint)
-        } else {
+        if self.slice.len() == self.len {
             self.slice.into_iter().map(map).collect()
+        } else {
+            self.slice.into_iter().filter_map(|k| retained_hint(k).then(|| map(k))).collect()
         }
     }
 
     #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, retained_hint: P)
         where F: Fn(&K) + Sync + Send, P: Fn(&K) -> bool + Sync + Send
     {
-        if let Some(ref retained) = self.retained {
-            retained.par_for_each_key(f, retained_hint)
-        } else {
+        if self.slice.len() == self.len {
             (*self.slice).into_par_iter().for_each(f)
-        }
-    }
-
-    fn retain_keys<F, P, R>(&mut self, mut filter: F, retained_earlier: P, remove_count: R)
-        where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
-    {
-        if let Some(ref mut retained) = self.retained {
-            retained.retain_keys(filter, retained_earlier, remove_count)
         } else {
-            self.retained = Some(self.slice.into_iter().filter_map(|k|filter(k).then(|| k.clone())).collect());
+            (*self.slice).into_par_iter().filter(|k| retained_hint(*k)).for_each(f)
         }
     }
 
-    fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, remove_count: R)
+    #[inline(always)] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, mut remove_count: R)
+        where R: FnMut() -> usize
+    {
+        self.len -= remove_count();
+    }
+
+    /*fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, remove_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         if let Some(ref mut retained) = self.retained {
@@ -356,7 +351,7 @@ impl<'k, K: Sync + Send + Clone> KeySet<K> for SliceSourceWithClones<'k, K> {
         } else {
             self.retained = Some(self.slice.into_par_iter().enumerate().filter_map(|(i, k)| index_filter(i).then_some(k.clone())).collect())
         }
-    }
+    }*/
 }
 
 struct SegmentMetadata {
@@ -720,19 +715,29 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
         self.len
     }
 
-    fn for_each_key<F, P>(&self, mut f: F, retained_hint: P)
+    #[inline(always)] fn for_each_key<F, P>(&self, mut f: F, retained_hint: P)
         where F: FnMut(&KeyIter::Item), P: FnMut(&KeyIter::Item) -> bool
     {
         (self.keys)().filter(retained_hint).for_each(|k| f(&k))
     }
 
-    #[inline] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, mut remove_count: R)
+    #[inline(always)] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, mut remove_count: R)
         where F: FnMut(&KeyIter::Item) -> bool, P: FnMut(&KeyIter::Item) -> bool, R: FnMut() -> usize
     {
         self.len -= remove_count();
     }
 
-    // TODO into_vec methods
+    #[inline] fn into_vec<P>(self, retained_hint: P) -> Vec<KeyIter::Item>
+    where P: FnMut(&KeyIter::Item) -> bool, Self: Sized
+    {
+        (self.keys)().filter(retained_hint).collect()
+    }
+
+    #[inline] fn par_into_vec<P>(self, retained_hint: P) -> Vec<KeyIter::Item>
+        where P: Fn(&KeyIter::Item) -> bool + Sync + Send, Self: Sized, KeyIter::Item: Send
+    {
+        (self.keys)().filter(retained_hint).collect()
+    }
 }
 
 /// Implementation of [`KeySet`] that initially stores another [`KeySet`] 

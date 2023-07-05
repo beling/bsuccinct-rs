@@ -16,7 +16,7 @@ use boomphf::Mphf;
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
-use ph::fmph::keyset::{SliceSourceWithClones, SliceSourceWithRefs};
+use ph::fmph::keyset::{SliceSourceWithRefs, ImmutableSlice};
 use ph::seedable_hash::BuildWyHash;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -344,7 +344,7 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
             //    conf),
             KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
             KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
-            KeyAccess::Copy => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), conf)
+            KeyAccess::Copy => Self::MPHF::with_conf(ImmutableSlice::cached(keys, usize::MAX), conf)
         }
     }
 
@@ -365,7 +365,7 @@ impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSi
             //    conf),
             KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
             KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
-            KeyAccess::Copy => Self::MPHF::with_conf(SliceSourceWithClones::new(keys), conf)
+            KeyAccess::Copy => Self::MPHF::with_conf(ImmutableSlice::cached(keys, usize::MAX), conf)
 
             /*KeyAccess::LoMem(0) => Self::MPHF::with_builder(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
             KeyAccess::LoMem(clone_threshold) => Self::MPHF::with_builder(
