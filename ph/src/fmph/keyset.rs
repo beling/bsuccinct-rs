@@ -117,38 +117,20 @@ pub trait KeySet<K> {
         }
     }
 
-    /// Works like `retain_keys` and converts `self` into the vector of retained keys.
-    fn retain_keys_into_vec<F, P, R>(mut self, mut filter: F, mut retained_earlier: P, remove_count: R) -> Vec<K>
-        where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize, Self: Sized, K: Clone
+    /// Convert `self` into the vector of retained keys.
+    /// 
+    /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
+    #[inline] fn into_vec<P>(self, retained_hint: P) -> Vec<K>
+        where P: FnMut(&K) -> bool, K: Clone, Self: Sized
     {
-        self.retain_keys(&mut filter, &mut retained_earlier, remove_count);
-        self.map_each_key(|k| (*k).clone(), |k| retained_earlier(k) && filter(k))
+        self.map_each_key(|k| (*k).clone(), retained_hint)
     }
 
-    /// Works like `retain_keys_with_indices` and converts `self` into the vector of retained keys.
-    fn retain_keys_with_indices_into_vec<IF, F, P, R>(mut self, index_filter: IF, mut filter: F, mut retained_earlier: P, remove_count: R) -> Vec<K>
-        where IF: FnMut(usize) -> bool, F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize, Self: Sized, K: Clone
+    /// Multi-threaded version of `into_vec`.
+    #[inline] fn par_into_vec<P>(self, retained_hint: P) -> Vec<K>
+        where P: Fn(&K) -> bool + Sync + Send, Self: Sized, K: Clone + Send
     {
-        self.retain_keys_with_indices(index_filter, &mut filter, &mut retained_earlier, remove_count);
-        self.map_each_key(|k| (*k).clone(), |k| retained_earlier(k) && filter(k))
-    }
-
-    /// Works like `par_retain_keys` and converts `self` into the vector of retained keys.
-    fn par_retain_keys_into_vec<F, P, R>(mut self, filter: F, retained_earlier: P, remove_count: R) -> Vec<K>
-        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send,
-              R: Fn() -> usize, Self: Sized, K: Clone + Send
-    {
-        self.par_retain_keys(&filter, &retained_earlier, remove_count);
-        self.par_map_each_key(|k| (*k).clone(), |k| retained_earlier(k) && filter(k))
-    }
-
-    /// Works like `par_retain_keys_with_indices` and converts `self` into the vector of retained keys.
-    fn par_retain_keys_with_indices_into_vec<IF, F, P, R>(mut self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R) -> Vec<K>
-        where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send,
-              P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize, Self: Sized, K: Clone + Send
-    {
-        self.par_retain_keys_with_indices(index_filter, &filter, &retained_earlier, remove_count);
-        self.par_map_each_key(|k| (*k).clone(), |k| retained_earlier(k) && filter(k))
+        self.par_map_each_key(|k| (*k).clone(), retained_hint)
     }
 }
 
@@ -211,36 +193,15 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
         //*self = (std::mem::take(self)).into_par_iter().enumerate().filter_map(|(i, k)| index_filter(i).then_some(k)).collect();
     }
 
-    fn retain_keys_into_vec<F, P, R>(mut self, filter: F, retained_earlier: P, remove_count: R) -> Vec<K>
-        where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize, Self: Sized, K: Clone
+    #[inline(always)] fn into_vec<P>(self, _retained_hint: P) -> Vec<K>
+        where P: FnMut(&K) -> bool, K: Clone, Self: Sized
     {
-        self.retain_keys(filter, retained_earlier, remove_count);
         self
     }
 
-    /// Works like `retain_keys_with_indices` and converts `self` into the vector of retained keys.
-    fn retain_keys_with_indices_into_vec<IF, F, P, R>(mut self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R) -> Vec<K>
-        where IF: FnMut(usize) -> bool, F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize, Self: Sized, K: Clone
+    #[inline(always)] fn par_into_vec<P>(self, _retained_hint: P) -> Vec<K>
+    where P: Fn(&K) -> bool + Sync + Send, Self: Sized, K: Clone + Send
     {
-        self.retain_keys_with_indices(index_filter, filter, retained_earlier, remove_count);
-        self
-    }
-
-    /// Works like `par_retain_keys` and converts `self` into the vector of retained keys.
-    fn par_retain_keys_into_vec<F, P, R>(mut self, filter: F, retained_earlier: P, remove_count: R) -> Vec<K>
-        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send,
-              R: Fn() -> usize, Self: Sized, K: Clone + Send
-    {
-        self.par_retain_keys(filter, retained_earlier, remove_count);
-        self
-    }
-
-    /// Works like `par_retain_keys_with_indices` and converts `self` into the vector of retained keys.
-    fn par_retain_keys_with_indices_into_vec<IF, F, P, R>(mut self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R) -> Vec<K>
-        where IF: Fn(usize) -> bool + Sync + Send,  F: Fn(&K) -> bool + Sync + Send,
-              P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize, Self: Sized, K: Clone + Send
-    {
-        self.par_retain_keys_with_indices(index_filter, filter, retained_earlier, remove_count);
         self
     }
 }
@@ -771,7 +732,7 @@ impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for D
         self.len -= remove_count();
     }
 
-    // TODO retain_keys_into_vec methods
+    // TODO into_vec methods
 }
 
 /// Implementation of [`KeySet`] that initially stores another [`KeySet`] 
@@ -842,45 +803,6 @@ impl<'k, K: Sync> CachedKeySet<K, SliceSourceWithRefs<'k, K>> {
     }
 }
 
-impl<K: Clone + Send, KS: KeySet<K>> CachedKeySet<K, KS>
-{
-    fn into_cache<F, P, R>(self, filter: F, retained_earlier: P, remove_count: R) -> Self
-        where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize {
-        match self {
-            Self::Dynamic(dynamic_key_set, _) => Self::Cached(dynamic_key_set.retain_keys_into_vec(filter, retained_earlier, remove_count)),
-            Self::Cached(_) => self
-        }
-    }
-
-    fn par_into_cache<F, P, R>(self, filter: F, retained_earlier: P, remove_count: R) -> Self
-        where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
-    {
-        match self {
-            Self::Dynamic(dynamic_key_set, _) => Self::Cached(dynamic_key_set.par_retain_keys_into_vec(filter, retained_earlier, remove_count)),
-            Self::Cached(_) => self
-        }
-    }
-
-    fn into_cache_with_indices<IF, F, P, R>(self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R) -> Self
-        where IF: FnMut(usize) -> bool, F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
-    {
-        match self {
-            Self::Dynamic(dynamic_key_set, _) => Self::Cached(dynamic_key_set.retain_keys_with_indices_into_vec(index_filter, filter, retained_earlier, remove_count)),
-            Self::Cached(_) => self
-        }
-    }
-
-    fn par_into_cache_with_indices<IF, F, P, R>(self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R) -> Self
-        where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&K) -> bool + Sync + Send,
-              P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
-    {
-        match self {
-            Self::Dynamic(dynamic_key_set, _) => Self::Cached(dynamic_key_set.par_retain_keys_with_indices_into_vec(index_filter, filter, retained_earlier, remove_count)),
-            Self::Cached(_) => self
-        }
-    }
-}
-
 impl<K: Clone + Sync + Send, KS: KeySet<K>> KeySet<K> for CachedKeySet<K, KS>
 {
     fn keys_len(&self) -> usize {
@@ -937,65 +859,86 @@ impl<K: Clone + Sync + Send, KS: KeySet<K>> KeySet<K> for CachedKeySet<K, KS>
         }
     }
 
-    fn retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, remove_count: R)
+    #[inline] fn retain_keys<F, P, R>(&mut self, mut filter: F, mut retained_earlier: P, remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
     {
         match self {
             Self::Dynamic(key_set, clone_threshold) => {
+                key_set.retain_keys(&mut filter, &mut retained_earlier, remove_count);
                 if key_set.keys_len() < *clone_threshold {
-                    *self = mem::take(self).into_cache(filter, retained_earlier, remove_count)
-                    //*self = Cached(key_set.retain_keys_into_vec(filter, retained_earlier, remove_count))
-                } else {
-                    key_set.retain_keys(filter, retained_earlier, remove_count)
+                    if let Self::Dynamic(key_set, _) = mem::take(self) {
+                        *self = Self::Cached(key_set.into_vec(|k| retained_earlier(k) && filter(k)))
+                    }
                 }
             },
             Self::Cached(v) => v.retain_keys(filter, retained_earlier, remove_count)
         }
     }
 
-    fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, remove_count: R)
+    #[inline] fn par_retain_keys<F, P, R>(&mut self, filter: F, retained_earlier: P, remove_count: R)
         where F: Fn(&K) -> bool + Sync + Send, P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         match self {
             Self::Dynamic(key_set, clone_threshold) => {
+                key_set.par_retain_keys(&filter, &retained_earlier, remove_count);
                 if key_set.keys_len() < *clone_threshold {
-                    *self = mem::take(self).par_into_cache(filter, retained_earlier, remove_count)
-                } else {
-                    key_set.par_retain_keys(filter, retained_earlier, remove_count)
+                    if let Self::Dynamic(key_set, _) = mem::take(self) {
+                        *self = Self::Cached(key_set.par_into_vec(|k| retained_earlier(k) && filter(k)))
+                    }
                 }
             },
             Self::Cached(v) => v.par_retain_keys(filter, retained_earlier, remove_count)
         }
     }
 
-    fn retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R)
+    #[inline] fn retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, mut filter: F, mut retained_earlier: P, remove_count: R)
         where IF: FnMut(usize) -> bool, F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
     {
         match self {
             Self::Dynamic(key_set, clone_threshold) => {
+                key_set.retain_keys_with_indices(index_filter, &mut filter, &mut retained_earlier, remove_count);
                 if key_set.keys_len() < *clone_threshold {
-                    *self = mem::take(self).into_cache_with_indices(index_filter, filter, retained_earlier, remove_count)
-                } else {
-                    key_set.retain_keys_with_indices(index_filter, filter, retained_earlier, remove_count)
+                    if let Self::Dynamic(key_set, _) = mem::take(self) {
+                        *self = Self::Cached(key_set.into_vec(|k| retained_earlier(k) && filter(k)))
+                    }
                 }
             },
             Self::Cached(v) => v.retain_keys_with_indices(index_filter, filter, retained_earlier, remove_count)
         }
     }
 
-    fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R)
+    #[inline] fn par_retain_keys_with_indices<IF, F, P, R>(&mut self, index_filter: IF, filter: F, retained_earlier: P, remove_count: R)
         where IF: Fn(usize) -> bool + Sync + Send, F: Fn(&K) -> bool + Sync + Send,
               P: Fn(&K) -> bool + Sync + Send, R: Fn() -> usize
     {
         match self {
             Self::Dynamic(key_set, clone_threshold) => {
+                key_set.par_retain_keys_with_indices(index_filter, &filter, &retained_earlier, remove_count);
                 if key_set.keys_len() < *clone_threshold {
-                    *self = mem::take(self).par_into_cache_with_indices(index_filter, filter, retained_earlier, remove_count)
-                } else {
-                    key_set.par_retain_keys_with_indices(index_filter, filter, retained_earlier, remove_count)
+                    if let Self::Dynamic(key_set, _) = mem::take(self) {
+                        *self = Self::Cached(key_set.par_into_vec(|k| retained_earlier(k) && filter(k)))
+                    }
                 }
             },
             Self::Cached(v) => v.par_retain_keys_with_indices(index_filter, filter, retained_earlier, remove_count)
+        }
+    }
+
+    fn into_vec<P>(self, retained_hint: P) -> Vec<K>
+    where P: FnMut(&K) -> bool, K: Clone, Self: Sized
+    {
+        match self {
+            Self::Dynamic(key_set, _) => key_set.into_vec(retained_hint),
+            Self::Cached(v) => v
+        }
+    }
+
+    fn par_into_vec<P>(self, retained_hint: P) -> Vec<K>
+        where P: Fn(&K) -> bool + Sync + Send, Self: Sized, K: Clone + Send
+    {
+        match self {
+            Self::Dynamic(key_set, _) => key_set.par_into_vec(retained_hint),
+            Self::Cached(v) => v
         }
     }
 }
