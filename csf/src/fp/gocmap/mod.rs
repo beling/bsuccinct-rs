@@ -136,7 +136,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             let mut best_counts = Self::count_collisions_in_groups(&conf, &value_coding, in_keys, in_values, in_value_rev_indices,
                                                                    level_size_groups as u64,
                                                                    level_nr, 0);
-            for new_seed in 1u16..((1u32 << conf.goconf.bits_per_seed.into())-1) as u16 {
+            for new_seed in 1u16..=((1u32 << conf.goconf.bits_per_seed.into())-1) as u16 {
                 let with_new_seed = Self::count_collisions_in_groups(&conf, &value_coding, in_keys, in_values, in_value_rev_indices,
                                                                      level_size_groups as u64, level_nr, new_seed);
                 for group_index in 0..level_size_groups {
