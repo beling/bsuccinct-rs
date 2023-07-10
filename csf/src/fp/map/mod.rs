@@ -18,7 +18,7 @@ pub struct Map<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     values: Box<[u64]>,    // BitVec
     bits_per_value: u8,
-    level_sizes: Box<[u32]>,
+    level_sizes: Box<[u64]>,
     hash_builder: S
 }
 
@@ -77,14 +77,14 @@ impl<S: BuildSeededHasher> Map<S> {
         if conf.bits_per_value == 0 {
             conf.bits_per_value = bits_to_store!(Into::<u64>::into(values.iter().max().unwrap().clone()));
         }
-        let mut level_sizes = Vec::<u32>::new();
+        let mut level_sizes = Vec::<u64>::new();
         let mut arrays = Vec::<Box<[u64]>>::new();
         let mut input_size = keys.len();
         let mut level_nr = 0u32;
         while input_size != 0 {
             let level_size_segments = conf.level_size_chooser.size_segments(
-                &values[0..input_size], conf.bits_per_value) as u32;
-            let level_size = level_size_segments as usize * 64;
+                &values[0..input_size], conf.bits_per_value);
+            let level_size = level_size_segments * 64;
             stats.level(input_size, level_size);
             let mut collision_solver = conf.collision_solver.new(level_size_segments, conf.bits_per_value);
             for i in 0..input_size {
@@ -108,7 +108,7 @@ impl<S: BuildSeededHasher> Map<S> {
                 }
             }
             arrays.push(current_array);
-            level_sizes.push(level_size_segments);
+            level_sizes.push(level_size_segments as u64);
             level_nr += 1;
         }
 

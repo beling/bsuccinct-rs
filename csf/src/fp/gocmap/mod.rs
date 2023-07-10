@@ -148,7 +148,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
                     }
                 }
             }
-            let mut collision_solver = LoMemAcceptEqualsSolver::new(level_size_segments as u32, value_coding.bits_per_fragment());
+            let mut collision_solver = LoMemAcceptEqualsSolver::new(level_size_segments, value_coding.bits_per_fragment());
             Self::consider_all(&conf, &value_coding, in_keys, in_values, in_value_rev_indices,
                                level_size_groups as u64, level_nr,
                                |group_index| conf.goconf.bits_per_seed.get_seed(&best_seeds, group_index as usize),

@@ -100,10 +100,18 @@ pub struct Conf {
     /// Minimum entropy difference between two consecutive inputs
     #[arg(short = 'r', long, default_value_t = 0.02)]
     pub resolution: f64,
+
+    /// Minimum input entropy to be considered (included)
+    #[arg(long, default_value_t = f64::NEG_INFINITY)]
+    pub from: f64,
+
+    /// Maximum input entropy to be considered (excluded)
+    #[arg(long, default_value_t = f64::INFINITY)]
+    pub to: f64,
 }
 
 impl Conf {
-    pub fn bits_per_fragments(&self) -> RangeInclusive<u8> {
+    #[inline] pub fn bits_per_fragments(&self) -> RangeInclusive<u8> {
         if let Some(b) = self.bits_per_fragment { b..=b } else { 1..=8 }
     }
 }
@@ -158,6 +166,8 @@ where GetFunctions: Fn() -> CSFIter, CSFIter: IntoIterator<Item = CSF>, CSF: CSF
                 for last_count in 1..=each_value_len {
                     let total_len = (different_values - 1) * each_value_len + last_count;
                     let entropy = kv_dominated_lo_entropy(total_len, different_values, each_value_len);
+                    if entropy < conf.from { continue; }
+                    if entropy >= conf.to { return; }
                     if (different_values == 256 && last_count == each_value_len) || entropy - prev_entropy >= conf.resolution {
                         print!(
                             "{}*{}+{}={} key/values: ",
@@ -181,6 +191,8 @@ where GetFunctions: Fn() -> CSFIter, CSFIter: IntoIterator<Item = CSF>, CSF: CSF
             let mut prev_entropy = -1.0f64;
             for lo_count in 1..=conf.keys_num / different_values {
                 let entropy = kv_dominated_lo_entropy(conf.keys_num, different_values, lo_count);
+                if entropy < conf.from { continue; }
+                if entropy >= conf.to { return; }
                 if lo_count == conf.keys_num / different_values || entropy - prev_entropy >= conf.resolution {
                     println!("{}\t{}", lo_count, entropy);
                     if has_multiple_functions { println!(); }

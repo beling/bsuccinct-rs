@@ -28,7 +28,7 @@ pub trait CollisionSolverBuilder {
 
     /// Constructs `CollisionSolver` for given number of values (64*`level_size_segments`) and `bits_per_fragment`.
     /// The solver supports indices in range [0, 64*`level_size_segments`) and values of the size of `bits_per_fragment` bits.
-    fn new(&self, level_size_segments: u32, bits_per_fragment: u8) -> Self::CollisionSolver;
+    fn new(&self, level_size_segments: usize, bits_per_fragment: u8) -> Self::CollisionSolver;
 
     /// Gets whether the `new` method, with the current parameters, returns the collision solver that is lossless.
     fn is_lossless(&self) -> bool;
@@ -49,11 +49,11 @@ pub struct LoMemAcceptEqualsSolver {
 }
 
 impl LoMemAcceptEqualsSolver {
-    pub(crate) fn new(level_size_segments: u32, bits_per_fragment: u8) -> Self {
+    pub(crate) fn new(level_size_segments: usize, bits_per_fragment: u8) -> Self {
         Self {
-            collided: Box::<[u64]>::with_zeroed_64bit_segments(level_size_segments as usize),
-            fragments: Box::<[u64]>::with_zeroed_64bit_segments(level_size_segments as usize * bits_per_fragment as usize),
-            current_array: Box::<[u64]>::with_zeroed_64bit_segments(level_size_segments as usize)
+            collided: Box::<[u64]>::with_zeroed_64bit_segments(level_size_segments),
+            fragments: Box::<[u64]>::with_zeroed_64bit_segments(level_size_segments * bits_per_fragment as usize),
+            current_array: Box::<[u64]>::with_zeroed_64bit_segments(level_size_segments)
         }
     }
 }
@@ -84,7 +84,7 @@ pub struct LoMemAcceptEquals;
 impl CollisionSolverBuilder for LoMemAcceptEquals {
     type CollisionSolver = LoMemAcceptEqualsSolver;
 
-    #[inline(always)] fn new(&self, level_size_segments: u32, bits_per_fragment: u8) -> Self::CollisionSolver {
+    #[inline(always)] fn new(&self, level_size_segments: usize, bits_per_fragment: u8) -> Self::CollisionSolver {
         Self::CollisionSolver::new(level_size_segments, bits_per_fragment)
     }
 
@@ -105,7 +105,7 @@ pub struct AcceptEqualsSolver {
 }
 
 impl AcceptEqualsSolver {
-    fn new(level_size_segments: u32, _bits_per_fragment: u8) -> Self {
+    fn new(level_size_segments: usize, _bits_per_fragment: u8) -> Self {
         Self {
             collided: Box::<[u64]>::with_zeroed_64bit_segments(level_size_segments as usize),
             fragments: vec![0u8; level_size_segments as usize * 64].into_boxed_slice(),
@@ -140,7 +140,7 @@ pub struct AcceptEquals;
 impl CollisionSolverBuilder for AcceptEquals {
     type CollisionSolver = AcceptEqualsSolver;
 
-    #[inline(always)] fn new(&self, level_size_segments: u32, bits_per_fragment: u8) -> Self::CollisionSolver {
+    #[inline(always)] fn new(&self, level_size_segments: usize, bits_per_fragment: u8) -> Self::CollisionSolver {
         Self::CollisionSolver::new(level_size_segments, bits_per_fragment)
     }
 
@@ -189,7 +189,7 @@ pub struct AcceptLimitedAverageDifferenceSolver {
 }
 
 impl AcceptLimitedAverageDifferenceSolver {
-    pub fn new(level_size_segments: u32, bits_per_value: u8, max_difference_per_value: u8) -> Self {
+    pub fn new(level_size_segments: usize, bits_per_value: u8, max_difference_per_value: u8) -> Self {
         let value_mask = n_lowest_bits(bits_per_value as _) as u16;
         Self {
             cells: vec![LimitedDifferenceCell::new(value_mask); level_size_segments as usize*64].into_boxed_slice(),
@@ -253,7 +253,7 @@ impl AcceptLimitedAverageDifference {
 impl CollisionSolverBuilder for AcceptLimitedAverageDifference {
     type CollisionSolver = AcceptLimitedAverageDifferenceSolver;
 
-    #[inline(always)] fn new(&self, level_size_segments: u32, bits_per_fragment: u8) -> Self::CollisionSolver {
+    #[inline(always)] fn new(&self, level_size_segments: usize, bits_per_fragment: u8) -> Self::CollisionSolver {
         Self::CollisionSolver::new(level_size_segments, bits_per_fragment, self.max_difference_per_value)
     }
 

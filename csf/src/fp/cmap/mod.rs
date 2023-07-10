@@ -22,7 +22,7 @@ use crate::coding::{Coding, Decoder, SerializableCoding, BuildCoding};
 pub struct CMap<C, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     value_fragments: Box<[u64]>,    // BitVec
-    level_sizes: Box<[u32]>,
+    level_sizes: Box<[u64]>,
     value_coding: C,
     hash_builder: S
 }
@@ -92,7 +92,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
               CSB: CollisionSolverBuilder + IsLossless,
               BS: stats::BuildStatsCollector
     {
-        let mut levels = Vec::<u32>::new();
+        let mut levels = Vec::<u64>::new();
         let mut arrays = Vec::<Box<[u64]>>::new();
         let mut input_size = keys.len();
         let mut value_rev_indices: Box<[u8]> = values.iter().map(|c| value_coding.len_of(*c)-1).collect();
@@ -100,8 +100,8 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         while input_size != 0 {
             let level_size_segments = conf.level_size_chooser.size_segments(
                 &value_coding,
-                &values[0..input_size], &value_rev_indices[0..input_size]) as u32;
-            let level_size = level_size_segments as usize * 64;
+                &values[0..input_size], &value_rev_indices[0..input_size]);
+            let level_size = level_size_segments * 64;
             stats.level(input_size, level_size);
             let mut collision_solver = conf.collision_solver.new(level_size_segments, value_coding.bits_per_fragment());
             for i in 0..input_size {
@@ -133,7 +133,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
                 }
             }
             arrays.push(current_array);
-            levels.push(level_size_segments);
+            levels.push(level_size_segments as u64);
             level_nr += 1;
         }
 
