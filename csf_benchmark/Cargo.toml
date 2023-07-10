@@ -1,0 +1,19 @@
+[package]
+name = "csf_benchmark"
+version = "0.1.0"
+authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "The program for benchmarking Compressed Static Functions"
+documentation = "https://docs.rs/csf_benchmark"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "data-structures", "algorithms", "compression", "science" ]
+keywords = [ "perfect", "hashing", "minimal", "mphf", "map", "dictionary" ]
+
+[dependencies]
+csf = { version ="0.1", path = "../csf" }
+ph = { version="0.7", path="../ph", features = ["wyhash"] }
+clap = { version="4", features = ["derive"] }
+fsum = { version ="0.1", path = "../fsum" }

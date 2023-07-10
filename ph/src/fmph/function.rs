@@ -6,7 +6,7 @@ use crate::utils::ArrayWithRank;
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils};
 
 use std::io;
-use std::sync::atomic::{AtomicU64};
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::Relaxed;
 use rayon::prelude::*;
 use dyn_size_of::GetSize;

@@ -1,5 +1,5 @@
 [workspace]
-members = ["ph", "csf", "minimum_redundancy", "dyn_size_of", "fsum", "bitm", "binout", "mphf_benchmark"]
+members = ["ph", "csf", "minimum_redundancy", "dyn_size_of", "fsum", "bitm", "binout", "mphf_benchmark", "csf_benchmark"]
 
 [patch.crates-io]
 dyn_size_of = { version=">=0.1", path="dyn_size_of" }

@@ -1,7 +1,6 @@
 use crate::fp::OptimalLevelSize;
-use ph::fmph::GOConf;
-use ph::{BuildDefaultSeededHasher};
-use ph::fmph::{GroupSize, SeedSize, TwoToPowerBitsStatic};
+use ph::BuildDefaultSeededHasher;
+use ph::fmph::{GOConf, GroupSize, SeedSize, TwoToPowerBitsStatic};
 use crate::coding::BuildMinimumRedundancy;
 
 /// Configuration accepted by [`fp::GOCMap`](crate::fp::GOCMap) constructors.
