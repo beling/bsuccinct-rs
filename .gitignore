@@ -2,3 +2,4 @@
 /.idea/
 /.vscode/
 /Cargo.lock
+csf_benchmark_results/
