@@ -21,9 +21,9 @@ def add_to_plot(filename, label=None, params={}):
     d.plot(legend=True)
 
 #plt.plot([0, 1, 2, 3, 4, 5, 6, 7, 8])
-add_to_plot('ble')
 add_to_plot('fp_equal')
 add_to_plot('fpgo_equal', params={'bits/seed': 4, 'bits/group': 16})
 add_to_plot('fpgo_equal', params={'bits/seed': 8, 'bits/group': 32})
 add_to_plot('ls_equal')
+plt.ylabel('overhead [bits/key]')
 plt.show() 

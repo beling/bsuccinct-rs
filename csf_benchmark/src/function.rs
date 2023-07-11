@@ -1,5 +1,5 @@
 use csf::coding::{BuildMinimumRedundancy, minimum_redundancy};
-use csf::fp::{OptimalLevelSize, ProportionalLevelSize};
+use csf::fp::{OptimalLevelSize, ProportionalLevelSize, ResizedLevel};
 use ph::BuildSeededHasher;
 use std::collections::HashMap;
 use std::fs::File;
@@ -16,6 +16,33 @@ pub trait CSFBuilder {
 
 pub trait PrintParams {
     fn print_params(&self, file: &mut Option<File>);
+}
+
+impl PrintParams for OptimalLevelSize {
+    fn print_params(&self, file: &mut Option<File>) {
+        print!(" optim");
+        if let Some(ref mut f) = file {
+            write!(f, " true 100").unwrap();
+        }
+    }
+}
+
+impl PrintParams for ResizedLevel<OptimalLevelSize> {
+    fn print_params(&self, file: &mut Option<File>) {
+        print!(" optim*{}%", self.percent);
+        if let Some(ref mut f) = file {
+            write!(f, " true {}", self.percent).unwrap();
+        }
+    }
+}
+
+impl PrintParams for ProportionalLevelSize {
+    fn print_params(&self, file: &mut Option<File>) {
+        print!(" levels {}%", self.percent);
+        if let Some(ref mut f) = file {
+            write!(f, " false {}", self.percent).unwrap();
+        }
+    }
 }
 
 /*impl<LSC, CSB, S> CSFBuilder for fp::MapConf<LSC, CSB, S>
@@ -53,25 +80,17 @@ where LSC: fp::LevelSizeChooser, CSB: fp::CollisionSolverBuilder+fp::IsLossless,
     }
 }
 
-pub const FP_HEADER: &'static str = "bits/fragment level_size";
+pub const FP_HEADER: &'static str = "bits/fragment level_size_optimal level_size_percent";
 
-impl<CSB, S> PrintParams for fp::CMapConf<BuildMinimumRedundancy, OptimalLevelSize, CSB, S>
-where CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher {
+impl<LSC, CSB, S> PrintParams for fp::CMapConf<BuildMinimumRedundancy, LSC, CSB, S>
+where LSC: PrintParams, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher {
     fn print_params(&self, file: &mut Option<File>) {
-        print!("fp optim {} b/frag: ", self.coding.bits_per_fragment);
         if let Some(ref mut f) = file {
-            write!(f, " {} optimal", self.coding.bits_per_fragment).unwrap();
+            write!(f, " {}", self.coding.bits_per_fragment).unwrap();
         }
-    }
-}
-
-impl<CSB, S> PrintParams for fp::CMapConf<BuildMinimumRedundancy, ProportionalLevelSize, CSB, S>
-where CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher {
-    fn print_params(&self, file: &mut Option<File>) {
-        print!("fp levels {}% {} b/frag: ", self.level_size_chooser.percent, self.coding.bits_per_fragment);
-        if let Some(ref mut f) = file {
-            write!(f, " {} {}", self.coding.bits_per_fragment, self.level_size_chooser.percent).unwrap();
-        }
+        print!("fp");
+        self.level_size_chooser.print_params(file);
+        print!(" {} b/frag: ", self.coding.bits_per_fragment);
     }
 }
 
@@ -93,27 +112,18 @@ where LSC: fp::LevelSizeChooser, GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSe
     }
 }
 
-pub const FPGO_HEADER: &'static str = "bits/fragment level_size bits/seed bits/group";
+pub const FPGO_HEADER: &'static str = "bits/fragment bits/seed bits/group level_size_optimal level_size_percent";
 
-impl<GS, SS, S> PrintParams for fp::GOCMapConf<BuildMinimumRedundancy, OptimalLevelSize, GS, SS, S>
-where GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSeededHasher {
+impl<LSC, GS, SS, S> PrintParams for fp::GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS, S>
+where LSC: PrintParams, GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSeededHasher {
     fn print_params(&self, file: &mut Option<File>) {
         let (bits_per_seed, bits_per_group): (u8, u8) = (self.goconf.bits_per_seed.into(), self.goconf.bits_per_group.into());
-        print!("fpgo optim {} b/seed {} b/group {} b/frag: ", bits_per_seed, bits_per_group, self.coding.bits_per_fragment);
         if let Some(ref mut f) = file {
-            write!(f, " {} optimal {} {}", self.coding.bits_per_fragment, bits_per_seed, bits_per_group).unwrap();
+            write!(f, " {} {} {}", self.coding.bits_per_fragment, bits_per_seed, bits_per_group).unwrap();
         }
-    }
-}
-
-impl<GS, SS, S> PrintParams for fp::GOCMapConf<BuildMinimumRedundancy, ProportionalLevelSize, GS, SS, S>
-where GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSeededHasher {
-    fn print_params(&self, file: &mut Option<File>) {
-        let (bits_per_seed, bits_per_group): (u8, u8) = (self.goconf.bits_per_seed.into(), self.goconf.bits_per_group.into());
-        print!("fpgo levels {}% {} b/seed {} b/group {} b/frag: ", self.level_size_chooser.percent, bits_per_seed, bits_per_group, self.coding.bits_per_fragment);        
-        if let Some(ref mut f) = file {
-            write!(f, " {} {} {} {}", self.coding.bits_per_fragment, self.level_size_chooser.percent, bits_per_seed, bits_per_group).unwrap();
-        }
+        print!("fpgo");
+        self.level_size_chooser.print_params(file);
+        print!(" {} b/seed {} b/group {} b/frag: ", bits_per_seed, bits_per_group, self.coding.bits_per_fragment);
     }
 }
 

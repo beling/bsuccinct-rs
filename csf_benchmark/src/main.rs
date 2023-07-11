@@ -18,9 +18,13 @@ mod function;
 #[allow(non_camel_case_types)]
 #[derive(Args)]
 pub struct FPConf {
-    /// Relative level size as a percentage of the number of keys or *0* for automatic calculation of the optimal size at each level.
+    /// Relative level size as a percentage of the number of keys or automatically selected size (0 to use default value)
     #[arg(short = 'l', long, default_value_t = 0)]
     pub level_size: u16,
+
+    /// Whether to use proportional level sizes instead of automatically calculated (optimal) ones
+    #[arg(short = 'p', long, default_value_t = false)]
+    pub level_size_proportional: bool,
 }
 
 #[allow(non_camel_case_types)]
@@ -32,9 +36,12 @@ pub struct FPGOConf {
     /// The size of each group, *b*
     #[arg(short='b', long, value_parser = clap::value_parser!(u8).range(1..63))]
     pub group_size: Option<u8>,
-    /// Relative level size as a percentage of the number of keys or *0* for automatic calculation of the optimal size at each level.
+    /// Relative level size as a percentage of the number of keys or automatically selected size (0 to use default value)
     #[arg(short = 'l', long, default_value_t = 0)]
     pub level_size: u16,
+    /// Whether to use proportional level sizes instead of automatically calculated (optimal) ones
+    #[arg(short = 'p', long, default_value_t = false)]
+    pub level_size_proportional: bool,
 }
 
 #[allow(non_camel_case_types)]
@@ -509,17 +516,22 @@ fn create_plot_files(alg_name: &str, level_size_name: &str, dist_name: &str) -> 
     (file_b, file_speed, file_size)
 }*/
 
-fn fpgo(file: &mut Option<File>, conf: &Conf, bits_per_seed: u8, bits_per_group: u8, level_size: u16) {
+fn fpgo(file: &mut Option<File>, conf: &Conf, bits_per_seed: u8, bits_per_group: u8, fpconf: &FPGOConf) {
     let b_range = conf.bits_per_fragments();
     let goconf = fp::GOConf::bps_bpg(Bits(bits_per_seed), Bits(bits_per_group));
-    if level_size == 0 {
-        benchmark_all_functions(&conf, file, || {
-            b_range.clone().map(|b| fp::GOCMapConf::groups_coding(goconf.clone(), BuildMinimumRedundancy{ bits_per_fragment: b }))
-        });
-    } else {
-        benchmark_all_functions(&conf, file, || {
+    match (fpconf.level_size, fpconf.level_size_proportional) {
+        (0, true) => benchmark_all_functions(&conf, file, || {
+            b_range.clone().map(|b| fp::GOCMapConf::groups_lsize_coding(goconf.clone(), fp::ProportionalLevelSize::default(), BuildMinimumRedundancy{ bits_per_fragment: b }))
+        }),
+        (level_size, true) => benchmark_all_functions(&conf, file, || {
             b_range.clone().map(|b| fp::GOCMapConf::groups_lsize_coding(goconf.clone(), fp::ProportionalLevelSize::with_percent(level_size), BuildMinimumRedundancy{ bits_per_fragment: b }))
-        });
+        }),
+        (0, false) => benchmark_all_functions(&conf, file, || {
+            b_range.clone().map(|b| fp::GOCMapConf::groups_coding(goconf.clone(), BuildMinimumRedundancy{ bits_per_fragment: b }))
+        }),
+        (level_size, false) => benchmark_all_functions(&conf, file, || {
+            b_range.clone().map(|b| fp::GOCMapConf::groups_lsize_coding(goconf.clone(), fp::ResizedLevel::new(level_size, fp::OptimalLevelSize::default()), BuildMinimumRedundancy{ bits_per_fragment: b }))
+        }),
     }
 }
 
@@ -544,10 +556,11 @@ fn main() {
     let conf: Conf = Conf::parse();
     match conf.function {
         Function::FPGO_all(ref fpconf) => {
-            if fpconf.level_size == 0 {
-                fpgo_all(&conf, fp::OptimalLevelSize::default());
-            } else {
-                fpgo_all(&conf, fp::ProportionalLevelSize::with_percent(fpconf.level_size));
+            match (fpconf.level_size, fpconf.level_size_proportional) {
+                (0, true) => fpgo_all(&conf, fp::ProportionalLevelSize::default()),
+                (level_size, true) => fpgo_all(&conf, fp::ProportionalLevelSize::with_percent(level_size)),
+                (0, false) => fpgo_all(&conf, fp::OptimalLevelSize::default()),
+                (level_size, false) => fpgo_all(&conf, fp::ResizedLevel::new(level_size, fp::OptimalLevelSize::default())),
             }
         }
         Function::FPGO(ref fpconf) => {
@@ -555,32 +568,37 @@ fn main() {
             match (fpconf.bits_per_group_seed, fpconf.group_size) {
                 (None, None) => {
                     for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
-                        fpgo(&mut file, &conf, bits_per_group_seed, bits_per_group, fpconf.level_size);
+                        fpgo(&mut file, &conf, bits_per_group_seed, bits_per_group, fpconf);
                     }
                 },
-                (Some(bits_per_group_seed), Some(bits_per_group)) => fpgo(&mut file, &conf, bits_per_group_seed, bits_per_group, fpconf.level_size),
-                (Some(1), None) | (None, Some(8)) => fpgo(&mut file, &conf, 1, 8, fpconf.level_size),
-                (Some(2), None) => fpgo(&mut file, &conf, 2, 16, fpconf.level_size),
-                (Some(4), None) => fpgo(&mut file, &conf, 4, 16, fpconf.level_size),
+                (Some(bits_per_group_seed), Some(bits_per_group)) => fpgo(&mut file, &conf, bits_per_group_seed, bits_per_group, fpconf),
+                (Some(1), None) | (None, Some(8)) => fpgo(&mut file, &conf, 1, 8, fpconf),
+                (Some(2), None) => fpgo(&mut file, &conf, 2, 16, fpconf),
+                (Some(4), None) => fpgo(&mut file, &conf, 4, 16, fpconf),
                 (None, Some(16)) => {
-                    fpgo(&mut file, &conf, 2, 16, fpconf.level_size);
-                    fpgo(&mut file, &conf, 4, 16, fpconf.level_size);
+                    fpgo(&mut file, &conf, 2, 16, fpconf);
+                    fpgo(&mut file, &conf, 4, 16, fpconf);
                 }
-                (Some(8), None) | (None, Some(32)) => fpgo(&mut file, &conf, 8, 32, fpconf.level_size),
+                (Some(8), None) | (None, Some(32)) => fpgo(&mut file, &conf, 8, 32, fpconf),
                 _ => eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
             }
         },
         Function::FP(ref fpconf) => {
             let mut file = file(&conf, "fp", FP_HEADER);
             let b_range = conf.bits_per_fragments();
-            if fpconf.level_size == 0 {
-                benchmark_all_functions(&conf, &mut file, || {
+            match (fpconf.level_size, fpconf.level_size_proportional) {
+                (0, true) => benchmark_all_functions(&conf, &mut file, || {
+                    b_range.clone().map(|b| fp::CMapConf::lsize_coding(fp::ProportionalLevelSize::default(), BuildMinimumRedundancy{ bits_per_fragment: b }))
+                }),
+                (level_size, true) => benchmark_all_functions(&conf, &mut file, || {
+                    b_range.clone().map(|b| fp::CMapConf::lsize_coding(fp::ProportionalLevelSize::with_percent(level_size), BuildMinimumRedundancy{ bits_per_fragment: b }))
+                }),
+                (0, false) => benchmark_all_functions(&conf, &mut file, || {
                     b_range.clone().map(|b| fp::CMapConf::coding(BuildMinimumRedundancy{ bits_per_fragment: b }))
-                });
-            } else {
-                benchmark_all_functions(&conf, &mut file, || {
-                    b_range.clone().map(|b| fp::CMapConf::lsize_coding(fp::ProportionalLevelSize::with_percent(fpconf.level_size), BuildMinimumRedundancy{ bits_per_fragment: b }))
-                });
+                }),
+                (level_size, false) => benchmark_all_functions(&conf, &mut file, || {
+                    b_range.clone().map(|b| fp::CMapConf::lsize_coding(fp::ResizedLevel::new(level_size, fp::OptimalLevelSize::default()), BuildMinimumRedundancy{ bits_per_fragment: b }))
+                }),
             }
         },
         Function::LS => {
