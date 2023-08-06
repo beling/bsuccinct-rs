@@ -747,21 +747,53 @@ pub trait GetParallelIterator {
     /// Iterator type.
     type Iterator: Iterator<Item = Self::Item>;
     /// Parallel iterator type.
-    type ParallelIterator: ParallelIterator<Item = Self::Item>;
+    type ParallelIterator: ParallelIterator<Item = Self::Item> where Self::Item: Send;
 
     /// Returns iterator over keys.
     fn iter(&self) -> Self::Iterator;
 
     /// If possible, returns parallel iterator over keys.
-    #[inline(always)] fn par_iter(&self) -> Option<Self::ParallelIterator> { None }
+    #[inline(always)] fn par_iter(&self) -> Option<Self::ParallelIterator> where Self::Item: Send { None }
 
     /// Returns `true` only if `par_iter` returns `Some`.
-    #[inline(always)] fn has_par_iter(&self) -> bool { self.par_iter().is_some() }
+    #[inline(always)] fn has_par_iter(&self) -> bool { false /*self.par_iter().is_some()*/ }
 
     /// Returns the number of items produced by iterators returned by `iter` and `par_iter`.
     fn len(&self) -> usize {
         self.iter().count()   // TODO faster alternative
     }
+}
+
+
+
+impl<I: Iterator, F: Fn() -> I> GetParallelIterator for F {
+    type Item = I::Item;
+
+    type Iterator = I;
+
+    type ParallelIterator = rayon::iter::Empty<Self::Item> where Self::Item: Send;  // never used
+
+    #[inline(always)] fn iter(&self) -> Self::Iterator {
+        self()
+    }
+}
+
+impl<I: Iterator, PI: ParallelIterator<Item = I::Item>, F: Fn() -> I, PF: Fn() -> PI> GetParallelIterator for (F, PF) {
+    type Item = I::Item;
+
+    type Iterator = I;
+
+    type ParallelIterator = PI where Self::Item: Send;
+
+    #[inline(always)] fn iter(&self) -> Self::Iterator {
+        self.0()
+    }
+
+    #[inline(always)] fn par_iter(&self) -> Option<Self::ParallelIterator> where Self::Item: Send {
+        Some(self.1())
+    }
+
+    #[inline(always)] fn has_par_iter(&self) -> bool { true }
 }
 
 /// Implementation of [`KeySet`] that stores only the object that returns iterator over all keys
@@ -785,7 +817,7 @@ impl<GetKeyIter: GetParallelIterator> DynamicParKeySet<GetKeyIter> {
     }
 }
 
-impl<GetKeyIter: GetParallelIterator> KeySet<GetKeyIter::Item> for DynamicParKeySet<GetKeyIter> {
+impl<GetKeyIter: GetParallelIterator> KeySet<GetKeyIter::Item> for DynamicParKeySet<GetKeyIter> where GetKeyIter::Item: Send {
     #[inline(always)] fn keys_len(&self) -> usize {
         self.len
     }
@@ -801,7 +833,7 @@ impl<GetKeyIter: GetParallelIterator> KeySet<GetKeyIter::Item> for DynamicParKey
     }
 
     fn par_for_each_key<F, P>(&self, f: F, retained_hint: P)
-        where F: Fn(&GetKeyIter::Item) + Sync + Send, P: Fn(&GetKeyIter::Item) -> bool + Sync + Send 
+        where F: Fn(&GetKeyIter::Item) + Sync + Send, P: Fn(&GetKeyIter::Item) -> bool + Sync + Send
     {
         if let Some(par_iter) = self.keys.par_iter() {
             par_iter.filter(retained_hint).for_each(|k| f(&k))
