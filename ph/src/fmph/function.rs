@@ -680,6 +680,15 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_dynamic_par() {
+        const LEN: u64 = 50_000;
+        let f = Function::new(
+            crate::fmph::keyset::CachedKeySet::dynamic_par((|| 0..LEN, || (0..LEN).into_par_iter()), 10_000));
+        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
+    }
+
+    #[test]
     #[ignore = "too slow"]
     fn test_fmph_for_over_2to32_keys() {
         const LEN: u64 = 5_000_000_000;
