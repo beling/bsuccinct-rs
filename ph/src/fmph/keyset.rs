@@ -42,12 +42,13 @@ pub trait KeySet<K> {
     /// Multi-threaded version of `map_each_key`.
     #[inline(always)]
     fn par_map_each_key<R, M, P>(&self, map: M, retained_hint: P) -> Vec<R>
-        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool { self.map_each_key(map, retained_hint) }
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool + Sync + Send
+    { self.map_each_key(map, retained_hint) }
 
     /// Calls either `map_each_key` (if `use_mt` is `false`) or `par_map_each_key` (if `use_mt` is `true`).
     #[inline(always)]
     fn maybe_par_map_each_key<R, M, P>(&self, map: M, retained_hint: P, use_mt: bool) -> Vec<R>
-        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool + Sync + Send
     {
         if use_mt { self.par_map_each_key(map, retained_hint) }
             else { self.map_each_key(map, retained_hint) }
@@ -832,7 +833,7 @@ impl<GetKeyIter: GetParallelIterator> KeySet<GetKeyIter::Item> for DynamicParKey
         self.keys.iter().filter(retained_hint).for_each(|k| f(&k))
     }
 
-    fn par_for_each_key<F, P>(&self, f: F, retained_hint: P)
+    #[inline(always)] fn par_for_each_key<F, P>(&self, f: F, retained_hint: P)
         where F: Fn(&GetKeyIter::Item) + Sync + Send, P: Fn(&GetKeyIter::Item) -> bool + Sync + Send
     {
         if let Some(par_iter) = self.keys.par_iter() {
@@ -842,20 +843,20 @@ impl<GetKeyIter: GetParallelIterator> KeySet<GetKeyIter::Item> for DynamicParKey
         }
     }
 
-    /*#[inline(always)] fn map_each_key<R, M, P>(&self, mut map: M, _retained_hint: P) -> Vec<R>
+    /*#[inline(always)] fn map_each_key<R, M, P>(&self, mut map: M, retained_hint: P) -> Vec<R>
             where M: FnMut(&GetKeyIter::Item) -> R, P: FnMut(&GetKeyIter::Item) -> bool
     {
         let mut result = Vec::with_capacity(self.len);
-        self.keys.iter().map(|k| map(&k)).collect_into(&mut result);
+        self.keys.iter().filter(retained_hint).map(|k| map(&k)).collect_into(&mut result);
         result
     }*/
 
-    fn par_map_each_key<R, M, P>(&self, map: M, retained_hint: P) -> Vec<R>
-            where M: Fn(&GetKeyIter::Item)->R + Sync + Send, R: Send, P: Fn(&GetKeyIter::Item) -> bool 
+    #[inline(always)] fn par_map_each_key<R, M, P>(&self, map: M, retained_hint: P) -> Vec<R>
+            where M: Fn(&GetKeyIter::Item)->R + Sync + Send, R: Send, P: Fn(&GetKeyIter::Item) -> bool + Sync + Send
     {
         if let Some(par_iter) = self.keys.par_iter() {
             // TODO somehow use information about len
-            par_iter.map(|k| map(&k)).collect()
+            par_iter.filter(retained_hint).map(|k| map(&k)).collect()
         } else {
             self.map_each_key(map, retained_hint)
         }
@@ -1018,7 +1019,7 @@ impl<K: Clone + Sync + Send, KS: KeySet<K>> KeySet<K> for CachedKeySet<K, KS>
 
     #[inline]
     fn par_map_each_key<R, M, P>(&self, map: M, retained_hint: P) -> Vec<R>
-        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool
+        where M: Fn(&K)->R + Sync + Send, R: Send, P: Fn(&K) -> bool + Sync + Send
     {
         match self {
             Self::Dynamic(dynamic_key_set, _) => dynamic_key_set.par_map_each_key(map, retained_hint),
