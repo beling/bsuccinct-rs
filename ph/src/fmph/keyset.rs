@@ -864,7 +864,7 @@ impl<K, PI: GetIterator> CachedKeySet<K, DynamicKeySet<PI>> {
     /// // part of which will be cached by the first call of any of the retain methods:
     /// let ks = CachedKeySet::dynamic(|| (1..=100).map(|v| v*v), usize::MAX);
     /// assert_eq!(ks.keys_len(), 100);
-    /// // Same as above but using multiple threads:
+    /// // Same as above but using multiple threads to generate keys:
     /// let ks = CachedKeySet::dynamic((|| (1..=100).map(|v| v*v), || (1..=100).into_par_iter().map(|v| v*v)), usize::MAX);
     /// assert_eq!(ks.keys_len(), 100);
     /// ```
@@ -883,7 +883,7 @@ impl<K, PI: GetIterator> CachedKeySet<K, DynamicKeySet<PI>> {
     /// // part of which will be cached by the first call of any of the retain methods:
     /// let ks = CachedKeySet::dynamic_with_len(|| (1..=100).map(|v| v*v), 100, usize::MAX);
     /// assert_eq!(ks.keys_len(), 100);
-    /// // Same as above but using multiple threads:
+    /// // Same as above but using multiple threads to generate keys:
     /// let ks = CachedKeySet::dynamic_with_len((|| (1..=100).map(|v| v*v), || (1..=100).into_par_iter().map(|v| v*v)), 100, usize::MAX);
     /// assert_eq!(ks.keys_len(), 100);
     /// ```
