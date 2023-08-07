@@ -1,6 +1,6 @@
 [package]
 name = "csf_benchmark"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -14,6 +14,6 @@ keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [dependencies]
 csf = { version ="0.1", path = "../csf" }
-ph = { version="0.7", path="../ph", features = ["wyhash"] }
+ph = { version="0.8", path="../ph", features = ["wyhash"] }
 clap = { version="4", features = ["derive"] }
 #fsum = { version ="0.1", path = "../fsum" }
