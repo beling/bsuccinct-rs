@@ -844,7 +844,7 @@ mod tests {
     fn test_fmphgo_for_over_2to32_keys() {
         const LEN: u64 = 5_000_000_000;
         let f = GOFunction::with_conf_stats(
-            crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, true, usize::MAX),
+            crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, usize::MAX),
             GOConf::default_biggest().into(),
             &mut crate::stats::BuildStatsPrinter::stdout());
         test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));

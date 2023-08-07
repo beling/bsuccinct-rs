@@ -687,62 +687,8 @@ impl<'k, K: Sync, I: RefsIndex + Sync + Send> KeySet<K> for SliceSourceWithRefs<
     }
 }
 
-/// Implementation of [`KeySet`] that stores only the function that returns iterator over all keys
-/// (the iterator can even expose the keys that have been removed earlier by `retain` methods).
-/// It is usually a good idea to use it within [`CachedKeySet`], see [`CachedKeySet::dynamic`].
-pub struct DynamicKeySet<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> {
-    pub keys: GetKeyIter,
-    pub len: usize,
-    pub const_keys_order: bool // true only if keys are always produced in the same order
-}
-
-impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> DynamicKeySet<KeyIter, GetKeyIter> {
-    /// Constructs a [`DynamicKeySet`] that obtains the keys by `keys` function.
-    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
-    pub fn new(keys: GetKeyIter, const_keys_order: bool) -> Self {
-        let len = keys().count();   // TODO faster alternative
-        Self { keys, len, const_keys_order }
-    }
-
-    /// Constructs a [`DynamicKeySet`] that obtains the keys by `keys` function (which should produce `len` keys).
-    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
-    pub fn with_len(keys: GetKeyIter, len: usize, const_keys_order: bool) -> Self {
-        Self { keys, len, const_keys_order }
-    }
-}
-
-impl<KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> KeySet<KeyIter::Item> for DynamicKeySet<KeyIter, GetKeyIter> {
-    #[inline(always)] fn keys_len(&self) -> usize {
-        self.len
-    }
-
-    #[inline(always)] fn for_each_key<F, P>(&self, mut f: F, retained_hint: P)
-        where F: FnMut(&KeyIter::Item), P: FnMut(&KeyIter::Item) -> bool
-    {
-        (self.keys)().filter(retained_hint).for_each(|k| f(&k))
-    }
-
-    #[inline(always)] fn retain_keys<F, P, R>(&mut self, _filter: F, _retained_earlier: P, mut remove_count: R)
-        where F: FnMut(&KeyIter::Item) -> bool, P: FnMut(&KeyIter::Item) -> bool, R: FnMut() -> usize
-    {
-        self.len -= remove_count();
-    }
-
-    #[inline] fn into_vec<P>(self, retained_hint: P) -> Vec<KeyIter::Item>
-    where P: FnMut(&KeyIter::Item) -> bool, Self: Sized
-    {
-        (self.keys)().filter(retained_hint).collect()
-    }
-
-    #[inline] fn par_into_vec<P>(self, retained_hint: P) -> Vec<KeyIter::Item>
-        where P: Fn(&KeyIter::Item) -> bool + Sync + Send, Self: Sized, KeyIter::Item: Send
-    {
-        (self.keys)().filter(retained_hint).collect()
-    }
-}
-
-/// Trait for returning iterator and parallel iterator over keys.
-pub trait GetParallelIterator {
+/// Trait for returning iterator and (optionally) parallel iterator over keys.
+pub trait GetIterator {
     /// Key type.
     type Item;
     /// Iterator type.
@@ -765,9 +711,7 @@ pub trait GetParallelIterator {
     }
 }
 
-
-
-impl<I: Iterator, F: Fn() -> I> GetParallelIterator for F {
+impl<I: Iterator, F: Fn() -> I> GetIterator for F {
     type Item = I::Item;
 
     type Iterator = I;
@@ -779,7 +723,7 @@ impl<I: Iterator, F: Fn() -> I> GetParallelIterator for F {
     }
 }
 
-impl<I: Iterator, PI: ParallelIterator<Item = I::Item>, F: Fn() -> I, PF: Fn() -> PI> GetParallelIterator for (F, PF) {
+impl<I: Iterator, PI: ParallelIterator<Item = I::Item>, F: Fn() -> I, PF: Fn() -> PI> GetIterator for (F, PF) {
     type Item = I::Item;
 
     type Iterator = I;
@@ -799,26 +743,26 @@ impl<I: Iterator, PI: ParallelIterator<Item = I::Item>, F: Fn() -> I, PF: Fn() -
 
 /// Implementation of [`KeySet`] that stores only the object that returns iterator over all keys
 /// (the iterator can even expose the keys that have been removed earlier by `retain` methods).
-/// It is usually a good idea to use it within [`CachedKeySet`], see [`CachedKeySet::dynamic_par`].
-pub struct DynamicParKeySet<GetKeyIter: GetParallelIterator> {
+/// It is usually a good idea to use it within [`CachedKeySet`], see [`CachedKeySet::dynamic`].
+pub struct DynamicKeySet<GetKeyIter: GetIterator> {
     pub keys: GetKeyIter,
     pub len: usize,
 }
 
-impl<GetKeyIter: GetParallelIterator> DynamicParKeySet<GetKeyIter> {
-    /// Constructs a [`DynamicParKeySet`] that obtains the keys by `keys` object.
+impl<GetKeyIter: GetIterator> DynamicKeySet<GetKeyIter> {
+    /// Constructs a [`DynamicKeySet`] that obtains the keys by `keys`.
     pub fn new(keys: GetKeyIter) -> Self {
         let len = keys.len();
         Self { keys, len }
     }
 
-    /// Constructs a [`DynamicParKeySet`] that obtains the keys by `keys` object (which should produce `len` keys).
+    /// Constructs a [`DynamicKeySet`] that obtains the keys by `keys` (which should produce `len` keys).
     pub fn with_len(keys: GetKeyIter, len: usize) -> Self {
         Self { keys, len }
     }
 }
 
-impl<GetKeyIter: GetParallelIterator> KeySet<GetKeyIter::Item> for DynamicParKeySet<GetKeyIter> where GetKeyIter::Item: Send {
+impl<GetKeyIter: GetIterator> KeySet<GetKeyIter::Item> for DynamicKeySet<GetKeyIter> where GetKeyIter::Item: Send {
     #[inline(always)] fn keys_len(&self) -> usize {
         self.len
     }
@@ -885,8 +829,6 @@ impl<GetKeyIter: GetParallelIterator> KeySet<GetKeyIter::Item> for DynamicParKey
     }
 }
 
-
-
 /// Implementation of [`KeySet`] that initially stores another [`KeySet`] 
 /// (which is usually succinct but slow, such as [`DynamicKeySet`]),
 /// but when number of keys drops below given threshold,
@@ -908,57 +850,45 @@ impl<K, KS> CachedKeySet<K, KS> {
     }
 }
 
-impl<K, KeyIter: Iterator, GetKeyIter: Fn() -> KeyIter> CachedKeySet<K, DynamicKeySet<KeyIter, GetKeyIter>> {
-    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function that returns iterator over keys.
-    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
+impl<K, PI: GetIterator> CachedKeySet<K, DynamicKeySet<PI>> {
+    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` that returns iterator over keys.
     /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
-    /// 
+    ///
     /// If the number of keys is known, it is more efficient to call [`CachedKeySet::dynamic_with_len`] instead.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use {ph::fmph::keyset::{KeySet, CachedKeySet}, rayon::iter::{ParallelIterator, IntoParallelIterator}};
+    /// // Constructing a dynamic key set consisting of the squares of the integers from 1 to 100,
+    /// // part of which will be cached by the first call of any of the retain methods:
+    /// let ks = CachedKeySet::dynamic(|| (1..=100).map(|v| v*v), usize::MAX);
+    /// assert_eq!(ks.keys_len(), 100);
+    /// // Same as above but using multiple threads:
+    /// let ks = CachedKeySet::dynamic((|| (1..=100).map(|v| v*v), || (1..=100).into_par_iter().map(|v| v*v)), usize::MAX);
+    /// assert_eq!(ks.keys_len(), 100);
+    /// ```
+    pub fn dynamic(keys: PI, clone_threshold: usize) -> Self {
+        Self::new(DynamicKeySet::new(keys), clone_threshold)
+    }
+
+    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` that returns iterator over exactly `len` keys.
+    /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
     /// 
     /// # Example
     /// 
     /// ```
-    /// use ph::fmph::keyset::{KeySet, CachedKeySet};
+    /// use {ph::fmph::keyset::{KeySet, CachedKeySet}, rayon::iter::{ParallelIterator, IntoParallelIterator}};
     /// // Constructing a dynamic key set consisting of the squares of the integers from 1 to 100,
     /// // part of which will be cached by the first call of any of the retain methods:
-    /// let ks = CachedKeySet::dynamic(|| (1..=100).map(|v| v*v), true, usize::MAX);
+    /// let ks = CachedKeySet::dynamic_with_len(|| (1..=100).map(|v| v*v), 100, usize::MAX);
+    /// assert_eq!(ks.keys_len(), 100);
+    /// // Same as above but using multiple threads:
+    /// let ks = CachedKeySet::dynamic_with_len((|| (1..=100).map(|v| v*v), || (1..=100).into_par_iter().map(|v| v*v)), 100, usize::MAX);
     /// assert_eq!(ks.keys_len(), 100);
     /// ```
-    pub fn dynamic(keys: GetKeyIter, const_keys_order: bool, clone_threshold: usize) -> Self {
-        Self::new(DynamicKeySet::new(keys, const_keys_order), clone_threshold)
-    }
-
-    /// Constructs cached [`DynamicKeySet`] that obtains the keys by `keys` function that returns iterator over exactly `len` keys.
-    /// If `const_keys_order` is `true`, `keys` should always produce the keys in the same order.
-    /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
-    /// 
-    /// # Example
-    /// 
-    /// ```
-    /// use ph::fmph::keyset::{KeySet, CachedKeySet};
-    /// // Constructing a dynamic key set consisting of the squares of the integers from 1 to 100,
-    /// // part of which will be cached by the first call of any of the retain methods:
-    /// let ks = CachedKeySet::dynamic_with_len(|| (1..=100).map(|v| v*v), 100, true, usize::MAX);
-    /// assert_eq!(ks.keys_len(), 100);
-    /// ```
-    pub fn dynamic_with_len(keys: GetKeyIter, len: usize, const_keys_order: bool, clone_threshold: usize) -> Self {
-        Self::new(DynamicKeySet::with_len(keys, len, const_keys_order), clone_threshold)
-    }
-}
-
-impl<K, PI: GetParallelIterator> CachedKeySet<K, DynamicParKeySet<PI>> {
-    /// Constructs cached [`DynamicParKeySet`] that obtains the keys by `keys` object that returns iterator over keys.
-    /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
-    /// 
-    /// If the number of keys is known, it is more efficient to call [`CachedKeySet::dynamic_par_with_len`] instead.
-    pub fn dynamic_par(keys: PI, clone_threshold: usize) -> Self {
-        Self::new(DynamicParKeySet::new(keys), clone_threshold)
-    }
-
-    /// Constructs cached [`DynamicParKeySet`] that obtains the keys by `keys` object that returns iterator over exactly `len` keys.
-    /// The keys are cloned and cached as soon as their number drops below `clone_threshold`.
-    pub fn dynamic_par_with_len(keys: PI, len: usize, clone_threshold: usize) -> Self {
-        Self::new(DynamicParKeySet::with_len(keys, len), clone_threshold)
+    pub fn dynamic_with_len(keys: PI, len: usize, clone_threshold: usize) -> Self {
+        Self::new(DynamicKeySet::with_len(keys, len), clone_threshold)
     }
 }
 
