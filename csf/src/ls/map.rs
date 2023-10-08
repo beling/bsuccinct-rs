@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io;
 use std::borrow::Borrow;
 use dyn_size_of::GetSize;
-use crate::bits_to_store_any_of_ref;
+use crate::{bits_to_store_any_of_ref, bits_to_store_any_of};
 
 use super::graph3::{HyperGraph, VertexIndex};
 use super::conf::{MapConf, ValuesPreFiller};
@@ -283,7 +283,8 @@ impl<S: BuildSeededHasher> Map<S> {
         self.values.get_fragment(self.index(key, fun_number), self.bits_per_value)
     }
 
-    /// Returns value assigned to the given `key`. If the `key` was not in the input collection, an unpredictable value is returned.
+    /// Returns value assigned to the given `key`.
+    /// If the `key` was not in the input collection, an unpredictable value is returned.
     #[inline(always)]
     pub fn get<K: Hash>(&self, key: &K) -> u64 {
         self.value_part(key, 0) ^ self.value_part(key, 1) ^ self.value_part(key, 2)
@@ -302,15 +303,23 @@ impl<S: BuildSeededHasher> Map<S> {
 
 impl<K: Hash, V: Into<u64> + Clone, S: BuildSeededHasher + Default, HMS> From<HashMap<K, V, HMS>> for Map<S> {
     #[inline] fn from(map: HashMap<K, V, HMS>) -> Self {
-        Self::try_from_hashmap(map, MapConf::<(), S>::default()).unwrap()
+        Self::try_from_hashmap(map, MapConf::<(), S>::default()).expect("Constructing ls::Map failed. Probably the input contains duplicate keys.")
+    }
+}
+
+impl<K: Hash, V: Into<u64> + Clone, S: BuildSeededHasher + Default> From<&[(K, V)]> for Map<S> {
+    #[inline] fn from(map: &[(K, V)]) -> Self {
+        Self::try_with_conf_fn::<K, _, _, _, _>(
+            || map.iter().map(|(k, v)| (k, v.clone().into())), map.len(),
+            bits_to_store_any_of(map.iter().map(|(_, v)| v.clone())),
+            MapConf::<(), S>::default()
+        ).expect("Constructing ls::Map failed. Probably the input contains duplicate keys.")
     }
 }
 
 
-
 #[cfg(test)]
 mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use maplit::hashmap;
 

@@ -14,10 +14,10 @@ pub use dyn_size_of::GetSize;
 /// ```
 /// use csf::bits_to_store;
 ///
-/// assert_eq!(bits_to_store(0), 0);
-/// assert_eq!(bits_to_store(1), 1);
-/// assert_eq!(bits_to_store(7), 3);
-/// assert_eq!(bits_to_store(8), 4);
+/// assert_eq!(bits_to_store(0u8), 0);
+/// assert_eq!(bits_to_store(1u16), 1);
+/// assert_eq!(bits_to_store(7u32), 3);
+/// assert_eq!(bits_to_store(8u64), 4);
 /// ```
 pub fn bits_to_store<V: Into<u64>>(max_value: V) -> u8 {
     let max_value: u64 = max_value.into();
@@ -29,6 +29,16 @@ pub fn bits_to_store<V: Into<u64>>(max_value: V) -> u8 {
 }
 
 /// Calculates the minimal number of bits needed to store any of the given `values`.
+/// 
+/// # Example
+///
+/// ```
+/// use csf::bits_to_store_any_of;
+///
+/// assert_eq!(bits_to_store_any_of([2u8, 7, 5, 7]), 3);
+/// assert_eq!(bits_to_store_any_of([0u8]), 0);
+/// assert_eq!(bits_to_store_any_of::<u32>([]), 0);
+/// ```
 pub fn bits_to_store_any_of<V: Into<u64>>(values: impl IntoIterator<Item = V>) -> u8 {
     values.into_iter().map(|v|Into::<u64>::into(v)).max().map_or(0, bits_to_store)
 }
