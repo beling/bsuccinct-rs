@@ -10,7 +10,7 @@ use ph::{BuildDefaultSeededHasher, BuildSeededHasher, utils, stats, utils::{Arra
 use std::collections::HashMap;
 use std::io;
 
-use crate::{fp::collision_solver::{CollisionSolver, CollisionSolverBuilder}, bits_to_store};
+use crate::{fp::collision_solver::{CollisionSolver, CollisionSolverBuilder}, bits_to_store_any_of};
 use dyn_size_of::GetSize;
 
 /// Finger-Printing based static function (map) that can only store integer values of given bit-size.
@@ -75,7 +75,7 @@ impl<S: BuildSeededHasher> Map<S> {
 
     {
         if conf.bits_per_value == 0 {
-            conf.bits_per_value = bits_to_store!(Into::<u64>::into(values.iter().max().unwrap().clone()));
+            conf.bits_per_value = bits_to_store_any_of(values.iter().cloned());
         }
         let mut level_sizes = Vec::<u64>::new();
         let mut arrays = Vec::<Box<[u64]>>::new();

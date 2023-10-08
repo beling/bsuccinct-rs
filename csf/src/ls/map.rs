@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io;
 use std::borrow::Borrow;
 use dyn_size_of::GetSize;
-use crate::bits_to_store;
+use crate::bits_to_store_any_of_ref;
 
 use super::graph3::{HyperGraph, VertexIndex};
 use super::conf::{MapConf, ValuesPreFiller};
@@ -243,8 +243,8 @@ impl<S: BuildSeededHasher> Map<S> {
     /// The `keys` and `values` arrays must have the same length.
     #[inline]
     pub fn try_with_conf_kv<K, V, BM>(keys: &[K], values: &[V], conf: MapConf<BM, S>) -> Option<Self>
-    where K: Hash, V: Into<u64> + Clone + Ord, BM: ValuesPreFiller {
-        let bits_per_value = bits_to_store!(values.iter().max().map(|v|Into::<u64>::into(v.clone())).unwrap_or(0));
+    where K: Hash, V: Into<u64> + Clone, BM: ValuesPreFiller {
+        let bits_per_value = bits_to_store_any_of_ref(values);
         Self::try_with_conf_kv_bpv(keys, values, bits_per_value, conf)
     }
 
@@ -267,7 +267,7 @@ impl<S: BuildSeededHasher> Map<S> {
     pub fn try_from_hashmap<K, V, HMS, BM>(map: HashMap<K, V, HMS>, conf: MapConf<BM, S>) -> Option<Self>
     where K: Hash, V: Into<u64> + Clone, BM: ValuesPreFiller
     {
-        let bits_per_value = bits_to_store!(map.values().map(|v|Into::<u64>::into(v.clone())).max().unwrap_or(0));
+        let bits_per_value = bits_to_store_any_of_ref(map.values());
         Self::try_from_hashmap_bpv(map, bits_per_value, conf)
     }
 

@@ -7,5 +7,3 @@ pub use conf::{MapConf, ValuesPreFiller, FillRandomly, FillWithPattern};
 pub use map::Map;
 mod cmap;
 pub use cmap::CMap;
-
-
