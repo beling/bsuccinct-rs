@@ -198,6 +198,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unused_allocation)]
     fn test_box() {
         assert_eq!(Box::new(1u32).size_bytes_dyn(), 4);
         assert_eq!(Box::new([1u32, 2u32]).size_bytes_dyn(), 2*4);

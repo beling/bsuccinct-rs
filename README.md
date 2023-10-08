@@ -13,6 +13,8 @@ Included programs:
 - `mphf_benchmark` ([crate](https://crates.io/crates/mphf_benchmark), [doc](https://docs.rs/mphf_benchmark)) - benchmarking minimal perfect hash functions,
 - `csf_benchmark` ([crate](https://crates.io/crates/csf_benchmark), [doc](https://docs.rs/csf_benchmark)) - benchmarking compressed static functions.
 
+Everything is dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
+
 # Installation
 Programs can be compiled and installed from sources. To do this, a Rust compiler is needed.
 The easiest way to obtain the compiler along with other necessary tools (like `cargo`) is
