@@ -30,7 +30,7 @@ assert_eq!(values, [0, 1, 2]);
 An example of using [`fmph::Function`] and bitmap to represent subsets of a given set of hashable elements:
 ```rust
 use ph::fmph;
-use bitm::{BitAccess, BitVec};
+use bitm::{BitAccess, BitVec};  // bitm is used to manipulate bitmaps
 use std::hash::Hash;
 
 pub struct Subset { // represents a subset of the given set
