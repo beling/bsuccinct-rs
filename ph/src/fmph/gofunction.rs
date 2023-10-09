@@ -711,9 +711,9 @@ impl GOFunction {
     }
 }
 
-impl<K: Hash + Clone + Sync> From<&[K]> for GOFunction {
+impl<K: Hash + Sync> From<&[K]> for GOFunction {
     fn from(keys: &[K]) -> Self {
-        Self::from_slice(&mut keys.to_owned())
+        Self::from_slice(keys)
     }
 }
 

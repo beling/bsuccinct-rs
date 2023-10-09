@@ -11,15 +11,72 @@ When using `ph` for research purposes, please cite the following paper which pro
 
 * Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 
-# Example
+# Examples
+The following examples illustrate the use of [`fmph::Function`], which, however, can be changed to [`fmph::GOFunction`] without any other changes.
+
+A basic example:
 ```rust
 use ph::fmph;
 
 let keys = ['a', 'b', 'z'];
-let f = fmph::Function::from(&keys[..]);
+let f = fmph::Function::from(keys.as_ref());
 // f assigns each key a unique number from the set {0, 1, 2}
 for k in keys { println!("The key {} is assigned the value {}.", k, f.get(&k).unwrap()); }
 let mut values = [f.get(&'a').unwrap(), f.get(&'b').unwrap(), f.get(&'z').unwrap()];
 values.sort();
 assert_eq!(values, [0, 1, 2]);
+```
+
+An example of using [`fmph::Function`] and bitmap to represent subsets of a given set of hashable elements:
+```rust
+use ph::fmph;
+use bitm::{BitAccess, BitVec};
+use std::hash::Hash;
+
+pub struct Subset { // represents a subset of the given set
+    hash: fmph::Function,   // bijectively maps elements of the set to bits of the bitmap
+    bitmap: Box<[u64]> // the bit pointed by the hash for e is 1 <=> e is in the subset
+}
+
+impl Subset {
+    pub fn new<E: Hash + Sync>(set: &[E]) -> Self { // constructs empty subset of the given set
+        Subset {
+            hash: set.into(),
+            bitmap: Box::with_zeroed_bits(set.len())
+        }
+    }
+
+    pub fn contain<E: Hash>(&self, e: &E) -> bool { // checks if e is in the subset
+        self.bitmap.get_bit(self.index(e)) as bool
+    }
+
+    pub fn insert<E: Hash>(&mut self, e: &E) { // adds e to the subset
+        self.bitmap.set_bit(self.index(e))
+    }
+
+    pub fn remove<E: Hash>(&mut self, e: &E) {  // removes e from the subset
+        self.bitmap.clear_bit(self.index(e))
+    }
+
+    pub fn len(&self) -> usize { // returns the number of elements in the subset
+        self.bitmap.count_bit_ones()
+    }
+
+    fn index<E: Hash>(&self, e: &E) -> usize {  // maps e to the bit index in the bitmap 
+        self.hash.get(e).expect("Illegal attempt to access an element outside the set given to the constructor.") as usize
+    }
+}
+
+let mut subset = Subset::new(["alpha", "beta", "gamma"].as_ref());
+assert!(!subset.contain(&"alpha"));
+assert!(!subset.contain(&"beta"));
+assert_eq!(subset.len(), 0);
+subset.insert(&"beta");
+subset.insert(&"gamma");
+assert_eq!(subset.len(), 2);
+assert!(subset.contain(&"beta"));
+subset.remove(&"beta");
+assert_eq!(subset.len(), 1);
+assert!(!subset.contain(&"beta"));
+// subset.insert(&"zeta"); // may either panic or insert any element into the subset
 ```

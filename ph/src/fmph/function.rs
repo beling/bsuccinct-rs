@@ -607,7 +607,7 @@ impl Function {
     }
 }
 
-impl<K: Hash + Clone + Sync> From<&[K]> for Function {
+impl<K: Hash + Sync> From<&[K]> for Function {
     fn from(keys: &[K]) -> Self {
         Self::new(SliceSourceWithRefs::<_, u8>::new(keys))
     }
