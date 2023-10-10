@@ -11,10 +11,12 @@ use crate::{bits_to_store_any_of_ref, bits_to_store_any_of};
 use super::graph3::{HyperGraph, VertexIndex};
 use super::conf::{MapConf, ValuesPreFiller};
 
-/// Static function that maps keys to integer values of given bit-size.
+/// Static function (immutable map) that maps hashable keys to integer values of given bit-size.
+/// 
+/// It takes about *1.23bn* bits to represent a function from an *n*-element set into a set of *b*-bit values.
+/// It has a computational construction and access time complexity of *O(n)* and *O(1)*, respectively.
 /// 
 /// Its construction is based on solving linear system of equations by hyper-graphs peeling.
-/// 
 /// The implementation is based on the paper:
 /// - D. Belazzougui, P. Boldi, G. Ottaviano, R. Venturini, S. Vigna, *Cache-Oblivious Peeling of Random Hypergraphs*, 
 ///   In A. Bilgin, M. W. Marcellin, J. Serra-Sagristà, & J. A. Storer (Eds.),

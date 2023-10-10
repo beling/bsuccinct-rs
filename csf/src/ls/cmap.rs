@@ -115,7 +115,14 @@ impl<'k, 'cl, Key, Value, KeyValueIntoIterator> IntoIterator for &'cl BDZHKeyInt
     }
 }*/
 
-/// Compressed static function that is based on solving linear systems and maps keys to values.
+/// Compressed static function (immutable map) that maps hashable keys to values of any type.
+/// 
+/// To represent a function *f:X→Y*, it uses the space slightly larger than *|X|H*
+/// (the overhead is 23% or slightly more),
+/// where *H* is the entropy of the distribution of the *f* values over *X*.
+/// The time complexity is *O(c)* for evaluation and *O(|X|c)* for construction
+/// (not counting building the encoding dictionary),
+/// where *c* is the average codeword length (given in code fragments) of the values.
 /// 
 /// It uses [`Map`] based on solving linear system to store fragments of value codes and
 /// usually [`minimum_redundancy::Coding`] to compress values.

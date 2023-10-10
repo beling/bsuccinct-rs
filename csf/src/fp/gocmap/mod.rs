@@ -17,8 +17,14 @@ pub use ph::fmph::GOConf;
 use dyn_size_of::GetSize;
 use crate::coding::{Coding, Decoder, SerializableCoding, BuildCoding};
 
-
-/// Finger-Printing based static function (map) with compressed values and group optimization.
+/// Finger-printing based compressed static function (immutable map)
+/// that uses group optimization and maps hashable keys to values of any type.
+/// 
+/// To represent a function *f:X→Y*, it uses the space slightly larger than *|X|H*,
+/// where *H* is the entropy of the distribution of the *f* values over *X*.
+/// The expected time complexity is *O(c)* for evaluation and *O(|X|c)* for construction
+/// (not counting building the encoding dictionary),
+/// where *c* is the average codeword length (given in code fragments) of the values.
 pub struct GOCMap<C = minimum_redundancy::Coding<u8>, GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     value_fragments: Box<[u64]>,    // BitVec

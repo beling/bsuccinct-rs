@@ -13,7 +13,11 @@ use std::io;
 use crate::{fp::collision_solver::{CollisionSolver, CollisionSolverBuilder}, bits_to_store_any_of};
 use dyn_size_of::GetSize;
 
-/// Finger-Printing based static function (map) that can only store integer values of given bit-size.
+/// Finger-printing based static function (immutable map) that maps hashable keys to integer values of given bit-size.
+/// 
+/// It takes somewhat more than *nb* bits to represent a function from an *n*-element set into a set of *b*-bit values.
+/// (Smaller sizes are achieved when the set of values is small and the same values are assigned to multiple keys.)
+/// The expected time complexity of construction and access is *O(n)* and *O(1)*, respectively.
 pub struct Map<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     values: Box<[u64]>,    // BitVec

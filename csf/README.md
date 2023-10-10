@@ -1,4 +1,4 @@
-`csf` is the Rust library (by Piotr Beling) of compressed static functions (maps) that use perfect hashing and value compression.
+`csf` is the Rust library (by Piotr Beling) of (compressed) static functions that use perfect hashing (and value compression).
 
 The compressed static functions contained in `csf` represent immutable maps from a set of (hashable) keys *K* into a set of values *V*.
 Since they do not explicitly store keys and compress values, their size usually slightly exceeds the entropy of the values alone.

@@ -1,6 +1,7 @@
 `ph` is the Rust library (by Piotr Beling) of data structures based on perfect hashing.
 
-The library contains an implementation of two variants of the *fingerprint-based minimal perfect hash function* without (*FMPH*, [`fmph::Function`]) and with (*FMPHGO*, [`fmph::GOFunction`]) group optimization.
+The library contains an implementation of two variants of the *fingerprint-based minimal perfect hash function*:
+without (*FMPH*, [`fmph::Function`]) and with (*FMPHGO*, [`fmph::GOFunction`]) group optimization.
 A minimal perfect hash function (MPHF) is a bijection from a key set *K* to the set *{0, 1, ..., |K|−1}*.
 
 FMPH and FMPHGO can be constructed for any set *K* (given in advance) of hashable items and represented using about *2.8* and *2.1* bits per key (regardless of key types), respectively.
@@ -64,7 +65,7 @@ impl Subset {
 
     fn index<E: Hash>(&self, e: &E) -> usize {  // maps e to the bit index in the bitmap 
         self.hash.get(e)
-            .expect("Invalid try to access an item outside the set given during construction.") as usize
+            .expect("Invalid access to an item outside the set given during construction.") as usize
     }
 }
 
@@ -79,7 +80,7 @@ assert!(subset.contain(&"beta"));
 subset.remove(&"beta");
 assert_eq!(subset.len(), 1);
 assert!(!subset.contain(&"beta"));
-// subset.insert(&"zeta"); // may either panic or insert any element into the subset
+// subset.insert(&"zeta"); // may either panic or insert any item into the subset
 ```
 
 Above `Subset` is an example of an *updated retrieval data structure* with a 1-bit payload.
