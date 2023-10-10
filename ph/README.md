@@ -12,7 +12,7 @@ When using `ph` for research purposes, please cite the following paper which pro
 * Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 
 # Examples
-The following examples illustrate the use of [`fmph::Function`], which, however, can be changed to [`fmph::GOFunction`] without any other changes.
+The following examples illustrate the use of [`fmph::Function`], which, however, can be replaced with [`fmph::GOFunction`] without any other changes.
 
 A basic example:
 ```rust
@@ -39,7 +39,7 @@ pub struct Subset { // represents a subset of the given set
 }
 
 impl Subset {
-    pub fn new<E: Hash + Sync>(set: &[E]) -> Self { // constructs empty subset of the given set
+    pub fn of<E: Hash + Sync>(set: &[E]) -> Self { // constructs empty subset of the given set
         Subset {
             hash: set.into(),
             bitmap: Box::with_zeroed_bits(set.len())
@@ -50,7 +50,7 @@ impl Subset {
         self.bitmap.get_bit(self.index(e)) as bool
     }
 
-    pub fn insert<E: Hash>(&mut self, e: &E) { // adds e to the subset
+    pub fn insert<E: Hash>(&mut self, e: &E) { // inserts e into the subset
         self.bitmap.set_bit(self.index(e))
     }
 
@@ -63,14 +63,15 @@ impl Subset {
     }
 
     fn index<E: Hash>(&self, e: &E) -> usize {  // maps e to the bit index in the bitmap 
-        self.hash.get(e).expect("Illegal attempt to access an element outside the set given to the constructor.") as usize
+        self.hash.get(e)
+            .expect("Invalid try to access an item outside the set given during construction.") as usize
     }
 }
 
-let mut subset = Subset::new(["alpha", "beta", "gamma"].as_ref());
+let mut subset = Subset::of(["alpha", "beta", "gamma"].as_ref());
+assert_eq!(subset.len(), 0);
 assert!(!subset.contain(&"alpha"));
 assert!(!subset.contain(&"beta"));
-assert_eq!(subset.len(), 0);
 subset.insert(&"beta");
 subset.insert(&"gamma");
 assert_eq!(subset.len(), 2);
@@ -80,3 +81,6 @@ assert_eq!(subset.len(), 1);
 assert!(!subset.contain(&"beta"));
 // subset.insert(&"zeta"); // may either panic or insert any element into the subset
 ```
+
+Above `Subset` is an example of an *updated retrieval data structure* with a 1-bit payload.
+It can be generalized by replacing the bitmap with a vector of other payload.
