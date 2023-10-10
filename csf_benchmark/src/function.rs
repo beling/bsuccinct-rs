@@ -46,14 +46,14 @@ impl PrintParams for ProportionalLevelSize {
 }
 
 /*impl<LSC, CSB, S> CSFBuilder for fp::MapConf<LSC, CSB, S>
-where CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
+where LSC: fp::LevelSizeChooser, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
  {
     type CSF = fp::Map<S>;
 
-    fn new(&self, keys: &[u32], values: &[u32], coding: Coding<u32>) -> Self::CSF {
-        Self::CSF::from_slices_with_conf(
+    fn new(self, keys: &[u32], values: &[u32], frequencies: HashMap::<u32, u32>) -> Self::CSF {
+        Self::CSF::with_slices_conf(
             keys.to_owned().as_mut(), values,
-            self.clone(),
+            self,
             &mut ())
     }
 
