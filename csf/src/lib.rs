@@ -19,7 +19,7 @@ pub use dyn_size_of::GetSize;
 /// assert_eq!(bits_to_store(7u32), 3);
 /// assert_eq!(bits_to_store(8u64), 4);
 /// ```
-pub fn bits_to_store<V: Into<u64>>(max_value: V) -> u8 {
+#[inline] pub fn bits_to_store<V: Into<u64>>(max_value: V) -> u8 {
     let max_value: u64 = max_value.into();
     (if max_value.is_power_of_two() {
         max_value.trailing_zeros()+1
@@ -44,7 +44,7 @@ pub fn bits_to_store_any_of<V: Into<u64>>(values: impl IntoIterator<Item = V>) -
 }
 
 /// Calculates the minimal number of bits needed to store any of the given `values`.
-pub fn bits_to_store_any_of_ref<'a, V: Clone + Into<u64> + 'a>(values: impl IntoIterator<Item = &'a V>) -> u8 {
+#[inline] pub fn bits_to_store_any_of_ref<'a, V: Clone + Into<u64> + 'a>(values: impl IntoIterator<Item = &'a V>) -> u8 {
     bits_to_store_any_of(values.into_iter().cloned())
 }
 
