@@ -35,7 +35,7 @@ use bitm::{BitAccess, BitVec};  // bitm is used to manipulate bitmaps
 use std::hash::Hash;
 
 pub struct Subset { // represents a subset of the given set
-    hash: fmph::Function,   // bijectively maps elements of the set to bits of the bitmap
+    hash: fmph::Function, // bijectively maps elements of the set to bits of bitmap
     bitmap: Box<[u64]> // the bit pointed by the hash for e is 1 <=> e is in the subset
 }
 
@@ -55,7 +55,7 @@ impl Subset {
         self.bitmap.set_bit(self.hash.get_or_panic(e) as usize)
     }
 
-    pub fn remove<E: Hash>(&mut self, e: &E) {  // removes e from the subset
+    pub fn remove<E: Hash>(&mut self, e: &E) { // removes e from the subset
         self.bitmap.clear_bit(self.hash.get_or_panic(e) as usize)
     }
 
@@ -75,7 +75,7 @@ assert!(subset.contain(&"beta"));
 subset.remove(&"beta");
 assert_eq!(subset.len(), 1);
 assert!(!subset.contain(&"beta"));
-// subset.insert(&"zeta"); // may either panic or insert any item into the subset
+// subset.insert(&"zeta"); // may either panic or insert any item into subset
 ```
 
 Above `Subset` is an example of an *updated retrieval data structure* with a 1-bit payload.
