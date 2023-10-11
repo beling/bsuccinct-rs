@@ -48,24 +48,19 @@ impl Subset {
     }
 
     pub fn contain<E: Hash>(&self, e: &E) -> bool { // checks if e is in the subset
-        self.bitmap.get_bit(self.index(e)) as bool
+        self.bitmap.get_bit(self.hash.get_or_panic(e) as usize) as bool
     }
 
     pub fn insert<E: Hash>(&mut self, e: &E) { // inserts e into the subset
-        self.bitmap.set_bit(self.index(e))
+        self.bitmap.set_bit(self.hash.get_or_panic(e) as usize)
     }
 
     pub fn remove<E: Hash>(&mut self, e: &E) {  // removes e from the subset
-        self.bitmap.clear_bit(self.index(e))
+        self.bitmap.clear_bit(self.hash.get_or_panic(e) as usize)
     }
 
     pub fn len(&self) -> usize { // returns the number of elements in the subset
         self.bitmap.count_bit_ones()
-    }
-
-    fn index<E: Hash>(&self, e: &E) -> usize {  // maps e to the bit index in the bitmap 
-        self.hash.get(e)
-            .expect("Invalid access to an item outside the set given during construction.") as usize
     }
 }
 
