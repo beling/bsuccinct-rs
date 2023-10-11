@@ -606,7 +606,7 @@ impl Function {
         Self::read_with_hasher(input, Default::default())
     }
 
-    /// Builds [Function] for given `keys`, reporting statistics with `stats`.
+    /// Builds [`Function`] for given `keys`, reporting statistics with `stats`.
     /// 
     /// Panics if constructing [`Function`] fails.
     /// Then it is almost certain that the input contains either duplicate keys
@@ -617,13 +617,22 @@ impl Function {
         Self::with_conf_stats(keys, Default::default(), stats)
     }
 
-    /// Builds [Function] for given `keys`.
+    /// Builds [`Function`] for given `keys`.
     /// 
     /// Panics if constructing [`Function`] fails.
     /// Then it is almost certain that the input contains either duplicate keys
     /// or keys indistinguishable by any hash function from the family used.
     pub fn new<K: Hash + Sync>(keys: impl KeySet<K>) -> Self {
         Self::with_conf_stats(keys, Default::default(), &mut ())
+    }
+}
+
+impl<S> Function<S> {
+    /// Returns the number of keys in the input collection given during construction.
+    /// 
+    /// The time complexity is proportional to the number returned.
+    pub fn len(&self) -> usize {
+        self.array.content.count_bit_ones()
     }
 }
 

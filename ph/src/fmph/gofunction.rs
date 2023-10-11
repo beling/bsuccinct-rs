@@ -731,6 +731,15 @@ impl GOFunction {
     }
 }
 
+impl<GS: GroupSize, SS: SeedSize, S> GOFunction<GS, SS, S>  {
+    /// Returns the number of keys in the input collection given during construction.
+    /// 
+    /// The time complexity is proportional to the number returned.
+    pub fn len(&self) -> usize {
+        self.array.content.count_bit_ones()
+    }
+}
+
 impl<K: Hash + Sync> From<&[K]> for GOFunction {
     fn from(keys: &[K]) -> Self {
         Self::from_slice(keys)
