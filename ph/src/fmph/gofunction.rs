@@ -785,6 +785,7 @@ mod tests {
         test_mphf(to_hash, |key| h.get(key));
         test_hash2_invariants(&h);
         test_read_write(&h);
+        assert_eq!(h.len(), to_hash.len());
     }
 
     #[test]

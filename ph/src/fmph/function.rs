@@ -683,6 +683,7 @@ pub(crate) mod tests {
         let h = Function::from_slice_with_conf(to_hash, BuildConf::mt(false));
         test_mphf(to_hash, |key| h.get(key));
         test_read_write(&h);
+        assert_eq!(h.len(), to_hash.len());
     }
 
     #[test]
