@@ -78,5 +78,5 @@ assert!(!subset.contain(&"beta"));
 // subset.insert(&"zeta"); // may either panic or insert any item into subset
 ```
 
-Above `Subset` is an example of an *updated retrieval data structure* with a 1-bit payload.
+Above `Subset` is an example of an *updatable retrieval data structure* with a 1-bit payload.
 It can be generalized by replacing the bitmap with a vector of other payload.
