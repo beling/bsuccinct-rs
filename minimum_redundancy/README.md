@@ -1,11 +1,8 @@
-`minimum_redundancy` is the Rust library by Piotr Beling to encode and decode data
-with binary or non-binary minimum-redundancy (Huffman) coding.
+`minimum_redundancy` is the Rust library by Piotr Beling to encode and decode data with binary or non-binary minimum-redundancy (Huffman) coding.
 
-The library can construct and concisely represent optimal prefix (minimum-redundancy) coding
-whose codeword lengths are a multiple of given number of bits (1-bit, 2-bits, ...).
-The library supports Huffman trees of arbitrary degrees, even those that are not powers of 2.
+The library is fast and consumes low memory both to construct and store the coding dictionary. In addition, the implementation is generic. It allows to construct not only binary codes (obtained via binary Huffman trees), but of any arity (trees of any degree).
 
-The library uses modified Huffman algorithm, with ideas from papers:
+The library uses improved Huffman algorithm, with ideas from the following papers:
 - A. Brodnik, S. Carlsson, *Sub-linear decoding of Huffman Codes Almost In-Place*, 1998
 - A. Moffat, J. Katajainen, *In-Place Calculation of Minimum-Redundancy Codes*.
   In: Akl S.G., Dehne F., Sack JR., Santoro N. (eds) Algorithms and Data Structures.
