@@ -22,6 +22,10 @@ pub fn map32_to_32(hash: u32, n: u32) -> u32 {
     (((hash as u64) * (n as u64)) >> 32) as u32
 }
 
+/// Maps 16-bit `hash` to the range `[0, n)`, where `n` is a 16-bit integer.
+///
+/// Uses the algorithm described in: Daniel Lemire, *A fast alternative to the modulo reduction*,
+/// <https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/>
 #[inline(always)]
 pub fn map16_to_16(hash: u16, n: u16) -> u16 {
     (((hash as u32) * (n as u32)) >> 16) as u16

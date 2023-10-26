@@ -12,7 +12,7 @@ pub trait KeySet<K> {
     /// Returns number of retained keys. Guarantee to be very fast.
     fn keys_len(&self) -> usize;
 
-    /// Returns `true` only if [Self::par_for_each_key] can use multiple threads.
+    /// Returns `true` only if [`Self::par_for_each_key`] can use multiple threads.
     #[inline(always)] fn has_par_for_each_key(&self) -> bool { false }
 
     /// Call `f` for each key in the set, using single thread.
