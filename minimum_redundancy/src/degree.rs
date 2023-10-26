@@ -6,7 +6,7 @@ use binout::{AsIs, VByte, Serializer};
 /// which is equal to the number of different
 /// values of a single codeword fragment.
 pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
-    /// Returns the degree of the Huffman tree as u32.
+    /// Returns the degree of the Huffman tree as `u32`.
     fn as_u32(&self) -> u32;
 
     /// Returns number of bytes that `self.write` writes to the output.

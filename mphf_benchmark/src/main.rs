@@ -212,8 +212,11 @@ impl SearchStats {
     }
 }
 
+/// Building statistics
 struct BuildStats {
+    /// Construction time using a single thread in seconds
     time_st: f64,
+    /// Construction time using multiple threads in seconds
     time_mt: f64
 }
 

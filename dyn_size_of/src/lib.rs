@@ -24,6 +24,7 @@ pub trait GetSize {
     const USES_DYN_MEM: bool = false;
 }
 
+/// Implement GetSize for one or more types that do not use heap memory.
 macro_rules! impl_nodyn_getsize_for {
     ($x:ty) => (impl self::GetSize for $x {});
     // `$x` followed by at least one `$y,`
