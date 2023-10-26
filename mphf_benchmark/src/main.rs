@@ -111,8 +111,10 @@ pub enum KeySource {
     xs32,
     /// Generate 64 bit keys with xor-shift 64
     xs64,
-    /// Standard input
-    stdin
+    /// Standard input, separated by newlines (0xA or 0xD, 0xA bytes)
+    stdin,
+    /// Standard input, zero-separated
+    stdinz
 }
 
 #[derive(Parser)]
@@ -537,7 +539,7 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &
     let ks_name = match conf.key_source {
         KeySource::xs32 => "32",
         KeySource::xs64 => "64",
-        KeySource::stdin => "str",
+        KeySource::stdin|KeySource::stdinz => "str",
     };
     let file_name = format!("{}_{}_{}_{}.csv", method_name, ks_name, i.0.len(), i.1.len());
     let file_already_existed = std::path::Path::new(&file_name).exists();
@@ -585,7 +587,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
             fmph_benchmark::<BuildWyHash, _>(i, conf, level_size, None);
         }
         #[cfg(feature = "cmph-sys")] Method::CHD{lambda} => {
-            if conf.key_source == KeySource::stdin {
+            if conf.key_source == KeySource::stdin || conf.key_source == KeySource::stdinz {
                 eprintln!("Benchmarking CHD with keys from stdin is not supported.")
             } else {
                 println!("CHD: lambda results...");
@@ -675,11 +677,43 @@ fn gen_data<I: Iterator>(keys_num: usize, foreign_keys_num: usize, mut generator
 
 //fn test_data_32x<const N: usize>(how_many: usize) -> (Vec<[u32; N]>, Vec<[u32; N]>) { test_data(how_many, Generate32x::<N>::new(5678)) }
 
-fn print_input_stats(setname: &str, strings: &[String]){
+fn print_input_stats(setname: &str, strings: &[Box<[u8]>]){
     if strings.len() == 0 {
         println!("{} is empty", setname);
     } else {
         println!("{} has {} strings with an average length of {:.1} bytes", setname, strings.len(), strings.iter().map(|s| s.len()).sum::<usize>() as f64 / strings.len() as f64)
+    }
+}
+
+pub struct RawLines<B> {
+    buf: B,
+    separator: u8,
+}
+
+impl<B> RawLines<B> {
+    pub fn separated_by_newlines(buf: B) -> Self { Self { buf, separator: b'\n' } }
+    pub fn separated_by_zeros(buf: B) -> Self { Self { buf, separator: 0 } }
+}
+
+impl<B: BufRead> Iterator for RawLines<B> {
+    type Item = std::io::Result<Box<[u8]>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut buf = Vec::new();
+        match self.buf.read_until(self.separator, &mut buf) {
+            Ok(0) => None,
+            Ok(_n) => {
+                if buf.last() == Some(&self.separator) {
+                    buf.pop();
+                    if self.separator == b'\n' && buf.last() == Some(&b'\r') {
+                        buf.pop();
+                    }
+                }
+                //buf.shrink_to_fit();
+                Some(Ok(buf.into_boxed_slice()))
+            }
+            Err(e) => Some(Err(e)),
+        }
     }
 }
 
@@ -690,8 +724,13 @@ fn main() {
     match conf.key_source {
         KeySource::xs32 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))); },
         KeySource::xs64 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))); },
-        KeySource::stdin => {
-            let lines = std::io::stdin().lock().lines().map(|l| l.unwrap());
+        KeySource::stdin|KeySource::stdinz => {
+            //let lines = std::io::stdin().lock().lines().map(|l| l.unwrap());
+            let lines = if conf.key_source == KeySource::stdin {
+                RawLines::separated_by_newlines(std::io::stdin().lock())
+            } else {
+                RawLines::separated_by_zeros(std::io::stdin().lock())
+            }.map(|l| l.unwrap());
             let i = if let Some(keys_num) = conf.keys_num {
                 gen_data(keys_num, conf.foreign_keys_num, lines)
             } else {
