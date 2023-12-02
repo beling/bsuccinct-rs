@@ -5,7 +5,7 @@ without (*FMPH*, [`fmph::Function`]) and with (*FMPHGO*, [`fmph::GOFunction`]) g
 A minimal perfect hash function (MPHF) is a bijection from a key set *K* to the set *{0, 1, ..., |K|−1}*.
 
 FMPH and FMPHGO can be constructed for any set *K* (given in advance) of hashable items and represented using about *2.8* and *2.1* bits per key (regardless of key types), respectively.
-FMPH and FMPHGO are fast (*O(1)*) to evaluate. Their construction requires very little auxiliary space, takes a short (*O(|K|)*) time (which is especially true for FMPH) and, in addition, can be parallelized or carried out without holding keys in memory.
+FMPH and FMPHGO are fast (*O(1)* in expectation) to evaluate. Their construction requires very little auxiliary space, takes a short (*O(|K|)* in expectation) time (which is especially true for FMPH) and, in addition, can be parallelized or carried out without holding keys in memory.
 
 # Bibliography
 When using `ph` for research purposes, please cite the following paper which provides details on FMPH and FMPHGO:
