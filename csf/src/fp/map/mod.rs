@@ -43,7 +43,7 @@ impl<S: BuildSeededHasher> Map<S> {
     }
 
     /// Gets the value associated with the given key k and reports statistics to access_stats.
-    pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<u64> {
+    pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<u8> {
         let mut array_begin_index = 0usize;
         let mut level = 0u32;
         loop {
@@ -51,7 +51,7 @@ impl<S: BuildSeededHasher> Map<S> {
             let i = array_begin_index + self.index(k, level, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level);
-                return Some(self.values.get_fragment(self.array.rank(i) as usize, self.bits_per_value));
+                return Some(self.values.get_fragment(self.array.rank(i) as usize, self.bits_per_value) as u8);
             }
             array_begin_index += level_size;
             level += 1;
@@ -59,7 +59,7 @@ impl<S: BuildSeededHasher> Map<S> {
     }
 
     /// Gets the value associated with the given key k.
-    pub fn get<K: Hash>(&self, k: &K) -> Option<u64> {
+    pub fn get<K: Hash>(&self, k: &K) -> Option<u8> {
         self.get_stats(k, &mut ())
     }
 

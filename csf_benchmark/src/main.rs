@@ -3,7 +3,7 @@ use csf;
 use csf::coding::BuildMinimumRedundancy;
 use csf::{fp, GetSize};
 use distribution::{Input, kv_dominated_lo_entropy};
-use function::{CSFBuilder, PrintParams, LS_HEADER, FP_HEADER, FPGO_HEADER};
+use function::{CSFBuilder, PrintParams, CLS_HEADER, CFP_HEADER, FPGO_HEADER, FP_HEADER};
 use ph::fmph::Bits;
 use std::fs;
 use std::fs::File;
@@ -49,12 +49,16 @@ pub struct FPGOConf {
 #[derive(Subcommand)]
 pub enum Function {
     /// Based on Finger-Printing, with compressed values, all configurations
-    FPGO_all(FPConf),
+    CFPGO_all(FPConf),
     /// Based on Finger-Printing, with compressed values and group optimization
-    FPGO(FPGOConf),
+    CFPGO(FPGOConf),
     /// Based on Finger-Printing, with compressed values
+    CFP(FPConf),
+    /// Based on Finger-Printing
     FP(FPConf),
     /// Based on solving linear systems, with compressed values
+    CLS,
+    /// Based on solving linear systems
     LS
 }
 
@@ -555,7 +559,7 @@ where fp::GOCMapConf<BuildMinimumRedundancy, L, Bits, Bits>: PrintParams
 fn main() {
     let conf: Conf = Conf::parse();
     match conf.function {
-        Function::FPGO_all(ref fpconf) => {
+        Function::CFPGO_all(ref fpconf) => {
             match (fpconf.level_size, fpconf.level_size_proportional) {
                 (0, true) => fpgo_all(&conf, fp::ProportionalLevelSize::default()),
                 (level_size, true) => fpgo_all(&conf, fp::ProportionalLevelSize::with_percent(level_size)),
@@ -563,8 +567,8 @@ fn main() {
                 (level_size, false) => fpgo_all(&conf, fp::ResizedLevel::new(level_size, fp::OptimalLevelSize::default())),
             }
         }
-        Function::FPGO(ref fpconf) => {
-            let mut file = file(&conf, "fpgo", FPGO_HEADER);
+        Function::CFPGO(ref fpconf) => {
+            let mut file = file(&conf, "cfpgo", FPGO_HEADER);
             match (fpconf.bits_per_group_seed, fpconf.group_size) {
                 (None, None) => {
                     for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
@@ -583,8 +587,8 @@ fn main() {
                 _ => eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
             }
         },
-        Function::FP(ref fpconf) => {
-            let mut file = file(&conf, "fp", FP_HEADER);
+        Function::CFP(ref fpconf) => {
+            let mut file = file(&conf, "cfp", CFP_HEADER);
             let b_range = conf.bits_per_fragments();
             match (fpconf.level_size, fpconf.level_size_proportional) {
                 (0, true) => benchmark_all_functions(&conf, &mut file, || {
@@ -601,12 +605,33 @@ fn main() {
                 }),
             }
         },
-        Function::LS => {
-            let mut file = file(&conf, "ls", LS_HEADER);
+        Function::FP(ref fpconf) => {
+            let mut file = file(&conf, "fp", FP_HEADER);
+            match (fpconf.level_size, fpconf.level_size_proportional) {
+                (0, true) => benchmark_all_functions(&conf, &mut file, || {
+                    [fp::MapConf::lsize(fp::ProportionalLevelSize::default())]
+                }),
+                (level_size, true) => benchmark_all_functions(&conf, &mut file, || {
+                    [fp::MapConf::lsize(fp::ProportionalLevelSize::with_percent(level_size))]
+                }),
+                (0, false) => benchmark_all_functions(&conf, &mut file, || {
+                    [fp::MapConf::default()]
+                }),
+                (level_size, false) => benchmark_all_functions(&conf, &mut file, || {
+                    [fp::MapConf::lsize(fp::ResizedLevel::new(level_size, fp::OptimalLevelSize::default()))]
+                }),
+            }
+        },
+        Function::CLS => {
+            let mut file = file(&conf, "cls", CLS_HEADER);
             let b_range = conf.bits_per_fragments();
             benchmark_all_functions(&conf, &mut file, || {
                 b_range.clone().map(|b| function::BuildLSCMap(b))
             });
+        },
+        Function::LS => {
+            let mut file = file(&conf, "ls", "");
+            benchmark_all_functions(&conf, &mut file, || { [function::BuildLSMap] });
         },
     }
 }

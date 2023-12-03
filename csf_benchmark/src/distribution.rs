@@ -4,8 +4,8 @@ use csf::coding::minimum_redundancy::Frequencies;
 
 pub struct Input {
     pub keys: Box<[u32]>,
-    pub values: Box<[u32]>,
-    pub frequencies: HashMap::<u32, u32>,
+    pub values: Box<[u8]>,
+    pub frequencies: HashMap::<u8, u32>,
     /// Entropy of values.
     pub entropy: f64
 }
@@ -24,23 +24,23 @@ impl Input {
     }
 }
 
-impl From<(Box<[u32]>, Box<[u32]>, HashMap<u32, u32>)> for Input {
-    fn from((keys, values, frequencies): (Box<[u32]>, Box<[u32]>, HashMap<u32, u32>)) -> Self {
+impl From<(Box<[u32]>, Box<[u8]>, HashMap<u8, u32>)> for Input {
+    fn from((keys, values, frequencies): (Box<[u32]>, Box<[u8]>, HashMap<u8, u32>)) -> Self {
         let entropy = frequencies.entropy();
         Self { keys, values, frequencies, entropy }
     }
 }
 
-impl From<(Box<[u32]>, Box<[u32]>)> for Input {
-    fn from((keys, values): (Box<[u32]>, Box<[u32]>)) -> Self {
-        let frequencies = HashMap::<u32, u32>::with_counted_all(values.iter());
+impl From<(Box<[u32]>, Box<[u8]>)> for Input {
+    fn from((keys, values): (Box<[u32]>, Box<[u8]>)) -> Self {
+        let frequencies = HashMap::<u8, u32>::with_counted_all(values.iter());
         (keys, values, frequencies).into()
     }
 }
 
-impl From<(Box<[u32]>, Box<[u32]>, f64)> for Input {
-    fn from((keys, values, entropy): (Box<[u32]>, Box<[u32]>, f64)) -> Self {
-        let frequencies = HashMap::<u32, u32>::with_counted_all(values.iter());
+impl From<(Box<[u32]>, Box<[u8]>, f64)> for Input {
+    fn from((keys, values, entropy): (Box<[u32]>, Box<[u8]>, f64)) -> Self {
+        let frequencies = HashMap::<u8, u32>::with_counted_all(values.iter());
         Self { keys, values, frequencies, entropy }
     }
 }
@@ -109,15 +109,15 @@ impl From<(Box<[u32]>, Box<[u32]>, f64)> for Input {
 
 /// Construct benchmark data with:
 /// - length `len`,
-/// - number of different values `different_values`,
+/// - number of different values `different_values` (up to 256),
 /// - occurrence of each value except one is `lo_count`.
-pub fn kv_dominated_lo(len: u32, mut different_values: u32, lo_count: u32) -> (Box<[u32]>, Box<[u32]>) {
+pub fn kv_dominated_lo(len: u32, mut different_values: u32, lo_count: u32) -> (Box<[u32]>, Box<[u8]>) {
     different_values -= 1;  // without last which dominates
     let non_dominated_count = different_values * lo_count;
     (
         (0..len).collect(),
-        (0..non_dominated_count).map(|v| v % different_values)
-            .chain((non_dominated_count..len).map(|_| different_values)).collect()
+        (0..non_dominated_count).map(|v| (v % different_values as u32) as u8)
+            .chain((non_dominated_count..len).map(|_| different_values as u8)).collect()
     )
 }
 
