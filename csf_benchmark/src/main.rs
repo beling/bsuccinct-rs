@@ -157,7 +157,7 @@ fn benchmark<CSF: CSFBuilder+PrintParams>(input: Input, csf: CSF, file: &mut Opt
     let bits_per_entry = bits_per_entry(map.size_bytes(), input.keys.len());
     let levels_per_query = levels_searched as f64 / input.keys.len() as f64;
     let overhead = bits_per_entry-input.entropy;
-    println!("{:.2} (entropy) + {:.2} ({:.0}%) = {:.2} bits/kv-pair {:.2} levels/query", input.entropy, overhead, 100.0*overhead/input.entropy, bits_per_entry, levels_per_query);
+    println!("{:.2} (entropy) + {:.2} ({:.0}%) = {:.2} bits/kv {:.2} levels/query", input.entropy, overhead, 100.0*overhead/input.entropy, bits_per_entry, levels_per_query);
     if let Some(ref mut f) = file {
         writeln!(f, " {} {}", bits_per_entry, levels_per_query).unwrap();
     }
@@ -181,7 +181,7 @@ where GetFunctions: Fn() -> CSFIter, CSFIter: IntoIterator<Item = CSF>, CSF: CSF
                     if entropy >= conf.to { return; }
                     if (different_values == 256 && last_count == each_value_len) || entropy - prev_entropy >= conf.resolution {
                         print!(
-                            "{}*{}+{}={} key/values: ",
+                            "{}*{}+{}={} key-values: ",
                             different_values-1, each_value_len, last_count, total_len
                         );
                         if has_multiple_functions { println!(); }

@@ -171,6 +171,7 @@ pub struct BuildLSMap;
 
 impl CSFBuilder for BuildLSMap
 {
+    const CAN_DETECT_ABSENCE: bool = false;
     type CSF = ls::Map;
 
     fn new(self, keys: &[u32], values: &[u8], _frequencies: HashMap::<u8, u32>) -> Self::CSF {
