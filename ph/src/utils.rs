@@ -1,12 +1,9 @@
 //! Utility functions.
 
 use binout::{AsIs, Serializer};
-#[cfg(feature = "simple_rank")] use bitm::ArrayWithRankSimple;
-#[cfg(not(feature = "simple_rank"))] use bitm::ArrayWithRank101111;
-use bitm::ceiling_div;
+use bitm::{ArrayWithRank101111, ceiling_div};
 
-#[cfg(feature = "simple_rank")] pub type ArrayWithRank = ArrayWithRankSimple;
-#[cfg(not(feature = "simple_rank"))] pub type ArrayWithRank = ArrayWithRank101111;
+pub type ArrayWithRank = ArrayWithRank101111;
 
 /// Reads `number_of_bits` bits, rounded up to multiple of 64, from `input`.
 pub fn read_bits<R: std::io::Read + ?Sized>(input: &mut R, number_of_bits: usize) -> std::io::Result<Box<[u64]>> {

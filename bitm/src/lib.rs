@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 mod array_with_rank;
-pub use array_with_rank::{ArrayWithRank101111, ArrayWithRankSimple, BitArrayWithRank};
+pub use array_with_rank::{ArrayWithRank101111, BitArrayWithRank};
 
 mod bitvec;
 pub use bitvec::*;
