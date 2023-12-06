@@ -8,7 +8,7 @@ pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 /// Trait implemented by strategies for select operations for `ArrayWithRank101111`.
 pub trait ArrayWithRank101111Select {
     fn new(content: &[u64], l1ranks: &[u64], l2ranks: &[u64], total_rank: u64) -> Self;
-    fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> u64;
+    fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64>;
 }
 
 /// Returns the position of the `rank`-th one in the bit representation of `n`, i.e. the index of one with the given rank.
@@ -90,11 +90,11 @@ impl GetSize for SimpleSelect {}
 impl ArrayWithRank101111Select for SimpleSelect {
     #[inline] fn new(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
 
-    #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> u64 {
+    #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
         let l1_index = select_l1(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF > rank) - 1;
-        // note: partition_point cannot return 0 as at index 0, v&0xFFFFFFFF is 0, and the condition is false for any rank
+        let l2_index = l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
+        // note: partition_point cannot return 0 as at index 0, v&0xFFFFFFFF is 0, and the condition is true for any rank
         let mut l2_entry = *unsafe { l2ranks.get_unchecked(l2_index) };  // safe as we subtracted 1 from partition_point result
         rank -= l2_entry & 0xFFFFFFFF;
         l2_entry >>= 32;
@@ -115,15 +115,15 @@ impl ArrayWithRank101111Select for SimpleSelect {
                 }
             }
         };
-        for (i, v) in content[c..].iter().enumerate() {
+        for (i, v) in content.get(c..)?.iter().enumerate() {
             let ones = v.count_ones() as u64;
             if ones <= rank {
                 rank -= ones;
             } else {
-                return (i+c) as u64 * 64 + select64(*v, rank as u8) as u64;
+                return Some((i+c) as u64 * 64 + select64(*v, rank as u8) as u64);
             }
         }
-        panic!()    // ??
+        None
     }
 }
 

@@ -43,11 +43,19 @@ pub struct RankSelect101111<Select = SimpleSelect> {
     select: Select  // support for select
 }
 
+
+
 impl<S: GetSize> GetSize for RankSelect101111<S> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
+}
+
+impl<S: ArrayWithRank101111Select> RankSelect101111<S> {
+    pub fn select(&self, rank: u64) -> Option<u64> {
+        self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
+    }
 }
 
 impl<S: ArrayWithRank101111Select> BitArrayWithRank for RankSelect101111<S> {
@@ -133,6 +141,17 @@ mod tests {
         test_array_with_rank::<ArrayWithRank101111>();
     }
 
+    #[test]
+    fn test_select() {
+        let (a, c) = ArrayWithRank101111::build(vec![0b1101, 0b110].into_boxed_slice());
+        assert_eq!(a.select(0), Some(0));
+        assert_eq!(a.select(1), Some(2));
+        assert_eq!(a.select(2), Some(3));
+        assert_eq!(a.select(3), Some(65));
+        assert_eq!(a.select(4), Some(66));
+        assert_eq!(a.select(5), None);
+    }
+
     fn test_big_array_with_rank<ArrayWithRank: BitArrayWithRank>() {
         let (a, c) = ArrayWithRank::build(vec![0b1101; 60].into_boxed_slice());
         assert_eq!(c, 60*3);
@@ -192,6 +211,8 @@ mod tests {
         assert_eq!(a.rank((1<<32)+1), (1<<(32-6)) * 4 + 1);
         assert_eq!(a.rank((1<<32)+2), (1<<(32-6)) * 4 + 1);
         assert_eq!(a.rank((1<<32)+3), (1<<(32-6)) * 4 + 2);
+        assert_eq!(a.select(0), Some(0));
+        assert_eq!(a.select(1), Some(2));
     }
 
     #[test]
