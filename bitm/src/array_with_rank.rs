@@ -77,6 +77,8 @@ pub trait BitArrayWithRank {
         *n &= mask;
     }
 }*/
+
+/// Trait implemented by strategies for select operations for `ArrayWithRank101111`.
 trait ArrayWithRank101111Select {
     fn new(content: &[u64], l1ranks: &[u64], l2ranks: &[u64], total_rank: u64) -> Self;
     fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> u64;
@@ -154,14 +156,14 @@ impl ArrayWithRank101111Select for SimpleSelect {
 ///        (and unused fields in the last entry are filled with bit ones).
 //TODO filled with bit ones??
 #[derive(Clone)]
-pub struct ArrayWithRank101111<Select = SimpleSelect> {
+pub struct RankSelect101111<Select = SimpleSelect> {
     pub content: Box<[u64]>,  // BitVec
     pub l1ranks: Box<[u64]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
     select: Select  // support for select
 }
 
-impl<S: GetSize> GetSize for ArrayWithRank101111<S> {
+impl<S: GetSize> GetSize for RankSelect101111<S> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn()
     }
@@ -173,7 +175,7 @@ const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elem
 const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64=512 bits records
 const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 
-impl<S: ArrayWithRank101111Select> BitArrayWithRank for ArrayWithRank101111<S> {
+impl<S: ArrayWithRank101111Select> BitArrayWithRank for RankSelect101111<S> {
     fn build(content: Box<[u64]>) -> (Self, u64) {
         let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L2_ENTRY));
@@ -228,6 +230,8 @@ impl<S: ArrayWithRank101111Select> BitArrayWithRank for ArrayWithRank101111<S> {
         r + (self.content[word_idx] & n_lowest_bits(index as u8 % 64)).count_ones() as u64
     }
 }
+
+pub type ArrayWithRank101111 = RankSelect101111<SimpleSelect>;
 
 #[cfg(test)]
 mod tests {
