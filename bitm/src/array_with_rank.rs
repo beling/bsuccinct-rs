@@ -82,7 +82,8 @@ trait ArrayWithRank101111Select {
     fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> u64;
 }
 
-struct SimpleSelect;
+#[derive(Clone, Copy)]
+pub struct SimpleSelect;
 
 impl GetSize for SimpleSelect {}
 
@@ -103,10 +104,10 @@ impl ArrayWithRank101111Select for SimpleSelect {
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> u64 {
         let l1_index = select_l1(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFFu64 > rank) - 1;
-        // note: partition_point cannot return 0 as at index 0, v>>32 is 0, and the condition is false for any rank
+        let l2_index = l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF > rank) - 1;
+        // note: partition_point cannot return 0 as at index 0, v&0xFFFFFFFF is 0, and the condition is false for any rank
         let mut l2_entry = *unsafe { l2ranks.get_unchecked(l2_index) };  // safe as we subtracted 1 from partition_point result
-        rank -= l2_entry & 0xFFFFFFFFu64;
+        rank -= l2_entry & 0xFFFFFFFF;
         l2_entry >>= 32;
         let mut c = l2_index * U64_PER_L2_ENTRY;
         if rank >= l2_entry & 0b1_11111_11111 {
