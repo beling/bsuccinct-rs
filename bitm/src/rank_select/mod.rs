@@ -1,5 +1,5 @@
 mod select;
-use self::select::{SimpleSelect, ArrayWithRank101111Select, U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS};
+use self::select::{ZeroSizeSelect, ArrayWithRank101111Select, U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS};
 pub use self::select::Select;
 
 use super::{ceiling_div, n_lowest_bits};
@@ -40,7 +40,7 @@ pub trait BitArrayWithRank {
 ///        (and unused fields in the last entry are filled with bit ones).
 //TODO filled with bit ones??
 #[derive(Clone)]
-pub struct RankSelect101111<Select = SimpleSelect> {
+pub struct RankSelect101111<Select = ZeroSizeSelect> {
     pub content: Box<[u64]>,  // BitVec
     pub l1ranks: Box<[u64]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
@@ -118,7 +118,7 @@ impl<S: ArrayWithRank101111Select> BitArrayWithRank for RankSelect101111<S> {
     #[inline] fn content(&self) -> &[u64] { &self.content }
 }
 
-pub type ArrayWithRank101111 = RankSelect101111<SimpleSelect>;
+pub type ArrayWithRank101111 = RankSelect101111<ZeroSizeSelect>;
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.

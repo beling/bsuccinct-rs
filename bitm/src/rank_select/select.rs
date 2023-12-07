@@ -1,5 +1,7 @@
 use dyn_size_of::GetSize;
 
+use crate::ceiling_div;
+
 pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);    // each l1 chunk has 1<<32 bits = (1<<32)/64 content (u64) elements
 pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
 pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64=512 bits records
@@ -83,10 +85,12 @@ pub trait ArrayWithRank101111Select {
     }
 }*/
 
+/// A select strategy for [`RankSelect101111`] that does not introduce any overhead
+/// and is based on a binary search of the rank structure.
 #[derive(Clone, Copy)]
-pub struct SimpleSelect;
+pub struct ZeroSizeSelect;
 
-impl GetSize for SimpleSelect {}
+impl GetSize for ZeroSizeSelect {}
 
 /// Find index of L1 chunk that contains `rank`-th one and decrease `rank` by number of ones in previous chunks.
 #[inline] fn select_l1(l1ranks: &[u64], rank: &mut u64) -> usize {
@@ -99,7 +103,7 @@ impl GetSize for SimpleSelect {}
     unreachable!()
 }
 
-impl ArrayWithRank101111Select for SimpleSelect {
+impl ArrayWithRank101111Select for ZeroSizeSelect {
     #[inline] fn new(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
 
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
@@ -136,6 +140,61 @@ impl ArrayWithRank101111Select for SimpleSelect {
             }
         }
         None
+    }
+}
+
+pub const ONES_PER_SELECT_ENTRY: usize = 8192;
+
+/// A select strategy for [`RankSelect101111`] proposed in:
+/// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
+///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
+///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
+#[derive(Clone)]
+pub struct CombinedSamplingSelect {
+    /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one in content.
+    ones_positions: Box<[u32]>,
+    /// `ones_positions` indices that begin descriptions of subsequent first-level entries.
+    ones_positions_begin: Box<[usize]>,
+}
+
+impl GetSize for CombinedSamplingSelect {}
+
+impl ArrayWithRank101111Select for CombinedSamplingSelect {
+    fn new(content: &[u64], l1ranks: &[u64], _l2ranks: &[u64], total_rank: u64) -> Self {
+        // calculate number of ones in each l1 block
+        let mut ones_positions_begin: Box<[usize]> = l1ranks.iter().copied()
+            .zip(l1ranks.iter().skip(1).copied().chain(std::iter::once(total_rank)))
+            .map(|(p, n)| ceiling_div((n-p) as usize, ONES_PER_SELECT_ENTRY))
+            .collect::<Vec<_>>().into_boxed_slice(); // maybe use scan?
+        // calculate length of ones_positions and final content of ones_positions_len
+        let mut ones_positions_len = 0;
+        for v in ones_positions_begin.iter_mut() {
+            let prev_len = ones_positions_len + *v as usize;
+            *v = ones_positions_len;
+            ones_positions_len += prev_len;
+        }
+        let mut ones_positions = Vec::with_capacity(ones_positions_len);
+        for content in content.chunks(U64_PER_L1_ENTRY) {
+            let mut bit_index = 0;
+            let mut rank = ONES_PER_SELECT_ENTRY as u16 - 1;    // we scan for 1 with this rank, to find its bit index in content
+            for c in content.iter().copied() {
+                let c_ones = c.count_ones() as u16;
+                if c_ones <= rank {
+                    rank -= c_ones;
+                } else {
+                    let new_rank = ONES_PER_SELECT_ENTRY as u16 - c_ones + rank;
+                    ones_positions.push(bit_index + select64(c, rank as u8) as u32);
+                    rank = new_rank;
+                }
+                bit_index += 64;
+            }
+        }
+        debug_assert_eq!(ones_positions.len(), ones_positions_len);
+        Self { ones_positions: ones_positions.into_boxed_slice(), ones_positions_begin }
+    }
+
+    fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64> {
+        todo!()
     }
 }
 
