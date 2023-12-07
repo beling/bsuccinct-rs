@@ -5,6 +5,18 @@ pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) 
 pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64=512 bits records
 pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 
+/// Trait implemented by types that support select operation,
+/// i.e. can quickly find the position of the n-th one in the bitmap.
+pub trait Select {
+    /// Returns the position of the `rank`-th one in `self` or `None` if there are no such many ones in `self`.
+    fn try_select(&self, rank: u64) -> Option<u64>;
+
+    /// Returns the position of the `rank`-th one in `self` or panics if there are no such many ones in `self`.
+    fn select(&self, rank: u64) -> u64 {
+        self.try_select(rank).expect("cannot select rank-th one as there are no such many ones")
+    }
+}
+
 /// Trait implemented by strategies for select operations for `ArrayWithRank101111`.
 pub trait ArrayWithRank101111Select {
     fn new(content: &[u64], l1ranks: &[u64], l2ranks: &[u64], total_rank: u64) -> Self;
@@ -93,7 +105,7 @@ impl ArrayWithRank101111Select for SimpleSelect {
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
         let l1_index = select_l1(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
+        let l2_index = l2_begin+l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
         // note: partition_point cannot return 0 as at index 0, v&0xFFFFFFFF is 0, and the condition is true for any rank
         let mut l2_entry = *unsafe { l2ranks.get_unchecked(l2_index) };  // safe as we subtracted 1 from partition_point result
         rank -= l2_entry & 0xFFFFFFFF;
