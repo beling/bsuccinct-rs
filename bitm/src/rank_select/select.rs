@@ -176,18 +176,15 @@ impl GetSize for CombinedSamplingSelect {}
 
 impl ArrayWithRank101111Select for CombinedSamplingSelect {
     fn new(content: &[u64], l1ranks: &[u64], _l2ranks: &[u64], total_rank: u64) -> Self {
-        // calculate number of ones in each l1 block
-        let mut ones_positions_begin: Box<[usize]> = l1ranks.iter().copied()
-            .zip(l1ranks.iter().skip(1).copied().chain(std::iter::once(total_rank)))
-            .map(|(p, n)| ceiling_div((n-p) as usize, ONES_PER_SELECT_ENTRY))
-            .collect::<Vec<_>>().into_boxed_slice(); // maybe use scan?
-        // calculate length of ones_positions and final content of ones_positions_len
+        let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
-        for v in ones_positions_begin.iter_mut() {
-            let prev_len = ones_positions_len + *v as usize;
-            *v = ones_positions_len;
-            ones_positions_len += prev_len;
+        ones_positions_begin.push(0);
+        for ones in l1ranks.windows(2) {
+            let chunk_len = ceiling_div((ones[1] - ones[0]) as usize, ONES_PER_SELECT_ENTRY);
+            ones_positions_len += chunk_len;
+            ones_positions_begin.push(ones_positions_len);
         }
+        ones_positions_len += ceiling_div((total_rank - l1ranks.last().unwrap()) as usize, ONES_PER_SELECT_ENTRY);
         let mut ones_positions = Vec::with_capacity(ones_positions_len);
         for content in content.chunks(U64_PER_L1_ENTRY) {
             let mut bit_index = 0;
@@ -198,14 +195,14 @@ impl ArrayWithRank101111Select for CombinedSamplingSelect {
                     rank -= c_ones;
                 } else {
                     let new_rank = ONES_PER_SELECT_ENTRY as u16 - c_ones + rank;
-                    ones_positions.push(bit_index + select64(c, rank as u8) as u32);
+                    ones_positions.push((bit_index + select64(c, rank as u8) as u32) >> 11);    // each l2 entry covers 2^11 bits
                     rank = new_rank;
                 }
-                bit_index += 64;
+                bit_index = bit_index.wrapping_add(64);
             }
         }
         debug_assert_eq!(ones_positions.len(), ones_positions_len);
-        Self { ones_positions: ones_positions.into_boxed_slice(), ones_positions_begin }
+        Self { ones_positions: ones_positions.into_boxed_slice(), ones_positions_begin: ones_positions_begin.into_boxed_slice() }
     }
 
     fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
@@ -213,7 +210,8 @@ impl ArrayWithRank101111Select for CombinedSamplingSelect {
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
         let mut l2_index = l2_begin + self.ones_positions[self.ones_positions_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY] as usize;
-        while l2_index+1 < l2ranks.len() && l2ranks[l2_index+1] & 0xFF_FF_FF_FF < rank {
+        debug_assert!(l2ranks[l2_index] & 0xFF_FF_FF_FF <= rank, "{} {} {} {}", l2_begin, l2_index, l2ranks[l2_index] & 0xFF_FF_FF_FF, rank);
+        while l2_index+1 < l2ranks.len() && (l2ranks[l2_index+1] & 0xFF_FF_FF_FF) <= rank {
             l2_index += 1;
         }
         unsafe { select_from_l2(content, l2ranks, l2_index, rank) }

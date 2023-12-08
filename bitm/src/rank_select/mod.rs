@@ -344,6 +344,7 @@ mod tests {
         const SEGMENTS: usize = 1<<(33-6);
         let (a, c) = ArrayWithRank::build(vec![u64::MAX; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS * 64);
+        assert_eq!(a.select(4294965248), 4294965248);
         assert_eq!(a.rank(0), 0);
         assert_eq!(a.rank(1), 1);
         assert_eq!(a.rank(2), 2);
@@ -351,6 +352,7 @@ mod tests {
             assert_eq!(a.rank(i), i as u64);
             assert_eq!(a.select(i as u64), i as u64);
         }
+        check_all_ones(a);
     }
 
     #[test]
