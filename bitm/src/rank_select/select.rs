@@ -147,6 +147,10 @@ impl ArrayWithRank101111Select for BinarySearchSelect {
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
         let l1_index = select_l1(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
+        //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
+        //let l2_index = l2ranks.partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
+        //unsafe { select_from_l2(content, l2ranks, l2_index, rank) }
+
         let l2_index = l2_begin+l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
         // note: partition_point cannot return 0 as at index 0, v&0xFFFFFFFF is 0, and the condition is true for any rank
         // so l2_index is in bound, as we subtracted 1 from partition_point result
@@ -204,9 +208,15 @@ impl ArrayWithRank101111Select for CombinedSamplingSelect {
         Self { ones_positions: ones_positions.into_boxed_slice(), ones_positions_begin }
     }
 
-    fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64> {
-        unimplemented!();
+    fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
         let l1_index = select_l1(l1ranks, &mut rank);
+        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
+        //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
+        let mut l2_index = l2_begin + self.ones_positions[self.ones_positions_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY] as usize;
+        while l2_index+1 < l2ranks.len() && l2ranks[l2_index+1] & 0xFF_FF_FF_FF <= rank {
+            l2_index += 1;
+        }
+        unsafe { select_from_l2(content, l2ranks, l2_index, rank) }
     }
 }
 

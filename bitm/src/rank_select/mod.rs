@@ -182,7 +182,7 @@ impl BitArrayWithRank for ArrayWithRankSimple {
 #[cfg(test)]
 mod tests {
     use crate::BitAccess;
-    use super::*;
+    use super::{*, select::CombinedSamplingSelect};
 
     fn check_all_ones<ArrayWithRank: BitArrayWithRank + Select>(a: ArrayWithRank) {
         for (rank, index) in a.content().bit_ones().enumerate() {
@@ -217,6 +217,11 @@ mod tests {
     #[test]
     fn array_with_rank_101111() {
         test_array_with_rank::<ArrayWithRank101111>();
+    }
+
+    #[test]
+    fn array_with_rank_101111_combined() {
+        test_array_with_rank::<RankSelect101111::<CombinedSamplingSelect>>();
     }
 
     /*#[test]
@@ -272,6 +277,11 @@ mod tests {
         test_big_array_with_rank::<ArrayWithRank101111>();
     }
 
+    #[test]
+    fn big_array_with_rank_101111_combined() {
+        test_big_array_with_rank::<RankSelect101111::<CombinedSamplingSelect>>();
+    }
+
     /*#[test]
     fn big_array_with_rank_simple() {
         test_big_array_with_rank::<ArrayWithRankSimple>();
@@ -288,16 +298,19 @@ mod tests {
         test_content::<ArrayWithRank101111>();
     }
 
+    #[test]
+    fn content_101111_combined() {
+        test_content::<RankSelect101111::<CombinedSamplingSelect>>();
+    }
+
     /*#[test]
     fn content_simple() {
         test_content::<ArrayWithRankSimple>();
     }*/
 
-    #[test]
-    #[ignore = "uses much memory and time"]
-    fn array_64bit() {
+    fn array_64bit<ArrayWithRank: BitArrayWithRank + Select>() {
         const SEGMENTS: usize = 1<<(33-6);
-        let (a, c) = ArrayWithRank101111::build(vec![0b01_01_01_01; SEGMENTS].into_boxed_slice());
+        let (a, c) = ArrayWithRank::build(vec![0b01_01_01_01; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS * 4);
         assert_eq!(a.try_select(268435456), Some(4294967296));
         assert_eq!(a.try_select(268435456+1), Some(4294967296+2));
@@ -317,15 +330,38 @@ mod tests {
 
     #[test]
     #[ignore = "uses much memory and time"]
-    fn array_64bit_filled() {
+    fn array_64bit_101111() {
+        array_64bit::<ArrayWithRank101111>();
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_101111_combined() {
+        array_64bit::<RankSelect101111::<CombinedSamplingSelect>>();
+    }
+
+    fn array_64bit_filled<ArrayWithRank: BitArrayWithRank + Select>() {
         const SEGMENTS: usize = 1<<(33-6);
-        let (a, c) = ArrayWithRank101111::build(vec![u64::MAX; SEGMENTS].into_boxed_slice());
+        let (a, c) = ArrayWithRank::build(vec![u64::MAX; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS * 64);
         assert_eq!(a.rank(0), 0);
         assert_eq!(a.rank(1), 1);
         assert_eq!(a.rank(2), 2);
         for i in (1<<32)..(1<<32)+2048 {
-            assert_eq!(a.rank(i), i as u64);    
+            assert_eq!(a.rank(i), i as u64);
+            assert_eq!(a.select(i as u64), i as u64);
         }
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_filled_101111() {
+        array_64bit_filled::<ArrayWithRank101111>();
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_filled_101111_combined() {
+        array_64bit_filled::<RankSelect101111::<CombinedSamplingSelect>>();
     }
 }
