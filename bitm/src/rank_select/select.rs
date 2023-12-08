@@ -1,6 +1,8 @@
 use dyn_size_of::GetSize;
 
 use crate::ceiling_div;
+#[cfg(target_arch = "x86")] use core::arch::x86 as arch;
+#[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
 
 pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);    // each l1 chunk has 1<<32 bits = (1<<32)/64 content (u64) elements
 pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
@@ -41,9 +43,9 @@ pub trait ArrayWithRank101111Select {
 /// 
 /// The implementation is based on the one contained in folly library by Meta.
 #[inline] pub fn select64(n: u64, rank: u8) -> u8 {
-    #[cfg(target_feature = "bmi2")]
-    { unsafe { core::arch::x86_64::_pdep_u64(1u64 << rank, n) }.trailing_zeros() as u8 }
-    #[cfg(not(target_feature = "bmi2"))] {
+    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2"))]
+    { unsafe { arch::_pdep_u64(1u64 << rank, n) }.trailing_zeros() as u8 }
+    #[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))] {
         use std::num::Wrapping as W;
 
         let rank = W(rank as u64);
@@ -88,9 +90,9 @@ pub trait ArrayWithRank101111Select {
 /// A select strategy for [`RankSelect101111`] that does not introduce any overhead
 /// and is based on a binary search of the rank structure.
 #[derive(Clone, Copy)]
-pub struct ZeroSizeSelect;
+pub struct BinarySearchSelect;
 
-impl GetSize for ZeroSizeSelect {}
+impl GetSize for BinarySearchSelect {}
 
 /// Find index of L1 chunk that contains `rank`-th one and decrease `rank` by number of ones in previous chunks.
 #[inline] fn select_l1(l1ranks: &[u64], rank: &mut u64) -> usize {
@@ -103,7 +105,43 @@ impl GetSize for ZeroSizeSelect {}
     unreachable!()
 }
 
-impl ArrayWithRank101111Select for ZeroSizeSelect {
+/// Select from `l2ranks` entry pointed by `l2_index`, without bounds checking.
+#[inline] unsafe fn select_from_l2(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: u64) -> Option<u64> {
+    let mut l2_entry = *l2ranks.get_unchecked(l2_index);
+    rank -= l2_entry & 0xFFFFFFFF;
+    l2_entry >>= 32;
+    let mut c = l2_index * U64_PER_L2_ENTRY;
+    if rank >= l2_entry & 0b1_11111_11111 {
+        rank -= l2_entry & 0b1_11111_11111;
+        c += 3 * U64_PER_L2_RECORDS;
+    } else {
+        l2_entry >>= 11;
+        if rank >= l2_entry & 0b1_11111_11111 {
+            rank -= l2_entry & 0b1_11111_11111;
+            c += 2 * U64_PER_L2_RECORDS;
+        } else {
+            l2_entry >>= 11;
+            if rank >= l2_entry {
+                rank -= l2_entry;
+                c += U64_PER_L2_RECORDS;
+            }
+        }
+    };
+    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
+         arch::_mm_prefetch(content.as_ptr().wrapping_add(c) as *const i8, arch::_MM_HINT_NTA);
+    } }
+    for (i, v) in content.get(c..)?.iter().enumerate() {
+        let ones = v.count_ones() as u64;
+        if ones <= rank {
+            rank -= ones;
+        } else {
+            return Some((i+c) as u64 * 64 + select64(*v, rank as u8) as u64);
+        }
+    }
+    None
+}
+
+impl ArrayWithRank101111Select for BinarySearchSelect {
     #[inline] fn new(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
 
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
@@ -111,35 +149,8 @@ impl ArrayWithRank101111Select for ZeroSizeSelect {
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         let l2_index = l2_begin+l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
         // note: partition_point cannot return 0 as at index 0, v&0xFFFFFFFF is 0, and the condition is true for any rank
-        let mut l2_entry = *unsafe { l2ranks.get_unchecked(l2_index) };  // safe as we subtracted 1 from partition_point result
-        rank -= l2_entry & 0xFFFFFFFF;
-        l2_entry >>= 32;
-        let mut c = l2_index * U64_PER_L2_ENTRY;
-        if rank >= l2_entry & 0b1_11111_11111 {
-            rank -= l2_entry & 0b1_11111_11111;
-            c += 3 * U64_PER_L2_RECORDS;
-        } else {
-            l2_entry >>= 11;
-            if rank >= l2_entry & 0b1_11111_11111 {
-                rank -= l2_entry & 0b1_11111_11111;
-                c += 2 * U64_PER_L2_RECORDS;
-            } else {
-                l2_entry >>= 11;
-                if rank >= l2_entry {
-                    rank -= l2_entry;
-                    c += U64_PER_L2_RECORDS;
-                }
-            }
-        };
-        for (i, v) in content.get(c..)?.iter().enumerate() {
-            let ones = v.count_ones() as u64;
-            if ones <= rank {
-                rank -= ones;
-            } else {
-                return Some((i+c) as u64 * 64 + select64(*v, rank as u8) as u64);
-            }
-        }
-        None
+        // so l2_index is in bound, as we subtracted 1 from partition_point result
+        unsafe { select_from_l2(content, l2ranks, l2_index, rank) }
     }
 }
 
@@ -176,7 +187,7 @@ impl ArrayWithRank101111Select for CombinedSamplingSelect {
         let mut ones_positions = Vec::with_capacity(ones_positions_len);
         for content in content.chunks(U64_PER_L1_ENTRY) {
             let mut bit_index = 0;
-            let mut rank = ONES_PER_SELECT_ENTRY as u16 - 1;    // we scan for 1 with this rank, to find its bit index in content
+            let mut rank = 0; /*ONES_PER_SELECT_ENTRY as u16 - 1;*/    // we scan for 1 with this rank, to find its bit index in content
             for c in content.iter().copied() {
                 let c_ones = c.count_ones() as u16;
                 if c_ones <= rank {
@@ -194,7 +205,8 @@ impl ArrayWithRank101111Select for CombinedSamplingSelect {
     }
 
     fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64> {
-        todo!()
+        unimplemented!();
+        let l1_index = select_l1(l1ranks, &mut rank);
     }
 }
 
@@ -221,7 +233,7 @@ mod tests {
         assert_eq!(select64(N, 4), 33);
         assert_eq!(select64(N, 5), 47);
         assert_eq!(select64(N, 6), 60);
-        assert_eq!(select64(N, 6), 61);
+        assert_eq!(select64(N, 7), 61);
     }
 }
 
