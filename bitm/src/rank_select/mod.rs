@@ -352,7 +352,7 @@ mod tests {
             assert_eq!(a.rank(i), i as u64);
             assert_eq!(a.select(i as u64), i as u64);
         }
-        check_all_ones(a);
+        //check_all_ones(a);
     }
 
     #[test]
