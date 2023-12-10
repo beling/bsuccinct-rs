@@ -166,7 +166,7 @@ pub const ONES_PER_SELECT_ENTRY: usize = 8192;
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
 #[derive(Clone)]
 pub struct CombinedSamplingSelect {
-    /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one in content.
+    /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one in content, starting from the first one.
     ones_positions: Box<[u32]>,
     /// `ones_positions` indices that begin descriptions of subsequent first-level entries.
     ones_positions_begin: Box<[usize]>,

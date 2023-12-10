@@ -309,7 +309,7 @@ mod tests {
     }*/
 
     fn array_64bit<ArrayWithRank: BitArrayWithRank + Select>() {
-        const SEGMENTS: usize = 1<<(33-6);
+        const SEGMENTS: usize = (1<<32)/64 * 2;
         let (a, c) = ArrayWithRank::build(vec![0b01_01_01_01; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS * 4);
         assert_eq!(a.try_select(268435456), Some(4294967296));
@@ -341,7 +341,7 @@ mod tests {
     }
 
     fn array_64bit_filled<ArrayWithRank: BitArrayWithRank + Select>() {
-        const SEGMENTS: usize = 1<<(33-6);
+        const SEGMENTS: usize = (1<<32)/64 * 2;
         let (a, c) = ArrayWithRank::build(vec![u64::MAX; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS * 64);
         assert_eq!(a.select(4294965248), 4294965248);
@@ -365,5 +365,33 @@ mod tests {
     #[ignore = "uses much memory and time"]
     fn array_64bit_filled_101111_combined() {
         array_64bit_filled::<RankSelect101111::<CombinedSamplingSelect>>();
+    }
+
+    fn array_64bit_zeroed_first<ArrayWithRank: BitArrayWithRank + Select>() {
+        const SEGMENTS: usize = (1<<32)/64 + 1;
+        let mut content = vec![0; SEGMENTS].into_boxed_slice();
+        content[SEGMENTS-1] = 0b11<<62;
+        let (a, c) = ArrayWithRank::build(content);
+        assert_eq!(c, 2);
+        assert_eq!(a.rank(0), 0);
+        assert_eq!(a.rank((1<<32)-1), 0);
+        assert_eq!(a.rank(1<<32), 0);
+        assert_eq!(a.rank((1<<32)+62), 0);
+        assert_eq!(a.rank((1<<32)+63), 1);
+        assert_eq!(a.select(0), (1<<32)+62);
+        assert_eq!(a.select(1), (1<<32)+63);
+        assert_eq!(a.try_select(2), None);
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_zeroed_first_101111() {
+        array_64bit_zeroed_first::<ArrayWithRank101111>();
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_zeroed_first_101111_combined() {
+        array_64bit_zeroed_first::<RankSelect101111::<CombinedSamplingSelect>>();
     }
 }
