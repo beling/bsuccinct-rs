@@ -187,6 +187,7 @@ impl ArrayWithRank101111Select for CombinedSamplingSelect {
         ones_positions_len += ceiling_div((total_rank - l1ranks.last().unwrap()) as usize, ONES_PER_SELECT_ENTRY);
         let mut ones_positions = Vec::with_capacity(ones_positions_len);
         for content in content.chunks(U64_PER_L1_ENTRY) {
+            //TODO use l2ranks for faster reducing rank
             let mut bit_index = 0;
             let mut rank = 0; /*ONES_PER_SELECT_ENTRY as u16 - 1;*/    // we scan for 1 with this rank, to find its bit index in content
             for c in content.iter().copied() {
