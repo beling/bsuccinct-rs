@@ -22,24 +22,25 @@ pub trait Select {
 }
 
 /// Trait implemented by strategies for select operations for `ArrayWithRank101111`.
-pub trait ArrayWithRank101111Select {
+pub trait SelectForRank101111 {
     fn new(content: &[u64], l1ranks: &[u64], l2ranks: &[u64], total_rank: u64) -> Self;
     fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64>;
 }
 
-/// Returns the position of the `rank`-th one in the bit representation of `n`, i.e. the index of one with the given rank.
+/// Returns the position of the `rank`-th (counting from 0) one in the bit representation of `n`,
+/// i.e. the index of the one with the given rank.
 /// 
 /// On x86-64 CPU with the BMI2 instruction set, it uses the method described in:
 /// - Prashant Pandey, Michael A. Bender, Rob Johnson, and Rob Patro,
 ///   "A General-Purpose Counting Filter: Making Every Bit Count",
 ///   In Proceedings of the 2017 ACM International Conference on Management of Data (SIGMOD '17).
-///   Association for Computing Machinery, New York, NY, USA, 775–787. https://doi.org/10.1145/3035918.3035963
+///   Association for Computing Machinery, New York, NY, USA, 775–787. <https://doi.org/10.1145/3035918.3035963>
 /// - Prashant Pandey, Michael A. Bender, Rob Johnson, "A Fast x86 Implementation of Select", arXiv:1706.00990
 /// 
 /// If BMI2 is not available, the implementation uses the broadword selection algorithm by Vigna, improved by Gog and Petri, and Vigna:
 /// - Sebastiano Vigna, "Broadword Implementation of Rank/Select Queries", WEA, 2008
 /// - Simon Gog, Matthias Petri, "Optimized succinct data structures for massive data". Softw. Pract. Exper., 2014
-/// - Sebastiano Vigna. MG4J 5.2.1. http://mg4j.di.unimi.it/ and SUX https://sux.di.unimi.it/
+/// - Sebastiano Vigna, MG4J <http://mg4j.di.unimi.it/> and SUX <https://sux.di.unimi.it/>
 /// 
 /// The implementation is based on the one contained in folly library by Meta.
 #[inline] pub fn select64(n: u64, rank: u8) -> u8 {
@@ -141,7 +142,7 @@ impl GetSize for BinarySearchSelect {}
     None
 }
 
-impl ArrayWithRank101111Select for BinarySearchSelect {
+impl SelectForRank101111 for BinarySearchSelect {
     #[inline] fn new(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
 
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
@@ -160,7 +161,7 @@ impl ArrayWithRank101111Select for BinarySearchSelect {
 
 pub const ONES_PER_SELECT_ENTRY: usize = 8192;
 
-/// A select strategy for [`RankSelect101111`] proposed in:
+/// A select strategy for [`ArrayWithRankSelect101111`] proposed in:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
@@ -174,7 +175,7 @@ pub struct CombinedSamplingSelect {
 
 impl GetSize for CombinedSamplingSelect {}
 
-impl ArrayWithRank101111Select for CombinedSamplingSelect {
+impl SelectForRank101111 for CombinedSamplingSelect {
     fn new(content: &[u64], l1ranks: &[u64], _l2ranks: &[u64], total_rank: u64) -> Self {
         let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
