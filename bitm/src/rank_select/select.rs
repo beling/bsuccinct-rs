@@ -39,7 +39,7 @@ pub trait SelectForRank101111 {
 /// 
 /// If BMI2 is not available, the implementation uses the broadword selection algorithm by Vigna, improved by Gog and Petri, and Vigna:
 /// - Sebastiano Vigna, "Broadword Implementation of Rank/Select Queries", WEA, 2008
-/// - Simon Gog, Matthias Petri, "Optimized succinct data structures for massive data". Softw. Pract. Exper., 2014
+/// - Simon Gog, Matthias Petri, "Optimized succinct data structures for massive data". Software: Practice and Experience 44, 2014
 /// - Sebastiano Vigna, MG4J <http://mg4j.di.unimi.it/> and SUX <https://sux.di.unimi.it/>
 /// 
 /// The implementation is based on the one contained in folly library by Meta.
@@ -97,6 +97,12 @@ impl GetSize for BinarySearchSelect {}
 
 /// Find index of L1 chunk that contains `rank`-th one and decrease `rank` by number of ones in previous chunks.
 #[inline] fn select_l1(l1ranks: &[u64], rank: &mut u64) -> usize {
+    if l1ranks.len() > 256 {    // this is unlikely, as it is true for content size > 256*0,5GB = 128GB
+        let i = l1ranks.partition_point(|v| v <= rank) - 1;
+        *rank -= l1ranks[i];
+        return i;
+    }
+
     for (i, v) in l1ranks.into_iter().copied().enumerate().rev() {
         if v <= *rank { // this must be true at least for i == 0, as then v == 0
             *rank -= v;
