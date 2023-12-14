@@ -1,7 +1,7 @@
 mod utils;
 mod select;
 use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS, Select0, Select0ForRank101111};
-pub use self::select::{Select, BinarySearchSelect, CombinedSamplingSelect, SelectForRank101111};
+pub use self::select::{Select, BinaryRankSearch, CombinedSampling, SelectForRank101111};
 
 use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
@@ -43,7 +43,7 @@ pub trait BitArrayWithRank {
 /// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits
 ///        (and unused fields in the last entries, for out-of-bound content bits, are filled with bit ones).
 #[derive(Clone)]
-pub struct ArrayWithRankSelect101111<Select = BinarySearchSelect, Select0 = BinarySearchSelect> {
+pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch> {
     pub content: Box<[u64]>,  // BitVec
     pub l1ranks: Box<[u64]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
@@ -129,7 +129,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> BitArrayWithRank for Arra
     #[inline] fn content(&self) -> &[u64] { &self.content }
 }
 
-pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinarySearchSelect>;
+pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch>;
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
@@ -193,7 +193,7 @@ impl BitArrayWithRank for ArrayWithRankSimple {
 #[cfg(test)]
 mod tests {
     use crate::BitAccess;
-    use super::{*, select::CombinedSamplingSelect};
+    use super::{*, select::CombinedSampling};
 
     fn check_all_ones<ArrayWithRank: BitArrayWithRank + Select>(a: &ArrayWithRank) {
         for (rank, index) in a.content().bit_ones().enumerate() {
@@ -240,7 +240,7 @@ mod tests {
 
     #[test]
     fn array_with_rank_101111_combined() {
-        test_array_with_rank::<ArrayWithRankSelect101111::<CombinedSamplingSelect>>();
+        test_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling>>();
     }
 
     /*#[test]
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn big_array_with_rank_101111_combined() {
-        test_big_array_with_rank::<ArrayWithRankSelect101111::<CombinedSamplingSelect>>();
+        test_big_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling>>();
     }
 
     /*#[test]
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn content_101111_combined() {
-        test_content::<ArrayWithRankSelect101111::<CombinedSamplingSelect>>();
+        test_content::<ArrayWithRankSelect101111::<CombinedSampling>>();
     }
 
     /*#[test]
@@ -359,7 +359,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_101111_combined() {
-        array_64bit::<ArrayWithRankSelect101111::<CombinedSamplingSelect>>();
+        array_64bit::<ArrayWithRankSelect101111::<CombinedSampling>>();
     }
 
     fn array_64bit_filled<ArrayWithRank: BitArrayWithRank + Select>() {
@@ -386,7 +386,27 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_filled_101111_combined() {
-        array_64bit_filled::<ArrayWithRankSelect101111::<CombinedSamplingSelect>>();
+        array_64bit_filled::<ArrayWithRankSelect101111::<CombinedSampling>>();
+    }
+
+    fn array_64bit_halffilled<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
+        const SEGMENTS: usize = (1<<32)/64 * 2;
+        let (a, c) = ArrayWithRank::build(vec![0x5555_5555_5555_5555; SEGMENTS].into_boxed_slice());
+        assert_eq!(c as usize, SEGMENTS*32);
+        //check_all_ones(&a);
+        check_all_zeros(&a);
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_halffilled_101111_binary() {
+        array_64bit_halffilled::<ArrayWithRank101111>();
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn array_64bit_halffilled_101111_combined() {
+        array_64bit_halffilled::<ArrayWithRankSelect101111::<CombinedSampling>>();
     }
 
     fn array_64bit_zeroed_first<ArrayWithRank: BitArrayWithRank + Select>() {
@@ -414,6 +434,6 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111_combined() {
-        array_64bit_zeroed_first::<ArrayWithRankSelect101111::<CombinedSamplingSelect>>();
+        array_64bit_zeroed_first::<ArrayWithRankSelect101111::<CombinedSampling>>();
     }
 }

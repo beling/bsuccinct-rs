@@ -112,11 +112,11 @@ pub trait Select0ForRank101111 {
 }*/
 
 /// A select strategy for [`RankSelect101111`] that does not introduce any overhead
-/// and is based on a binary search of the rank structure.
+/// and is based on a binary search of the entries of rank structure.
 #[derive(Clone, Copy)]
-pub struct BinarySearchSelect;
+pub struct BinaryRankSearch;
 
-impl GetSize for BinarySearchSelect {}
+impl GetSize for BinaryRankSearch {}
 
 /// Find index of L1 chunk that contains `rank`-th one (or zero if `ONE` is `false`)
 /// and decrease `rank` by number of ones (or zeros) in previous chunks.
@@ -175,7 +175,7 @@ impl GetSize for BinarySearchSelect {}
     None
 }
 
-impl SelectForRank101111 for BinarySearchSelect {
+impl SelectForRank101111 for BinaryRankSearch {
     #[inline] fn new(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
 
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
@@ -188,7 +188,7 @@ impl SelectForRank101111 for BinarySearchSelect {
     }
 }
 
-impl Select0ForRank101111 for BinarySearchSelect {
+impl Select0ForRank101111 for BinaryRankSearch {
     #[inline] fn new0(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
 
     #[inline] fn select0(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
@@ -204,21 +204,21 @@ impl Select0ForRank101111 for BinarySearchSelect {
 
 pub const ONES_PER_SELECT_ENTRY: usize = 8192;
 
-/// A select strategy for [`ArrayWithRankSelect101111`] proposed in:
+/// A select strategy for [`ArrayWithRankSelect101111`] with about 0.39% space overhead that was proposed in:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
 #[derive(Clone)]
-pub struct CombinedSamplingSelect {
+pub struct CombinedSampling {
     /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one in content, starting from the first one.
     ones_positions: Box<[u32]>,
     /// `ones_positions` indices that begin descriptions of subsequent first-level entries.
     ones_positions_begin: Box<[usize]>,
 }
 
-impl GetSize for CombinedSamplingSelect {}
+impl GetSize for CombinedSampling {}
 
-impl SelectForRank101111 for CombinedSamplingSelect {
+impl SelectForRank101111 for CombinedSampling {
     fn new(content: &[u64], l1ranks: &[u64], _l2ranks: &[u64], total_rank: u64) -> Self {
         let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
