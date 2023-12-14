@@ -4,6 +4,9 @@ use crate::ceiling_div;
 #[cfg(target_arch = "x86")] use core::arch::x86 as arch;
 #[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
 
+use super::utils::partition_point_with_index;
+
+pub const BITS_PER_L1_ENTRY: usize = 1<<32;
 pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);    // each l1 chunk has 1<<32 bits = (1<<32)/64 content (u64) elements
 pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
 pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64=512 bits records
@@ -40,7 +43,7 @@ pub trait SelectForRank101111 {
 /// If BMI2 is not available, the implementation uses the broadword selection algorithm by Vigna, improved by Gog and Petri, and Vigna:
 /// - Sebastiano Vigna, "Broadword Implementation of Rank/Select Queries", WEA, 2008
 /// - Simon Gog, Matthias Petri, "Optimized succinct data structures for massive data". Software: Practice and Experience 44, 2014
-/// - Sebastiano Vigna, MG4J <http://mg4j.di.unimi.it/> and SUX <https://sux.di.unimi.it/>
+/// - Sebastiano Vigna, The selection problem <https://sux4j.di.unimi.it/select.php> MG4J <http://mg4j.di.unimi.it/> and SUX <https://sux.di.unimi.it/>
 /// 
 /// The implementation is based on the one contained in folly library by Meta.
 #[inline] pub fn select64(n: u64, rank: u8) -> u8 {
@@ -96,26 +99,26 @@ pub struct BinarySearchSelect;
 impl GetSize for BinarySearchSelect {}
 
 /// Find index of L1 chunk that contains `rank`-th one and decrease `rank` by number of ones in previous chunks.
-#[inline] fn select_l1(l1ranks: &[u64], rank: &mut u64) -> usize {
-    if l1ranks.len() > 256 {    // this is unlikely, as it is true for content size > 256*0,5GB = 128GB
+#[inline] fn select_l1<const ONE: bool>(l1ranks: &[u64], rank: &mut u64) -> usize {
+    if ONE {    // select 1:
         let i = l1ranks.partition_point(|v| v <= rank) - 1;
         *rank -= l1ranks[i];
         return i;
+    } else {    // select 0:
+        let i = partition_point_with_index(&l1ranks, |v, i| i as u64 * BITS_PER_L1_ENTRY as u64 - *v <= *rank) - 1;
+        *rank -= i as u64 * BITS_PER_L1_ENTRY as u64 - l1ranks[i];
+        return i;
     }
-
-    for (i, v) in l1ranks.into_iter().copied().enumerate().rev() {
-        if v <= *rank { // this must be true at least for i == 0, as then v == 0
-            *rank -= v;
-            return i;
-        }
-    }
-    unreachable!()
 }
 
 /// Select from `l2ranks` entry pointed by `l2_index`, without bounds checking.
-#[inline] unsafe fn select_from_l2(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: u64) -> Option<u64> {
+#[inline] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: u64) -> Option<u64> {
     let mut l2_entry = *l2ranks.get_unchecked(l2_index);
-    rank -= l2_entry & 0xFFFFFFFF;
+    if ONE {
+        rank -= l2_entry & 0xFFFFFFFF;
+    } else {
+        // TODO
+    }
     l2_entry >>= 32;
     let mut c = l2_index * U64_PER_L2_ENTRY;
     if rank >= l2_entry & 0b1_11111_11111 {
@@ -152,16 +155,13 @@ impl SelectForRank101111 for BinarySearchSelect {
     #[inline] fn new(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
 
     #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
-        let l1_index = select_l1(l1ranks, &mut rank);
+        let l1_index = select_l1::<true>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
-        //let l2_index = l2ranks.partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
-        //unsafe { select_from_l2(content, l2ranks, l2_index, rank) }
-
-        let l2_index = l2_begin+l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)].partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
-        // note: partition_point cannot return 0 as at index 0, v&0xFFFFFFFF is 0, and the condition is true for any rank
-        // so l2_index is in bound, as we subtracted 1 from partition_point result
-        unsafe { select_from_l2(content, l2ranks, l2_index, rank) }
+        let l2_index = l2_begin +
+            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
+                .partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
+            //super::utils::partition_point_with_index(&l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)], |v, _| v&0xFFFFFFFF <= rank) - 1;
+        unsafe { select_from_l2::<true>(content, l2ranks, l2_index, rank) }
     }
 }
 
@@ -214,7 +214,7 @@ impl SelectForRank101111 for CombinedSamplingSelect {
     }
 
     fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
-        let l1_index = select_l1(l1ranks, &mut rank);
+        let l1_index = select_l1::<true>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
         let mut l2_index = l2_begin + self.ones_positions[self.ones_positions_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY] as usize;
@@ -222,7 +222,7 @@ impl SelectForRank101111 for CombinedSamplingSelect {
         while l2_index+1 < l2_chunk_end && (l2ranks[l2_index+1] & 0xFF_FF_FF_FF) <= rank {
             l2_index += 1;
         }
-        unsafe { select_from_l2(content, l2ranks, l2_index, rank) }
+        unsafe { select_from_l2::<true>(content, l2ranks, l2_index, rank) }
     }
 }
 

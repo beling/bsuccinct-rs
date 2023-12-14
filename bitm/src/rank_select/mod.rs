@@ -1,3 +1,4 @@
+mod utils;
 mod select;
 use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS};
 pub use self::select::{Select, BinarySearchSelect, CombinedSamplingSelect, SelectForRank101111};
@@ -330,7 +331,7 @@ mod tests {
 
     #[test]
     #[ignore = "uses much memory and time"]
-    fn array_64bit_101111() {
+    fn array_64bit_101111_binary() {
         array_64bit::<ArrayWithRank101111>();
     }
 
