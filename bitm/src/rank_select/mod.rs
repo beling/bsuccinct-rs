@@ -31,6 +31,8 @@ pub trait BitArrayWithRank {
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 3.125% extra space.
 /// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
+/// In addition, it supports select queries utilizing binary search over ranks (see [`BinaryRankSearch`])
+/// or (optionally, at the cost of about 0.39% extra space overhead) combined sampling [`CombinedSampling`].
 ///
 /// It uses modified version of the structure described in the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
