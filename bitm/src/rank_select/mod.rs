@@ -1,6 +1,6 @@
 mod utils;
 mod select;
-use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS};
+use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS, Select0, Select0ForRank101111};
 pub use self::select::{Select, BinarySearchSelect, CombinedSamplingSelect, SelectForRank101111};
 
 use super::{ceiling_div, n_lowest_bits};
@@ -41,16 +41,17 @@ pub trait BitArrayWithRank {
 ///        (and unused fields in the last entry are filled with bit ones).
 //TODO filled with bit ones??
 #[derive(Clone)]
-pub struct ArrayWithRankSelect101111<Select = BinarySearchSelect> {
+pub struct ArrayWithRankSelect101111<Select = BinarySearchSelect, Select0 = BinarySearchSelect> {
     pub content: Box<[u64]>,  // BitVec
     pub l1ranks: Box<[u64]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
-    select: Select  // support for select
+    select: Select,  // support for select (one)
+    select0: Select0,  // support for select (zero)
 }
 
 impl<S: GetSize> GetSize for ArrayWithRankSelect101111<S> {
     fn size_bytes_dyn(&self) -> usize {
-        self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn()
+        self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
@@ -61,7 +62,13 @@ impl<S: SelectForRank101111> Select for ArrayWithRankSelect101111<S> {
     }
 }
 
-impl<S: SelectForRank101111> BitArrayWithRank for ArrayWithRankSelect101111<S> {
+impl<S: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S> {
+    fn try_select0(&self, rank: u64) -> Option<u64> {
+        self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
+    }
+}
+
+impl<S: SelectForRank101111, S0: SelectForRank101111> BitArrayWithRank for ArrayWithRankSelect101111<S, S0> {
     fn build(content: Box<[u64]>) -> (Self, u64) {
         let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L2_ENTRY));
@@ -99,7 +106,8 @@ impl<S: SelectForRank101111> BitArrayWithRank for ArrayWithRankSelect101111<S> {
         let l1ranks = l1ranks.into_boxed_slice();
         let l2ranks = l2ranks.into_boxed_slice();
         let select = S::new(&content, &l1ranks, &l2ranks, current_total_rank);
-        (Self{content, l1ranks, l2ranks, select}, current_total_rank)
+        let select0 = S0::new(&content, &l1ranks, &l2ranks, current_total_rank);
+        (Self{content, l1ranks, l2ranks, select, select0}, current_total_rank)
     }
 
     fn rank(&self, index: usize) -> u64 {
