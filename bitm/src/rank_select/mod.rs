@@ -41,8 +41,7 @@ pub trait BitArrayWithRank {
 /// The content of level 2 entry, listing from the least significant bits, is:
 /// - original: r0 stored on 32 bits, r1-r0 on 10 bits, r2-r1 on 10 bits, r3-r2 on 10 bits;
 /// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits
-///        (and unused fields in the last entry are filled with bit ones).
-//TODO filled with bit ones??
+///        (and unused fields in the last entries, for out-of-bound content bits, are filled with bit ones).
 #[derive(Clone)]
 pub struct ArrayWithRankSelect101111<Select = BinarySearchSelect, Select0 = BinarySearchSelect> {
     pub content: Box<[u64]>,  // BitVec
