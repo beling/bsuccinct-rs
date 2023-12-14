@@ -249,7 +249,7 @@ mod tests {
         test_array_with_rank::<ArrayWithRankSimple>();
     }*/
 
-    fn test_big_array_with_rank<ArrayWithRank: BitArrayWithRank + Select>() {
+    fn test_big_array_with_rank<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
         let (a, c) = ArrayWithRank::build(vec![0b1101; 60].into_boxed_slice());
         assert_eq!(c, 60*3);
         assert_eq!(a.try_select(0), Some(0));
@@ -290,6 +290,7 @@ mod tests {
         assert_eq!(a.rank(2*1024+2), 2*6*8+1);
         assert_eq!(a.rank(2*1024+3), 2*6*8+2);
         check_all_ones(&a);
+        check_all_zeros(&a);
     }
 
     #[test]
@@ -307,10 +308,11 @@ mod tests {
         test_big_array_with_rank::<ArrayWithRankSimple>();
     }*/
 
-    fn test_content<ArrayWithRank: BitArrayWithRank + Select>() {
+    fn test_content<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
         let (a, c) = ArrayWithRank::build(vec![u64::MAX; 35].into_boxed_slice());
         assert_eq!(c, 35*64);
         check_all_ones(&a);
+        check_all_zeros(&a);
     }
 
     #[test]
@@ -328,7 +330,7 @@ mod tests {
         test_content::<ArrayWithRankSimple>();
     }*/
 
-    fn array_64bit<ArrayWithRank: BitArrayWithRank + Select>() {
+    fn array_64bit<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
         const SEGMENTS: usize = (1<<32)/64 * 2;
         let (a, c) = ArrayWithRank::build(vec![0b01_01_01_01; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS * 4);
@@ -346,6 +348,7 @@ mod tests {
         assert_eq!(a.rank((1<<32)+2), (1<<(32-6)) * 4 + 1);
         assert_eq!(a.rank((1<<32)+3), (1<<(32-6)) * 4 + 2);
         check_all_ones(&a);
+        check_all_zeros(&a);
     }
 
     #[test]

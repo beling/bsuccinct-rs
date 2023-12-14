@@ -142,19 +142,19 @@ impl GetSize for BinarySearchSelect {}
     }
     l2_entry >>= 32;
     let mut c = l2_index * U64_PER_L2_ENTRY;
-    let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { 3*BITS_PER_L2_RECORDS - (l2_entry & 0b1_11111_11111) };
+    let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (3*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) };
     if rank >= to_subtract {
         rank -= to_subtract;
         c += 3 * U64_PER_L2_RECORDS;
     } else {
         l2_entry >>= 11;
-        let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { 2*BITS_PER_L2_RECORDS - (l2_entry & 0b1_11111_11111) };
+        let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (2*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) };
         if rank >= to_subtract {
             rank -= to_subtract;
             c += 2 * U64_PER_L2_RECORDS;
         } else {
             l2_entry >>= 11;
-            let to_subtract = if ONE { l2_entry } else { BITS_PER_L2_RECORDS - l2_entry };
+            let to_subtract = if ONE { l2_entry } else { BITS_PER_L2_RECORDS.wrapping_sub(l2_entry) };
             if rank >= to_subtract {
                 rank -= to_subtract;
                 c += U64_PER_L2_RECORDS;
