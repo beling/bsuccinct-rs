@@ -1,18 +1,22 @@
 use std::iter::FusedIterator;
 use super::{ceiling_div, n_lowest_bits};
 
-/// Iterator over bits set to one in slice of `u64`.
-pub struct BitOnesIterator<'a> {
+/// Iterator over bits set to 1 (if `B` is `true`) or 0 (if `B` is `false`) in slice of `u64`.
+pub struct BitBIterator<'a, const B: bool> {
     segment_iter: std::slice::Iter<'a, u64>,
     first_segment_bit: usize,
     current_segment: u64
 }
 
-impl<'a> BitOnesIterator<'a> {
+impl<'a, const B: bool> BitBIterator<'a, B> {
     /// Constructs iterator over bits set in the given `slice`.
     pub fn new(slice: &'a [u64]) -> Self {
         let mut segment_iter = slice.into_iter();
-        let current_segment = segment_iter.next().copied().unwrap_or(0);
+        let current_segment = if B {
+            segment_iter.next().copied().unwrap_or(0)
+        } else {
+            !segment_iter.next().copied().unwrap_or(0)
+        };
         Self {
             segment_iter,
             first_segment_bit: 0,
@@ -21,12 +25,12 @@ impl<'a> BitOnesIterator<'a> {
     }
 }
 
-impl<'a> Iterator for BitOnesIterator<'a> {
+impl<'a, const B: bool> Iterator for BitBIterator<'a, B> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.current_segment == 0 {
-            self.current_segment = *self.segment_iter.next()?;
+            self.current_segment = if B { *self.segment_iter.next()? } else { !*self.segment_iter.next()? };
             self.first_segment_bit += 64;
         }
         let result = self.current_segment.trailing_zeros();
@@ -40,13 +44,23 @@ impl<'a> Iterator for BitOnesIterator<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for BitOnesIterator<'a> {
+impl<'a, const B: bool> ExactSizeIterator for BitBIterator<'a, B> {
     #[inline] fn len(&self) -> usize {
-        self.current_segment.count_ones() as usize + self.segment_iter.as_slice().count_bit_ones()
+        if B {
+            self.current_segment.count_ones() as usize + self.segment_iter.as_slice().count_bit_ones()
+        } else {
+            self.current_segment.count_zeros() as usize + self.segment_iter.as_slice().count_bit_zeros()
+        }
     }
 }
 
-impl<'a> FusedIterator for BitOnesIterator<'a> where std::slice::Iter<'a, u64>: FusedIterator {}
+impl<'a, const B: bool> FusedIterator for BitBIterator<'a, B> where std::slice::Iter<'a, u64>: FusedIterator {}
+
+/// Iterator over bits set to 1 in slice of `u64`.
+pub type BitOnesIterator<'a> = BitBIterator<'a, true>;
+
+/// Iterator over bits set to 0 in slice of `u64`.
+pub type BitZerosIterator<'a> = BitBIterator<'a, false>;
 
 /// The trait that is implemented for the array of `u64` and extends it with methods for
 /// accessing and modifying single bits or arbitrary fragments consisted of few (up to 63) bits.
@@ -77,6 +91,9 @@ pub trait BitAccess {
 
     /// Returns iterator over indices of ones (set bits).
     fn bit_ones(&self) -> BitOnesIterator;
+
+    /// Returns iterator over indices of ones (set bits).
+    fn bit_zeros(&self) -> BitZerosIterator;
 
     /// Gets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     #[inline(always)] fn get_fragment(&self, index: usize, v_size: u8) -> u64 {
@@ -244,6 +261,10 @@ impl BitAccess for [u64] {
 
     #[inline(always)] fn bit_ones(&self) -> BitOnesIterator {
         BitOnesIterator::new(self)
+    }
+
+    #[inline(always)] fn bit_zeros(&self) -> BitZerosIterator {
+        BitZerosIterator::new(self)
     }
 
     fn get_bits(&self, begin: usize, len: u8) -> u64 {

@@ -7,8 +7,8 @@ use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
 
 /// The trait implemented by the types which holds the array of bits and the rank structure for this array.
-/// Thanks to the rank structure, the implementor can quickly return the number of ones
-/// in requested number of the first bits of the stored array (see `rank` method).
+/// Thanks to the rank structure, the implementor can quickly return the number of ones (or zeros)
+/// in requested number of the first bits of the stored array (see `rank` and `rank0` methods).
 pub trait BitArrayWithRank {
     /// Returns `Self` (that stores `content` and the rank structure) and
     /// the number of bits set in the whole `content`.
@@ -16,6 +16,9 @@ pub trait BitArrayWithRank {
 
     /// Returns the number of ones in first `index` bits of the `content`.
     fn rank(&self, index: usize) -> u64;
+
+    /// Returns the number of zeros in first `index` bits of the `content`.
+    #[inline] fn rank0(&self, index: usize) -> u64 { index as u64 - self.rank(index) }
 
     /// Returns reference to the content.
     fn content(&self) -> &[u64]; 
@@ -27,7 +30,7 @@ pub trait BitArrayWithRank {
 }
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 3.125% extra space.
-/// It can return the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
+/// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
 ///
 /// It uses modified version of the structure described in the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
@@ -49,26 +52,26 @@ pub struct ArrayWithRankSelect101111<Select = BinarySearchSelect, Select0 = Bina
     select0: Select0,  // support for select (zero)
 }
 
-impl<S: GetSize> GetSize for ArrayWithRankSelect101111<S> {
+impl<S: GetSize, S0: GetSize> GetSize for ArrayWithRankSelect101111<S, S0> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S: SelectForRank101111> Select for ArrayWithRankSelect101111<S> {
+impl<S: SelectForRank101111, S0> Select for ArrayWithRankSelect101111<S, S0> {
     fn try_select(&self, rank: u64) -> Option<u64> {
         self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
-impl<S: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S> {
+impl<S, S0: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S, S0> {
     fn try_select0(&self, rank: u64) -> Option<u64> {
         self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
-impl<S: SelectForRank101111, S0: SelectForRank101111> BitArrayWithRank for ArrayWithRankSelect101111<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> BitArrayWithRank for ArrayWithRankSelect101111<S, S0> {
     fn build(content: Box<[u64]>) -> (Self, u64) {
         let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L2_ENTRY));
@@ -106,7 +109,7 @@ impl<S: SelectForRank101111, S0: SelectForRank101111> BitArrayWithRank for Array
         let l1ranks = l1ranks.into_boxed_slice();
         let l2ranks = l2ranks.into_boxed_slice();
         let select = S::new(&content, &l1ranks, &l2ranks, current_total_rank);
-        let select0 = S0::new(&content, &l1ranks, &l2ranks, current_total_rank);
+        let select0 = S0::new0(&content, &l1ranks, &l2ranks, current_total_rank);
         (Self{content, l1ranks, l2ranks, select, select0}, current_total_rank)
     }
 
@@ -193,14 +196,21 @@ mod tests {
     use crate::BitAccess;
     use super::{*, select::CombinedSamplingSelect};
 
-    fn check_all_ones<ArrayWithRank: BitArrayWithRank + Select>(a: ArrayWithRank) {
+    fn check_all_ones<ArrayWithRank: BitArrayWithRank + Select>(a: &ArrayWithRank) {
         for (rank, index) in a.content().bit_ones().enumerate() {
             assert_eq!(a.rank(index), rank as u64, "rank({}) should be {}", index, rank);
             assert_eq!(a.select(rank as u64), index as u64, "select({}) should be {}", rank, index);
         }
     }
 
-    fn test_array_with_rank<ArrayWithRank: BitArrayWithRank + Select>() {
+    fn check_all_zeros<ArrayWithRank: BitArrayWithRank + Select0>(a: &ArrayWithRank) {
+        for (rank, index) in a.content().bit_zeros().enumerate() {
+            assert_eq!(a.rank0(index), rank as u64, "rank0({}) should be {}", index, rank);
+            assert_eq!(a.select0(rank as u64), index as u64, "select0({}) should be {}", rank, index);
+        }
+    }
+
+    fn test_array_with_rank<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
         let (a, c) = ArrayWithRank::build(vec![0b1101, 0b110].into_boxed_slice());
         assert_eq!(c, 5);
         assert_eq!(a.try_select(0), Some(0));
@@ -220,7 +230,8 @@ mod tests {
         assert_eq!(a.rank(66), 4);
         assert_eq!(a.rank(67), 5);
         assert_eq!(a.rank(70), 5);
-        check_all_ones(a);
+        check_all_ones(&a);
+        check_all_zeros(&a);
     }
 
     #[test]
@@ -278,7 +289,7 @@ mod tests {
         assert_eq!(a.rank(2*1024+1), 2*6*8+1);
         assert_eq!(a.rank(2*1024+2), 2*6*8+1);
         assert_eq!(a.rank(2*1024+3), 2*6*8+2);
-        check_all_ones(a);
+        check_all_ones(&a);
     }
 
     #[test]
@@ -299,7 +310,7 @@ mod tests {
     fn test_content<ArrayWithRank: BitArrayWithRank + Select>() {
         let (a, c) = ArrayWithRank::build(vec![u64::MAX; 35].into_boxed_slice());
         assert_eq!(c, 35*64);
-        check_all_ones(a);
+        check_all_ones(&a);
     }
 
     #[test]
@@ -334,7 +345,7 @@ mod tests {
         assert_eq!(a.rank((1<<32)+1), (1<<(32-6)) * 4 + 1);
         assert_eq!(a.rank((1<<32)+2), (1<<(32-6)) * 4 + 1);
         assert_eq!(a.rank((1<<32)+3), (1<<(32-6)) * 4 + 2);
-        check_all_ones(a);
+        check_all_ones(&a);
     }
 
     #[test]
