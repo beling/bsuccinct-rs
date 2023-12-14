@@ -209,6 +209,22 @@ mod tests {
         }
     }
 
+    fn test_empty_array_rank<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
+        let (a, c) = ArrayWithRank::build(vec![].into_boxed_slice());
+        assert_eq!(c, 0);
+        assert_eq!(a.try_select(0), None);
+    }
+
+    #[test]
+    fn test_empty_array_rank_101111() {
+        test_empty_array_rank::<ArrayWithRank101111>();
+    }
+
+    #[test]
+    fn test_empty_array_rank_101111_combined() {
+        test_empty_array_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+    }
+
     fn test_array_with_rank<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
         let (a, c) = ArrayWithRank::build(vec![0b1101, 0b110].into_boxed_slice());
         assert_eq!(c, 5);
@@ -240,7 +256,7 @@ mod tests {
 
     #[test]
     fn array_with_rank_101111_combined() {
-        test_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling>>();
+        test_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -299,7 +315,7 @@ mod tests {
 
     #[test]
     fn big_array_with_rank_101111_combined() {
-        test_big_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling>>();
+        test_big_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -321,7 +337,7 @@ mod tests {
 
     #[test]
     fn content_101111_combined() {
-        test_content::<ArrayWithRankSelect101111::<CombinedSampling>>();
+        test_content::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -359,7 +375,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_101111_combined() {
-        array_64bit::<ArrayWithRankSelect101111::<CombinedSampling>>();
+        array_64bit::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_filled<ArrayWithRank: BitArrayWithRank + Select>() {
@@ -386,7 +402,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_filled_101111_combined() {
-        array_64bit_filled::<ArrayWithRankSelect101111::<CombinedSampling>>();
+        array_64bit_filled::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_halffilled<ArrayWithRank: BitArrayWithRank + Select + Select0>() {
@@ -406,7 +422,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_halffilled_101111_combined() {
-        array_64bit_halffilled::<ArrayWithRankSelect101111::<CombinedSampling>>();
+        array_64bit_halffilled::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_zeroed_first<ArrayWithRank: BitArrayWithRank + Select>() {
@@ -434,6 +450,6 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111_combined() {
-        array_64bit_zeroed_first::<ArrayWithRankSelect101111::<CombinedSampling>>();
+        array_64bit_zeroed_first::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 }
