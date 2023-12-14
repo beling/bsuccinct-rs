@@ -409,7 +409,7 @@ mod tests {
         const SEGMENTS: usize = (1<<32)/64 * 2;
         let (a, c) = ArrayWithRank::build(vec![0x5555_5555_5555_5555; SEGMENTS].into_boxed_slice());
         assert_eq!(c as usize, SEGMENTS*32);
-        //check_all_ones(&a);
+        check_all_ones(&a);
         check_all_zeros(&a);
     }
 
