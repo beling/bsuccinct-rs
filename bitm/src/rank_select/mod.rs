@@ -6,8 +6,7 @@ pub use self::select::{Select, BinaryRankSearch, CombinedSampling, SelectForRank
 use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
 
-/// Trait for support rank operation which returns the number of ones (or zeros)
-/// in requested number of the first bits (see `rank` and `rank0` methods).
+/// Trait for rank operation that returns the number of ones (or zeros) in requested number of the first bits.
 pub trait Rank {
     /// Returns the number of ones in first `index` bits or `None` if `index` is out of bound.
     fn try_rank(&self, index: usize) -> Option<usize>;
@@ -58,6 +57,7 @@ pub trait Rank {
 /// - original: r0 stored on 32 bits, r1-r0 on 10 bits, r2-r1 on 10 bits, r3-r2 on 10 bits;
 /// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits
 ///        (and unused fields in the last entries, for out-of-bound content bits, are filled with bit ones).
+/// With this layout, we can read the corresponding value in the rank operation without branching.
 #[derive(Clone)]
 pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch> {
     pub content: Box<[u64]>,  // BitVec
