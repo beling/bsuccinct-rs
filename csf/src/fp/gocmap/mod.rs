@@ -2,7 +2,7 @@ use std::hash::Hash;
 use binout::{VByte, Serializer, AsIs};
 use ph::utils::read_bits;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils::ArrayWithRank};
-use bitm::{BitAccess, BitArrayWithRank, BitVec};
+use bitm::{BitAccess, BitVec, Rank};
 use minimum_redundancy::DecodingResult;
 use super::{LevelSizeChooser, CollisionSolver};
 use super::collision_solver::{CountPositiveCollisions, LoMemAcceptEqualsSolver};
@@ -87,7 +87,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             let seed = self.goconf.bits_per_seed.get_seed(&self.group_seeds, group as usize);
             let i = self.goconf.bits_per_group.bit_index_for_seed(hash, seed, group);
             if self.array.content.get_bit(i) {
-                match result_decoder.consume(self.value_fragments.get_fragment(self.array.rank(i) as usize, self.value_coding.bits_per_fragment()) as u8) {
+                match result_decoder.consume(self.value_fragments.get_fragment(self.array.rank(i), self.value_coding.bits_per_fragment()) as u8) {
                     DecodingResult::Value(v) => {
                         access_stats.found_on_level(level_nr);
                         return Some(v)
@@ -200,7 +200,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
                 if array.content.get_bit(i) {
                     let code = &mut values[input_index];
                     output_value_fragments.init_fragment(   // AcceptEquals::set_value
-                                                            array.rank(i) as usize,
+                                                            array.rank(i),
                                                             value_coding.first_fragment_of(*code) as u64,
                                                             value_coding.bits_per_fragment());
                     if value_coding.remove_first_fragment_of(code) {

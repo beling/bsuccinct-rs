@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use binout::{VByte, Serializer, AsIs};
-use bitm::{BitAccess, BitArrayWithRank, ceiling_div};
+use bitm::{BitAccess, Rank, ceiling_div};
 
 use crate::utils::{ArrayWithRank, read_bits};
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};

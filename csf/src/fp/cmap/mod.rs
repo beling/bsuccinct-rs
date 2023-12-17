@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use binout::{VByte, AsIs, Serializer};
 use minimum_redundancy::DecodingResult;
-use bitm::{BitAccess, BitVec, BitArrayWithRank};
+use bitm::{BitAccess, BitVec, Rank};
 use crate::fp::level_size_chooser::LevelSizeChooser;
 
 use ph::utils::{ArrayWithRank, read_bits};
@@ -60,7 +60,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
             let level_size = (*self.level_sizes.get(level as usize)? as usize) << 6usize;
             let i = array_begin_index + self.index(k, level, level_size);
             if self.array.content.get_bit(i) {
-                match result_decoder.consume(self.value_fragments.get_fragment(self.array.rank(i) as usize, self.value_coding.bits_per_fragment()) as u8) {
+                match result_decoder.consume(self.value_fragments.get_fragment(self.array.rank(i), self.value_coding.bits_per_fragment()) as u8) {
                     DecodingResult::Value(v) => {
                         access_stats.found_on_level(level);
                         return Some(v)
@@ -156,7 +156,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
                 if array.content.get_bit(i) {
                     let code = &mut values[input_index];
                     output_value_fragments.init_fragment(   // AcceptEquals::set_value
-                                                            array.rank(i) as usize,
+                                                            array.rank(i),
                                                             value_coding.first_fragment_of(*code) as _,
                                                             value_coding.bits_per_fragment());
                     if value_coding.remove_first_fragment_of(code) {

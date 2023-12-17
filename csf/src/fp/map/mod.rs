@@ -3,7 +3,7 @@ use binout::{AsIs, Serializer, VByte};
 pub use conf::MapConf;
 
 use std::hash::Hash;
-use bitm::{BitAccess, BitArrayWithRank};
+use bitm::{BitAccess, Rank};
 
 pub use super::level_size_chooser::{SimpleLevelSizeChooser, ProportionalLevelSize, OptimalLevelSize};
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, utils, stats, utils::{ArrayWithRank, read_bits}};
@@ -51,7 +51,7 @@ impl<S: BuildSeededHasher> Map<S> {
             let i = array_begin_index + self.index(k, level, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level);
-                return Some(self.values.get_fragment(self.array.rank(i) as usize, self.bits_per_value) as u8);
+                return Some(self.values.get_fragment(self.array.rank(i), self.bits_per_value) as u8);
             }
             array_begin_index += level_size;
             level += 1;
@@ -126,7 +126,7 @@ impl<S: BuildSeededHasher> Map<S> {
                 let level_size = (level_sizes[level as usize] as usize) << 6usize;
                 let i = array_begin_index + utils::map64_to_64(conf.hash.hash_one(&keys[input_index], level), level_size as u64) as usize;
                 if array.content.get_bit(i) {
-                    CSB::CollisionSolver::set_value(&mut output_value_fragments, array.rank(i) as usize, values[input_index], conf.bits_per_value);
+                    CSB::CollisionSolver::set_value(&mut output_value_fragments, array.rank(i), values[input_index], conf.bits_per_value);
                     // stats.value_on_level(level); // TODO do we need this? we can get average levels from lookups
                     break;
                 }

@@ -9,45 +9,57 @@ use super::utils::partition_point_with_index;
 pub const BITS_PER_L1_ENTRY: usize = 1<<32;
 pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);    // each l1 chunk has 1<<32 bits = (1<<32)/64 content (u64) elements
 pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
-pub const BITS_PER_L2_ENTRY: u64 = U64_PER_L2_ENTRY as u64*64;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
+pub const BITS_PER_L2_ENTRY: usize = U64_PER_L2_ENTRY*64;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
 pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64=512 bits records
 pub const BITS_PER_L2_RECORDS: u64 = U64_PER_L2_RECORDS as u64 * 64; // each l2 entry is splitted to 4, 8*64=512 bits records
 pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 
 /// Trait implemented by types that support select (one) operation,
-/// i.e. can quickly find the position of the n-th one in the bitmap.
+/// i.e. can (quickly) find the position of the n-th one in the bitmap.
 pub trait Select {
     /// Returns the position of the `rank`-th one (counting from 0) in `self` or `None` if there are no such many ones in `self`.
-    fn try_select(&self, rank: u64) -> Option<u64>;
+    fn try_select(&self, rank: usize) -> Option<usize>;
 
     /// Returns the position of the `rank`-th one (counting from 0) in `self` or panics if there are no such many ones in `self`.
-    fn select(&self, rank: u64) -> u64 {
+    fn select(&self, rank: usize) -> usize {
         self.try_select(rank).expect("cannot select rank-th one as there are no such many ones")
+    }
+
+    /// Returns the position of the `rank`-th one (counting from 0) in `self`.
+    /// The result is undefined if there are no such many ones in `self`.
+    unsafe fn unchecked_select(&self, rank: usize) -> usize {
+        self.select(rank)
     }
 }
 
 /// Trait implemented by types that support select zero operation,
-/// i.e. can quickly find the position of the n-th zero in the bitmap.
+/// i.e. can (quickly) find the position of the n-th zero in the bitmap.
 pub trait Select0 {
     /// Returns the position of the `rank`-th zero (counting from 0) in `self` or `None` if there are no such many zeros in `self`.
-    fn try_select0(&self, rank: u64) -> Option<u64>;
+    fn try_select0(&self, rank: usize) -> Option<usize>;
 
     /// Returns the position of the `rank`-th zero (counting from 0) in `self` or panics if there are no such many zeros in `self`.
-    fn select0(&self, rank: u64) -> u64 {
+    fn select0(&self, rank: usize) -> usize {
         self.try_select0(rank).expect("cannot select rank-th zero as there are no such many zeros")
+    }
+
+    /// Returns the position of the `rank`-th zero (counting from 0) in `self`.
+    /// The result is undefined if there are no such many zeros in `self`.
+    unsafe fn unchecked_select0(&self, rank: usize) -> usize {
+        self.select0(rank)
     }
 }
 
 /// Trait implemented by strategies for select (ones) operations for `ArrayWithRank101111`.
 pub trait SelectForRank101111 {
-    fn new(content: &[u64], l1ranks: &[u64], l2ranks: &[u64], total_rank: u64) -> Self;
-    fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64>;
+    fn new(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
+    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
 }
 
 /// Trait implemented by strategies for select zeros operations for `ArrayWithRank101111`.
 pub trait Select0ForRank101111 {
-    fn new0(content: &[u64], l1ranks: &[u64], l2ranks: &[u64], total_rank: u64) -> Self;
-    fn select0(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64>;
+    fn new0(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
+    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
 }
 
 /// Returns the position of the `rank`-th (counting from 0) one in the bit representation of `n`,
@@ -120,41 +132,41 @@ impl GetSize for BinaryRankSearch {}
 
 /// Find index of L1 chunk that contains `rank`-th one (or zero if `ONE` is `false`)
 /// and decrease `rank` by number of ones (or zeros) in previous chunks.
-#[inline] fn select_l1<const ONE: bool>(l1ranks: &[u64], rank: &mut u64) -> usize {
+#[inline] fn select_l1<const ONE: bool>(l1ranks: &[usize], rank: &mut usize) -> usize {
     if ONE {    // select 1:
         let i = l1ranks.partition_point(|v| v <= rank) - 1;
         *rank -= l1ranks[i];
         return i;
     } else {    // select 0:
-        let i = partition_point_with_index(&l1ranks, |v, i| i as u64 * BITS_PER_L1_ENTRY as u64 - *v <= *rank) - 1;
-        *rank -= i as u64 * BITS_PER_L1_ENTRY as u64 - l1ranks[i];
+        let i = partition_point_with_index(&l1ranks, |v, i| i * BITS_PER_L1_ENTRY - *v <= *rank) - 1;
+        *rank -= i as usize * BITS_PER_L1_ENTRY - l1ranks[i];
         return i;
     }
 }
 
 /// Select from `l2ranks` entry pointed by `l2_index`, without bounds checking.
-#[inline] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: u64) -> Option<u64> {
+#[inline] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
     let mut l2_entry = *l2ranks.get_unchecked(l2_index);
     if ONE {
-        rank -= l2_entry & 0xFFFFFFFF;
+        rank -= (l2_entry & 0xFFFFFFFF) as usize;
     } else {
-        rank -= (l2_index % L2_ENTRIES_PER_L1_ENTRY) as u64 * BITS_PER_L2_ENTRY - (l2_entry & 0xFFFFFFFF);
+        rank -= (l2_index % L2_ENTRIES_PER_L1_ENTRY) * BITS_PER_L2_ENTRY - (l2_entry & 0xFFFFFFFF) as usize;
     }
     l2_entry >>= 32;
     let mut c = l2_index * U64_PER_L2_ENTRY;
-    let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (3*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) };
+    let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (3*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) } as usize;
     if rank >= to_subtract {
         rank -= to_subtract;
         c += 3 * U64_PER_L2_RECORDS;
     } else {
         l2_entry >>= 11;
-        let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (2*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) };
+        let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (2*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) } as usize;
         if rank >= to_subtract {
             rank -= to_subtract;
             c += 2 * U64_PER_L2_RECORDS;
         } else {
             l2_entry >>= 11;
-            let to_subtract = if ONE { l2_entry } else { BITS_PER_L2_RECORDS.wrapping_sub(l2_entry) };
+            let to_subtract = if ONE { l2_entry } else { BITS_PER_L2_RECORDS.wrapping_sub(l2_entry) } as usize;
             if rank >= to_subtract {
                 rank -= to_subtract;
                 c += U64_PER_L2_RECORDS;
@@ -165,41 +177,41 @@ impl GetSize for BinaryRankSearch {}
          arch::_mm_prefetch(content.as_ptr().wrapping_add(c) as *const i8, arch::_MM_HINT_NTA);
     } }
     for (i, v) in content.get(c..)?.iter().enumerate() {
-        let ones = if ONE { v.count_ones() } else { v.count_zeros() } as u64;
+        let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
         if ones <= rank {
             rank -= ones;
         } else {
-            return Some((i+c) as u64 * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as u64);
+            return Some((i+c) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize);
         }
     }
     None
 }
 
 impl SelectForRank101111 for BinaryRankSearch {
-    #[inline] fn new(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
+    #[inline] fn new(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    #[inline] fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
+    #[inline] fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<true>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         let l2_index = l2_begin +
             l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
-                .partition_point(|v| v&0xFFFFFFFF <= rank) - 1;
+                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1;
         unsafe { select_from_l2::<true>(content, l2ranks, l2_index, rank) }
     }
 }
 
 impl Select0ForRank101111 for BinaryRankSearch {
-    #[inline] fn new0(_content: &[u64], _l1ranks: &[u64], _l2ranks: &[u64], _total_rank: u64) -> Self { Self }
+    #[inline] fn new0(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    #[inline] fn select0(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
+    #[inline] fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<false>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         let l2_index = l2_begin +
             super::utils::partition_point_with_index(
                 &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
-                |v, i| i as u64 * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) <= rank) - 1;
+                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1;
         unsafe { select_from_l2::<false>(content, l2ranks, l2_index, rank) }
     }
 }
@@ -222,13 +234,14 @@ impl GetSize for CombinedSampling {}
 
 impl CombinedSampling {
     #[inline]
-    fn new<const ONE: bool>(content: &[u64], l1ranks: &[u64], total_rank: u64) -> Self {
+    fn new<const ONE: bool>(content: &[u64], l1ranks: &[usize], total_rank: usize) -> Self {
+        if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default() } }
         let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
         ones_positions_begin.push(0);
         for ones in l1ranks.windows(2) {
             let chunk_len = ceiling_div(
-                if ONE {(ones[1] - ones[0]) as usize} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0]) as usize},
+                if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
                 ONES_PER_SELECT_ENTRY);
             ones_positions_len += chunk_len;
             ones_positions_begin.push(ones_positions_len);
@@ -259,7 +272,7 @@ impl CombinedSampling {
     }
 
     #[inline]
-    fn select<const ONE: bool>(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], mut rank: u64) -> Option<u64> {
+    fn select<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
@@ -267,8 +280,8 @@ impl CombinedSampling {
         let mut l2_index = l2_begin + self.select[self.select_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY] as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
-             if ONE {l2ranks[l2_index+1] & 0xFF_FF_FF_FF}
-             else {(l2_index+1-l2_begin) as u64 * BITS_PER_L2_ENTRY - (l2ranks[l2_index+1] & 0xFF_FF_FF_FF)} <= rank
+             if ONE {(l2ranks[l2_index+1] & 0xFF_FF_FF_FF) as usize}
+             else {(l2_index+1-l2_begin) * BITS_PER_L2_ENTRY - (l2ranks[l2_index+1] & 0xFF_FF_FF_FF) as usize} <= rank
         {
             l2_index += 1;
         }
@@ -277,21 +290,21 @@ impl CombinedSampling {
 }
 
 impl SelectForRank101111 for CombinedSampling {
-    fn new(content: &[u64], l1ranks: &[u64], _l2ranks: &[u64], total_rank: u64) -> Self {
+    fn new(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<true>(content, l1ranks, total_rank)
     }
 
-    fn select(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64> {
+    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
         Self::select::<true>(&self, content, l1ranks, l2ranks, rank)
     }
 }
 
 impl Select0ForRank101111 for CombinedSampling {
-    fn new0(content: &[u64], l1ranks: &[u64], _l2ranks: &[u64], total_rank: u64) -> Self {
+    fn new0(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<false>(content, l1ranks, total_rank)
     }
 
-    fn select0(&self, content: &[u64], l1ranks: &[u64], l2ranks: &[u64], rank: u64) -> Option<u64> {
+    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
         Self::select::<false>(&self, content, l1ranks, l2ranks, rank)
     }
 }
