@@ -20,8 +20,8 @@ pub trait BitArrayWithRank {
     /// Returns the number of zeros in first `index` bits of the `content`.
     #[inline] fn rank0(&self, index: usize) -> u64 { index as u64 - self.rank(index) }
 
-    /// Returns reference to the content.
-    fn content(&self) -> &[u64]; 
+    // Returns reference to the content.
+    //fn content(&self) -> &[u64]; 
 }
 
 /// Returns number of bits set (to one) in `content`.
@@ -128,7 +128,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> BitArrayWithRank for Arra
         r + (self.content[word_idx] & n_lowest_bits(index as u8 % 64)).count_ones() as u64
     }
 
-    #[inline] fn content(&self) -> &[u64] { &self.content }
+    //#[inline] fn content(&self) -> &[u64] { &self.content }
 }
 
 pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch>;
@@ -185,9 +185,7 @@ impl BitArrayWithRank for ArrayWithRankSimple {
         Self::rank(self, index) as u64
     }
 
-    #[inline(always)] fn content(&self) -> &[u64] {
-        &self.content
-    }
+    //#[inline(always)] fn content(&self) -> &[u64] { &self.content }
 }
 
 //impl Select for ArrayWithRankSimple {}
