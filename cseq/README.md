@@ -1,0 +1,1 @@
+`csi` is the Rust library (by Piotr Beling) of compressed sequences.
