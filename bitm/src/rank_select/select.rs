@@ -230,7 +230,10 @@ pub struct CombinedSampling {
     select_begin: Box<[usize]>,
 }
 
-impl GetSize for CombinedSampling {}
+impl GetSize for CombinedSampling {
+    fn size_bytes_dyn(&self) -> usize { self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() }
+    const USES_DYN_MEM: bool = true;
+}
 
 impl CombinedSampling {
     #[inline]

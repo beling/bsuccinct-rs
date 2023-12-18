@@ -1,4 +1,5 @@
 use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank};
+use dyn_size_of::GetSize;
 
 /// Constructs bit vectors for the (current) level of velvet matrix.
 /// Stores bits of `lower_bits` values from previous level in to vectors:
@@ -53,6 +54,11 @@ struct WaveletMatrixLevel {
     number_of_zeros: usize
 }
 
+impl GetSize for WaveletMatrixLevel {
+    fn size_bytes_dyn(&self) -> usize { self.bits.size_bytes_dyn() }
+    const USES_DYN_MEM: bool = true;
+}
+
 impl WaveletMatrixLevel {
     fn new(level: Box::<[u64]>, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
@@ -71,6 +77,9 @@ impl WaveletMatrix {
 
     /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
+
+    /// Returns whether the sequence is empty.
+    #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
 
     /// Returns number of bits per value.
     #[inline] pub fn bits_per_value(&self) -> u8 { self.levels.len() as u8 }
@@ -142,9 +151,14 @@ impl WaveletMatrix {
         Some(result)
     }
 
-    pub fn get_or_panic(&self, index: usize) -> u64 {
+    #[inline] pub fn get_or_panic(&self, index: usize) -> u64 {
         self.get(index).expect("WaveletMatrix::get index out of bound")
     }
+}
+
+impl GetSize for WaveletMatrix {
+    fn size_bytes_dyn(&self) -> usize { self.levels.size_bytes_dyn() }
+    const USES_DYN_MEM: bool = true;
 }
 
 #[cfg(test)]
@@ -152,8 +166,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_empty() {
+        let wm = WaveletMatrix::from_bits(&[], 0, 2);
+        assert_eq!(wm.len(), 0);
+        assert_eq!(wm.bits_per_value(), 2);
+        assert_eq!(wm.get(0), None);
+    }
+
+    #[test]
     fn test_2_levels() {
         let wm = WaveletMatrix::from_bits(&[0b01_01_10_11], 4, 2);
+        assert_eq!(wm.len(), 4);
+        assert_eq!(wm.bits_per_value(), 2);
         assert_eq!(wm.get(0), Some(0b11));
         assert_eq!(wm.get(1), Some(0b10));
         assert_eq!(wm.get(2), Some(0b01));
@@ -164,6 +188,8 @@ mod tests {
     #[test]
     fn test_3_levels() {
         let wm = WaveletMatrix::from_bits(&[0b000_110], 2, 3);
+        assert_eq!(wm.len(), 2);
+        assert_eq!(wm.bits_per_value(), 3);
         assert_eq!(wm.get(0), Some(0b110));
         assert_eq!(wm.get(1), Some(0b000));
         assert_eq!(wm.get(2), None);
@@ -172,6 +198,8 @@ mod tests {
     #[test]
     fn test_4_levels() {
         let wm = WaveletMatrix::from_bits(&[0b1101_1010_0000_0001_1011], 5, 4);
+        assert_eq!(wm.len(), 5);
+        assert_eq!(wm.bits_per_value(), 4);
         assert_eq!(wm.get(0), Some(0b1011));
         assert_eq!(wm.get(1), Some(0b0001));
         assert_eq!(wm.get(2), Some(0b0000));
