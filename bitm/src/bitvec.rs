@@ -68,6 +68,24 @@ pub trait BitAccess {
     /// Gets bit with given index `bit_nr`.
     fn get_bit(&self, bit_nr: usize) -> bool;
 
+    /// Gets bit with given index `bit_nr` and increase `bit_nr` by 1.
+    #[inline] fn get_successive_bit(&self, bit_nr: &mut usize) -> bool {
+        let result = self.get_bit(*bit_nr);
+        *bit_nr += 1;
+        result
+    }
+
+    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise).
+    #[inline] fn set_bit_to(&mut self, bit_nr: usize, value: bool) {
+        if value { self.set_bit(bit_nr) } else { self.clear_bit(bit_nr) }
+    }
+
+    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise) and increase `bit_nr` by 1.
+    #[inline] fn set_successive_bit_to(&mut self, bit_nr: &mut usize, value: bool) {
+        if value { self.set_bit(*bit_nr) } else { self.clear_bit(*bit_nr) };
+        *bit_nr += 1;
+    }
+
     /// Sets bit with given index `bit_nr` to `1`.
     fn set_bit(&mut self, bit_nr: usize);
 
@@ -77,17 +95,43 @@ pub trait BitAccess {
     /// Gets bits `[begin, begin+len)`.
     fn get_bits(&self, begin: usize, len: u8) -> u64;
 
-    /// Initialize bits `[begin, begin+len)` to v.
-    /// Before init, the bits are assumed to be cleared or already set to `v`.
+    /// Gets bits `[begin, begin+len)` and increase `bit_nr` by `len`.
+    #[inline] fn get_successive_bits(&self, begin: &mut usize, len: u8) -> u64 {
+        let result = self.get_bits(*begin, len);
+        *begin += len as usize;
+        result
+    }
+
+    /// Initialize bits `[begin, begin+len)` to `v`.
+    /// Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline] fn init_bits(&mut self, begin: usize, v: u64, len: u8) {
         self.set_bits(begin, v, len)
+    }
+
+    /// Initialize bits `[begin, begin+len)` to `v` and increase `begin` by `len`.
+    /// Before initialization, the bits are assumed to be cleared or already set to `v`.
+    #[inline] fn init_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
+        self.init_bits(*begin, v, len);
+        *begin += len as usize;
     }
 
     /// Sets bits `[begin, begin+len)` to the content of `v`.
     fn set_bits(&mut self, begin: usize, v: u64, len: u8);
 
-    /// Xor at least `len` bits of `v` with bits of `self`, `begging` from given index.
+    /// Sets bits `[begin, begin+len)` to the content of `v` and increase `begin` by `len`.
+    #[inline] fn set_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
+        self.set_bits(*begin, v, len);
+        *begin += len as usize;
+    }
+
+    /// Xor at least `len` bits of `self`, staring from index `begin`, with `v`.
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8);
+
+    /// Xor at least `len` bits of `self`, staring from index `begin`, with `v` and increase `begin` by `len`.
+    fn xor_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
+        self.xor_bits(*begin, v, len);
+        *begin += len as usize;
+    }
 
     /// Returns the number of zeros (cleared bits).
     fn count_bit_zeros(&self) -> usize;
@@ -106,10 +150,25 @@ pub trait BitAccess {
         self.get_bits(index * v_size as usize, v_size)
     }
 
+    /// Gets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) and increase `index` by 1.
+    #[inline(always)] fn get_successive_fragment(&self, index: &mut usize, v_size: u8) -> u64 {
+        let result = self.get_fragment(*index, v_size);
+        *index += 1;
+        result
+    }
+
     /// Inits `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
-    /// Before init, the bits are assumed to be cleared or already set to `v`.
+    /// Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline(always)] fn init_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.init_bits(index * v_size as usize, v, v_size)
+    }
+
+    /// Inits `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`
+    /// and increase `index` by 1.
+    /// Before initialization, the bits are assumed to be cleared or already set to `v`.
+    #[inline(always)] fn init_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
+        self.init_fragment(*index, v, v_size);
+        *index += 1;
     }
 
     /// Sets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
@@ -117,9 +176,21 @@ pub trait BitAccess {
         self.set_bits(index * v_size as usize, v, v_size)
     }
 
-    /// Xor at least `v_size` bits of `v` with bits of `self`, begging from `index*v_size`.
+    /// Sets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v` and increase `index` by 1.
+    #[inline(always)] fn set_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
+        self.set_fragment(*index, v, v_size);
+        *index += 1;
+    }
+
+    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v`.
     #[inline(always)] fn xor_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.xor_bits(index * v_size as usize, v, v_size)
+    }
+
+    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v` and increase `index` by 1.
+    #[inline(always)] fn xor_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
+        self.xor_fragment(*index, v, v_size);
+        *index += 1;
     }
 
     /// Swaps ranges of bits: [`index1*v_size`, `index1*v_size+v_size`) with [`index2*v_size`, `index2*v_size+v_size`).

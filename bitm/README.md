@@ -3,7 +3,7 @@
 # Example
 
 ```rust
-use bitm::{BitAccess, BitVec, BitArrayWithRank, ArrayWithRank101111};
+use bitm::{BitAccess, BitVec, Rank, ArrayWithRank101111};
 
 let mut b = Box::<[u64]>::with_zeroed_bits(2048);    // b can store 2048 bits
 assert_eq!(b.get_bit(100), false);  // b is zeroed so bit at index 100 is not set  
