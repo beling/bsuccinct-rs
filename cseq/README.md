@@ -1,1 +1,1 @@
-`csi` is the Rust library (by Piotr Beling) of compressed sequences.
+`cseq` is the Rust library (by Piotr Beling) of compressed sequences.

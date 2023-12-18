@@ -86,6 +86,20 @@ pub trait BitAccess {
         *bit_nr += 1;
     }
 
+    /// Initialize bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise).
+    /// Before initialization, the bit is assumed to be cleared or already set to `value`.
+    #[inline] fn init_bit(&mut self, bit_nr: usize, value: bool) {
+        if value { self.set_bit(bit_nr) }
+    }
+
+    /// Initialize bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise)
+    /// and increase `bit_nr` by 1.
+    /// Before initialization, the bit is assumed to be cleared or already set to `value`.
+    #[inline] fn init_successive_bit(&mut self, bit_nr: &mut usize, value: bool) {
+        self.init_bit(*bit_nr, value);
+        *bit_nr += 1;
+    }
+
     /// Sets bit with given index `bit_nr` to `1`.
     fn set_bit(&mut self, bit_nr: usize);
 
