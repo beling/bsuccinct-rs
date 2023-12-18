@@ -82,7 +82,9 @@ impl WaveletMatrix {
         let mut rest = {
             let mut level = LevelBuilder::new(
                 number_of_zeros[current_bit as usize], content_len, current_bit);
-            for e in content() { level.push(e); }
+            for e in content() {
+                level.push(e);
+            }
             levels.push(WaveletMatrixLevel::new(level.upper_bit, number_of_zeros[current_bit as usize]));
             level.lower_bits
         };
@@ -91,7 +93,7 @@ impl WaveletMatrix {
             current_bit -= 1;
             let mut level = LevelBuilder::new(
                 number_of_zeros[current_bit as usize], content_len, current_bit);
-            for index in (0..content_len).step_by(rest_bits_per_value as usize) {
+            for index in (0..content_len*rest_bits_per_value as usize).step_by(rest_bits_per_value as usize) {
                 level.push(rest.get_bits(index, rest_bits_per_value));
             }
             rest = level.lower_bits;
@@ -107,7 +109,7 @@ impl WaveletMatrix {
              content_len, bits_per_value)
     }
 
-    pub fn try_get(&self, mut index: usize) -> Option<u64> {
+    pub fn get(&self, mut index: usize) -> Option<u64> {
         if index >= self.len() { return None; }
         let mut result = 0;
         for level in self.levels.iter() {
@@ -122,8 +124,8 @@ impl WaveletMatrix {
         Some(result)
     }
 
-    pub fn get(&self, index: usize) -> u64 {
-        self.try_get(index).expect("WaveletMatrix::get index out of bound")
+    pub fn get_or_panic(&self, index: usize) -> u64 {
+        self.get(index).expect("WaveletMatrix::get index out of bound")
     }
 }
 
@@ -134,30 +136,30 @@ mod tests {
     #[test]
     fn test_2_levels() {
         let wm = WaveletMatrix::from_bits(&[0b01_01_10_11], 4, 2);
-        assert_eq!(wm.get(0), 0b11);
-        assert_eq!(wm.get(1), 0b10);
-        assert_eq!(wm.get(2), 0b01);
-        assert_eq!(wm.get(3), 0b01);
-        assert_eq!(wm.try_get(4), None);
+        assert_eq!(wm.get(0), Some(0b11));
+        assert_eq!(wm.get(1), Some(0b10));
+        assert_eq!(wm.get(2), Some(0b01));
+        assert_eq!(wm.get(3), Some(0b01));
+        assert_eq!(wm.get(4), None);
     }
 
     #[test]
     fn test_3_levels() {
         let wm = WaveletMatrix::from_bits(&[0b000_110], 2, 3);
-        assert_eq!(wm.get(0), 0b110);
-        assert_eq!(wm.get(1), 0b000);
-        assert_eq!(wm.try_get(2), None);
+        assert_eq!(wm.get(0), Some(0b110));
+        assert_eq!(wm.get(1), Some(0b000));
+        assert_eq!(wm.get(2), None);
     }
 
     #[test]
     fn test_4_levels() {
         let wm = WaveletMatrix::from_bits(&[0b1101_1010_0000_0001_1011], 5, 4);
-        assert_eq!(wm.get(0), 0b1011);
-        assert_eq!(wm.get(1), 0b0001);
-        assert_eq!(wm.get(2), 0b0000);
-        assert_eq!(wm.get(3), 0b1010);
-        assert_eq!(wm.get(4), 0b1101);
-        assert_eq!(wm.try_get(5), None);
+        assert_eq!(wm.get(0), Some(0b1011));
+        assert_eq!(wm.get(1), Some(0b0001));
+        assert_eq!(wm.get(2), Some(0b0000));
+        assert_eq!(wm.get(3), Some(0b1010));
+        assert_eq!(wm.get(4), Some(0b1101));
+        assert_eq!(wm.get(5), None);
     }
 
 }
