@@ -1,5 +1,15 @@
 use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank};
 
+/// Constructs bit vectors for the (current) level of velvet matrix.
+/// Stores bits of `lower_bits` values from previous level in to vectors:
+/// - `upper_bit` stores the most significant bits (msb; shown by `upper_bit_mask`) of the subsequent values,
+///     in the order from previous level,
+/// - `lower_bits` stores all (`bits_per_value`) less significant bits (shown by `upper_bit_mask-1`)
+///     of the subsequent values, stable sorted by most significant bits (msb).
+/// The following values show the bit indices to insert the next value:
+/// - `upper_index` is index of `upper_bit`,
+/// - `lower_zero_index` is index of `lower_bits` to insert next value with 0 msb,
+/// - `lower_one_index` is index of `lower_bits` to insert next value with 1 msb,
 struct LevelBuilder {
     upper_bit: Box<[u64]>,
     upper_index: usize,
@@ -11,6 +21,8 @@ struct LevelBuilder {
 }
 
 impl LevelBuilder {
+    /// Construct level builder for given level `total_len` in bits, `number_of_zeros` among the most significant bits
+    /// and index of most significant bit (`index_of_bit_to_extract`).
     fn new(number_of_zeros: usize, total_len: usize, index_of_bit_to_extract: u8) -> Self {
         Self {
             upper_bit: Box::with_zeroed_bits(total_len),
@@ -23,6 +35,7 @@ impl LevelBuilder {
         }
     }
 
+    /// Add subsequent `value` from previous level to `self`.
     fn push(&mut self, value: u64) {
         let is_one = value & self.upper_bit_mask != 0;
         self.upper_bit.init_successive_bit(&mut self.upper_index, is_one);
@@ -37,17 +50,18 @@ struct WaveletMatrixLevel {
     bits: ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>,
 
     /// Number of zero bits.
-    zeros: usize
+    number_of_zeros: usize
 }
 
 impl WaveletMatrixLevel {
-    fn new(level: Box::<[u64]>, zeros: usize) -> Self {
+    fn new(level: Box::<[u64]>, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
         //Self { bits, zeros: level_len - number_of_ones }
-        Self { bits: level.into(), zeros }
+        Self { bits: level.into(), number_of_zeros }
     }
 }
 
+/// WaveletMatrix stores a sequence of [`len`] [`bits_per_value`]-bit symbols.
 pub struct WaveletMatrix {
     levels: Box<[WaveletMatrixLevel]>,
     len: usize
@@ -55,7 +69,11 @@ pub struct WaveletMatrix {
 
 impl WaveletMatrix {
 
+    /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
+
+    /// Returns number of bits per value.
+    #[inline] pub fn bits_per_value(&self) -> u8 { self.levels.len() as u8 }
 
     pub fn from_fn<I, F>(content: F, content_len: usize, bits_per_value: u8) -> Self
         where I: IntoIterator<Item = u64>, F: Fn() -> I
@@ -116,7 +134,7 @@ impl WaveletMatrix {
             result <<= 1;
             if level.bits.content.get_bit(index) {
                 result |= 1;
-                index = level.bits.rank(index) + level.zeros;
+                index = level.bits.rank(index) + level.number_of_zeros;
             } else {
                 index = level.bits.rank0(index);
             }
