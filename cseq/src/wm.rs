@@ -1,4 +1,4 @@
-use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank};
+use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0};
 use dyn_size_of::GetSize;
 
 /// Constructs bit vectors for the (current) level of velvet matrix.
@@ -67,7 +67,17 @@ impl WaveletMatrixLevel {
     }
 }
 
-/// WaveletMatrix stores a sequence of [`len`] [`bits_per_value`]-bit symbols.
+/// WaveletMatrix stores a sequence of `len` `bits_per_value`-bit symbols.
+/// 
+/// The method is presented in:
+/// - Claude, F., Navarro, G. "The Wavelet Matrix", 2012,
+///   In: Calderón-Benavides, L., González-Caro, C., Chávez, E., Ziviani, N. (eds)
+///   "String Processing and Information Retrieval". SPIRE 2012.
+///   Lecture Notes in Computer Science, vol 7608. Springer, Berlin, Heidelberg.
+///   <https://doi.org/10.1007/978-3-642-34109-0_18>
+/// 
+/// Our implementation draws some ideas from the Go implementation by Daisuke Okanohara,
+/// available at <https://github.com/hillbig/waveletTree/>
 pub struct WaveletMatrix {
     levels: Box<[WaveletMatrixLevel]>,
     len: usize
@@ -154,6 +164,48 @@ impl WaveletMatrix {
     #[inline] pub fn get_or_panic(&self, index: usize) -> u64 {
         self.get(index).expect("WaveletMatrix::get index out of bound")
     }
+
+    pub fn try_count_in_range(&self, mut range: std::ops::Range<usize>, value: u64) -> Option<usize> {
+        if self.len() < range.end { return None; }
+        let mut level_bit_mask = 1 << self.bits_per_value();
+        for level in self.levels.iter() {
+            level_bit_mask >>= 1;
+            if value & level_bit_mask == 0 {
+                range.start = level.bits.rank0(range.start);
+                range.end = level.bits.rank0(range.end);
+            } else {
+                range.start = level.bits.rank(range.start) + level.number_of_zeros;
+                range.end = level.bits.rank(range.end) + level.number_of_zeros;
+            }
+        }
+        Some(range.len())
+    }
+
+    #[inline] pub fn try_rank(&self, index: usize, value: u64) -> Option<usize> {
+        self.try_count_in_range(0..index, value)
+    }
+
+    #[inline]
+    fn sel(&self, rank: usize, value: u64, index: usize, depth: usize) -> Option<usize> {
+        let level = match self.levels.get(depth) {
+            Some(level) => level,
+            None => return Some(index + rank)
+        };
+        if value & (1<<(self.levels.len()-depth-1)) == 0 {
+            level.bits.try_select0(
+                self.sel(rank, value, level.bits.rank0(index), depth + 1)?
+            )
+        } else {
+            level.bits.try_select(
+                self.sel(rank, value, level.bits.rank(index) + level.number_of_zeros, depth + 1)?
+                - level.number_of_zeros
+            )
+        }
+    }
+
+    pub fn try_select(&self, rank: usize, value: u64) -> Option<usize> {
+        self.sel(rank, value, 0, 0)
+    }
 }
 
 impl GetSize for WaveletMatrix {
@@ -183,6 +235,11 @@ mod tests {
         assert_eq!(wm.get(2), Some(0b01));
         assert_eq!(wm.get(3), Some(0b01));
         assert_eq!(wm.get(4), None);
+        assert_eq!(wm.try_rank(2, 0b10), Some(1));
+        assert_eq!(wm.try_rank(2, 0b11), Some(1));
+        assert_eq!(wm.try_rank(2, 0b01), Some(0));
+        assert_eq!(wm.try_select(0, 0b10), Some(1));
+        assert_eq!(wm.try_select(0, 0b01), Some(2));
     }
 
     #[test]
@@ -197,15 +254,24 @@ mod tests {
 
     #[test]
     fn test_4_levels() {
-        let wm = WaveletMatrix::from_bits(&[0b1101_1010_0000_0001_1011], 5, 4);
+        let wm = WaveletMatrix::from_bits(&[0b1101_1010_0001_0001_1011], 5, 4);
         assert_eq!(wm.len(), 5);
         assert_eq!(wm.bits_per_value(), 4);
         assert_eq!(wm.get(0), Some(0b1011));
         assert_eq!(wm.get(1), Some(0b0001));
-        assert_eq!(wm.get(2), Some(0b0000));
+        assert_eq!(wm.get(2), Some(0b0001));
         assert_eq!(wm.get(3), Some(0b1010));
         assert_eq!(wm.get(4), Some(0b1101));
         assert_eq!(wm.get(5), None);
+        assert_eq!(wm.try_rank(0, 0b1011), Some(0));
+        assert_eq!(wm.try_rank(1, 0b0001), Some(0));
+        assert_eq!(wm.try_rank(2, 0b0001), Some(1));
+        assert_eq!(wm.try_rank(3, 0b0001), Some(2));
+        assert_eq!(wm.try_rank(4, 0b0001), Some(2));
+        assert_eq!(wm.try_rank(5, 0b0001), Some(2));
+        assert_eq!(wm.try_rank(6, 0b0001), None);
+        assert_eq!(wm.try_select(0, 0b0001), Some(1));
+        assert_eq!(wm.try_select(1, 0b0001), Some(2));
     }
 
 }
