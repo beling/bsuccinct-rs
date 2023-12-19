@@ -36,7 +36,7 @@ impl LevelBuilder {
         }
     }
 
-    /// Add subsequent `value` from previous level to `self`.
+    /// Adds subsequent `value` from previous level to `self`.
     fn push(&mut self, value: u64) {
         let is_one = value & self.upper_bit_mask != 0;
         self.upper_bit.init_successive_bit(&mut self.upper_index, is_one);
@@ -46,37 +46,39 @@ impl LevelBuilder {
     }
 }
 
+/// Level of the we wavelet matrix.
 struct WaveletMatrixLevel {
-    /// Bits.
-    bits: ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>,
+    /// Level content as bit vector with support for rank and select queries.
+    content: ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>,
 
-    /// Number of zero bits.
+    /// Number of zero bits in content.
     number_of_zeros: usize
 }
 
 impl GetSize for WaveletMatrixLevel {
-    fn size_bytes_dyn(&self) -> usize { self.bits.size_bytes_dyn() }
+    fn size_bytes_dyn(&self) -> usize { self.content.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
 impl WaveletMatrixLevel {
-    fn new(level: Box::<[u64]>, number_of_zeros: usize) -> Self {
+    /// Constructs level with given `content` that contain given number of zero bits.
+    fn new(content: Box::<[u64]>, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
         //Self { bits, zeros: level_len - number_of_ones }
-        Self { bits: level.into(), number_of_zeros }
+        Self { content: content.into(), number_of_zeros }
     }
 }
 
 /// WaveletMatrix stores a sequence of `len` `bits_per_value`-bit symbols.
 /// 
-/// The method is presented in:
+/// Our implementation is based on the following paper, which presents the method:
 /// - Claude, F., Navarro, G. "The Wavelet Matrix", 2012,
 ///   In: Calderón-Benavides, L., González-Caro, C., Chávez, E., Ziviani, N. (eds)
 ///   "String Processing and Information Retrieval". SPIRE 2012.
 ///   Lecture Notes in Computer Science, vol 7608. Springer, Berlin, Heidelberg.
 ///   <https://doi.org/10.1007/978-3-642-34109-0_18>
 /// 
-/// Our implementation draws some ideas from the Go implementation by Daisuke Okanohara,
+/// Additionally, our implementation draws some ideas from the Go implementation by Daisuke Okanohara,
 /// available at <https://github.com/hillbig/waveletTree/>
 pub struct WaveletMatrix {
     levels: Box<[WaveletMatrixLevel]>,
@@ -151,11 +153,11 @@ impl WaveletMatrix {
         let mut result = 0;
         for level in self.levels.iter() {
             result <<= 1;
-            if level.bits.content.get_bit(index) {
+            if level.content.content.get_bit(index) {
                 result |= 1;
-                index = level.bits.rank(index) + level.number_of_zeros;
+                index = level.content.rank(index) + level.number_of_zeros;
             } else {
-                index = level.bits.rank0(index);
+                index = level.content.rank0(index);
             }
         }
         Some(result)
@@ -171,11 +173,11 @@ impl WaveletMatrix {
         for level in self.levels.iter() {
             level_bit_mask >>= 1;
             if value & level_bit_mask == 0 {
-                range.start = level.bits.rank0(range.start);
-                range.end = level.bits.rank0(range.end);
+                range.start = level.content.rank0(range.start);
+                range.end = level.content.rank0(range.end);
             } else {
-                range.start = level.bits.rank(range.start) + level.number_of_zeros;
-                range.end = level.bits.rank(range.end) + level.number_of_zeros;
+                range.start = level.content.rank(range.start) + level.number_of_zeros;
+                range.end = level.content.rank(range.end) + level.number_of_zeros;
             }
         }
         Some(range.len())
@@ -192,12 +194,12 @@ impl WaveletMatrix {
             None => return Some(index + rank)
         };
         if value & (1<<(self.levels.len()-depth-1)) == 0 {
-            level.bits.try_select0(
-                self.sel(rank, value, level.bits.rank0(index), depth + 1)?
+            level.content.try_select0(
+                self.sel(rank, value, level.content.rank0(index), depth + 1)?
             )
         } else {
-            level.bits.try_select(
-                self.sel(rank, value, level.bits.rank(index) + level.number_of_zeros, depth + 1)?
+            level.content.try_select(
+                self.sel(rank, value, level.content.rank(index) + level.number_of_zeros, depth + 1)?
                 - level.number_of_zeros
             )
         }
@@ -205,6 +207,10 @@ impl WaveletMatrix {
 
     pub fn try_select(&self, rank: usize, value: u64) -> Option<usize> {
         self.sel(rank, value, 0, 0)
+    }
+
+    pub fn select(&self, rank: usize, value: u64) -> usize {
+        self.try_select(rank, value).expect("WaveletMatrix::select: rank of value out of bound")
     }
 }
 
