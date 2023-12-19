@@ -16,7 +16,7 @@ impl EliasFanoBuilder {
         if final_len == 0 || universe == 0 {
             return Self { hi: Default::default(), lo: Default::default(), bits_per_lo: 0, len: 0, final_len: 0, last_added: 0, universe };
         }
-        let bits_per_lo = (universe / final_len as u64).ilog2() as u8;
+        let bits_per_lo = (universe / final_len as u64).checked_ilog2().unwrap_or(0) as u8;
         Self {
             // adding the last (i.e. (final_len-1)-th) element with value universe-1 sets bit (final_len-1) + ((universe-1) >> bits_per_lo)
             hi: Box::with_zeroed_bits(final_len + ((universe-1) >> bits_per_lo) as usize),
@@ -113,5 +113,23 @@ mod tests {
         assert_eq!(ef.get(2), Some(801));
         assert_eq!(ef.get(3), Some(920));
         assert_eq!(ef.get(4), Some(999));
+        assert_eq!(ef.get(5), None);
+    }
+
+    #[test]
+    fn test_small_dense() {
+        let mut ef = EliasFanoBuilder::new(5, 6);
+        ef.push(0);
+        ef.push(1);
+        ef.push(3);
+        ef.push(4);
+        ef.push(5);
+        let ef: EliasFano = ef.finish();
+        assert_eq!(ef.get(0), Some(0));
+        assert_eq!(ef.get(1), Some(1));
+        assert_eq!(ef.get(2), Some(3));
+        assert_eq!(ef.get(3), Some(4));
+        assert_eq!(ef.get(4), Some(5));
+        assert_eq!(ef.get(5), None);
     }
 }
