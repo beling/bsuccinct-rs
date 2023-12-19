@@ -84,7 +84,7 @@ impl WaveletMatrixLevel {
 ///   <https://doi.org/10.1007/978-3-642-34109-0_18>
 /// 
 /// Additionally, our implementation draws some ideas from the Go implementation by Daisuke Okanohara,
-/// available at <https://github.com/hillbig/waveletTree/>
+/// available at <https://github.com/hillbig/waveletTree/>.
 pub struct WaveletMatrix {
     levels: Box<[WaveletMatrixLevel]>,
     len: usize
@@ -101,10 +101,10 @@ impl WaveletMatrix {
     /// Returns the size of each value in bits.
     #[inline] pub fn bits_per_value(&self) -> u8 { self.levels.len() as u8 }
 
-    /// Constructs [`WaveletMatrix`] with content consisted of `content_len` `bits_per_value`-bit
-    /// values which are exposed by iterator returned by given `content` function.
-    pub fn from_fn<I, F>(content: F, content_len: usize, bits_per_value: u8) -> Self
-        where I: IntoIterator<Item = u64>, F: Fn() -> I
+    /// Constructs [`WaveletMatrix`] with `content_len` `bits_per_value`-bit
+    /// values exposed by iterator returned by `content` function.
+    pub fn from_fn<I, F>(mut content: F, content_len: usize, bits_per_value: u8) -> Self
+        where I: IntoIterator<Item = u64>, F: FnMut() -> I
     {
         assert!(bits_per_value > 0 && bits_per_value <= 64);
         let mut levels = Vec::with_capacity(bits_per_value as usize);
@@ -210,19 +210,19 @@ impl WaveletMatrix {
         self.try_rank(index, value).expect("WaveletMatrix::rank index out of bound")
     }
 
-    /// Method from Claude-Navarro paper, used by select methods.
-    #[inline] fn sel(&self, rank: usize, value: u64, index: usize, depth: usize) -> Option<usize> {
-        let level = match self.levels.get(depth) {
+    /// The method from Claude-Navarro paper, used by select methods.
+    #[inline] fn sel(&self, rank: usize, value: u64, index: usize, level_nr: usize) -> Option<usize> {
+        let level = match self.levels.get(level_nr) {
             Some(level) => level,
             None => return Some(index + rank)
         };
-        if value & (1<<(self.levels.len()-depth-1)) == 0 {
+        if value & (1<<(self.levels.len()-level_nr-1)) == 0 {
             level.content.try_select0(
-                self.sel(rank, value, level.content.rank0(index), depth + 1)?
+                self.sel(rank, value, level.content.rank0(index), level_nr + 1)?
             )
         } else {
             level.content.try_select(
-                self.sel(rank, value, level.content.rank(index) + level.number_of_zeros, depth + 1)?
+                self.sel(rank, value, level.content.rank(index) + level.number_of_zeros, level_nr + 1)?
                 - level.number_of_zeros
             )
         }
@@ -256,6 +256,22 @@ mod tests {
         assert_eq!(wm.len(), 0);
         assert_eq!(wm.bits_per_value(), 2);
         assert_eq!(wm.get(0), None);
+    }
+
+    #[test]
+    fn test_1_level() {
+        let wm = WaveletMatrix::from_bits(&[0b1101], 4, 1);
+        assert_eq!(wm.len(), 4);
+        assert_eq!(wm.bits_per_value(), 1);
+        assert_eq!(wm.get(0), Some(1));
+        assert_eq!(wm.get(1), Some(0));
+        assert_eq!(wm.get(2), Some(1));
+        assert_eq!(wm.get(3), Some(1));
+        assert_eq!(wm.get(4), None);
+        assert_eq!(wm.try_rank(3, 1), Some(2));
+        assert_eq!(wm.try_rank(3, 0), Some(1));
+        assert_eq!(wm.try_select(0, 0), Some(1));
+        assert_eq!(wm.try_select(2, 1), Some(3));
     }
 
     #[test]
