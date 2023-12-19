@@ -1,4 +1,4 @@
-use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0};
+use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111};
 use dyn_size_of::GetSize;
 
 /// Constructs bit vectors for the (current) level of velvet matrix.
@@ -47,20 +47,20 @@ impl LevelBuilder {
 }
 
 /// Level of the we wavelet matrix.
-struct WaveletMatrixLevel {
+struct WaveletMatrixLevel<S = CombinedSampling> {
     /// Level content as bit vector with support for rank and select queries.
-    content: ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>,
+    content: ArrayWithRankSelect101111::<S>,
 
     /// Number of zero bits in content.
     number_of_zeros: usize
 }
 
-impl GetSize for WaveletMatrixLevel {
+impl<S> GetSize for WaveletMatrixLevel<S> where ArrayWithRankSelect101111<S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.content.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl WaveletMatrixLevel {
+impl<S> WaveletMatrixLevel<S> where ArrayWithRankSelect101111<S>: From<Box<[u64]>> {
     /// Constructs level with given `content` that contain given number of zero bits.
     fn new(content: Box::<[u64]>, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
@@ -69,29 +69,32 @@ impl WaveletMatrixLevel {
     }
 }
 
-/// WaveletMatrix stores a sequence of `len` `bits_per_value`-bit values
+/// [`WaveletMatrix`] stores a sequence of `len` `bits_per_value`-bit values
 /// using just over (about 4%) `len * bits_per_value` bits and
-/// quickly executes many useful queries, such as:
-/// - *access* a value with a given index - see [`get`]
-/// - *select* - see [`select`]
-/// - *rank* - see [`rank`]
+/// quickly (mostly in *O(bits_per_value)* time) executes many useful queries, such as:
+/// - *access* a value with a given index - see [`WaveletMatrix::get`],
+/// - *select* - see [`WaveletMatrix::select`],
+/// - *rank* - see [`WaveletMatrix::rank`].
 /// 
-/// Our implementation is based on the following paper, which presents the method:
+/// By default [`bitm::CombinedSampling`] is used as a select strategy for internal bit vectors,
+/// but this can be changed to [`bitm::BinaryRankSearch`] to save a bit
+/// of space at the cost of slower *select* queries.
+/// 
+/// Our implementation is based on the following paper which proposed the method:
 /// - Claude, F., Navarro, G. "The Wavelet Matrix", 2012,
 ///   In: Calderón-Benavides, L., González-Caro, C., Chávez, E., Ziviani, N. (eds)
-///   "String Processing and Information Retrieval". SPIRE 2012.
-///   Lecture Notes in Computer Science, vol 7608. Springer, Berlin, Heidelberg.
+///   "String Processing and Information Retrieval", SPIRE 2012,
+///   Lecture Notes in Computer Science, vol 7608, Springer, Berlin, Heidelberg,
 ///   <https://doi.org/10.1007/978-3-642-34109-0_18>
 /// 
 /// Additionally, our implementation draws some ideas from the Go implementation by Daisuke Okanohara,
 /// available at <https://github.com/hillbig/waveletTree/>.
-pub struct WaveletMatrix {
-    levels: Box<[WaveletMatrixLevel]>,
+pub struct WaveletMatrix<S = CombinedSampling> {
+    levels: Box<[WaveletMatrixLevel<S>]>,
     len: usize
 }
 
-impl WaveletMatrix {
-
+impl<S> WaveletMatrix<S> {
     /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
 
@@ -100,13 +103,32 @@ impl WaveletMatrix {
 
     /// Returns the size of each value in bits.
     #[inline] pub fn bits_per_value(&self) -> u8 { self.levels.len() as u8 }
+}
 
+impl WaveletMatrix<CombinedSampling> {
     /// Constructs [`WaveletMatrix`] with `content_len` `bits_per_value`-bit
     /// values exposed by iterator returned by `content` function.
-    pub fn from_fn<I, F>(mut content: F, content_len: usize, bits_per_value: u8) -> Self
+    pub fn from_fn<I, F>(content: F, content_len: usize, bits_per_value: u8) -> Self
+        where I: IntoIterator<Item = u64>, F: FnMut() -> I {
+        Self::from_fn_s(content, content_len, bits_per_value)
+    }
+
+    /// Constructs [`WaveletMatrix`] with `content` consisted of `content_len` `bits_per_value`-bit
+    /// values contained in the bit vector.
+    pub fn from_bits(content: &[u64], content_len: usize, bits_per_value: u8) -> Self {
+        Self::from_bits_s(content, content_len, bits_per_value)
+    }
+}
+
+impl<S> WaveletMatrix<S> where S: SelectForRank101111 {
+
+    /// Constructs [`WaveletMatrix`] with `content_len` `bits_per_value`-bit
+    /// values exposed by iterator returned by `content` function,
+    /// and custom select strategy.
+    pub fn from_fn_s<I, F>(mut content: F, content_len: usize, bits_per_value: u8) -> Self
         where I: IntoIterator<Item = u64>, F: FnMut() -> I
     {
-        assert!(bits_per_value > 0 && bits_per_value <= 64);
+        assert!(bits_per_value > 0 && bits_per_value <= 63);
         let mut levels = Vec::with_capacity(bits_per_value as usize);
         if bits_per_value == 1 {
             let mut level = Box::with_zeroed_bits(content_len);
@@ -119,8 +141,8 @@ impl WaveletMatrix {
         let mut number_of_zeros = [0; 64];
         for mut e in content() {
             e = !e;
-            for b in 0..bits_per_value {
-                number_of_zeros[b as usize] += (e & 1) as usize;
+            for zeros in &mut number_of_zeros[0..bits_per_value as usize] {
+                *zeros += (e & 1) as usize;
                 e >>= 1;
             }
         }
@@ -150,9 +172,9 @@ impl WaveletMatrix {
     }
 
     /// Constructs [`WaveletMatrix`] with `content` consisted of `content_len` `bits_per_value`-bit
-    /// values contained in the bit vector.
-    pub fn from_bits(content: &[u64], content_len: usize, bits_per_value: u8) -> Self {
-        Self::from_fn(
+    /// values contained in the bit vector, and custom select strategy.
+    pub fn from_bits_s(content: &[u64], content_len: usize, bits_per_value: u8) -> Self {
+        Self::from_fn_s(
             || { (0..content_len).map(|index| content.get_fragment(index, bits_per_value)) },
              content_len, bits_per_value)
     }
@@ -322,5 +344,4 @@ mod tests {
         assert_eq!(wm.try_select(0, 0b0001), Some(1));
         assert_eq!(wm.try_select(1, 0b0001), Some(2));
     }
-
 }

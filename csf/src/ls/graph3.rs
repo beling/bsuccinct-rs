@@ -64,7 +64,7 @@ impl<VI: VertexIndex> XoredAdjacencyList<VI> {
         if v0 < v1 { self.remove_canonized_edge(v0, v1) } else { self.remove_canonized_edge(v1, v0) }
     }
 
-    /// Returns the canonized form of the only edge contained in `self` if `self.len==1` or `None` otherwise.
+    /// Returns the canonized form of the only edge contained in `self` if `self.len==1` or [`None`] otherwise.
     #[inline] pub fn try_get_edge(&mut self) -> Option<(usize, usize)> {
         (self.len == 1).then(|| (self.v0.to_usize(), self.v1.to_usize()))
     }
@@ -181,7 +181,7 @@ impl<VI: VertexIndex, Values: EdgeValues> HyperGraph<VI, Values> {
     /// Returns a sequence of the graph edges *v0=(a0, b0, c0), v1=(a1, b1, c1), ...*
     /// such that the vertex *ai* is not incident to the edge *vj* for all *j>i*.
     /// Call `value_consumer` for each value assigned to the edge pushed to the returned sequence.
-    // Returns `None` if a sequence satisfying the above condition could not be found.
+    // Returns [`None`] if a sequence satisfying the above condition could not be found.
     pub fn peel_with_values<VC: FnMut(&Values::Value)>(mut self, number_of_edges: usize, mut value_consumer: VC) -> Vec<(VI, VI, VI)> {
         let mut result = Vec::with_capacity(number_of_edges);
         for vertex in 0..self.adjacency_list.len() {

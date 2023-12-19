@@ -91,7 +91,7 @@ pub trait Coding {
     /// Returns the first fragment of the `code`.
     #[inline] fn first_fragment_of(&self, code: Self::Codeword) -> u8 { self.fragment_of(code, 0) }
 
-    /// Extracts and returns the first fragment of the `code` or `None` if the `code` is already empty.
+    /// Extracts and returns the first fragment of the `code` or [`None`] if the `code` is already empty.
     fn extract_first_fragment_of(&self, code: &mut Self::Codeword) -> Option<u8> {
         (!self.is_code_empty(*code)).then(|| {
             let result = self.first_fragment_of(*code);

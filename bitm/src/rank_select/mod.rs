@@ -8,7 +8,7 @@ use dyn_size_of::GetSize;
 
 /// Trait for rank operation that returns the number of ones (or zeros) in requested number of the first bits.
 pub trait Rank {
-    /// Returns the number of ones in first `index` bits or `None` if `index` is out of bound.
+    /// Returns the number of ones in first `index` bits or [`None`] if `index` is out of bound.
     fn try_rank(&self, index: usize) -> Option<usize>;
 
     /// Returns the number of ones in first `index` bits or panics if `index` is out of bound.
@@ -22,7 +22,7 @@ pub trait Rank {
         self.rank(index)
     }
 
-    /// Returns the number of zeros in first `index` bits or `None` if `index` is out of bound.
+    /// Returns the number of zeros in first `index` bits or [`None`] if `index` is out of bound.
     #[inline] fn try_rank0(&self, index: usize) -> Option<usize> {
          self.try_rank(index).map(|r| index-r)
     }
@@ -45,7 +45,7 @@ pub trait Rank {
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 3.125% extra space.
 /// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
 /// In addition, it supports select queries utilizing binary search over ranks (see [`BinaryRankSearch`])
-/// or (optionally, at the cost of about 0.39% extra space overhead) combined sampling [`CombinedSampling`].
+/// or (optionally, at the cost of about 0.39% extra space overhead) combined sampling (see [`CombinedSampling`]).
 ///
 /// It uses modified version of the structure described in the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
@@ -57,7 +57,8 @@ pub trait Rank {
 /// - original: r0 stored on 32 bits, r1-r0 on 10 bits, r2-r1 on 10 bits, r3-r2 on 10 bits;
 /// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits
 ///        (and unused fields in the last entries, for out-of-bound content bits, are filled with bit ones).
-/// With this layout, we can read the corresponding value in the rank operation without branching.
+/// With this layout, we can read the corresponding value in the rank query without branching
+/// and avoid some bound checks in the select query.
 #[derive(Clone)]
 pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch> {
     pub content: Box<[u64]>,  // BitVec

@@ -215,7 +215,7 @@ pub trait BitAccess {
         self.set_fragment(index2, v1, v_size);
     }
 
-    /// Conditionally (if `new_value` does not return `None`) changes
+    /// Conditionally (if `new_value` does not return [`None`]) changes
     /// the value `old` stored at bits `[begin, begin+v_size)`
     /// to the one returned by `new_value` (whose argument is `old`).
     /// Returns `old` (the value before change).
@@ -227,7 +227,7 @@ pub trait BitAccess {
         old
     }
 
-    /// Conditionally (if `new_value` does not return `None`) changes
+    /// Conditionally (if `new_value` does not return [`None`]) changes
     /// the value `old` stored at bits [`index*v_size`, `index*v_size+v_size`)
     /// to the one returned by `new_value` (whose argument is `old`).
     /// Returns `old` (the value before change).

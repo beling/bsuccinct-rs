@@ -416,7 +416,7 @@ impl<S: BuildSeededHasher> Function<S> {
     /// 
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection given during construction,
-    /// either `None` or an undetermined value from the specified range is returned.
+    /// either [`None`] or an undetermined value from the specified range is returned.
     pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut array_begin_index = 0usize;
         let mut level_nr = 0u32;
@@ -436,7 +436,7 @@ impl<S: BuildSeededHasher> Function<S> {
     /// 
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection given during construction,
-    /// either `None` or an undetermined value from the specified range is returned.
+    /// either [`None`] or an undetermined value from the specified range is returned.
     #[inline] pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u64> {
         self.get_stats(key, &mut ())
     }
@@ -517,7 +517,7 @@ impl<S: BuildSeededHasher + Sync> Function<S> {
 
     /// Constructs [`Function`] for given `keys`, using the build configuration `conf` and reporting statistics with `stats`.
     /// 
-    /// `None` is returned if the construction fails.
+    /// [`None`] is returned if the construction fails.
     /// Then it is almost certain that the input contains either duplicate keys
     /// or keys indistinguishable by any hash function from the family used.
     pub fn try_with_conf_stats<K, BS, KS>(mut keys: KS, conf: BuildConf<S>, stats: &mut BS) -> Option<Self>

@@ -99,7 +99,7 @@ impl<D: TreeDegree> Iterator for CodeIterator<D> {
 impl Iterator for Code {
     type Item = u32;
 
-    /// Extracts and returns the first fragment of `self` or returns `None` of `self` is empty.
+    /// Extracts and returns the first fragment of `self` or returns [`None`] of `self` is empty.
     fn next(&mut self) -> Option<u32> {
         (self.fragments != 0).then(|| self.extract_first())
         //if self.fragments == 0 { None } else { Some(self.extract_first()) }

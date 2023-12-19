@@ -4,7 +4,7 @@
 /// `u8`, `u16`, `u32`, `u64`, `usize` (which, for portability, is always serialized the same as `u64`).
 pub trait Serializer<T: Copy>: Copy {
 
-    /// Either size of each value in bytes (if each value occupies constant size) or `None`.
+    /// Either size of each value in bytes (if each value occupies constant size) or [`None`].
     const CONST_SIZE: Option<usize> = None;
 
     /// Returns number of bytes which [`write`](Serializer::write) needs to serialize `val`.

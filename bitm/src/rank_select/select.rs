@@ -17,7 +17,7 @@ pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 /// Trait implemented by types that support select (one) operation,
 /// i.e. can (quickly) find the position of the n-th one in the bitmap.
 pub trait Select {
-    /// Returns the position of the `rank`-th one (counting from 0) in `self` or `None` if there are no such many ones in `self`.
+    /// Returns the position of the `rank`-th one (counting from 0) in `self` or [`None`] if there are no such many ones in `self`.
     fn try_select(&self, rank: usize) -> Option<usize>;
 
     /// Returns the position of the `rank`-th one (counting from 0) in `self` or panics if there are no such many ones in `self`.
@@ -35,7 +35,7 @@ pub trait Select {
 /// Trait implemented by types that support select zero operation,
 /// i.e. can (quickly) find the position of the n-th zero in the bitmap.
 pub trait Select0 {
-    /// Returns the position of the `rank`-th zero (counting from 0) in `self` or `None` if there are no such many zeros in `self`.
+    /// Returns the position of the `rank`-th zero (counting from 0) in `self` or [`None`] if there are no such many zeros in `self`.
     fn try_select0(&self, rank: usize) -> Option<usize>;
 
     /// Returns the position of the `rank`-th zero (counting from 0) in `self` or panics if there are no such many zeros in `self`.
@@ -123,8 +123,8 @@ pub trait Select0ForRank101111 {
     }
 }*/
 
-/// A select strategy for [`RankSelect101111`] that does not introduce any overhead
-/// and is based on a binary search of the entries of rank structure.
+/// A select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111)
+/// that does not introduce any overhead and is based on a binary search of the entries of rank structure.
 #[derive(Clone, Copy)]
 pub struct BinaryRankSearch;
 
@@ -218,7 +218,8 @@ impl Select0ForRank101111 for BinaryRankSearch {
 
 pub const ONES_PER_SELECT_ENTRY: usize = 8192;
 
-/// A select strategy for [`ArrayWithRankSelect101111`] with about 0.39% space overhead that was proposed in:
+/// A select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead,
+/// implemented according to the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
