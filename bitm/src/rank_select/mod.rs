@@ -1,7 +1,7 @@
 mod utils;
 mod select;
-use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS, Select0ForRank101111};
-pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling, SelectForRank101111};
+use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS};
+pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling, SelectForRank101111, Select0ForRank101111};
 
 use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
