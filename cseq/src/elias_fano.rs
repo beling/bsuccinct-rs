@@ -12,6 +12,9 @@ pub struct EliasFanoBuilder {
 }
 
 impl EliasFanoBuilder {
+    /// Constructs [`EliasFanoBuilder`] to build [`EliasFano`] with `final_len` values in range [`0`, `universe`).
+    /// After adding values in non-decreasing order by [`Self::push`] method,
+    /// [`Self::finish`] can be called to construct [`EliasFano`].
     pub fn new(final_len: usize, universe: u64) -> Self {
         if final_len == 0 || universe == 0 {
             return Self { hi: Default::default(), lo: Default::default(), bits_per_lo: 0, len: 0, final_len: 0, last_added: 0, universe };
