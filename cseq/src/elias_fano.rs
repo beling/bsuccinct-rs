@@ -13,12 +13,13 @@ pub struct EliasFanoBuilder {
 
 impl EliasFanoBuilder {
     pub fn new(final_len: usize, universe: u64) -> Self {
-        if final_len == 0 {
+        if final_len == 0 || universe == 0 {
             return Self { hi: Default::default(), lo: Default::default(), bits_per_lo: 0, len: 0, final_len: 0, last_added: 0, universe };
         }
         let bits_per_lo = (universe / final_len as u64).ilog2() as u8;
         Self {
-            hi: Box::with_zeroed_bits(final_len + (universe >> bits_per_lo) as usize + 1),
+            // adding the last (i.e. (final_len-1)-th) element with value universe-1 sets bit (final_len-1) + ((universe-1) >> bits_per_lo)
+            hi: Box::with_zeroed_bits(final_len + ((universe-1) >> bits_per_lo) as usize),
             lo: Box::with_zeroed_bits(1.max(final_len * bits_per_lo as usize)),
             bits_per_lo,
             len: 0,
@@ -68,7 +69,11 @@ pub struct EliasFano<S = CombinedSampling> {
 }
 
 impl<S> EliasFano<S> {
+    /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
+
+    /// Returns whether the sequence is empty.
+    #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
 }
 
 impl<S: SelectForRank101111> EliasFano<S> {
