@@ -78,6 +78,7 @@ impl<S> EliasFano<S> {
 
 impl<S: SelectForRank101111> EliasFano<S> {
     #[inline] pub fn get(&self, index: usize) -> Option<u64> {
+        // TODO (index < len).then ...
         Some(
             (((self.hi.try_select(index)? - index) as u64) << self.bits_per_lo) |
             self.lo.get_fragment(index, self.bits_per_lo)
@@ -86,6 +87,12 @@ impl<S: SelectForRank101111> EliasFano<S> {
 
     pub fn get_or_panic(&self, index: usize) -> u64 {
         self.get(index).expect("EliasFano: get index out of bound")
+    }
+}
+
+impl<S: SelectForRank101111> Select for EliasFano<S> {
+    #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
+        self.get(rank).map(|v| v as usize)
     }
 }
 
