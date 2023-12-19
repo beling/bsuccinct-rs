@@ -69,7 +69,12 @@ impl WaveletMatrixLevel {
     }
 }
 
-/// WaveletMatrix stores a sequence of `len` `bits_per_value`-bit symbols.
+/// WaveletMatrix stores a sequence of `len` `bits_per_value`-bit values
+/// using just over (about 4%) `len * bits_per_value` bits and
+/// quickly executes many useful queries, such as:
+/// - *access* a value with a given index - see [`get`]
+/// - *select* - see [`select`]
+/// - *rank* - see [`rank`]
 /// 
 /// Our implementation is based on the following paper, which presents the method:
 /// - Claude, F., Navarro, G. "The Wavelet Matrix", 2012,
@@ -93,9 +98,11 @@ impl WaveletMatrix {
     /// Returns whether the sequence is empty.
     #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
 
-    /// Returns number of bits per value.
+    /// Returns the size of each value in bits.
     #[inline] pub fn bits_per_value(&self) -> u8 { self.levels.len() as u8 }
 
+    /// Constructs [`WaveletMatrix`] with content consisted of `content_len` `bits_per_value`-bit
+    /// values which are exposed by iterator returned by given `content` function.
     pub fn from_fn<I, F>(content: F, content_len: usize, bits_per_value: u8) -> Self
         where I: IntoIterator<Item = u64>, F: Fn() -> I
     {
@@ -142,12 +149,15 @@ impl WaveletMatrix {
         Self { levels: levels.into_boxed_slice(), len: content_len }
     }
 
+    /// Constructs [`WaveletMatrix`] with `content` consisted of `content_len` `bits_per_value`-bit
+    /// values contained in the bit vector.
     pub fn from_bits(content: &[u64], content_len: usize, bits_per_value: u8) -> Self {
         Self::from_fn(
             || { (0..content_len).map(|index| content.get_fragment(index, bits_per_value)) },
              content_len, bits_per_value)
     }
 
+    /// Returns a value with given `index` or [`None`] if `index` is out of bound.
     pub fn get(&self, mut index: usize) -> Option<u64> {
         if index >= self.len() { return None; }
         let mut result = 0;
@@ -163,10 +173,12 @@ impl WaveletMatrix {
         Some(result)
     }
 
+    /// Returns a value with given `index` or panics if `index` is out of bound.
     #[inline] pub fn get_or_panic(&self, index: usize) -> u64 {
         self.get(index).expect("WaveletMatrix::get index out of bound")
     }
 
+    /// Returns the number of `value` occurrences in the given `range`, or [`None`] if `range` is out of bound.
     pub fn try_count_in_range(&self, mut range: std::ops::Range<usize>, value: u64) -> Option<usize> {
         if self.len() < range.end { return None; }
         let mut level_bit_mask = 1 << self.bits_per_value();
@@ -183,12 +195,23 @@ impl WaveletMatrix {
         Some(range.len())
     }
 
+        /// Returns the number of `value` occurrences in the given `range`, or panics if `range` is out of bound.
+        pub fn count_in_range(&self, range: std::ops::Range<usize>, value: u64) -> usize {
+            self.try_count_in_range(range, value).expect("WaveletMatrix::count_in_range range out of bound")
+        }
+
+    /// Returns the number of `value` occurrences before given `index`, or [`None`] if `index` is out of bound.
     #[inline] pub fn try_rank(&self, index: usize, value: u64) -> Option<usize> {
         self.try_count_in_range(0..index, value)
     }
 
-    #[inline]
-    fn sel(&self, rank: usize, value: u64, index: usize, depth: usize) -> Option<usize> {
+    /// Returns the number of `value` occurrences before the given `index`, or panics if `index` is out of bound.
+    #[inline] pub fn rank(&self, index: usize, value: u64) -> usize {
+        self.try_rank(index, value).expect("WaveletMatrix::rank index out of bound")
+    }
+
+    /// Method from Claude-Navarro paper, used by select methods.
+    #[inline] fn sel(&self, rank: usize, value: u64, index: usize, depth: usize) -> Option<usize> {
         let level = match self.levels.get(depth) {
             Some(level) => level,
             None => return Some(index + rank)
@@ -205,12 +228,16 @@ impl WaveletMatrix {
         }
     }
 
+    /// Returns the index of the `rank`-th (counting from 0) occurrence of `value`
+    /// or [`None`] if there are not so many occurrences.
     pub fn try_select(&self, rank: usize, value: u64) -> Option<usize> {
         self.sel(rank, value, 0, 0)
     }
 
-    pub fn select(&self, rank: usize, value: u64) -> usize {
-        self.try_select(rank, value).expect("WaveletMatrix::select: rank of value out of bound")
+    /// Returns the index of the `rank`-th (counting from 0) occurrence of `value`
+    /// or panics if there are not so many occurrences.
+    #[inline] pub fn select(&self, rank: usize, value: u64) -> usize {
+        self.try_select(rank, value).expect("WaveletMatrix::select: there are no rank occurrences of the value")
     }
 }
 
