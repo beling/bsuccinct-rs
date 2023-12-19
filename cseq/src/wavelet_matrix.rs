@@ -1,3 +1,5 @@
+use std::iter::FusedIterator;
+
 use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111};
 use dyn_size_of::GetSize;
 
@@ -26,9 +28,9 @@ impl LevelBuilder {
     /// and index of most significant bit (`index_of_bit_to_extract`).
     fn new(number_of_zeros: usize, total_len: usize, index_of_bit_to_extract: u8) -> Self {
         Self {
-            upper_bit: Box::with_zeroed_bits(total_len),
+            upper_bit: Box::with_zeroed_bits(total_len + 1),    // we add one bit to ensure that rank(len) will work
             upper_index: 0,
-            lower_bits: Box::with_zeroed_bits(total_len * index_of_bit_to_extract as usize),
+            lower_bits: Box::with_zeroed_bits(total_len * index_of_bit_to_extract as usize + 1), // we add one bit to ensure that rank(len) will work
             lower_zero_index: 0,
             lower_one_index: number_of_zeros * index_of_bit_to_extract as usize,
             upper_bit_mask: 1<<index_of_bit_to_extract,
@@ -66,6 +68,18 @@ impl<S> WaveletMatrixLevel<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
         //Self { bits, zeros: level_len - number_of_ones }
         Self { content: content.into(), number_of_zeros }
+    }
+}
+
+impl<S> WaveletMatrixLevel<S> where S: SelectForRank101111 {
+    fn try_select(&self, rank: usize, len: usize) -> Option<usize> {
+        self.content.try_select(rank).filter(|i| *i < len)
+    }
+}
+
+impl<S> WaveletMatrixLevel<S> where S: Select0ForRank101111 {
+    fn try_select0(&self, rank: usize, len: usize) -> Option<usize> {
+        self.content.try_select0(rank).filter(|i| *i < len)
     }
 }
 
@@ -179,20 +193,24 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
              content_len, bits_per_value)
     }
 
-    /// Returns a value with given `index` or [`None`] if `index` is out of bound.
-    pub fn get(&self, mut index: usize) -> Option<u64> {
-        if index >= self.len() { return None; }
+    /// Returns a value with given `index`. The result is undefined if `index` is out of bound.
+    pub unsafe fn get_unchecked(&self, mut index: usize) -> u64 {
         let mut result = 0;
         for level in self.levels.iter() {
             result <<= 1;
             if level.content.content.get_bit(index) {
                 result |= 1;
-                index = level.content.rank(index) + level.number_of_zeros;
+                index = level.content.rank_unchecked(index) + level.number_of_zeros;
             } else {
-                index = level.content.rank0(index);
+                index = level.content.rank0_unchecked(index);
             }
         }
-        Some(result)
+        result
+    }
+
+    /// Returns a value with given `index` or [`None`] if `index` is out of bound.
+    #[inline] pub fn get(&self, index: usize) -> Option<u64> {
+        (index < self.len()).then(|| unsafe {self.get_unchecked(index)})
     }
 
     /// Returns a value with given `index` or panics if `index` is out of bound.
@@ -217,10 +235,10 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
         Some(range.len())
     }
 
-        /// Returns the number of `value` occurrences in the given `range`, or panics if `range` is out of bound.
-        pub fn count_in_range(&self, range: std::ops::Range<usize>, value: u64) -> usize {
-            self.try_count_in_range(range, value).expect("WaveletMatrix::count_in_range range out of bound")
-        }
+    /// Returns the number of `value` occurrences in the given `range`, or panics if `range` is out of bound.
+    pub fn count_in_range(&self, range: std::ops::Range<usize>, value: u64) -> usize {
+        self.try_count_in_range(range, value).expect("WaveletMatrix::count_in_range range out of bound")
+    }
 
     /// Returns the number of `value` occurrences before given `index`, or [`None`] if `index` is out of bound.
     #[inline] pub fn try_rank(&self, index: usize, value: u64) -> Option<usize> {
@@ -239,13 +257,15 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
             None => return Some(index + rank)
         };
         if value & (1<<(self.levels.len()-level_nr-1)) == 0 {
-            level.content.try_select0(
-                self.sel(rank, value, level.content.rank0(index), level_nr + 1)?
+            level.try_select0(
+                self.sel(rank, value, level.content.rank0(index), level_nr + 1)?,
+                self.len
             )
         } else {
-            level.content.try_select(
+            level.try_select(
                 self.sel(rank, value, level.content.rank(index) + level.number_of_zeros, level_nr + 1)?
-                - level.number_of_zeros
+                - level.number_of_zeros,
+                self.len
             )
         }
     }
@@ -260,6 +280,11 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
     /// or panics if there are not so many occurrences.
     #[inline] pub fn select(&self, rank: usize, value: u64) -> usize {
         self.try_select(rank, value).expect("WaveletMatrix::select: there are no rank occurrences of the value")
+    }
+
+    /// Returns iterator over all values.
+    pub fn iter(&self) -> impl Iterator<Item = u64> + DoubleEndedIterator + FusedIterator + '_ {
+        (0..self.len()).map(|i| unsafe { self.get_unchecked(i) })
     }
 }
 
@@ -278,6 +303,8 @@ mod tests {
         assert_eq!(wm.len(), 0);
         assert_eq!(wm.bits_per_value(), 2);
         assert_eq!(wm.get(0), None);
+        assert_eq!(wm.rank(0, 0), 0);
+        assert_eq!(wm.iter().next(), None);
     }
 
     #[test]
@@ -293,7 +320,10 @@ mod tests {
         assert_eq!(wm.try_rank(3, 1), Some(2));
         assert_eq!(wm.try_rank(3, 0), Some(1));
         assert_eq!(wm.try_select(0, 0), Some(1));
+        assert_eq!(wm.try_select(1, 0), None);
         assert_eq!(wm.try_select(2, 1), Some(3));
+        assert_eq!(wm.try_select(3, 1), None);
+        assert_eq!(wm.iter().collect::<Vec<_>>(), [1, 0, 1, 1]);
     }
 
     #[test]
@@ -311,6 +341,7 @@ mod tests {
         assert_eq!(wm.try_rank(2, 0b01), Some(0));
         assert_eq!(wm.try_select(0, 0b10), Some(1));
         assert_eq!(wm.try_select(0, 0b01), Some(2));
+        assert_eq!(wm.iter().collect::<Vec<_>>(), [0b11, 0b10, 0b01, 0b01]);
     }
 
     #[test]
@@ -343,5 +374,6 @@ mod tests {
         assert_eq!(wm.try_rank(6, 0b0001), None);
         assert_eq!(wm.try_select(0, 0b0001), Some(1));
         assert_eq!(wm.try_select(1, 0b0001), Some(2));
+        assert_eq!(wm.try_select(2, 0b0001), None);
     }
 }

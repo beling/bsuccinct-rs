@@ -27,7 +27,7 @@ pub trait Select {
 
     /// Returns the position of the `rank`-th one (counting from 0) in `self`.
     /// The result is undefined if there are no such many ones in `self`.
-    unsafe fn unchecked_select(&self, rank: usize) -> usize {
+    unsafe fn select_unchecked(&self, rank: usize) -> usize {
         self.select(rank)
     }
 }
@@ -45,7 +45,7 @@ pub trait Select0 {
 
     /// Returns the position of the `rank`-th zero (counting from 0) in `self`.
     /// The result is undefined if there are no such many zeros in `self`.
-    unsafe fn unchecked_select0(&self, rank: usize) -> usize {
+    unsafe fn select0_unchecked(&self, rank: usize) -> usize {
         self.select0(rank)
     }
 }

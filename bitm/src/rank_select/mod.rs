@@ -18,7 +18,7 @@ pub trait Rank {
 
     /// Returns the number of ones in first `index` bits.
     /// The result is undefined if `index` is out of bound.
-    #[inline] unsafe fn unchecked_rank(&self, index: usize) -> usize {
+    #[inline] unsafe fn rank_unchecked(&self, index: usize) -> usize {
         self.rank(index)
     }
 
@@ -32,8 +32,8 @@ pub trait Rank {
 
     /// Returns the number of ones in first `index` bits.
     /// The result is undefined if `index` is out of bound.
-    #[inline] unsafe fn unchecked_rank0(&self, index: usize) -> usize {
-        index - self.unchecked_rank(index)
+    #[inline] unsafe fn rank0_unchecked(&self, index: usize) -> usize {
+        index - self.rank_unchecked(index)
     }
 }
 
