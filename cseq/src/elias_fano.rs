@@ -1,8 +1,11 @@
 use std::iter::FusedIterator;
 
-use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits, Select0};
+use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits, Select0ForRank101111, Rank, Select0};
 use dyn_size_of::GetSize;
 
+/// Builds [`Sequence`] of values added by push methods.
+/// After adding values in non-decreasing order by [`Self::push`] method,
+/// [`Self::finish`] can be called to construct [`Sequence`].
 pub struct Builder {
     hi: Box<[u64]>, // most significant bits of each element, unary coded
     lo: Box<[u64]>, // least significant bits of each element, vector of `bits_per_lo_entry` bit elements
@@ -14,9 +17,9 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Constructs [`EliasFanoBuilder`] to build [`EliasFano`] with `final_len` values in range [`0`, `universe`).
+    /// Constructs [`Builder`] to build [`Sequence`] with `final_len` values in range [`0`, `universe`).
     /// After adding values in non-decreasing order by [`Self::push`] method,
-    /// [`Self::finish`] can be called to construct [`EliasFano`].
+    /// [`Self::finish`] can be called to construct [`Sequence`].
     pub fn new(final_len: usize, universe: u64) -> Self {
         if final_len == 0 || universe == 0 {
             return Self { hi: Default::default(), lo: Default::default(), bits_per_lo: 0, len: 0, final_len: 0, last_added: 0, universe };
@@ -45,6 +48,10 @@ impl Builder {
         assert!(self.len < self.final_len, "EliasFanoBuilder: push exceeds the declared length of {} values", self.final_len);
         assert!(self.last_added <= value, "EliasFanoBuilder: values must be pushed in non-decreasing order, but received {value} after {}", self.last_added);
         unsafe { self.push_unchecked(value) }
+    }
+
+    pub fn push_diff(&mut self, value: u64) {
+        self.push(value)
     }
 
     pub fn push_all<I: IntoIterator<Item = u64>>(&mut self, values: I) {
@@ -166,6 +173,26 @@ impl<S: SelectForRank101111> Sequence<S> {
 impl<S: SelectForRank101111> Select for Sequence<S> {
     #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
         self.get(rank).map(|v| v as usize)
+    }
+}
+
+impl<S: Select0ForRank101111> Rank for Sequence<S> {
+    /// Returns the number of `self` elements with values less than given `value`.
+    fn try_rank(&self, value: usize) -> Option<usize> {
+        let value_hi = value >> self.bits_per_lo;
+        let mut hi_index = self.hi.try_select0(value_hi)?;  // index of 0 just after our ones
+        // TODO do we always have such 0? maybe it is better to select0(value_hi-1) and next scan forward?
+        let mut lo_index = hi_index - value_hi;
+
+        let value_lo = value as u64 & n_lowest_bits(self.bits_per_lo);
+        // skiping values that has the same most significant bits but greater or equal lower bits:
+        while lo_index > 0 && self.hi.content.get_bit(hi_index - 1) &&
+             value_lo <= self.lo.get_fragment(lo_index-1, self.bits_per_lo)
+        {
+            lo_index -= 1;
+            hi_index -= 1;
+        }
+        Some(lo_index)
     }
 }
 
@@ -301,6 +328,16 @@ mod tests {
         assert_eq!(ef.get(5), None);
         assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 801, 920, 999]);
         assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [999, 920, 801, 1, 0]);
+        assert_eq!(ef.rank(0), 0);
+        assert_eq!(ef.rank(1), 1);
+        assert_eq!(ef.rank(2), 2);
+        assert_eq!(ef.rank(800), 2);
+        assert_eq!(ef.rank(801), 2);
+        assert_eq!(ef.rank(802), 3);
+        assert_eq!(ef.rank(920), 3);
+        assert_eq!(ef.rank(921), 4);
+        assert_eq!(ef.rank(999), 4);
+        assert_eq!(ef.rank(1000), 5);
     }
 
     #[test]
@@ -320,5 +357,12 @@ mod tests {
         assert_eq!(ef.get(5), None);
         assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 3, 4, 5]);
         assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [5, 4, 3, 1, 0]);
+        assert_eq!(ef.rank(0), 0);
+        assert_eq!(ef.rank(1), 1);
+        assert_eq!(ef.rank(2), 2);
+        assert_eq!(ef.rank(3), 2);
+        assert_eq!(ef.rank(4), 3);
+        assert_eq!(ef.rank(5), 4);
+        assert_eq!(ef.rank(6), 5);
     }
 }
