@@ -258,6 +258,21 @@ pub trait BitAccess {
     {
         self.conditionally_copy_bits(src, predicate, index * v_size as usize, v_size)
     }
+
+    /// Returns the number of trailing 0 bits.
+    fn trailing_zero_bits(&self) -> usize;
+
+    /// Returns the lowest index of 1-bit that is grater or equal to `start_index`.
+    /// The result is undefined if there is no such index.
+    unsafe fn find_bit_one_unchecked(&self, start_index: usize) -> usize;
+
+    /// Returns the lowest index of 1-bit that is grater or equal to `start_index`.
+    /// Retruns [`None`] if there is no such index.
+    fn find_bit_one(&self, start_index: usize) -> Option<usize>;
+
+    /// Returns the greatest index of 1-bit that is lower or equal to `start_index`.
+    /// The result is undefined if there is no such index.
+    unsafe fn rfind_bit_one_unchecked(&self, start_index: usize) -> usize;
 }
 
 /// The trait that is implemented for `Box<[u64]>` and extends it with bit-oriented constructors.
@@ -463,7 +478,42 @@ impl BitAccess for [u64] {
         };
     }
 
+    fn trailing_zero_bits(&self) -> usize {
+        for (i, v) in self.iter().copied().enumerate() {
+            if v != 0 { return i * 64 + v.trailing_zeros() as usize; }
+        }
+        self.len() * 64 // the vector contains only zeros
+    }
 
+    fn find_bit_one(&self, start_index: usize) -> Option<usize> {
+        let mut word_index = start_index / 64;
+        let mut bits = self.get(word_index)? & !n_lowest_bits((start_index % 64) as u8);
+        while bits == 0 {
+            word_index += 1;
+            bits = *self.get(word_index)?;
+        }
+        Some(word_index * 64 + (bits.trailing_zeros() as usize))
+    }
+
+    unsafe fn find_bit_one_unchecked(&self, start_index: usize) -> usize {
+        let mut word_index = start_index / 64;
+        let mut bits = self.get_unchecked(word_index) & !n_lowest_bits((start_index % 64) as u8);
+        while bits == 0 {
+            word_index += 1;
+            bits = *self.get_unchecked(word_index);
+        }
+        word_index * 64 + bits.trailing_zeros() as usize
+    }
+
+    unsafe fn rfind_bit_one_unchecked(&self, start_index: usize) -> usize {
+        let mut word_index = start_index / 64;
+        let mut bits = self.get_unchecked(word_index) & n_lowest_bits((start_index % 64) as u8 + 1);
+        while bits == 0 {
+            word_index -= 1;
+            bits = *self.get_unchecked(word_index);
+        }
+        word_index * 64 + bits.ilog2() as usize
+    }
 }
 
 #[cfg(test)]
@@ -477,6 +527,9 @@ mod tests {
         assert_eq!(b.as_ref(), [0u64, 0u64]);
         b.init_fragment(1, 0b101, 3);
         assert_eq!(b.get_fragment(1, 3), 0b101);
+        assert_eq!(unsafe{b.find_bit_one_unchecked(0)}, 3);
+        assert_eq!(unsafe{b.find_bit_one_unchecked(3)}, 3);
+        assert_eq!(unsafe{b.find_bit_one_unchecked(4)}, 5);
         assert_eq!(b.get_fragment(0, 3), 0);
         assert_eq!(b.get_fragment(2, 3), 0);
         b.init_fragment(2, 0b10110_10110_10110_10110_10110_10110, 30);

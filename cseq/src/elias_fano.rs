@@ -77,6 +77,27 @@ impl<S> EliasFano<S> {
 
     /// Returns whether the sequence is empty.
     #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
+
+    #[inline] pub unsafe fn advance_position_unchecked(&self, position: &mut EliasFanoPosition) {
+        position.lo += 1;
+        if position.lo != self.len { position.hi = self.hi.content.find_bit_one_unchecked(position.hi+1) }
+    }
+
+    #[inline] pub unsafe fn value_at_position_unchecked(&self, position: EliasFanoPosition) -> u64 {
+        position.hi_bits() << self.bits_per_lo | self.lo.get_fragment(position.lo, self.bits_per_lo)
+    }
+
+    #[inline] pub fn value_at_position(&self, position: EliasFanoPosition) -> Option<u64> {
+        (position.lo < self.len).then(|| unsafe { self.value_at_position_unchecked(position) })
+    }
+
+    #[inline] pub fn first_position(&self) -> EliasFanoPosition {
+        EliasFanoPosition { hi: self.hi.content.trailing_zero_bits(), lo: 0 }
+    }
+
+    #[inline] pub fn iter(&self) -> EliasFanoIterator<S> {
+        EliasFanoIterator { collection: self, position: self.first_position() } 
+    }
 }
 
 impl<S: SelectForRank101111> EliasFano<S> {
@@ -104,6 +125,40 @@ impl<S> GetSize for EliasFano<S> where ArrayWithRankSelect101111<S>: GetSize {
     const USES_DYN_MEM: bool = true;
 }
 
+impl<'ef, S> IntoIterator for &'ef EliasFano<S> {
+    type Item = u64;
+    type IntoIter = EliasFanoIterator<'ef, S>;
+    #[inline] fn into_iter(self) -> Self::IntoIter { self.iter() }
+}
+
+#[derive(Clone, Copy)]
+pub struct EliasFanoPosition {
+    hi: usize,
+    lo: usize
+}
+
+impl EliasFanoPosition {
+    #[inline(always)] fn hi_bits(&self) -> u64 { (self.hi - self.lo) as u64 }
+}
+
+pub struct EliasFanoIterator<'ef, S> {
+    collection: &'ef EliasFano<S>,
+    position: EliasFanoPosition,
+}
+
+impl<S> Iterator for EliasFanoIterator<'_, S> {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.position.lo == self.collection.len {
+            return None;
+        }
+        let result = unsafe { self.collection.value_at_position_unchecked(self.position) };
+        unsafe { self.collection.advance_position_unchecked(&mut self.position) }
+        Some(result)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -124,6 +179,7 @@ mod tests {
         assert_eq!(ef.get(3), Some(920));
         assert_eq!(ef.get(4), Some(999));
         assert_eq!(ef.get(5), None);
+        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 801, 920, 999])
     }
 
     #[test]
@@ -141,5 +197,6 @@ mod tests {
         assert_eq!(ef.get(3), Some(4));
         assert_eq!(ef.get(4), Some(5));
         assert_eq!(ef.get(5), None);
+        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 3, 4, 5])
     }
 }
