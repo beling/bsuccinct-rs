@@ -80,7 +80,16 @@ impl<S> EliasFano<S> {
 
     #[inline] pub unsafe fn advance_position_unchecked(&self, position: &mut EliasFanoPosition) {
         position.lo += 1;
-        if position.lo != self.len { position.hi = self.hi.content.find_bit_one_unchecked(position.hi+1) }
+        position.hi = if position.lo != self.len {
+            self.hi.content.find_bit_one_unchecked(position.hi+1)
+        } else {
+            self.len * 64
+        }
+    }
+
+    #[inline] pub unsafe fn advance_position_back_unchecked(&self, position: &mut EliasFanoPosition) {
+        position.lo -= 1;
+        position.hi = self.hi.content.rfind_bit_one_unchecked(position.hi-1);
     }
 
     #[inline] pub unsafe fn value_at_position_unchecked(&self, position: EliasFanoPosition) -> u64 {
