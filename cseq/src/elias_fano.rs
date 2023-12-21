@@ -185,7 +185,8 @@ impl<S> DoubleEndedIterator for Iterator<'_, S> {
 
 impl<S> FusedIterator for Iterator<'_, S> {}
 
-/// Shows position in Elias-Fano [`Sequence`].
+/// Points either a position or past the end of Elias-Fano [`Sequence`].
+#[derive(Clone, Copy)]
 pub struct Cursor<'ef, S> {
     sequence: &'ef Sequence<S>,
     position: EliasFanoPosition,
