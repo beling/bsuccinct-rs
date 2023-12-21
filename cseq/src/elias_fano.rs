@@ -1,6 +1,6 @@
 use std::iter::FusedIterator;
 
-use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits};
+use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits, Select0};
 use dyn_size_of::GetSize;
 
 pub struct Builder {
@@ -80,7 +80,7 @@ impl<S> Sequence<S> {
     /// Returns whether the sequence is empty.
     #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
 
-    #[inline] unsafe fn advance_position_unchecked(&self, position: &mut EliasFanoPosition) {
+    #[inline] unsafe fn advance_position_unchecked(&self, position: &mut Position) {
         position.lo += 1;
         position.hi = if position.lo != self.len {
             self.hi.content.find_bit_one_unchecked(position.hi+1)
@@ -89,33 +89,41 @@ impl<S> Sequence<S> {
         }
     }
 
-    #[inline] unsafe fn advance_position_back_unchecked(&self, position: &mut EliasFanoPosition) {
+    #[inline] unsafe fn advance_position_back_unchecked(&self, position: &mut Position) {
         position.lo -= 1;
         position.hi = self.hi.content.rfind_bit_one_unchecked(position.hi-1);
     }
 
-    #[inline] unsafe fn value_at_position_unchecked(&self, position: EliasFanoPosition) -> u64 {
+    #[inline] unsafe fn position_next_unchecked(&self, position: &mut Position) -> Option<u64> {
+        let result = self.value_at_position_unchecked(*position);
+        self.advance_position_unchecked(position);
+        Some(result)
+    }
+
+    #[inline] unsafe fn value_at_position_unchecked(&self, position: Position) -> u64 {
         position.hi_bits() << self.bits_per_lo | self.lo.get_fragment(position.lo, self.bits_per_lo)
     }
 
-    #[inline] fn value_at_position(&self, position: EliasFanoPosition) -> Option<u64> {
+    #[inline] fn value_at_position(&self, position: Position) -> Option<u64> {
         (position.lo < self.len).then(|| unsafe { self.value_at_position_unchecked(position) })
     }
 
-    #[inline] fn begin_position(&self) -> EliasFanoPosition {
-        EliasFanoPosition { hi: self.hi.content.trailing_zero_bits(), lo: 0 }
+    #[inline] fn begin_position(&self) -> Position {
+        Position { hi: self.hi.content.trailing_zero_bits(), lo: 0 }
     }
 
-    #[inline] fn end_position(&self) -> EliasFanoPosition {
-        EliasFanoPosition { hi: self.hi.content.len() * 64, lo: self.len }
+    #[inline] fn end_position(&self) -> Position {
+        Position { hi: self.hi.content.len() * 64, lo: self.len }
     }
 
+    /// Returns iterator over `self` values.
     #[inline] pub fn iter(&self) -> Iterator<S> {
         Iterator { sequence: self, begin: self.begin_position(), end: self.end_position() } 
     }
 }
 
 impl<S: SelectForRank101111> Sequence<S> {
+    /// Returns value at given `index` or [`None`] if `index` is out of bound.
     #[inline] pub fn get(&self, index: usize) -> Option<u64> {
         (index < self.len).then(|| 
             (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
@@ -123,8 +131,35 @@ impl<S: SelectForRank101111> Sequence<S> {
         )
     }
 
+    /// Returns value at given `index` or panics if `index` is out of bound.
     pub fn get_or_panic(&self, index: usize) -> u64 {
         self.get(index).expect("EliasFano: get index out of bound")
+    }
+
+    #[inline] unsafe fn position_at_unchecked(&self, index: usize) -> Position {
+        Position { hi: self.hi.select_unchecked(index), lo: index }
+    }
+
+    /// Returns valid cursor that points to given `index` of `self`.
+    /// Result is undefined if `index` is out of bound.
+    #[inline] pub unsafe fn cursor_at_unchecked(&self, index: usize) -> Cursor<S> {
+        Cursor { sequence: self, position: self.position_at_unchecked(index) }
+    }
+
+    /// Returns valid cursor that points to given `index` of `self`,
+    /// or [`None`] if `index` is out of bound.
+    #[inline] pub unsafe fn cursor_at(&self, index: usize) -> Option<Cursor<S>> {
+        (index < self.len).then(|| unsafe { self.cursor_at_unchecked(index) })
+    }
+
+    /// Returns cursor that points to the first element of `self`.
+    #[inline] pub fn begin(&self) -> Cursor<S> {
+        Cursor { sequence: self, position: self.begin_position() }
+    }
+
+    /// Returns cursor that points past the end.
+    #[inline] pub fn end(&self) -> Cursor<S> {
+        Cursor { sequence: self, position: self.end_position() }
     }
 }
 
@@ -148,19 +183,19 @@ impl<'ef, S> IntoIterator for &'ef Sequence<S> {
 /// Position in Elias-Fano [`Sequence`].
 /// Used internally by [`Iterator`] and [`Cursor`].
 #[derive(Clone, Copy)]
-struct EliasFanoPosition {
+struct Position {
     hi: usize,
     lo: usize
 }
 
-impl EliasFanoPosition {
+impl Position {
     #[inline(always)] fn hi_bits(&self) -> u64 { (self.hi - self.lo) as u64 }
 }
 
 pub struct Iterator<'ef, S> {
     sequence: &'ef Sequence<S>,
-    begin: EliasFanoPosition,
-    end: EliasFanoPosition
+    begin: Position,
+    end: Position
 }
 
 impl<S> std::iter::Iterator for Iterator<'_, S> {
@@ -168,9 +203,7 @@ impl<S> std::iter::Iterator for Iterator<'_, S> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.begin.lo == self.end.lo { return None; }
-        let result = unsafe { self.sequence.value_at_position_unchecked(self.begin) };
-        unsafe { self.sequence.advance_position_unchecked(&mut self.begin) }
-        Some(result)
+        unsafe { self.sequence.position_next_unchecked(&mut self.begin) }
     }
 }
 
@@ -185,11 +218,12 @@ impl<S> DoubleEndedIterator for Iterator<'_, S> {
 
 impl<S> FusedIterator for Iterator<'_, S> {}
 
-/// Points either a position or past the end of Elias-Fano [`Sequence`].
+/// Points either a position or past the end in Elias-Fano [`Sequence`].
+/// It is a kind of iterator over the [`Sequence`].
 #[derive(Clone, Copy)]
 pub struct Cursor<'ef, S> {
     sequence: &'ef Sequence<S>,
-    position: EliasFanoPosition,
+    position: Position,
 }
 
 impl<S> Cursor<'_, S> {
@@ -199,40 +233,49 @@ impl<S> Cursor<'_, S> {
     /// Returns whether the cursor is valid (i.e., not past the end) and thus its value can be obtained.
     #[inline] pub fn is_valid(&self) -> bool { self.position.lo != self.sequence.len }
 
-    /// Returns value pointed by the cursor. The result is undefined if cursors points past the end.
+    /// Returns value pointed by `self`. The result is undefined if cursors points past the end.
     #[inline] pub unsafe fn value_unchecked(&self) -> u64 {
         return self.sequence.value_at_position_unchecked(self.position)
     }
+
+    /// Returns [`Sequence`] index pointed by `self`, i.e. converts `self` to index.
+    #[inline] pub fn index(&self) -> usize { self.position.lo }
 
     /// Returns value pointed by the cursor or [`None`] if it points past the end.
     #[inline] pub fn value(&self) -> Option<u64> {
         return self.sequence.value_at_position(self.position)
     }
 
-    /// If possible, advances `self` by 1 position and returns `true`. Otherwise returns `false`.
+    /// If possible, advances `self` one position forward and returns `true`. Otherwise returns `false`.
     #[inline] pub fn advance(&mut self) -> bool {
         if self.is_end() { return false; }
         unsafe { self.sequence.advance_position_unchecked(&mut self.position) };
         true
     }
 
-    /// If possible, advances `self` by minus 1 position and returns `true`. Otherwise returns `false`.
+    /// If possible, advances `self` one position backward and returns `true`. Otherwise returns `false`.
     #[inline] pub fn advance_back(&mut self) -> bool {
         if self.position.lo == 0 { return false; }
         unsafe { self.sequence.advance_position_back_unchecked(&mut self.position) };
         true
+    }
+
+    /// Advances `self` one position backward and next returns value pointed by `self`.
+    pub fn next_back(&mut self) -> Option<u64> {
+        (self.position.lo != 0).then(|| unsafe {
+            self.sequence.advance_position_back_unchecked(&mut self.position);
+            self.sequence.value_at_position_unchecked(self.position)
+        })
     }
 }
 
 impl<S> std::iter::Iterator for Cursor<'_, S> {
     type Item = u64;
 
-    /// Advance cursor by one position forward.
+    /// Returns value pointed by `self` and advances it one position forward.
     fn next(&mut self) -> Option<Self::Item> {
         if self.is_end() { return None; }
-        let result = unsafe { self.value_unchecked() };
-        unsafe { self.sequence.advance_position_unchecked(&mut self.position) }
-        Some(result)
+        unsafe { self.sequence.position_next_unchecked(&mut self.position) }
     }
 }
 
