@@ -1,4 +1,6 @@
 use std::iter::FusedIterator;
+use crate::n_lowest_bits_1_64;
+
 use super::{ceiling_div, n_lowest_bits};
 
 /// Iterator over bits set to 1 (if `B` is `true`) or 0 (if `B` is `false`) in slice of `u64`.
@@ -507,7 +509,7 @@ impl BitAccess for [u64] {
 
     unsafe fn rfind_bit_one_unchecked(&self, start_index: usize) -> usize {
         let mut word_index = start_index / 64;
-        let mut bits = self.get_unchecked(word_index) & n_lowest_bits((start_index % 64) as u8 + 1);
+        let mut bits = self.get_unchecked(word_index) & n_lowest_bits_1_64((start_index % 64) as u8 + 1);
         while bits == 0 {
             word_index -= 1;
             bits = *self.get_unchecked(word_index);

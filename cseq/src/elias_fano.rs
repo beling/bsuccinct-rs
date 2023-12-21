@@ -1,3 +1,5 @@
+use std::iter::FusedIterator;
+
 use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits};
 use dyn_size_of::GetSize;
 
@@ -100,12 +102,16 @@ impl<S> EliasFano<S> {
         (position.lo < self.len).then(|| unsafe { self.value_at_position_unchecked(position) })
     }
 
-    #[inline] pub fn first_position(&self) -> EliasFanoPosition {
+    #[inline] pub fn begin_position(&self) -> EliasFanoPosition {
         EliasFanoPosition { hi: self.hi.content.trailing_zero_bits(), lo: 0 }
     }
 
+    #[inline] pub fn end_position(&self) -> EliasFanoPosition {
+        EliasFanoPosition { hi: self.hi.content.len() * 64, lo: self.len }
+    }
+
     #[inline] pub fn iter(&self) -> EliasFanoIterator<S> {
-        EliasFanoIterator { collection: self, position: self.first_position() } 
+        EliasFanoIterator { collection: self, begin: self.begin_position(), end: self.end_position() } 
     }
 }
 
@@ -152,22 +158,31 @@ impl EliasFanoPosition {
 
 pub struct EliasFanoIterator<'ef, S> {
     collection: &'ef EliasFano<S>,
-    position: EliasFanoPosition,
+    begin: EliasFanoPosition,
+    end: EliasFanoPosition
 }
 
 impl<S> Iterator for EliasFanoIterator<'_, S> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.position.lo == self.collection.len {
-            return None;
-        }
-        let result = unsafe { self.collection.value_at_position_unchecked(self.position) };
-        unsafe { self.collection.advance_position_unchecked(&mut self.position) }
+        if self.begin.lo == self.end.lo { return None; }
+        let result = unsafe { self.collection.value_at_position_unchecked(self.begin) };
+        unsafe { self.collection.advance_position_unchecked(&mut self.begin) }
         Some(result)
     }
 }
 
+impl<S> DoubleEndedIterator for EliasFanoIterator<'_, S> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        (self.begin.lo != self.end.lo).then(|| unsafe {
+            self.collection.advance_position_back_unchecked(&mut self.end);
+            self.collection.value_at_position_unchecked(self.end)
+        })
+    }
+}
+
+impl<S> FusedIterator for EliasFanoIterator<'_, S> {}
 
 #[cfg(test)]
 mod tests {
@@ -188,7 +203,8 @@ mod tests {
         assert_eq!(ef.get(3), Some(920));
         assert_eq!(ef.get(4), Some(999));
         assert_eq!(ef.get(5), None);
-        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 801, 920, 999])
+        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 801, 920, 999]);
+        assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [999, 920, 801, 1, 0]);
     }
 
     #[test]
@@ -206,6 +222,7 @@ mod tests {
         assert_eq!(ef.get(3), Some(4));
         assert_eq!(ef.get(4), Some(5));
         assert_eq!(ef.get(5), None);
-        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 3, 4, 5])
+        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 3, 4, 5]);
+        assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [5, 4, 3, 1, 0]);
     }
 }

@@ -9,8 +9,11 @@ pub use bitvec::*;
 /// Returns ceil of `n/d`.
 #[inline(always)] pub const fn ceiling_div(n: usize, d: usize) -> usize { (n+d-1)/d }
 
-/// Returns the largest `how_many`-bit number, i.e. 0..01..1 mask with `how_many` ones.
+/// Returns the largest `how_many`-bit number, i.e. 0..01..1 mask with `how_many` ones. `how_many` must be in range [0, 63].
 #[inline(always)] pub const fn n_lowest_bits(how_many: u8) -> u64 { (1u64 << how_many).wrapping_sub(1) }
+
+/// Returns the largest `how_many`-bit number, i.e. 0..01..1 mask with `how_many` ones. `how_many` must be in range [1, 64].
+#[inline(always)] pub const fn n_lowest_bits_1_64(how_many: u8) -> u64 { u64::MAX >> (64-how_many) }
 
 #[cfg(test)]
 mod tests {
