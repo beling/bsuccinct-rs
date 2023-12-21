@@ -3,17 +3,17 @@ use std::iter::FusedIterator;
 use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits};
 use dyn_size_of::GetSize;
 
-pub struct EliasFanoBuilder {
+pub struct Builder {
     hi: Box<[u64]>, // most significant bits of each element, unary coded
     lo: Box<[u64]>, // least significant bits of each element, vector of `bits_per_lo_entry` bit elements
     bits_per_lo: u8,  // bit size of each entry in lo
     len: usize,  // number of already added elements
     final_len: usize,   // total number of elements to add
     last_added: u64, // recently added value
-    universe: u64
+    universe: u64   // all values must be in range [`0`, `universe`)
 }
 
-impl EliasFanoBuilder {
+impl Builder {
     /// Constructs [`EliasFanoBuilder`] to build [`EliasFano`] with `final_len` values in range [`0`, `universe`).
     /// After adding values in non-decreasing order by [`Self::push`] method,
     /// [`Self::finish`] can be called to construct [`EliasFano`].
@@ -51,8 +51,8 @@ impl EliasFanoBuilder {
         for value in values { self.push(value) }
     }
 
-    pub fn finish_unchecked<S: SelectForRank101111>(self) -> EliasFano<S> {
-        EliasFano::<S> {
+    pub fn finish_unchecked<S: SelectForRank101111>(self) -> Sequence<S> {
+        Sequence::<S> {
             hi: self.hi.into(),
             lo: self.lo,
             bits_per_lo: self.bits_per_lo,
@@ -60,27 +60,27 @@ impl EliasFanoBuilder {
         }
     }
 
-    pub fn finish<S: SelectForRank101111>(self) -> EliasFano<S> {
+    pub fn finish<S: SelectForRank101111>(self) -> Sequence<S> {
         assert_eq!(self.len, self.final_len, "EliasFanoBuilder finish: actual length ({}) differs from the declared ({})", self.len, self.final_len);
         self.finish_unchecked::<S>()
     }
 }
 
-pub struct EliasFano<S = CombinedSampling> {
+pub struct Sequence<S = CombinedSampling> {
     hi: ArrayWithRankSelect101111<S>,   // most significant bits of each element, unary coded
     lo: Box<[u64]>, // least significant bits of each element, vector of `bits_per_lo_entry` bit elements
     bits_per_lo: u8, // bit size of each entry in lo
     len: usize  // number of elements
 }
 
-impl<S> EliasFano<S> {
+impl<S> Sequence<S> {
     /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
 
     /// Returns whether the sequence is empty.
     #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
 
-    #[inline] pub unsafe fn advance_position_unchecked(&self, position: &mut EliasFanoPosition) {
+    #[inline] unsafe fn advance_position_unchecked(&self, position: &mut EliasFanoPosition) {
         position.lo += 1;
         position.hi = if position.lo != self.len {
             self.hi.content.find_bit_one_unchecked(position.hi+1)
@@ -89,37 +89,36 @@ impl<S> EliasFano<S> {
         }
     }
 
-    #[inline] pub unsafe fn advance_position_back_unchecked(&self, position: &mut EliasFanoPosition) {
+    #[inline] unsafe fn advance_position_back_unchecked(&self, position: &mut EliasFanoPosition) {
         position.lo -= 1;
         position.hi = self.hi.content.rfind_bit_one_unchecked(position.hi-1);
     }
 
-    #[inline] pub unsafe fn value_at_position_unchecked(&self, position: EliasFanoPosition) -> u64 {
+    #[inline] unsafe fn value_at_position_unchecked(&self, position: EliasFanoPosition) -> u64 {
         position.hi_bits() << self.bits_per_lo | self.lo.get_fragment(position.lo, self.bits_per_lo)
     }
 
-    #[inline] pub fn value_at_position(&self, position: EliasFanoPosition) -> Option<u64> {
+    #[inline] fn value_at_position(&self, position: EliasFanoPosition) -> Option<u64> {
         (position.lo < self.len).then(|| unsafe { self.value_at_position_unchecked(position) })
     }
 
-    #[inline] pub fn begin_position(&self) -> EliasFanoPosition {
+    #[inline] fn begin_position(&self) -> EliasFanoPosition {
         EliasFanoPosition { hi: self.hi.content.trailing_zero_bits(), lo: 0 }
     }
 
-    #[inline] pub fn end_position(&self) -> EliasFanoPosition {
+    #[inline] fn end_position(&self) -> EliasFanoPosition {
         EliasFanoPosition { hi: self.hi.content.len() * 64, lo: self.len }
     }
 
-    #[inline] pub fn iter(&self) -> EliasFanoIterator<S> {
-        EliasFanoIterator { collection: self, begin: self.begin_position(), end: self.end_position() } 
+    #[inline] pub fn iter(&self) -> Iterator<S> {
+        Iterator { sequence: self, begin: self.begin_position(), end: self.end_position() } 
     }
 }
 
-impl<S: SelectForRank101111> EliasFano<S> {
+impl<S: SelectForRank101111> Sequence<S> {
     #[inline] pub fn get(&self, index: usize) -> Option<u64> {
-        // TODO (index < len).then ...
-        Some(
-            (((self.hi.try_select(index)? - index) as u64) << self.bits_per_lo) |
+        (index < self.len).then(|| 
+            (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
             self.lo.get_fragment(index, self.bits_per_lo)
         )
     }
@@ -129,25 +128,27 @@ impl<S: SelectForRank101111> EliasFano<S> {
     }
 }
 
-impl<S: SelectForRank101111> Select for EliasFano<S> {
+impl<S: SelectForRank101111> Select for Sequence<S> {
     #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
         self.get(rank).map(|v| v as usize)
     }
 }
 
-impl<S> GetSize for EliasFano<S> where ArrayWithRankSelect101111<S>: GetSize {
+impl<S> GetSize for Sequence<S> where ArrayWithRankSelect101111<S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.lo.size_bytes_dyn() + self.hi.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<'ef, S> IntoIterator for &'ef EliasFano<S> {
+impl<'ef, S> IntoIterator for &'ef Sequence<S> {
     type Item = u64;
-    type IntoIter = EliasFanoIterator<'ef, S>;
+    type IntoIter = Iterator<'ef, S>;
     #[inline] fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
+/// Position in Elias-Fano [`Sequence`].
+/// Used internally by [`Iterator`] and [`Cursor`].
 #[derive(Clone, Copy)]
-pub struct EliasFanoPosition {
+struct EliasFanoPosition {
     hi: usize,
     lo: usize
 }
@@ -156,33 +157,84 @@ impl EliasFanoPosition {
     #[inline(always)] fn hi_bits(&self) -> u64 { (self.hi - self.lo) as u64 }
 }
 
-pub struct EliasFanoIterator<'ef, S> {
-    collection: &'ef EliasFano<S>,
+pub struct Iterator<'ef, S> {
+    sequence: &'ef Sequence<S>,
     begin: EliasFanoPosition,
     end: EliasFanoPosition
 }
 
-impl<S> Iterator for EliasFanoIterator<'_, S> {
+impl<S> std::iter::Iterator for Iterator<'_, S> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.begin.lo == self.end.lo { return None; }
-        let result = unsafe { self.collection.value_at_position_unchecked(self.begin) };
-        unsafe { self.collection.advance_position_unchecked(&mut self.begin) }
+        let result = unsafe { self.sequence.value_at_position_unchecked(self.begin) };
+        unsafe { self.sequence.advance_position_unchecked(&mut self.begin) }
         Some(result)
     }
 }
 
-impl<S> DoubleEndedIterator for EliasFanoIterator<'_, S> {
+impl<S> DoubleEndedIterator for Iterator<'_, S> {
     fn next_back(&mut self) -> Option<Self::Item> {
         (self.begin.lo != self.end.lo).then(|| unsafe {
-            self.collection.advance_position_back_unchecked(&mut self.end);
-            self.collection.value_at_position_unchecked(self.end)
+            self.sequence.advance_position_back_unchecked(&mut self.end);
+            self.sequence.value_at_position_unchecked(self.end)
         })
     }
 }
 
-impl<S> FusedIterator for EliasFanoIterator<'_, S> {}
+impl<S> FusedIterator for Iterator<'_, S> {}
+
+/// Shows position in Elias-Fano [`Sequence`].
+pub struct Cursor<'ef, S> {
+    sequence: &'ef Sequence<S>,
+    position: EliasFanoPosition,
+}
+
+impl<S> Cursor<'_, S> {
+    /// Returns whether the cursor is past the end (invalid).
+    #[inline] pub fn is_end(&self) -> bool { self.position.lo != self.sequence.len }
+
+    /// Returns whether the cursor is valid (i.e., not past the end) and thus its value can be obtained.
+    #[inline] pub fn is_valid(&self) -> bool { self.position.lo != self.sequence.len }
+
+    /// Returns value pointed by the cursor. The result is undefined if cursors points past the end.
+    #[inline] pub unsafe fn value_unchecked(&self) -> u64 {
+        return self.sequence.value_at_position_unchecked(self.position)
+    }
+
+    /// Returns value pointed by the cursor or [`None`] if it points past the end.
+    #[inline] pub fn value(&self) -> Option<u64> {
+        return self.sequence.value_at_position(self.position)
+    }
+
+    /// If possible, advances `self` by 1 position and returns `true`. Otherwise returns `false`.
+    #[inline] pub fn advance(&mut self) -> bool {
+        if self.is_end() { return false; }
+        unsafe { self.sequence.advance_position_unchecked(&mut self.position) };
+        true
+    }
+
+    /// If possible, advances `self` by minus 1 position and returns `true`. Otherwise returns `false`.
+    #[inline] pub fn advance_back(&mut self) -> bool {
+        if self.position.lo == 0 { return false; }
+        unsafe { self.sequence.advance_position_back_unchecked(&mut self.position) };
+        true
+    }
+}
+
+impl<S> std::iter::Iterator for Cursor<'_, S> {
+    type Item = u64;
+
+    /// Advance cursor by one position forward.
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_end() { return None; }
+        let result = unsafe { self.value_unchecked() };
+        unsafe { self.sequence.advance_position_unchecked(&mut self.position) }
+        Some(result)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -190,13 +242,13 @@ mod tests {
 
     #[test]
     fn test_small_sparse() {
-        let mut ef = EliasFanoBuilder::new(5, 1000);
+        let mut ef = Builder::new(5, 1000);
         ef.push(0);
         ef.push(1);
         ef.push(801);
         ef.push(920);
         ef.push(999);
-        let ef: EliasFano = ef.finish();
+        let ef: Sequence = ef.finish();
         assert_eq!(ef.get(0), Some(0));
         assert_eq!(ef.get(1), Some(1));
         assert_eq!(ef.get(2), Some(801));
@@ -209,13 +261,13 @@ mod tests {
 
     #[test]
     fn test_small_dense() {
-        let mut ef = EliasFanoBuilder::new(5, 6);
+        let mut ef = Builder::new(5, 6);
         ef.push(0);
         ef.push(1);
         ef.push(3);
         ef.push(4);
         ef.push(5);
-        let ef: EliasFano = ef.finish();
+        let ef: Sequence = ef.finish();
         assert_eq!(ef.get(0), Some(0));
         assert_eq!(ef.get(1), Some(1));
         assert_eq!(ef.get(2), Some(3));

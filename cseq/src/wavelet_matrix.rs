@@ -49,7 +49,7 @@ impl LevelBuilder {
 }
 
 /// Level of the we wavelet matrix.
-struct WaveletMatrixLevel<S = CombinedSampling> {
+struct Level<S = CombinedSampling> {
     /// Level content as bit vector with support for rank and select queries.
     content: ArrayWithRankSelect101111::<S, S>,
 
@@ -57,12 +57,12 @@ struct WaveletMatrixLevel<S = CombinedSampling> {
     number_of_zeros: usize
 }
 
-impl<S> GetSize for WaveletMatrixLevel<S> where ArrayWithRankSelect101111<S, S>: GetSize {
+impl<S> GetSize for Level<S> where ArrayWithRankSelect101111<S, S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.content.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S> WaveletMatrixLevel<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u64]>> {
+impl<S> Level<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u64]>> {
     /// Constructs level with given `content` that contain given number of zero bits.
     fn new(content: Box::<[u64]>, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
@@ -71,19 +71,19 @@ impl<S> WaveletMatrixLevel<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u
     }
 }
 
-impl<S> WaveletMatrixLevel<S> where S: SelectForRank101111 {
+impl<S> Level<S> where S: SelectForRank101111 {
     fn try_select(&self, rank: usize, len: usize) -> Option<usize> {
         self.content.try_select(rank).filter(|i| *i < len)
     }
 }
 
-impl<S> WaveletMatrixLevel<S> where S: Select0ForRank101111 {
+impl<S> Level<S> where S: Select0ForRank101111 {
     fn try_select0(&self, rank: usize, len: usize) -> Option<usize> {
         self.content.try_select0(rank).filter(|i| *i < len)
     }
 }
 
-/// [`WaveletMatrix`] stores a sequence of `len` `bits_per_value`-bit values
+/// [`Sequence`] stores a sequence of `len` `bits_per_value`-bit values
 /// using just over (about 4%) `len * bits_per_value` bits and
 /// quickly (mostly in *O(bits_per_value)* time) executes many useful queries, such as:
 /// - *access* a value with a given index - see [`WaveletMatrix::get`],
@@ -103,12 +103,12 @@ impl<S> WaveletMatrixLevel<S> where S: Select0ForRank101111 {
 /// 
 /// Additionally, our implementation draws some ideas from the Go implementation by Daisuke Okanohara,
 /// available at <https://github.com/hillbig/waveletTree/>.
-pub struct WaveletMatrix<S = CombinedSampling> {
-    levels: Box<[WaveletMatrixLevel<S>]>,
+pub struct Sequence<S = CombinedSampling> {
+    levels: Box<[Level<S>]>,
     len: usize
 }
 
-impl<S> WaveletMatrix<S> {
+impl<S> Sequence<S> {
     /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
 
@@ -119,24 +119,24 @@ impl<S> WaveletMatrix<S> {
     #[inline] pub fn bits_per_value(&self) -> u8 { self.levels.len() as u8 }
 }
 
-impl WaveletMatrix<CombinedSampling> {
-    /// Constructs [`WaveletMatrix`] with `content_len` `bits_per_value`-bit
+impl Sequence<CombinedSampling> {
+    /// Constructs [`Sequence`] with `content_len` `bits_per_value`-bit
     /// values exposed by iterator returned by `content` function.
     pub fn from_fn<I, F>(content: F, content_len: usize, bits_per_value: u8) -> Self
         where I: IntoIterator<Item = u64>, F: FnMut() -> I {
         Self::from_fn_s(content, content_len, bits_per_value)
     }
 
-    /// Constructs [`WaveletMatrix`] with `content` consisted of `content_len` `bits_per_value`-bit
+    /// Constructs [`Sequence`] with `content` consisted of `content_len` `bits_per_value`-bit
     /// values contained in the bit vector.
     pub fn from_bits(content: &[u64], content_len: usize, bits_per_value: u8) -> Self {
         Self::from_bits_s(content, content_len, bits_per_value)
     }
 }
 
-impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
+impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
 
-    /// Constructs [`WaveletMatrix`] with `content_len` `bits_per_value`-bit
+    /// Constructs [`Sequence`] with `content_len` `bits_per_value`-bit
     /// values exposed by iterator returned by `content` function,
     /// and custom select strategy.
     pub fn from_fn_s<I, F>(mut content: F, content_len: usize, bits_per_value: u8) -> Self
@@ -149,7 +149,7 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
             for (i, e) in content().into_iter().enumerate() {
                 level.init_bit(i, e != 0);
             }
-            levels.push(WaveletMatrixLevel::new(level, content_len));
+            levels.push(Level::new(level, content_len));
             return Self { levels: levels.into_boxed_slice(), len: content_len };
         }
         let mut number_of_zeros = [0; 64];
@@ -167,7 +167,7 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
             for e in content() {
                 level.push(e);
             }
-            levels.push(WaveletMatrixLevel::new(level.upper_bit, number_of_zeros[current_bit as usize]));
+            levels.push(Level::new(level.upper_bit, number_of_zeros[current_bit as usize]));
             level.lower_bits
         };
         while current_bit >= 2 {
@@ -179,9 +179,9 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
                 level.push(rest.get_bits(index, rest_bits_per_value));
             }
             rest = level.lower_bits;
-            levels.push(WaveletMatrixLevel::new(level.upper_bit, number_of_zeros[current_bit as usize]));
+            levels.push(Level::new(level.upper_bit, number_of_zeros[current_bit as usize]));
         }
-        levels.push(WaveletMatrixLevel::new(rest, number_of_zeros[0]));
+        levels.push(Level::new(rest, number_of_zeros[0]));
         Self { levels: levels.into_boxed_slice(), len: content_len }
     }
 
@@ -215,7 +215,7 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
 
     /// Returns a value with given `index` or panics if `index` is out of bound.
     #[inline] pub fn get_or_panic(&self, index: usize) -> u64 {
-        self.get(index).expect("WaveletMatrix::get index out of bound")
+        self.get(index).expect("wavelet_matrix::Sequence::get index out of bound")
     }
 
     /// Returns the number of `value` occurrences in the given `range`, or [`None`] if `range` is out of bound.
@@ -237,7 +237,7 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
 
     /// Returns the number of `value` occurrences in the given `range`, or panics if `range` is out of bound.
     pub fn count_in_range(&self, range: std::ops::Range<usize>, value: u64) -> usize {
-        self.try_count_in_range(range, value).expect("WaveletMatrix::count_in_range range out of bound")
+        self.try_count_in_range(range, value).expect("wavelet_matrix::Sequence::count_in_range range out of bound")
     }
 
     /// Returns the number of `value` occurrences before given `index`, or [`None`] if `index` is out of bound.
@@ -247,7 +247,7 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
 
     /// Returns the number of `value` occurrences before the given `index`, or panics if `index` is out of bound.
     #[inline] pub fn rank(&self, index: usize, value: u64) -> usize {
-        self.try_rank(index, value).expect("WaveletMatrix::rank index out of bound")
+        self.try_rank(index, value).expect("wavelet_matrix::Sequence::rank index out of bound")
     }
 
     /// The method from Claude-Navarro paper, used by select methods.
@@ -279,7 +279,7 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
     /// Returns the index of the `rank`-th (counting from 0) occurrence of `value`
     /// or panics if there are not so many occurrences.
     #[inline] pub fn select(&self, rank: usize, value: u64) -> usize {
-        self.try_select(rank, value).expect("WaveletMatrix::select: there are no rank occurrences of the value")
+        self.try_select(rank, value).expect("wavelet_matrix::Sequence::select: there are no rank occurrences of the value")
     }
 
     /// Returns iterator over all values.
@@ -288,7 +288,7 @@ impl<S> WaveletMatrix<S> where S: SelectForRank101111+Select0ForRank101111 {
     }
 }
 
-impl<S> GetSize for WaveletMatrix<S> where ArrayWithRankSelect101111<S, S>: GetSize {
+impl<S> GetSize for Sequence<S> where ArrayWithRankSelect101111<S, S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.levels.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let wm = WaveletMatrix::from_bits(&[], 0, 2);
+        let wm = Sequence::from_bits(&[], 0, 2);
         assert_eq!(wm.len(), 0);
         assert_eq!(wm.bits_per_value(), 2);
         assert_eq!(wm.get(0), None);
@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_1_level() {
-        let wm = WaveletMatrix::from_bits(&[0b1101], 4, 1);
+        let wm = Sequence::from_bits(&[0b1101], 4, 1);
         assert_eq!(wm.len(), 4);
         assert_eq!(wm.bits_per_value(), 1);
         assert_eq!(wm.get(0), Some(1));
@@ -328,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_2_levels() {
-        let wm = WaveletMatrix::from_bits(&[0b01_01_10_11], 4, 2);
+        let wm = Sequence::from_bits(&[0b01_01_10_11], 4, 2);
         assert_eq!(wm.len(), 4);
         assert_eq!(wm.bits_per_value(), 2);
         assert_eq!(wm.get(0), Some(0b11));
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_3_levels() {
-        let wm = WaveletMatrix::from_bits(&[0b000_110], 2, 3);
+        let wm = Sequence::from_bits(&[0b000_110], 2, 3);
         assert_eq!(wm.len(), 2);
         assert_eq!(wm.bits_per_value(), 3);
         assert_eq!(wm.get(0), Some(0b110));
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_4_levels() {
-        let wm = WaveletMatrix::from_bits(&[0b1101_1010_0001_0001_1011], 5, 4);
+        let wm = Sequence::from_bits(&[0b1101_1010_0001_0001_1011], 5, 4);
         assert_eq!(wm.len(), 5);
         assert_eq!(wm.bits_per_value(), 4);
         assert_eq!(wm.get(0), Some(0b1011));
