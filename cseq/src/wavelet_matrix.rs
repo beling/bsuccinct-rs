@@ -86,9 +86,9 @@ impl<S> Level<S> where S: Select0ForRank101111 {
 /// [`Sequence`] stores a sequence of `len` `bits_per_value`-bit values
 /// using just over (about 4%) `len * bits_per_value` bits and
 /// quickly (mostly in *O(bits_per_value)* time) executes many useful queries, such as:
-/// - *access* a value with a given index - see [`WaveletMatrix::get`],
-/// - *select* - see [`WaveletMatrix::select`],
-/// - *rank* - see [`WaveletMatrix::rank`].
+/// - *access* a value with a given index - see [`Self::get`],
+/// - *select* - see [`Self::select`],
+/// - *rank* - see [`Self::rank`].
 /// 
 /// By default [`bitm::CombinedSampling`] is used as a select strategy for internal bit vectors,
 /// but this can be changed to [`bitm::BinaryRankSearch`] to save a bit
@@ -185,7 +185,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         Self { levels: levels.into_boxed_slice(), len: content_len }
     }
 
-    /// Constructs [`WaveletMatrix`] with `content` consisted of `content_len` `bits_per_value`-bit
+    /// Constructs [`Sequence`] with `content` consisted of `content_len` `bits_per_value`-bit
     /// values contained in the bit vector, and custom select strategy.
     pub fn from_bits_s(content: &[u64], content_len: usize, bits_per_value: u8) -> Self {
         Self::from_fn_s(
