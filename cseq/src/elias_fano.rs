@@ -170,6 +170,51 @@ impl<S: SelectForRank101111> Sequence<S> {
     }
 }
 
+impl<S: Select0ForRank101111> Sequence<S> {
+    /// Returns the position of first `self` element with value greater than or equal to given `value`.
+    fn geq_position(&self, value: u64) -> Position {
+        let value_hi = (value >> self.bits_per_lo) as usize;
+        let mut hi_index = self.hi.try_select0(value_hi).unwrap_or_else(|| self.len * 64);  // index of 0 just after our ones
+        // TODO do we always have such 0? maybe it is better to select0(value_hi-1) and next scan forward?
+        let mut lo_index = hi_index - value_hi;
+
+        let value_lo = value as u64 & n_lowest_bits(self.bits_per_lo);
+        // skiping values that has the same most significant bits but greater or equal lower bits, stop at value with lower less significant bits:
+        while lo_index > 0 && self.hi.content.get_bit(hi_index - 1) &&
+             value_lo <= self.lo.get_fragment(lo_index-1, self.bits_per_lo)
+        {
+            lo_index -= 1;
+            hi_index -= 1;
+        }
+        Position { hi: hi_index, lo: lo_index }
+    }
+
+    fn position_of(&self, value: u64) -> Option<Position> {
+        let geq_position = self.geq_position(value);
+        self.value_at_position(geq_position).and_then(|geq_value| (geq_value==value).then_some(geq_position))
+    }
+
+    /// Returns the cursor pointed to the first `self` element with value greater than or equal to given `value`.
+    #[inline] pub fn geq_cursor(&self, value: u64) -> Cursor<S> {
+        Cursor { sequence: self, position: self.geq_position(value) }
+    }
+
+    /// Returns the index of the first `self` element with value greater than or equal to given `value`.
+    #[inline] pub fn geq_index(&self, value: u64) -> usize {
+        self.geq_position(value).lo
+    }
+
+    /// Returns the cursor pointing to the first occurrence of `value` or [`None`] if `self` does not contain `value`.
+    pub fn cursor_of(&self, value: u64) -> Option<Cursor<S>> {
+        self.position_of(value).map(|position| Cursor { sequence: self, position })
+    }
+
+    /// Returns the index of the first occurrence of `value` or [`None`] if `self` does not contain `value`.
+    pub fn index_of(&self, value: u64) -> Option<usize> {
+        self.position_of(value).map(|p| p.lo)
+    }
+}
+
 impl<S: SelectForRank101111> Select for Sequence<S> {
     #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
         self.get(rank).map(|v| v as usize)
@@ -185,7 +230,7 @@ impl<S: Select0ForRank101111> Rank for Sequence<S> {
         let mut lo_index = hi_index - value_hi;
 
         let value_lo = value as u64 & n_lowest_bits(self.bits_per_lo);
-        // skiping values that has the same most significant bits but greater or equal lower bits:
+        // skiping values that has the same most significant bits but greater or equal lower bits, stop at value with lower less significant bits:
         while lo_index > 0 && self.hi.content.get_bit(hi_index - 1) &&
              value_lo <= self.lo.get_fragment(lo_index-1, self.bits_per_lo)
         {
