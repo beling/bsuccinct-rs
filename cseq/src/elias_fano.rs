@@ -144,14 +144,35 @@ impl<S> Sequence<S> {
         position.hi = self.hi.content.rfind_bit_one_unchecked(position.hi-1);
     }
 
-    #[inline] unsafe fn position_next_unchecked(&self, position: &mut Position) -> Option<u64> {
+    /// Returns value at `position` and next advance `position`. The result is undefined if `position` is invalid.
+    #[inline] unsafe fn position_next_unchecked(&self, position: &mut Position) -> u64 {
         let result = self.value_at_position_unchecked(*position);
         self.advance_position_unchecked(position);
-        Some(result)
+        result
+    }
+
+    /// If the `position` is valid, returns its value and next advances it. Otherwise returns [`None`].
+    #[inline] fn position_next(&self, position: &mut Position) -> Option<u64> {
+        (position.lo != self.len).then(|| unsafe { self.position_next_unchecked(position) })
     }
 
     #[inline] unsafe fn value_at_position_unchecked(&self, position: Position) -> u64 {
         position.hi_bits() << self.bits_per_lo | self.lo.get_fragment(position.lo, self.bits_per_lo)
+    }
+
+    /// Returns difference between the value of given and the previous positions.
+    /// The result is undefined if the `position` is invalid.
+    #[inline] unsafe fn diff_at_position_unchecked(&self, mut position: Position) -> u64 {
+        let current = self.value_at_position_unchecked(position);
+        if position.lo == 0 { return current; }
+        self.advance_position_back_unchecked(&mut position);
+        current - self.value_at_position_unchecked(position)
+    }
+
+    /// Returns difference between the value of given and the previous positions.
+    /// Returns [`None`] if the `position` is invalid.
+    #[inline] fn diff_at_position(&self, position: Position) -> Option<u64> {
+        (position.lo != self.len).then(|| unsafe { self.diff_at_position_unchecked(position) })
     }
 
     #[inline] fn value_at_position(&self, position: Position) -> Option<u64> {
@@ -175,25 +196,51 @@ impl<S> Sequence<S> {
     #[inline] pub fn iter(&self) -> Iterator<S> {
         Iterator { sequence: self, begin: self.begin_position(), end: self.end_position() } 
     }
+
+    /// Returns an iterator that gives the value of the first item followed by
+    /// the differences between the values of subsequent items.
+    #[inline] pub fn diffs(&self) -> DiffIterator<S> {
+        DiffIterator { sequence: self, position: self.begin_position(), prev_value: 0 } 
+    }
 }
 
 impl<S: SelectForRank101111> Sequence<S> {
+    /// Returns value at given `index`. The result is undefined if `index` is out of bound.
+    #[inline] pub unsafe fn get_unchecked(&self, index: usize) -> u64 {
+        (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
+            self.lo.get_fragment(index, self.bits_per_lo)
+    }
+
     /// Returns value at given `index` or [`None`] if `index` is out of bound.
     #[inline] pub fn get(&self, index: usize) -> Option<u64> {
-        (index < self.len).then(|| 
-            (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
-            self.lo.get_fragment(index, self.bits_per_lo)
-        )
+        (index < self.len).then(|| unsafe{self.get_unchecked(index)} )
     }
 
     /// Returns value at given `index` or panics if `index` is out of bound.
     pub fn get_or_panic(&self, index: usize) -> u64 {
-        self.get(index).expect("EliasFano: get index out of bound")
+        self.get(index).expect("attempt to retrieve values for an index out of bounds of the Elias-Fano Sequence")
+    }
+
+    #[inline] pub unsafe fn diff_unchecked(&self, index: usize) -> u64 {
+        self.diff_at_position_unchecked(self.position_at_unchecked(index))
+    }
+
+    #[inline] pub fn diff(&self, index: usize) -> Option<u64> {
+        (index < self.len).then(|| unsafe{self.diff_unchecked(index)})
+    }
+
+
+    #[inline] pub fn diff_or_panic(&self, index: usize) -> u64 {
+        self.diff(index).expect("attempt to retrieve deff for an index out of bounds of the Elias-Fano Sequence")
     }
 
     #[inline] unsafe fn position_at_unchecked(&self, index: usize) -> Position {
         Position { hi: self.hi.select_unchecked(index), lo: index }
     }
+
+    /*#[inline] fn position_at(&self, index: usize) -> Option<Position> {
+        (index < self.len).then(|| unsafe { self.position_at_unchecked(index) })
+    }*/
 
     /// Returns valid cursor that points to given `index` of `self`.
     /// Result is undefined if `index` is out of bound.
@@ -219,8 +266,10 @@ impl<S: SelectForRank101111> Sequence<S> {
 }
 
 impl<S: Select0ForRank101111> Sequence<S> {
-    /// Returns the position of first `self` item with value greater than or equal to given `value`.
-    fn geq_position(&self, value: u64) -> Position {
+    /// Returns the uncorrected position of first `self` item with value greater than or equal to given `value`.
+    /// The `hi` of result may need correction (moving forward to first 1 bit) if it is not an index of 1 bit.
+    /// `lo` is already correct.
+    fn geq_position_uncorrected(&self, value: u64) -> Position {
         let value_hi = (value >> self.bits_per_lo) as usize;
         let mut hi_index = self.hi.try_select0(value_hi).unwrap_or_else(|| self.len * 64);  // index of 0 just after our ones
         // TODO do we always have such 0? maybe it is better to select0(value_hi-1) and next scan forward?
@@ -237,6 +286,13 @@ impl<S: Select0ForRank101111> Sequence<S> {
         Position { hi: hi_index, lo: lo_index }
     }
 
+    /// Returns the position of first `self` item with value greater than or equal to given `value`.
+    fn geq_position(&self, value: u64) -> Position {
+        let mut result = self.geq_position_uncorrected(value);
+        result.hi = self.hi.content.find_bit_one(result.hi).unwrap_or_else(|| self.len * 64);
+        result
+    }
+
     fn position_of(&self, value: u64) -> Option<Position> {
         let geq_position = self.geq_position(value);
         self.value_at_position(geq_position).and_then(|geq_value| (geq_value==value).then_some(geq_position))
@@ -249,16 +305,16 @@ impl<S: Select0ForRank101111> Sequence<S> {
 
     /// Returns the index of the first `self` item with value greater than or equal to given `value`.
     #[inline] pub fn geq_index(&self, value: u64) -> usize {
-        self.geq_position(value).lo
+        self.geq_position_uncorrected(value).lo
     }
 
     /// Returns the cursor pointing to the first occurrence of `value` or [`None`] if `self` does not contain `value`.
-    pub fn cursor_of(&self, value: u64) -> Option<Cursor<S>> {
+    #[inline] pub fn cursor_of(&self, value: u64) -> Option<Cursor<S>> {
         self.position_of(value).map(|position| self.cursor(position))
     }
 
     /// Returns the index of the first occurrence of `value` or [`None`] if `self` does not contain `value`.
-    pub fn index_of(&self, value: u64) -> Option<usize> {
+    #[inline] pub fn index_of(&self, value: u64) -> Option<usize> {
         self.position_of(value).map(|p| p.lo)
     }
 }
@@ -309,8 +365,7 @@ impl<S> std::iter::Iterator for Iterator<'_, S> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.begin.lo == self.end.lo { return None; }
-        unsafe { self.sequence.position_next_unchecked(&mut self.begin) }
+        (self.begin.lo != self.end.lo).then(|| unsafe { self.sequence.position_next_unchecked(&mut self.begin) })
     }
 }
 
@@ -325,6 +380,27 @@ impl<S> DoubleEndedIterator for Iterator<'_, S> {
 
 impl<S> FusedIterator for Iterator<'_, S> {}
 
+/// Iterator that yields the value of the first item followed by the differences
+/// between the values of subsequent items of [`Sequence`].
+pub struct DiffIterator<'ef, S> {
+    sequence: &'ef Sequence<S>,
+    position: Position,
+    prev_value: u64
+}
+
+impl<S> std::iter::Iterator for DiffIterator<'_, S> {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let current_value = self.sequence.position_next(&mut self.position)?;
+        let result = current_value - self.prev_value;
+        self.prev_value = current_value;
+        Some(result)
+    }
+}
+
+impl<S> FusedIterator for DiffIterator<'_, S> {}
+
 /// Points either a position or past the end in Elias-Fano [`Sequence`].
 /// It is a kind of iterator over the [`Sequence`].
 #[derive(Clone, Copy)]
@@ -334,13 +410,13 @@ pub struct Cursor<'ef, S> {
 }
 
 impl<S> Cursor<'_, S> {
-    /// Returns whether the cursor is past the end (invalid).
+    /// Returns whether `self` points is past the end (is invalid).
     #[inline] pub fn is_end(&self) -> bool { self.position.lo != self.sequence.len }
 
-    /// Returns whether the cursor is valid (i.e., not past the end) and thus its value can be obtained.
+    /// Returns whether `self` is valid (i.e., not past the end) and thus its value can be obtained.
     #[inline] pub fn is_valid(&self) -> bool { self.position.lo != self.sequence.len }
 
-    /// Returns value pointed by `self`. The result is undefined if cursors points past the end.
+    /// Returns value pointed by `self`. Result is undefined if `self` points past the end.
     #[inline] pub unsafe fn value_unchecked(&self) -> u64 {
         return self.sequence.value_at_position_unchecked(self.position)
     }
@@ -348,7 +424,7 @@ impl<S> Cursor<'_, S> {
     /// Returns [`Sequence`] index pointed by `self`, i.e. converts `self` to index.
     #[inline] pub fn index(&self) -> usize { self.position.lo }
 
-    /// Returns value pointed by the cursor or [`None`] if it points past the end.
+    /// Returns value pointed by `self` or [`None`] if it points past the end.
     #[inline] pub fn value(&self) -> Option<u64> {
         return self.sequence.value_at_position(self.position)
     }
@@ -374,6 +450,18 @@ impl<S> Cursor<'_, S> {
             self.sequence.value_at_position_unchecked(self.position)
         })
     }
+
+    /// Returns difference between the value of current and the previous positions.
+    /// The result is undefined if `self` is invalid.
+    #[inline] pub unsafe fn diff_unchecked(&self) -> u64 {
+        self.sequence.diff_at_position_unchecked(self.position)
+    }
+
+    /// Returns difference between the value of current and the previous positions,
+    /// or [`None`] if `self` is invalid.
+    #[inline] pub fn diff(&self) -> Option<u64> {
+        self.sequence.diff_at_position(self.position)
+    }
 }
 
 impl<S> std::iter::Iterator for Cursor<'_, S> {
@@ -381,8 +469,7 @@ impl<S> std::iter::Iterator for Cursor<'_, S> {
 
     /// Returns value pointed by `self` and advances it one position forward.
     fn next(&mut self) -> Option<Self::Item> {
-        if self.is_end() { return None; }
-        unsafe { self.sequence.position_next_unchecked(&mut self.position) }
+        self.sequence.position_next(&mut self.position)
     }
 }
 
@@ -417,6 +504,8 @@ mod tests {
         assert_eq!(ef.get(5), None);
         assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 801, 920, 999]);
         assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [999, 920, 801, 1, 0]);
+        assert_eq!(ef.geq_cursor(801).collect::<Vec<_>>(), [801, 920, 999]);
+        assert_eq!(ef.geq_cursor(802).collect::<Vec<_>>(), [920, 999]);
         assert_eq!(ef.rank(0), 0);
         assert_eq!(ef.rank(1), 1);
         assert_eq!(ef.rank(2), 2);
@@ -435,23 +524,30 @@ mod tests {
         ef.push(0);
         ef.push(1);
         ef.push(3);
-        ef.push(4);
+        ef.push(3);
         ef.push(5);
         let ef: Sequence = ef.finish();
         assert_eq!(ef.get(0), Some(0));
         assert_eq!(ef.get(1), Some(1));
         assert_eq!(ef.get(2), Some(3));
-        assert_eq!(ef.get(3), Some(4));
+        assert_eq!(ef.get(3), Some(3));
         assert_eq!(ef.get(4), Some(5));
         assert_eq!(ef.get(5), None);
-        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 3, 4, 5]);
-        assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [5, 4, 3, 1, 0]);
+        assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 3, 3, 5]);
+        assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [5, 3, 3, 1, 0]);
         assert_eq!(ef.rank(0), 0);
         assert_eq!(ef.rank(1), 1);
         assert_eq!(ef.rank(2), 2);
         assert_eq!(ef.rank(3), 2);
-        assert_eq!(ef.rank(4), 3);
+        assert_eq!(ef.rank(4), 4);
         assert_eq!(ef.rank(5), 4);
         assert_eq!(ef.rank(6), 5);
+        assert_eq!(ef.diff(0), Some(0));
+        assert_eq!(ef.diff(1), Some(1));
+        assert_eq!(ef.diff(2), Some(2));
+        assert_eq!(ef.diff(3), Some(0));
+        assert_eq!(ef.diff(4), Some(2));
+        assert_eq!(ef.diff(5), None);
+        assert_eq!(ef.diffs().collect::<Vec<_>>(), [0, 1, 2, 0, 2]);
     }
 }
