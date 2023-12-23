@@ -28,8 +28,8 @@ impl Builder {
     /// Returns total number of items to push.
     #[inline] pub fn target_len(&self) -> usize { self.target_len }
 
-    /// Returns value of recently pushed item.
-    #[inline] pub fn last_added(&self) -> u64 { self.last_added }
+    /// Returns value of recently pushed item (if any) or 0.
+    #[inline] pub fn last_pushed(&self) -> u64 { self.last_added }
 
     /// Constructs [`Builder`] to build [`Sequence`] with `final_len` values in range [`0`, `universe`).
     /// After adding values in non-decreasing order by [`Self::push`] method,
@@ -209,6 +209,14 @@ impl<S> Sequence<S> {
 }
 
 impl<S: SelectForRank101111> Sequence<S> {
+
+    /// Constructs [`Sequence`] filled with elements from the `items` slice, which must be in non-decreasing order.
+    pub fn with_items_from_slice<I: Into<u64> + Clone>(items: &[I]) -> Self {
+        let mut b = Builder::new(items.len(), items.last().map_or(0, |v| v.clone().into()+1));
+        b.push_all(items.iter().map(|v| v.clone().into()));
+        b.finish_unchecked()
+    }
+
     /// Returns value at given `index`. The result is undefined if `index` is out of bound.
     #[inline] pub unsafe fn get_unchecked(&self, index: usize) -> u64 {
         (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
@@ -424,7 +432,7 @@ pub struct Cursor<'ef, S> {
 
 impl<S> Cursor<'_, S> {
     /// Returns whether `self` points is past the end (is invalid).
-    #[inline] pub fn is_end(&self) -> bool { self.position.lo != self.sequence.len }
+    #[inline] pub fn is_end(&self) -> bool { self.position.lo == self.sequence.len }
 
     /// Returns whether `self` is valid (i.e., not past the end) and thus its value can be obtained.
     #[inline] pub fn is_valid(&self) -> bool { self.position.lo != self.sequence.len }
@@ -538,6 +546,12 @@ mod tests {
         assert_eq!(ef.rank(921), 4);
         assert_eq!(ef.rank(999), 4);
         assert_eq!(ef.rank(1000), 5);
+        let mut c = ef.cursor_of(920).unwrap();
+        assert_eq!(c.value(), Some(920));
+        c.advance();
+        assert_eq!(c.value(), Some(999));
+        c.advance();
+        assert_eq!(c.value(), None);
     }
 
     #[test]

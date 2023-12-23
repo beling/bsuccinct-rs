@@ -1,16 +1,16 @@
 [package]
-name = "cseq"    # maybe cia - compressed integer arrays
+name = "cseq"
 version = "0.0.1"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "The library of compressed sequences."
-documentation = "https://docs.rs/cis"
+description = "The library of compact sequences."
+documentation = "https://docs.rs/cseq"
 repository = "https://github.com/beling/bsuccinct-rs"
 readme = "README.md"
 include = [ "**/*.rs", "Cargo.toml", "README.md" ]
 categories = [ "data-structures", "algorithms", "compression", "science" ]
-keywords = [ "compression", "sequence", "succinct", "wavelet matrix" ]
+keywords = [ "compression", "sequence", "succinct", "elias-fano", "wavelet matrix" ]
 
 [dependencies]
 bitm = { version="0.3", path="../bitm" }
