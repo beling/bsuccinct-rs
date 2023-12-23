@@ -74,7 +74,7 @@ impl Builder {
     /// Pushes a value that is `diff` greater than the previous one, or from 0 if pushing the first value.
     /// Panics if the pushed item is not less than universe or all declared items has been already pushed.
     pub fn push_diff(&mut self, diff: u64) {
-        self.push(self.last_added+diff)
+        self.push(self.last_added.saturating_add(diff))
     }
 
     /// Pushes all `values`. Calls [`Self::push`] for all `values` items.
@@ -106,19 +106,21 @@ impl Builder {
     }
 }
 
+/// Elias-Fano representation of a non-decreasing sequence of integers.
+/// 
 /// The structure was invented by Peter Elias and, independently, Robert Fano:
 /// - Peter Elias "Efficient storage and retrieval by content and address of static files",
 ///   J. ACM 21 (2) (1974) 246–260. doi:10.1145/321812.321820.
 /// - Robert Mario Fano "On the number of bits required to implement an associative memory",
 ///   Memorandum 61, Computer Structures Group, Project MAC, MIT, Cambridge, Mass., nd (1971) 27.
 /// 
-/// Our implementation draws a lot from:
+/// Our implementation draws a bit from:
 /// - Sebastiano Vigna "Quasi-succinct indices", 2013,
 ///   In Proceedings of the sixth ACM international conference on Web search and data mining (WSDM '13),
 ///   Association for Computing Machinery, New York, NY, USA, 83–92. <https://doi.org/10.1145/2433396.2433409>
 pub struct Sequence<S = CombinedSampling> {
     hi: ArrayWithRankSelect101111<S>,   // most significant bits of each item, unary coded
-    lo: Box<[u64]>, // least significant bits of each item, vector of `bits_per_lo_entry` bit items
+    lo: Box<[u64]>, // least significant bits of each item, vector of `bits_per_lo` bit items
     bits_per_lo: u8, // bit size of each entry in lo
     len: usize  // number of items
 }
@@ -218,20 +220,28 @@ impl<S: SelectForRank101111> Sequence<S> {
 
     /// Returns value at given `index` or panics if `index` is out of bound.
     pub fn get_or_panic(&self, index: usize) -> u64 {
-        self.get(index).expect("attempt to retrieve values for an index out of bounds of the Elias-Fano Sequence")
+        self.get(index).expect("attempt to retrieve value for an index out of bounds of the Elias-Fano Sequence")
     }
 
+    /// Returns difference between the value at given `index` and the previous value.
+    /// If `index` is 0, returns value at index 0,just like [`Self::get_unchecked`].
+    /// The result is undefined if `index` is out of bound.
     #[inline] pub unsafe fn diff_unchecked(&self, index: usize) -> u64 {
         self.diff_at_position_unchecked(self.position_at_unchecked(index))
     }
 
+    /// Returns difference between the value at given `index` and the previous value.
+    /// If `index` is 0, returns value at index 0, just like [`Self::get`].
+    /// Returns [`None`] if `index` is out of bound.
     #[inline] pub fn diff(&self, index: usize) -> Option<u64> {
         (index < self.len).then(|| unsafe{self.diff_unchecked(index)})
     }
 
-
+    /// Returns difference between the value at given `index` and the previous value.
+    /// If `index` is 0, returns value at index 0, just like [`Self::get_or_panic`].
+    /// Panics if `index` is out of bound.
     #[inline] pub fn diff_or_panic(&self, index: usize) -> u64 {
-        self.diff(index).expect("attempt to retrieve deff for an index out of bounds of the Elias-Fano Sequence")
+        self.diff(index).expect("attempt to retrieve diff for an index out of bounds of the Elias-Fano Sequence")
     }
 
     #[inline] unsafe fn position_at_unchecked(&self, index: usize) -> Position {
@@ -451,16 +461,25 @@ impl<S> Cursor<'_, S> {
         })
     }
 
-    /// Returns difference between the value of current and the previous positions.
+    /// Returns difference between the value of `self` and the previous positions.
     /// The result is undefined if `self` is invalid.
     #[inline] pub unsafe fn diff_unchecked(&self) -> u64 {
         self.sequence.diff_at_position_unchecked(self.position)
     }
 
-    /// Returns difference between the value of current and the previous positions,
+    /// Returns difference between the value of `self` and the previous positions,
     /// or [`None`] if `self` is invalid.
     #[inline] pub fn diff(&self) -> Option<u64> {
         self.sequence.diff_at_position(self.position)
+    }
+
+    /// Returns an iterator that gives the the differences between the values of subsequent items,
+    /// starting from `self`.
+    #[inline] pub fn diffs(&self) -> DiffIterator<'_, S> {
+        if self.position.lo == 0 { return self.sequence.diffs(); }
+        let mut prev = self.position;
+        unsafe{self.sequence.advance_position_back_unchecked(&mut prev)};
+        DiffIterator { sequence: self.sequence, position: self.position, prev_value: unsafe{self.sequence.value_at_position_unchecked(prev)} }
     }
 }
 
@@ -534,6 +553,8 @@ mod tests {
         assert_eq!(ef.get(4), Some(5));
         assert_eq!(ef.get(5), None);
         assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 3, 3, 5]);
+        assert_eq!(ef.geq_cursor(3).collect::<Vec<_>>(), [3, 3, 5]);
+        assert_eq!(ef.geq_cursor(10).collect::<Vec<_>>(), []);
         assert_eq!(ef.iter().rev().collect::<Vec<_>>(), [5, 3, 3, 1, 0]);
         assert_eq!(ef.rank(0), 0);
         assert_eq!(ef.rank(1), 1);
@@ -549,5 +570,6 @@ mod tests {
         assert_eq!(ef.diff(4), Some(2));
         assert_eq!(ef.diff(5), None);
         assert_eq!(ef.diffs().collect::<Vec<_>>(), [0, 1, 2, 0, 2]);
+        assert_eq!(ef.geq_cursor(3).diffs().collect::<Vec<_>>(), [2, 0, 2]);
     }
 }
