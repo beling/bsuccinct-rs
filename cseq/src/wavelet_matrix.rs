@@ -83,7 +83,7 @@ impl<S> Level<S> where S: Select0ForRank101111 {
     }
 }
 
-/// [`Sequence`] stores a sequence of `len` `bits_per_item`-bit items
+/// [`Sequence`] stores a sequence of `len` `bits_per_item`-bit items within the Wavelet Matrix,
 /// using just over (about 4%) `len * bits_per_item` bits and
 /// quickly (mostly in *O(bits_per_item)* time) executes many useful queries, such as:
 /// - *access* a item with a given index - see [`Self::get`],
