@@ -92,9 +92,9 @@ impl<S> Level<S> where S: Select0ForRank101111 {
 /// - *select* - see [`Self::select`],
 /// - *rank* - see [`Self::rank`].
 /// 
-/// By default [`bitm::CombinedSampling`] is used as a select strategy for internal bit vectors,
-/// but this can be changed to [`bitm::BinaryRankSearch`] to save a bit
-/// of space (about 0.78%) at the cost of slower *select* queries.
+/// By default [`bitm::CombinedSampling`] is used as a select strategy for internal bit vectors
+/// (see [`bitm::ArrayWithRankSelect101111`]), but this can be changed to [`bitm::BinaryRankSearch`]
+/// to save a bit of space (about 0.78%) at the cost of slower *select* queries.
 /// 
 /// Our implementation is based on the following paper which proposed the method:
 /// - Claude, F., Navarro, G. "The Wavelet Matrix", 2012,
