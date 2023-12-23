@@ -382,6 +382,17 @@ pub struct Iterator<'ef, S> {
     end: Position
 }
 
+impl<S> Iterator<'_, S> {
+    /// Returns the [`Sequence`] over which `self` iterates.
+    pub fn sequence(&self) -> &Sequence<S> { self.sequence }
+
+    /// Returns index of the value about to return by `next`.
+    pub fn index(&self) -> usize { self.begin.lo }
+
+    /// Returns index of the value returned by last `next_back`.
+    pub fn back_index(&self) -> usize { self.begin.lo }
+}
+
 impl<S> std::iter::Iterator for Iterator<'_, S> {
     type Item = u64;
 
@@ -409,6 +420,14 @@ pub struct DiffIterator<'ef, S> {
     prev_value: u64
 }
 
+impl<S> DiffIterator<'_, S> {
+    /// Returns the [`Sequence`] over which `self` iterates.
+    pub fn sequence(&self) -> &Sequence<S> { self.sequence }
+
+    /// Returns index of the value about to return by `next`.
+    pub fn index(&self) -> usize { self.position.lo }
+}
+
 impl<S> std::iter::Iterator for DiffIterator<'_, S> {
     type Item = u64;
 
@@ -431,6 +450,9 @@ pub struct Cursor<'ef, S> {
 }
 
 impl<S> Cursor<'_, S> {
+    /// Returns the [`Sequence`] in which `self` points the item.
+    pub fn sequence(&self) -> &Sequence<S> { self.sequence }
+
     /// Returns whether `self` points is past the end (is invalid).
     #[inline] pub fn is_end(&self) -> bool { self.position.lo == self.sequence.len }
 
@@ -547,10 +569,13 @@ mod tests {
         assert_eq!(ef.rank(999), 4);
         assert_eq!(ef.rank(1000), 5);
         let mut c = ef.cursor_of(920).unwrap();
+        assert_eq!(c.index(), 3);
         assert_eq!(c.value(), Some(920));
         c.advance();
+        assert_eq!(c.index(), 4);
         assert_eq!(c.value(), Some(999));
         c.advance();
+        assert_eq!(c.index(), 5);
         assert_eq!(c.value(), None);
     }
 
