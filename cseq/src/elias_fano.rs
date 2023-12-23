@@ -1,3 +1,5 @@
+//! Elias-Fano representation of a non-decreasing sequence of integers.
+
 use std::iter::FusedIterator;
 
 use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits, Select0ForRank101111, Rank, Select0};
@@ -365,6 +367,7 @@ impl Position {
     #[inline(always)] fn hi_bits(&self) -> u64 { (self.hi - self.lo) as u64 }
 }
 
+/// Iterator over [`Sequence`] values, returned by [`Sequence::iter`] .
 pub struct Iterator<'ef, S> {
     sequence: &'ef Sequence<S>,
     begin: Position,

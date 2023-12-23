@@ -1,3 +1,5 @@
+//! Wavelet Matrix representation of symbol sequence.
+
 use std::iter::FusedIterator;
 
 use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111};
