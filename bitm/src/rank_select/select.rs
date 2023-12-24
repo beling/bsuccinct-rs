@@ -75,7 +75,7 @@ pub trait Select0ForRank101111 {
 /// If BMI2 is not available, the implementation uses the broadword selection algorithm by Vigna, improved by Gog and Petri, and Vigna:
 /// - Sebastiano Vigna, "Broadword Implementation of Rank/Select Queries", WEA, 2008
 /// - Simon Gog, Matthias Petri, "Optimized succinct data structures for massive data". Software: Practice and Experience 44, 2014
-/// - Sebastiano Vigna, The selection problem <https://sux4j.di.unimi.it/select.php> MG4J <http://mg4j.di.unimi.it/> and SUX <https://sux.di.unimi.it/>
+/// - Sebastiano Vigna, The selection problem <https://sux4j.di.unimi.it/select.php>
 /// 
 /// The implementation is based on the one contained in folly library by Meta.
 #[inline] pub fn select64(n: u64, rank: u8) -> u8 {
