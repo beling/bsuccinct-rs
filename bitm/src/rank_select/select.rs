@@ -14,38 +14,38 @@ pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64
 pub const BITS_PER_L2_RECORDS: u64 = U64_PER_L2_RECORDS as u64 * 64; // each l2 entry is splitted to 4, 8*64=512 bits records
 pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 
-/// Trait implemented by types that support select (one) operation,
+/// Trait implemented by the types that support select (one) queries,
 /// i.e. can (quickly) find the position of the n-th one in the bitmap.
 pub trait Select {
     /// Returns the position of the `rank`-th one (counting from 0) in `self` or [`None`] if there are no such many ones in `self`.
     fn try_select(&self, rank: usize) -> Option<usize>;
 
     /// Returns the position of the `rank`-th one (counting from 0) in `self` or panics if there are no such many ones in `self`.
-    fn select(&self, rank: usize) -> usize {
+    #[inline(always)] fn select(&self, rank: usize) -> usize {
         self.try_select(rank).expect("cannot select rank-th one as there are no such many ones")
     }
 
     /// Returns the position of the `rank`-th one (counting from 0) in `self`.
     /// The result is undefined if there are no such many ones in `self`.
-    unsafe fn select_unchecked(&self, rank: usize) -> usize {
+    #[inline(always)] unsafe fn select_unchecked(&self, rank: usize) -> usize {
         self.select(rank)
     }
 }
 
-/// Trait implemented by types that support select zero operation,
+/// Trait implemented by the types that support select zero queries,
 /// i.e. can (quickly) find the position of the n-th zero in the bitmap.
 pub trait Select0 {
     /// Returns the position of the `rank`-th zero (counting from 0) in `self` or [`None`] if there are no such many zeros in `self`.
     fn try_select0(&self, rank: usize) -> Option<usize>;
 
     /// Returns the position of the `rank`-th zero (counting from 0) in `self` or panics if there are no such many zeros in `self`.
-    fn select0(&self, rank: usize) -> usize {
+    #[inline(always)] fn select0(&self, rank: usize) -> usize {
         self.try_select0(rank).expect("cannot select rank-th zero as there are no such many zeros")
     }
 
     /// Returns the position of the `rank`-th zero (counting from 0) in `self`.
     /// The result is undefined if there are no such many zeros in `self`.
-    unsafe fn select0_unchecked(&self, rank: usize) -> usize {
+    #[inline(always)] unsafe fn select0_unchecked(&self, rank: usize) -> usize {
         self.select0(rank)
     }
 }
@@ -124,7 +124,8 @@ pub trait Select0ForRank101111 {
 }*/
 
 /// A select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111)
-/// that does not introduce any overhead and is based on a binary search of the entries of rank structure.
+/// that does not introduce any overhead (on space or construction speed)
+/// and is based on a binary search over ranks.
 #[derive(Clone, Copy)]
 pub struct BinaryRankSearch;
 
@@ -218,11 +219,16 @@ impl Select0ForRank101111 for BinaryRankSearch {
 
 pub const ONES_PER_SELECT_ENTRY: usize = 8192;
 
-/// A select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead,
-/// implemented according to the paper:
+/// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
+/// 
+/// It is implemented according to the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
+/// 
+/// Combined Sampling was proposed in:
+/// - G. Navarro, E. Providel, "Fast, small, simple rank/select on bitmaps",
+///   in: R. Klasing (Ed.), Experimental Algorithms, Springer Berlin Heidelberg, Berlin, Heidelberg, 2012, pp. 295–306
 #[derive(Clone)]
 pub struct CombinedSampling {
     /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one (or zero in the case of select 0) in content, starting from the first one.
@@ -343,7 +349,7 @@ mod tests {
 
 
 /// For any n<256 and rank<8, the value at index 256*rank+n is the index of the (rank+1)-th one in the bit representation of n, or 8.
-#[cfg(not(target_feature = "bmi2"))] const SELECT_U8: [u8; 2048] = [
+#[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))] const SELECT_U8: [u8; 2048] = [
     8,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,5,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,
     6,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,5,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,
     7,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,5,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,

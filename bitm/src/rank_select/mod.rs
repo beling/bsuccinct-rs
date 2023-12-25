@@ -1,12 +1,13 @@
 mod utils;
 mod select;
 use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS};
-pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling, SelectForRank101111, Select0ForRank101111};
+pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling, SelectForRank101111, Select0ForRank101111, select64};
 
 use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
 
-/// Trait for rank operation that returns the number of ones (or zeros) in requested number of the first bits.
+/// Trait for rank queries on bit vector.
+/// Rank query returns the number of ones (or zeros) in requested number of the first bits.
 pub trait Rank {
     /// Returns the number of ones in first `index` bits or [`None`] if `index` is out of bound.
     fn try_rank(&self, index: usize) -> Option<usize>;
@@ -45,7 +46,7 @@ pub trait Rank {
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 3.125% extra space.
 /// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
 /// In addition, it supports select queries utilizing binary search over ranks (see [`BinaryRankSearch`])
-/// or (optionally, at the cost of about 0.39% extra space overhead) combined sampling (see [`CombinedSampling`]).
+/// or (optionally, at the cost of about 0.39% extra space overhead) combined sampling (which is usually faster; see [`CombinedSampling`]).
 ///
 /// It uses modified version of the structure described in the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
@@ -59,9 +60,11 @@ pub trait Rank {
 ///        (and unused fields in the last entries, for out-of-bound content bits, are filled with bit ones).
 /// With this layout, we can read the corresponding value in the rank query without branching
 /// and avoid some bound checks in the select query.
+/// 
+/// For in-word selection, it uses the [`select64`] function.
 #[derive(Clone)]
 pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch> {
-    pub content: Box<[u64]>,  // BitVec
+    pub content: Box<[u64]>,  // bit vector
     pub l1ranks: Box<[usize]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
     select: Select,  // support for select (one)
@@ -167,11 +170,14 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> AsRef<[u64]> for ArrayWit
     #[inline] fn as_ref(&self) -> &[u64] { &self.content }
 }
 
-
+/// [`ArrayWithRankSelect101111`] with [`BinaryRankSearch`] (which does not introduce a space overhead) for select queries.
 pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch>;
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
+/// Only `content` with less than 2^32 bit ones is supported.
+/// 
+/// Usually [`ArrayWithRankSelect101111`] should be preferred to [`ArrayWithRankSimple`].
 #[derive(Clone)]
 pub struct ArrayWithRankSimple {
     pub content: Box<[u64]>,  // BitVec

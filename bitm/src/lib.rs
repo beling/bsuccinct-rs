@@ -1,7 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 mod rank_select;
-pub use rank_select::{ArrayWithRankSimple, ArrayWithRankSelect101111, ArrayWithRank101111, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, BinaryRankSearch, CombinedSampling};
+pub use rank_select::{ArrayWithRankSimple, ArrayWithRankSelect101111, ArrayWithRank101111,
+     Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, select64,
+     BinaryRankSearch, CombinedSampling};
 
 mod bitvec;
 pub use bitvec::*;
