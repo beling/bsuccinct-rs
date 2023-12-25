@@ -5,6 +5,8 @@ It can test the algorithms included in the following creates:
 - [boomphf](https://crates.io/crates/boomphf),
 - [cmph-sys](https://crates.io/crates/cmph-sys) (only if compiled with `cmph-sys` feature, and only *CHD* algorithm is supported).
 
+Please run the program with the `--help` switch to see the available options.
+
 Below you can find instructions for [installing](#installation) `mphf_benchmark` and
 [reproducing experiments](#reproducing-experiments-from-the-papers) performed with it,
 which can be found in published or under review papers.
