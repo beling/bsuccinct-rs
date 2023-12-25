@@ -2,7 +2,7 @@
 
 use std::iter::FusedIterator;
 
-use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111};
+use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, bits_to_store};
 use dyn_size_of::GetSize;
 
 /// Constructs bit vectors for the (current) level of velvet matrix.
@@ -125,9 +125,17 @@ impl<S> Sequence<S> {
 impl Sequence<CombinedSampling> {
     /// Constructs [`Sequence`] with `content_len` `bits_per_item`-bit
     /// items exposed by iterator returned by `content` function.
-    pub fn from_fn<I, F>(content: F, content_len: usize, bits_per_item: u8) -> Self
-        where I: IntoIterator<Item = u64>, F: FnMut() -> I {
-        Self::from_fn_s(content, content_len, bits_per_item)
+    pub fn from_fn_len<I, F>(content: F, content_len: usize, bits_per_item: u8) -> Self
+        where I: IntoIterator<Item = u64>, F: FnMut() -> I
+    {
+        Self::from_fn_len_s(content, content_len, bits_per_item)
+    }
+
+    /// Constructs [`Sequence`] items exposed by iterator returned by `content` function.
+    pub fn from_fn<I, F>(content: F) -> Self
+        where I: IntoIterator<Item = u64>, F: FnMut() -> I
+    {
+        Self::from_fn_s(content)
     }
 
     /// Constructs [`Sequence`] with `content` consisted of `content_len` `bits_per_item`-bit
@@ -142,7 +150,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
     /// Constructs [`Sequence`] with `content_len` `bits_per_item`-bit
     /// items exposed by iterator returned by `content` function,
     /// and custom select strategy.
-    pub fn from_fn_s<I, F>(mut content: F, content_len: usize, bits_per_item: u8) -> Self
+    pub fn from_fn_len_s<I, F>(mut content: F, content_len: usize, bits_per_item: u8) -> Self
         where I: IntoIterator<Item = u64>, F: FnMut() -> I
     {
         assert!(bits_per_item > 0 && bits_per_item <= 63);
@@ -188,10 +196,24 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         Self { levels: levels.into_boxed_slice(), len: content_len }
     }
 
+    /// Constructs [`Sequence`] items exposed by iterator returned by `content` function,
+    /// and custom select strategy.
+    pub fn from_fn_s<I, F>(mut content: F) -> Self
+        where I: IntoIterator<Item = u64>, F: FnMut() -> I
+    {
+        let mut content_len = 0;
+        let mut max_value = 1;  // we use 1 or more bits/item
+        for v in content() {
+            if v > max_value { max_value = v }
+            content_len += 1;
+        }
+        Self::from_fn_len_s(content, content_len, bits_to_store(max_value))
+    }
+
     /// Constructs [`Sequence`] with `content` consisted of `content_len` `bits_per_item`-bit
     /// items contained in the bit vector, and custom select strategy.
     pub fn from_bits_s(content: &[u64], content_len: usize, bits_per_item: u8) -> Self {
-        Self::from_fn_s(
+        Self::from_fn_len_s(
             || { (0..content_len).map(|index| content.get_fragment(index, bits_per_item)) },
              content_len, bits_per_item)
     }
@@ -308,6 +330,16 @@ mod tests {
         assert_eq!(wm.get(0), None);
         assert_eq!(wm.rank(0, 0), 0);
         assert_eq!(wm.iter().next(), None);
+    }
+
+    #[test]
+    fn test_zeros() {
+        let wm = Sequence::from_fn(|| [0, 0, 0]);
+        assert_eq!(wm.len(), 3);
+        assert_eq!(wm.bits_per_item(), 1);
+        assert_eq!(wm.get(0), Some(0));
+        assert_eq!(wm.get(2), Some(0));
+        assert_eq!(wm.get(3), None);
     }
 
     #[test]
