@@ -15,6 +15,7 @@ struct CHDConf { lambda: u8 }
 pub trait CMPHSource: Sized {
     fn new_cmph_source(keys: &[Self]) -> *mut cmph_io_adapter_t;
     fn del_cmph_source(source: *mut cmph_io_adapter_t);
+    fn key_data_and_len(key: &Self) -> (*const c_char, u32);
 }
 
 impl<K: Hash + CMPHSource> MPHFBuilder<K> for CHDConf {
@@ -46,10 +47,8 @@ impl<K: Hash + CMPHSource> MPHFBuilder<K> for CHDConf {
     }
 
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
-        Some(unsafe{ cmph_search_packed(
-            mphf.as_ptr() as *mut c_void,
-            key as *const K as *const i8,
-            size_of::<K>() as u32) as u64 })
+        let (k_data, k_len) = K::key_data_and_len(key);
+        Some(unsafe{ cmph_search_packed(mphf.as_ptr() as *mut c_void, k_data, k_len) as u64 })
     }
 }
 
@@ -101,6 +100,10 @@ impl CMPHSource for Box<[u8]> {
     fn del_cmph_source(source: *mut cmph_io_adapter_t) {
         drop(unsafe{Box::from_raw((*source).data.cast::<CmphStrVecAdapter>())});
     }
+
+    fn key_data_and_len(key: &Self) -> (*const c_char, u32) {
+        (key.as_ptr() as *mut u8 as *mut c_char, key.len() as u32)
+    }
 }
 
 fn new_cmph_io_struct_vector_adapter<K>(keys: &[K]) -> *mut cmph_io_adapter_t {
@@ -120,6 +123,10 @@ impl CMPHSource for u64 {
     fn del_cmph_source(source: *mut cmph_io_adapter_t) {
         unsafe{cmph_io_struct_vector_adapter_destroy(source)};
     }
+
+    fn key_data_and_len(key: &Self) -> (*const c_char, u32) {
+        (key as *const Self as *const c_char, size_of::<Self>() as u32)
+    }
 }
 
 impl CMPHSource for u32 {
@@ -129,5 +136,9 @@ impl CMPHSource for u32 {
 
     fn del_cmph_source(source: *mut cmph_io_adapter_t) {
         unsafe{cmph_io_struct_vector_adapter_destroy(source)};
+    }
+
+    fn key_data_and_len(key: &Self) -> (*const c_char, u32) {
+        (key as *const Self as *const c_char, size_of::<Self>() as u32)
     }
 }
