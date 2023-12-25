@@ -551,7 +551,13 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &
     Some(file)
 }
 
-fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
+#[cfg(feature = "cmph-sys")] trait CanBeKey: Hash + Sync + Send + Clone + Debug + cmph::CMPHSource {}
+#[cfg(feature = "cmph-sys")] impl<T: Hash + Sync + Send + Clone + Debug + cmph::CMPHSource> CanBeKey for T {}
+
+#[cfg(not(feature = "cmph-sys"))] trait CanBeKey: Hash + Sync + Send + Clone + Debug {}
+#[cfg(not(feature = "cmph-sys"))] impl<T: Hash + Sync + Send + Clone + Debug> CanBeKey for T {}
+
+fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
         Method::FMPHGO_all => {
             fmphgo_benchmark_all(file("FMPHGO_all", &conf, i, FMPHGO_HEADER), BuildWyHash::default(), &i, &conf, KeyAccess::Indices8);
@@ -590,9 +596,9 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
             fmph_benchmark::<BuildWyHash, _>(i, conf, level_size, None);
         }
         #[cfg(feature = "cmph-sys")] Method::CHD{lambda} => {
-            if conf.key_source == KeySource::stdin || conf.key_source == KeySource::stdinz {
+            /*if conf.key_source == KeySource::stdin || conf.key_source == KeySource::stdinz {
                 eprintln!("Benchmarking CHD with keys from stdin is not supported.")
-            } else {
+            } else {*/
                 println!("CHD: lambda results...");
                 let mut csv = file("CHD", &conf, i, "lambda");
                 if let Some(lambda) = lambda {
@@ -600,7 +606,7 @@ fn run<K: Hash + Sync + Send + Clone + Debug>(conf: &Conf, i: &(Vec<K>, Vec<K>))
                 } else {
                     for lambda in 1..=6 { chd_benchmark(&mut csv, i, conf, lambda); }
                 }
-            }
+            //}
         }
         Method::None => {}
     }
