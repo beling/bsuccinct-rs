@@ -122,6 +122,13 @@ impl Builder {
 
 /// Elias-Fano representation of a non-decreasing sequence of integers.
 /// 
+/// By default [`bitm::CombinedSampling`] is used used as both a select and select0 strategy
+/// for internal bit vector (see [`bitm::ArrayWithRankSelect101111`]).
+/// However, either of these two strategies can be changed to [`bitm::BinaryRankSearch`]
+/// to save a bit of space (maximum about 0.39% per strategy) at the cost of slower:
+/// - (for select) getting an item at the given index,
+/// - (for select0) finding the index of an item with a value (exactly or at least) equal to the given.
+/// 
 /// The structure was invented by Peter Elias and, independently, Robert Fano:
 /// - Peter Elias "Efficient storage and retrieval by content and address of static files",
 ///   J. ACM 21 (2) (1974) 246–260. doi:10.1145/321812.321820.
@@ -361,13 +368,13 @@ impl<S, S0: Select0ForRank101111> Sequence<S, S0> {
     }
 }
 
-impl<S: SelectForRank101111> Select for Sequence<S> {
+impl<S: SelectForRank101111, S0> Select for Sequence<S, S0> {
     #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
         self.get(rank).map(|v| v as usize)
     }
 }
 
-impl<S: Select0ForRank101111> Rank for Sequence<S> {
+impl<S, S0: Select0ForRank101111> Rank for Sequence<S, S0> {
     /// Returns the number of `self` items with values less than given `value`.
     #[inline] fn try_rank(&self, value: usize) -> Option<usize> {
         Some(self.geq_index(value as u64))
@@ -552,6 +559,8 @@ impl<S, S0> FusedIterator for Cursor<'_, S, S0> {}
 
 #[cfg(test)]
 mod tests {
+    use bitm::BinaryRankSearch;
+
     use super::*;
 
     #[test]
@@ -571,7 +580,7 @@ mod tests {
         ef.push(801);
         ef.push(920);
         ef.push(999);
-        let ef = ef.finish();
+        let ef = ef.finish_s::<BinaryRankSearch, BinaryRankSearch>();
         assert_eq!(ef.get(0), Some(0));
         assert_eq!(ef.get(1), Some(1));
         assert_eq!(ef.get(2), Some(801));
