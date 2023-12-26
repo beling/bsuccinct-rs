@@ -287,7 +287,7 @@ impl CombinedSampling {
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
-        let mut l2_index = l2_begin + self.select[self.select_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY] as usize;
+        let mut l2_index = l2_begin + *self.select.get(self.select_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY)? as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks[l2_index+1] & 0xFF_FF_FF_FF) as usize}

@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use csf;
 use csf::coding::BuildMinimumRedundancy;

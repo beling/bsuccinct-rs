@@ -158,7 +158,7 @@ impl<S, S0> Sequence<S, S0> {
         position.hi = if position.lo != self.len {
             self.hi.content.find_bit_one_unchecked(position.hi+1)
         } else {
-            self.len * 64
+            self.hi.content.len() * 64
         }
     }
 
@@ -320,7 +320,7 @@ impl<S, S0: Select0ForRank101111> Sequence<S, S0> {
     /// `lo` is already correct.
     fn geq_position_uncorrected(&self, value: u64) -> Position {
         let value_hi = (value >> self.bits_per_lo) as usize;
-        let mut hi_index = self.hi.try_select0(value_hi).unwrap_or_else(|| self.len * 64);  // index of 0 just after our ones
+        let mut hi_index = self.hi.try_select0(value_hi).unwrap_or_else(|| self.hi.content.len() * 64);  // index of 0 just after our ones
         // TODO do we always have such 0? maybe it is better to select0(value_hi-1) and next scan forward?
         let mut lo_index = hi_index - value_hi;
 
@@ -338,7 +338,7 @@ impl<S, S0: Select0ForRank101111> Sequence<S, S0> {
     /// Returns the position of first `self` item with value greater than or equal to given `value`.
     fn geq_position(&self, value: u64) -> Position {
         let mut result = self.geq_position_uncorrected(value);
-        result.hi = self.hi.content.find_bit_one(result.hi).unwrap_or_else(|| self.len * 64);
+        result.hi = self.hi.content.find_bit_one(result.hi).unwrap_or_else(|| self.hi.content.len() * 64);
         result
     }
 
