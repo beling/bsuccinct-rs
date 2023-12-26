@@ -162,7 +162,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         assert!(bits_per_item > 0 && bits_per_item <= 63);
         let mut levels = Vec::with_capacity(bits_per_item as usize);
         if bits_per_item == 1 {
-            let mut level = Box::with_zeroed_bits(content_len);
+            let mut level = Box::with_zeroed_bits(content_len+1);
             for (i, e) in content().into_iter().enumerate() {
                 level.init_bit(i, e != 0);
             }

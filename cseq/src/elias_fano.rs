@@ -1,8 +1,9 @@
 //! Elias-Fano representation of a non-decreasing sequence of integers.
 
-use std::iter::FusedIterator;
+use std::{iter::FusedIterator, io};
 
-use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits, Select0ForRank101111, Rank, Select0};
+use binout::{AsIs, Serializer};
+use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits, Select0ForRank101111, Rank, Select0, ceiling_div};
 use dyn_size_of::GetSize;
 
 /// Builds [`Sequence`] of values added by push methods.
@@ -235,6 +236,22 @@ impl<S, S0> Sequence<S, S0> {
     #[inline] pub fn end(&self) -> Cursor<S, S0> {
         self.cursor(self.end_position())
     }
+
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        AsIs::size(self.bits_per_lo) +
+        AsIs::array_size(&self.hi.content) +
+        if self.bits_per_lo != 0 && self.len != 0 { AsIs::array_content_size(&self.lo) } else { 0 }
+    }
+
+    /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        AsIs::write(output, self.bits_per_lo)?;
+        AsIs::write_array(output, &self.hi.content)?;
+        if self.bits_per_lo != 0 && self.len != 0 { AsIs::write_all(output, self.lo.iter())? };
+        Ok(())
+    }
 }
 
 impl Sequence {
@@ -242,9 +259,28 @@ impl Sequence {
     #[inline] pub fn with_items_from_slice<I: Into<u64> + Clone>(items: &[I]) -> Self {
         Self::with_items_from_slice_s(items)
     }
+
+    /// Reads `self` from the `input`.
+    pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        Self::read_s(input)
+    }
 }
 
 impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
+
+    /// Reads `self` from the `input`.
+    /// 
+    /// Custom select strategies do not have to be the same as the ones used by the written sequence.
+    pub fn read_s(input: &mut dyn io::Read) -> io::Result<Self> {
+        let bits_per_lo: u8 = AsIs::read(input)?;
+        let (hi, len) = ArrayWithRankSelect101111::build(AsIs::read_array(input)?);
+        let lo = if bits_per_lo != 0 && len != 0 {
+            AsIs::read_n(input, ceiling_div(len * bits_per_lo as usize, 64))?
+        } else {
+            (if len == 0 { vec![] } else { vec![0] }).into_boxed_slice()
+        };
+        Ok(Self { hi, lo, bits_per_lo, len })
+    }
 
     /// Constructs [`Sequence`] with custom select strategy and
     /// filled with elements from the `items` slice, which must be in non-decreasing order.
@@ -563,6 +599,16 @@ mod tests {
 
     use super::*;
 
+    fn test_read_write<S: SelectForRank101111, S0: Select0ForRank101111>(seq: Sequence<S, S0>) {
+        let mut buff = Vec::new();
+        seq.write(&mut buff).unwrap();
+        assert_eq!(buff.len(), seq.write_bytes());
+        let read = Sequence::<S, S0>::read_s(&mut &buff[..]).unwrap();
+        assert_eq!(seq.len, read.len);
+        assert_eq!(seq.hi.content, read.hi.content);
+        assert_eq!(seq.lo, read.lo);
+    }
+
     #[test]
     fn test_empty() {
         let ef = Builder::new(0, 0).finish();
@@ -570,6 +616,7 @@ mod tests {
         assert_eq!(ef.rank(0), 0);
         assert_eq!(ef.iter().collect::<Vec<_>>(), []);
         assert_eq!(ef.iter().rev().collect::<Vec<_>>(), []);
+        test_read_write(ef);
     }
 
     #[test]
@@ -610,6 +657,7 @@ mod tests {
         c.advance();
         assert_eq!(c.index(), 5);
         assert_eq!(c.value(), None);
+        test_read_write(ef);
     }
 
     #[test]
@@ -646,5 +694,6 @@ mod tests {
         assert_eq!(ef.diff(5), None);
         assert_eq!(ef.diffs().collect::<Vec<_>>(), [0, 1, 2, 0, 2]);
         assert_eq!(ef.geq_cursor(3).diffs().collect::<Vec<_>>(), [2, 0, 2]);
+        test_read_write(ef);
     }
 }
