@@ -91,8 +91,8 @@ impl Builder {
 
     /// Finishes building and returns [`Sequence`] containing the pushed items and custom select strategy.
     /// The resulted [`Sequence`] is invalid if not all declared items have been pushed.
-    pub fn finish_unchecked_s<S: SelectForRank101111>(self) -> Sequence<S> {
-        Sequence::<S> {
+    pub fn finish_unchecked_s<S: SelectForRank101111, S0: Select0ForRank101111>(self) -> Sequence<S, S0> {
+        Sequence::<S, S0> {
             hi: self.hi.into(),
             lo: self.lo,
             bits_per_lo: self.bits_per_lo,
@@ -102,9 +102,9 @@ impl Builder {
 
     /// Finishes building and returns [`Sequence`] containing the pushed items and custom select strategy.
     /// Panics if not all declared items have been pushed. 
-    pub fn finish_s<S: SelectForRank101111>(self) -> Sequence<S> {
+    pub fn finish_s<S: SelectForRank101111, S0: Select0ForRank101111>(self) -> Sequence<S, S0> {
         assert_eq!(self.current_len, self.target_len, "Cannot finish building Elias-Fano Sequence as the current length ({}) differs from the target ({})", self.current_len, self.target_len);
-        self.finish_unchecked_s::<S>()
+        self.finish_unchecked_s::<S, S0>()
     }
 
     /// Finishes building and returns [`Sequence`] containing the pushed items.
@@ -132,14 +132,14 @@ impl Builder {
 /// - Sebastiano Vigna "Quasi-succinct indices", 2013,
 ///   In Proceedings of the sixth ACM international conference on Web search and data mining (WSDM '13),
 ///   Association for Computing Machinery, New York, NY, USA, 83–92. <https://doi.org/10.1145/2433396.2433409>
-pub struct Sequence<S = CombinedSampling> {
-    hi: ArrayWithRankSelect101111<S>,   // most significant bits of each item, unary coded
+pub struct Sequence<S = CombinedSampling, S0 = CombinedSampling> {
+    hi: ArrayWithRankSelect101111<S, S0>,   // most significant bits of each item, unary coded
     lo: Box<[u64]>, // least significant bits of each item, vector of `bits_per_lo` bit items
     bits_per_lo: u8, // bit size of each entry in lo
     len: usize  // number of items
 }
 
-impl<S> Sequence<S> {
+impl<S, S0> Sequence<S, S0> {
     /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
 
@@ -204,19 +204,29 @@ impl<S> Sequence<S> {
     }
 
     /// Converts `position` to [`Cursor`].
-    #[inline] fn cursor(&self, position: Position) -> Cursor<'_, S> {
+    #[inline] fn cursor(&self, position: Position) -> Cursor<'_, S, S0> {
         Cursor { sequence: &self, position }
     }
 
     /// Returns iterator over `self` values.
-    #[inline] pub fn iter(&self) -> Iterator<S> {
+    #[inline] pub fn iter(&self) -> Iterator<S, S0> {
         Iterator { sequence: self, begin: self.begin_position(), end: self.end_position() } 
     }
 
     /// Returns an iterator that gives the value of the first item followed by
     /// the differences between the values of subsequent items.
-    #[inline] pub fn diffs(&self) -> DiffIterator<S> {
+    #[inline] pub fn diffs(&self) -> DiffIterator<S, S0> {
         DiffIterator { sequence: self, position: self.begin_position(), prev_value: 0 } 
+    }
+
+    /// Returns cursor that points to the first item of `self`.
+    #[inline] pub fn begin(&self) -> Cursor<S, S0> {
+        self.cursor(self.begin_position())
+    }
+    
+    /// Returns cursor that points past the end.
+    #[inline] pub fn end(&self) -> Cursor<S, S0> {
+        self.cursor(self.end_position())
     }
 }
 
@@ -227,7 +237,7 @@ impl Sequence {
     }
 }
 
-impl<S: SelectForRank101111> Sequence<S> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
 
     /// Constructs [`Sequence`] with custom select strategy and
     /// filled with elements from the `items` slice, which must be in non-decreasing order.
@@ -236,7 +246,9 @@ impl<S: SelectForRank101111> Sequence<S> {
         b.push_all(items.iter().map(|v| v.clone().into()));
         b.finish_unchecked_s()
     }
+}
 
+impl<S: SelectForRank101111, S0> Sequence<S, S0> {
     /// Returns value at given `index`. The result is undefined if `index` is out of bound.
     #[inline] pub unsafe fn get_unchecked(&self, index: usize) -> u64 {
         (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
@@ -284,28 +296,18 @@ impl<S: SelectForRank101111> Sequence<S> {
 
     /// Returns valid cursor that points to given `index` of `self`.
     /// Result is undefined if `index` is out of bound.
-    #[inline] pub unsafe fn cursor_at_unchecked(&self, index: usize) -> Cursor<S> {
+    #[inline] pub unsafe fn cursor_at_unchecked(&self, index: usize) -> Cursor<S, S0> {
         self.cursor(self.position_at_unchecked(index))
     }
 
     /// Returns valid cursor that points to given `index` of `self`,
     /// or [`None`] if `index` is out of bound.
-    #[inline] pub unsafe fn cursor_at(&self, index: usize) -> Option<Cursor<S>> {
+    #[inline] pub unsafe fn cursor_at(&self, index: usize) -> Option<Cursor<S, S0>> {
         (index < self.len).then(|| unsafe { self.cursor_at_unchecked(index) })
-    }
-
-    /// Returns cursor that points to the first item of `self`.
-    #[inline] pub fn begin(&self) -> Cursor<S> {
-        self.cursor(self.begin_position())
-    }
-
-    /// Returns cursor that points past the end.
-    #[inline] pub fn end(&self) -> Cursor<S> {
-        self.cursor(self.end_position())
     }
 }
 
-impl<S: Select0ForRank101111> Sequence<S> {
+impl<S, S0: Select0ForRank101111> Sequence<S, S0> {
     /// Returns the uncorrected position of first `self` item with value greater than or equal to given `value`.
     /// The `hi` of result may need correction (moving forward to first 1 bit) if it is not an index of 1 bit.
     /// `lo` is already correct.
@@ -339,7 +341,7 @@ impl<S: Select0ForRank101111> Sequence<S> {
     }
 
     /// Returns the cursor pointed to the first `self` item with value greater than or equal to given `value`.
-    #[inline] pub fn geq_cursor(&self, value: u64) -> Cursor<S> {
+    #[inline] pub fn geq_cursor(&self, value: u64) -> Cursor<S, S0> {
         self.cursor(self.geq_position(value))
     }
 
@@ -349,7 +351,7 @@ impl<S: Select0ForRank101111> Sequence<S> {
     }
 
     /// Returns the cursor pointing to the first occurrence of `value` or [`None`] if `self` does not contain `value`.
-    #[inline] pub fn cursor_of(&self, value: u64) -> Option<Cursor<S>> {
+    #[inline] pub fn cursor_of(&self, value: u64) -> Option<Cursor<S, S0>> {
         self.position_of(value).map(|position| self.cursor(position))
     }
 
@@ -372,14 +374,14 @@ impl<S: Select0ForRank101111> Rank for Sequence<S> {
     }
 }
 
-impl<S> GetSize for Sequence<S> where ArrayWithRankSelect101111<S>: GetSize {
+impl<S, S0> GetSize for Sequence<S, S0> where ArrayWithRankSelect101111<S, S0>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.lo.size_bytes_dyn() + self.hi.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<'ef, S> IntoIterator for &'ef Sequence<S> {
+impl<'ef, S, S0> IntoIterator for &'ef Sequence<S, S0> {
     type Item = u64;
-    type IntoIter = Iterator<'ef, S>;
+    type IntoIter = Iterator<'ef, S, S0>;
     #[inline] fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
@@ -396,15 +398,15 @@ impl Position {
 }
 
 /// Iterator over [`Sequence`] values, returned by [`Sequence::iter`] .
-pub struct Iterator<'ef, S> {
-    sequence: &'ef Sequence<S>,
+pub struct Iterator<'ef, S, S0> {
+    sequence: &'ef Sequence<S, S0>,
     begin: Position,
     end: Position
 }
 
-impl<S> Iterator<'_, S> {
+impl<S, S0> Iterator<'_, S, S0> {
     /// Returns the [`Sequence`] over which `self` iterates.
-    pub fn sequence(&self) -> &Sequence<S> { self.sequence }
+    pub fn sequence(&self) -> &Sequence<S, S0> { self.sequence }
 
     /// Returns index of the value about to return by `next`.
     pub fn index(&self) -> usize { self.begin.lo }
@@ -413,7 +415,7 @@ impl<S> Iterator<'_, S> {
     pub fn back_index(&self) -> usize { self.begin.lo }
 }
 
-impl<S> std::iter::Iterator for Iterator<'_, S> {
+impl<S, S0> std::iter::Iterator for Iterator<'_, S, S0> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -421,7 +423,7 @@ impl<S> std::iter::Iterator for Iterator<'_, S> {
     }
 }
 
-impl<S> DoubleEndedIterator for Iterator<'_, S> {
+impl<S, S0> DoubleEndedIterator for Iterator<'_, S, S0> {
     fn next_back(&mut self) -> Option<Self::Item> {
         (self.begin.lo != self.end.lo).then(|| unsafe {
             self.sequence.advance_position_back_unchecked(&mut self.end);
@@ -430,25 +432,25 @@ impl<S> DoubleEndedIterator for Iterator<'_, S> {
     }
 }
 
-impl<S> FusedIterator for Iterator<'_, S> {}
+impl<S, S0> FusedIterator for Iterator<'_, S, S0> {}
 
 /// Iterator that yields the value of the first item followed by the differences
 /// between the values of subsequent items of [`Sequence`].
-pub struct DiffIterator<'ef, S> {
-    sequence: &'ef Sequence<S>,
+pub struct DiffIterator<'ef, S, S0> {
+    sequence: &'ef Sequence<S, S0>,
     position: Position,
     prev_value: u64
 }
 
-impl<S> DiffIterator<'_, S> {
+impl<S, S0> DiffIterator<'_, S, S0> {
     /// Returns the [`Sequence`] over which `self` iterates.
-    pub fn sequence(&self) -> &Sequence<S> { self.sequence }
+    pub fn sequence(&self) -> &Sequence<S, S0> { self.sequence }
 
     /// Returns index of the value about to return by `next`.
     pub fn index(&self) -> usize { self.position.lo }
 }
 
-impl<S> std::iter::Iterator for DiffIterator<'_, S> {
+impl<S, S0> std::iter::Iterator for DiffIterator<'_, S, S0> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -459,19 +461,19 @@ impl<S> std::iter::Iterator for DiffIterator<'_, S> {
     }
 }
 
-impl<S> FusedIterator for DiffIterator<'_, S> {}
+impl<S, S0> FusedIterator for DiffIterator<'_, S, S0> {}
 
 /// Points either a position or past the end in Elias-Fano [`Sequence`].
 /// It is a kind of iterator over the [`Sequence`].
 #[derive(Clone, Copy)]
-pub struct Cursor<'ef, S> {
-    sequence: &'ef Sequence<S>,
+pub struct Cursor<'ef, S, S0> {
+    sequence: &'ef Sequence<S, S0>,
     position: Position,
 }
 
-impl<S> Cursor<'_, S> {
+impl<S, S0> Cursor<'_, S, S0> {
     /// Returns the [`Sequence`] in which `self` points the item.
-    pub fn sequence(&self) -> &Sequence<S> { self.sequence }
+    pub fn sequence(&self) -> &Sequence<S, S0> { self.sequence }
 
     /// Returns whether `self` points is past the end (is invalid).
     #[inline] pub fn is_end(&self) -> bool { self.position.lo == self.sequence.len }
@@ -528,7 +530,7 @@ impl<S> Cursor<'_, S> {
 
     /// Returns an iterator that gives the the differences between the values of subsequent items,
     /// starting from `self`.
-    #[inline] pub fn diffs(&self) -> DiffIterator<'_, S> {
+    #[inline] pub fn diffs(&self) -> DiffIterator<'_, S, S0> {
         if self.position.lo == 0 { return self.sequence.diffs(); }
         let mut prev = self.position;
         unsafe{self.sequence.advance_position_back_unchecked(&mut prev)};
@@ -536,7 +538,7 @@ impl<S> Cursor<'_, S> {
     }
 }
 
-impl<S> std::iter::Iterator for Cursor<'_, S> {
+impl<S, S0> std::iter::Iterator for Cursor<'_, S, S0> {
     type Item = u64;
 
     /// Returns value pointed by `self` and advances it one position forward.
@@ -544,6 +546,8 @@ impl<S> std::iter::Iterator for Cursor<'_, S> {
         self.sequence.position_next(&mut self.position)
     }
 }
+
+impl<S, S0> FusedIterator for Cursor<'_, S, S0> {}
 
 
 #[cfg(test)]
