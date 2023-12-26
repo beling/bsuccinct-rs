@@ -1,8 +1,9 @@
 //! Wavelet Matrix representation of symbol sequence.
 
-use std::iter::FusedIterator;
+use std::{iter::FusedIterator, io};
 
-use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, bits_to_store};
+use binout::{AsIs, Serializer};
+use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, bits_to_store, ceiling_div};
 use dyn_size_of::GetSize;
 
 /// Constructs bit vectors for the (current) level of velvet matrix.
@@ -142,6 +143,11 @@ impl Sequence<CombinedSampling> {
     /// items contained in the bit vector.
     pub fn from_bits(content: &[u64], content_len: usize, bits_per_item: u8) -> Self {
         Self::from_bits_s(content, content_len, bits_per_item)
+    }
+
+    /// Reads `self` from the `input`.
+    pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        Self::read_s(input)
     }
 }
 
@@ -311,6 +317,21 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
     pub fn iter(&self) -> impl Iterator<Item = u64> + DoubleEndedIterator + FusedIterator + '_ {
         (0..self.len()).map(|i| unsafe { self.get_unchecked(i) })
     }
+
+    /// Reads `self` from the `input`.
+    /// 
+    /// Custom select strategy does not have to be the same as the one used by the written sequence.
+    pub fn read_s(input: &mut dyn io::Read) -> io::Result<Self> {
+        let len = AsIs::read(input)?;
+        let bits_per_item: u8 = AsIs::read(input)?;
+        let mut levels = Vec::with_capacity(bits_per_item as usize);
+        for _ in 0..bits_per_item {
+            let number_of_zeros = AsIs::read(input)?;
+            let content = AsIs::read_n(input, ceiling_div(len+1, 64))?;
+            levels.push(Level::<S>::new(content, number_of_zeros))
+        }
+        Ok(Self { levels: levels.into_boxed_slice(), len })
+    }
 }
 
 impl<S> GetSize for Sequence<S> where ArrayWithRankSelect101111<S, S>: GetSize {
@@ -318,9 +339,43 @@ impl<S> GetSize for Sequence<S> where ArrayWithRankSelect101111<S, S>: GetSize {
     const USES_DYN_MEM: bool = true;
 }
 
+impl<S> Sequence<S> {
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        AsIs::size(self.len) +
+        AsIs::size(self.bits_per_item()) +
+        self.levels.iter()
+            .map(|level| AsIs::size(level.number_of_zeros) + AsIs::array_content_size(&level.content.content))
+            .sum::<usize>()
+    }
+
+    /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        AsIs::write(output, self.len)?;
+        AsIs::write(output, self.bits_per_item())?;
+        self.levels.iter().try_for_each(|level| {
+            AsIs::write(output, level.number_of_zeros)?;
+            AsIs::write_all(output, level.content.content.iter())
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_read_write<S: SelectForRank101111+Select0ForRank101111>(seq: Sequence<S>) {
+        let mut buff = Vec::new();
+        seq.write(&mut buff).unwrap();
+        assert_eq!(buff.len(), seq.write_bytes());
+        let read = Sequence::<S>::read_s(&mut &buff[..]).unwrap();
+        assert_eq!(seq.len(), read.len());
+        for level_index in 0..seq.levels.len() {
+            assert_eq!(seq.levels[level_index].number_of_zeros, read.levels[level_index].number_of_zeros);
+            assert_eq!(seq.levels[level_index].content.content, read.levels[level_index].content.content);
+        }
+    }
 
     #[test]
     fn test_empty() {
@@ -330,6 +385,7 @@ mod tests {
         assert_eq!(wm.get(0), None);
         assert_eq!(wm.rank(0, 0), 0);
         assert_eq!(wm.iter().next(), None);
+        test_read_write(wm);
     }
 
     #[test]
@@ -340,6 +396,7 @@ mod tests {
         assert_eq!(wm.get(0), Some(0));
         assert_eq!(wm.get(2), Some(0));
         assert_eq!(wm.get(3), None);
+        test_read_write(wm);
     }
 
     #[test]
@@ -359,6 +416,7 @@ mod tests {
         assert_eq!(wm.try_select(2, 1), Some(3));
         assert_eq!(wm.try_select(3, 1), None);
         assert_eq!(wm.iter().collect::<Vec<_>>(), [1, 0, 1, 1]);
+        test_read_write(wm);
     }
 
     #[test]
@@ -377,6 +435,7 @@ mod tests {
         assert_eq!(wm.try_select(0, 0b10), Some(1));
         assert_eq!(wm.try_select(0, 0b01), Some(2));
         assert_eq!(wm.iter().collect::<Vec<_>>(), [0b11, 0b10, 0b01, 0b01]);
+        test_read_write(wm);
     }
 
     #[test]
@@ -387,6 +446,7 @@ mod tests {
         assert_eq!(wm.get(0), Some(0b110));
         assert_eq!(wm.get(1), Some(0b000));
         assert_eq!(wm.get(2), None);
+        test_read_write(wm);
     }
 
     #[test]
@@ -410,5 +470,6 @@ mod tests {
         assert_eq!(wm.try_select(0, 0b0001), Some(1));
         assert_eq!(wm.try_select(1, 0b0001), Some(2));
         assert_eq!(wm.try_select(2, 0b0001), None);
+        test_read_write(wm);
     }
 }

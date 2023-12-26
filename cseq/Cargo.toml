@@ -15,3 +15,4 @@ keywords = [ "compression", "sequence", "succinct", "elias-fano", "wavelet matri
 [dependencies]
 bitm = { version="0.3", path="../bitm" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
+binout = { version="0.2", path="../binout" }

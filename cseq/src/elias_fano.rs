@@ -199,7 +199,7 @@ impl<S, S0> Sequence<S, S0> {
     }
 
     #[inline] fn value_at_position(&self, position: Position) -> Option<u64> {
-        (position.lo < self.len).then(|| unsafe { self.value_at_position_unchecked(position) })
+        (position.lo != self.len).then(|| unsafe { self.value_at_position_unchecked(position) })
     }
 
     #[inline] fn begin_position(&self) -> Position {
