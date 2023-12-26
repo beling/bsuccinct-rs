@@ -3,7 +3,7 @@
 ```rust
 use cseq::elias_fano;
 
-let ef: elias_fano::Sequence = elias_fano::Sequence::with_items_from_slice(&[0u64, 1, 801, 920, 999]);
+let ef = elias_fano::Sequence::with_items_from_slice(&[0u64, 1, 801, 920, 999]);
 assert_eq!(ef.get(2), Some(801));
 assert_eq!(ef.get(5), None);
 assert_eq!(ef.iter().collect::<Vec<_>>(), [0, 1, 801, 920, 999]);

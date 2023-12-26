@@ -68,6 +68,9 @@ mod tests {
         assert_eq!(bits_to_store(4u32), 3);
         assert_eq!(bits_to_store(7u32), 3);
         assert_eq!(bits_to_store(8u32), 4);
+        assert_eq!(bits_to_store(9u32), 4);
+        assert_eq!(bits_to_store(15u32), 4);
+        assert_eq!(bits_to_store(16u32), 5);
         assert_eq!(bits_to_store(u32::MAX-1), 32);
         assert_eq!(bits_to_store(u32::MAX), 32);
         assert_eq!(bits_to_store(u64::MAX), 64);

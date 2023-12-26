@@ -89,9 +89,9 @@ impl Builder {
         for diff in diffs { self.push_diff(diff) }
     }
 
-    /// Finishes building and returns [`Sequence`] containing the pushed items.
+    /// Finishes building and returns [`Sequence`] containing the pushed items and custom select strategy.
     /// The resulted [`Sequence`] is invalid if not all declared items have been pushed.
-    pub fn finish_unchecked<S: SelectForRank101111>(self) -> Sequence<S> {
+    pub fn finish_unchecked_s<S: SelectForRank101111>(self) -> Sequence<S> {
         Sequence::<S> {
             hi: self.hi.into(),
             lo: self.lo,
@@ -100,11 +100,23 @@ impl Builder {
         }
     }
 
+    /// Finishes building and returns [`Sequence`] containing the pushed items and custom select strategy.
+    /// Panics if not all declared items have been pushed. 
+    pub fn finish_s<S: SelectForRank101111>(self) -> Sequence<S> {
+        assert_eq!(self.current_len, self.target_len, "Cannot finish building Elias-Fano Sequence as the current length ({}) differs from the target ({})", self.current_len, self.target_len);
+        self.finish_unchecked_s::<S>()
+    }
+
+    /// Finishes building and returns [`Sequence`] containing the pushed items.
+    /// The resulted [`Sequence`] is invalid if not all declared items have been pushed.
+    #[inline] pub fn finish_unchecked(self) -> Sequence {
+        self.finish_unchecked_s()
+    }
+
     /// Finishes building and returns [`Sequence`] containing the pushed items.
     /// Panics if not all declared items have been pushed. 
-    pub fn finish<S: SelectForRank101111>(self) -> Sequence<S> {
-        assert_eq!(self.current_len, self.target_len, "Cannot finish building Elias-Fano Sequence as the current length ({}) differs from the target ({})", self.current_len, self.target_len);
-        self.finish_unchecked::<S>()
+    #[inline] pub fn finish(self) -> Sequence {
+        self.finish_s()
     }
 }
 
@@ -116,7 +128,7 @@ impl Builder {
 /// - Robert Mario Fano "On the number of bits required to implement an associative memory",
 ///   Memorandum 61, Computer Structures Group, Project MAC, MIT, Cambridge, Mass., nd (1971) 27.
 /// 
-/// Our implementation draws a bit from:
+/// Our implementation draws ideas from:
 /// - Sebastiano Vigna "Quasi-succinct indices", 2013,
 ///   In Proceedings of the sixth ACM international conference on Web search and data mining (WSDM '13),
 ///   Association for Computing Machinery, New York, NY, USA, 83–92. <https://doi.org/10.1145/2433396.2433409>
@@ -208,13 +220,21 @@ impl<S> Sequence<S> {
     }
 }
 
+impl Sequence {
+    /// Constructs [`Sequence`] filled with elements from the `items` slice, which must be in non-decreasing order.
+    #[inline] pub fn with_items_from_slice<I: Into<u64> + Clone>(items: &[I]) -> Self {
+        Self::with_items_from_slice_s(items)
+    }
+}
+
 impl<S: SelectForRank101111> Sequence<S> {
 
-    /// Constructs [`Sequence`] filled with elements from the `items` slice, which must be in non-decreasing order.
-    pub fn with_items_from_slice<I: Into<u64> + Clone>(items: &[I]) -> Self {
+    /// Constructs [`Sequence`] with custom select strategy and
+    /// filled with elements from the `items` slice, which must be in non-decreasing order.
+    pub fn with_items_from_slice_s<I: Into<u64> + Clone>(items: &[I]) -> Self {
         let mut b = Builder::new(items.len(), items.last().map_or(0, |v| v.clone().into()+1));
         b.push_all(items.iter().map(|v| v.clone().into()));
-        b.finish_unchecked()
+        b.finish_unchecked_s()
     }
 
     /// Returns value at given `index`. The result is undefined if `index` is out of bound.
@@ -532,7 +552,7 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let ef: Sequence = Builder::new(0, 0).finish();
+        let ef = Builder::new(0, 0).finish();
         assert_eq!(ef.get(0), None);
         assert_eq!(ef.rank(0), 0);
         assert_eq!(ef.iter().collect::<Vec<_>>(), []);
@@ -547,7 +567,7 @@ mod tests {
         ef.push(801);
         ef.push(920);
         ef.push(999);
-        let ef: Sequence = ef.finish();
+        let ef = ef.finish();
         assert_eq!(ef.get(0), Some(0));
         assert_eq!(ef.get(1), Some(1));
         assert_eq!(ef.get(2), Some(801));
