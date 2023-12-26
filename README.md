@@ -3,7 +3,7 @@ Succinct data structures and other Rust libraries and programs by Piotr Beling.
 Included libraries:
 - `ph` ([crate](https://crates.io/crates/ph), [doc](https://docs.rs/ph)) - minimal perfect hash functions (FMPH and FMPHGO);
 - `csf` ([crate](https://crates.io/crates/csf), [doc](https://docs.rs/csf)) - compressed static functions (maps);
-- `cseq` ([crate](https://crates.io/crates/cseq), [doc](https://docs.rs/cseq)) - compact sequences;
+- `cseq` ([crate](https://crates.io/crates/cseq), [doc](https://docs.rs/cseq)) - compact sequences (new and not well tested yet);
 - `minimum_redundancy` ([crate](https://crates.io/crates/minimum_redundancy), [doc](https://docs.rs/minimum_redundancy)) - encode and decode data with binary or non-binary Huffman coding;
 - `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
 - `bitm` ([crate](https://crates.io/crates/bitm), [doc](https://docs.rs/bitm)) - bit and bitmap manipulation;
