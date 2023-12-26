@@ -3,6 +3,7 @@ Succinct data structures and other Rust libraries and programs by Piotr Beling.
 Included libraries:
 - `ph` ([crate](https://crates.io/crates/ph), [doc](https://docs.rs/ph)) - minimal perfect hash functions (FMPH and FMPHGO);
 - `csf` ([crate](https://crates.io/crates/csf), [doc](https://docs.rs/csf)) - compressed static functions (maps);
+- `cseq` ([crate](https://crates.io/crates/cseq), [doc](https://docs.rs/cseq)) - compact sequences;
 - `minimum_redundancy` ([crate](https://crates.io/crates/minimum_redundancy), [doc](https://docs.rs/minimum_redundancy)) - encode and decode data with binary or non-binary Huffman coding;
 - `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
 - `bitm` ([crate](https://crates.io/crates/bitm), [doc](https://docs.rs/bitm)) - bit and bitmap manipulation;
@@ -11,7 +12,8 @@ Included libraries:
 
 Included programs:
 - `mphf_benchmark` ([crate](https://crates.io/crates/mphf_benchmark), [doc](https://docs.rs/mphf_benchmark)) - benchmarking minimal perfect hash functions,
-- `csf_benchmark` ([crate](https://crates.io/crates/csf_benchmark), [doc](https://docs.rs/csf_benchmark)) - benchmarking compressed static functions.
+- `csf_benchmark` ([crate](https://crates.io/crates/csf_benchmark), [doc](https://docs.rs/csf_benchmark)) - benchmarking compressed static functions,
+- `cseq_benchmark` ([crate](https://crates.io/crates/cseq_benchmark), [doc](https://docs.rs/cseq_benchmark)) - benchmarking compact sequences.
 
 Everything is dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
 
