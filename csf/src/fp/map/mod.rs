@@ -5,7 +5,7 @@ pub use conf::MapConf;
 use std::hash::Hash;
 use bitm::{BitAccess, Rank};
 
-pub use super::level_size_chooser::{SimpleLevelSizeChooser, ProportionalLevelSize, OptimalLevelSize};
+pub use super::level_size_chooser::SimpleLevelSizeChooser;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, utils, stats, utils::{ArrayWithRank, read_bits}};
 use std::collections::HashMap;
 use std::io;
