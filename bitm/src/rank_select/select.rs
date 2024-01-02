@@ -145,7 +145,7 @@ impl GetSize for BinaryRankSearch {}
     }
 }
 
-/// Select from `l2ranks` entry pointed by `l2_index`, without bounds checking.
+/// Select from `l2ranks` entry pointed by `l2_index`, without bound checking.
 #[inline] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
     let mut l2_entry = *l2ranks.get_unchecked(l2_index);
     if ONE {
