@@ -265,13 +265,13 @@ impl CombinedSampling {
             //TODO use l2ranks for faster reducing rank
             let mut bit_index = 0;
             let mut rank = 0; /*ONES_PER_SELECT_ENTRY as u16 - 1;*/    // we scan for 1 with this rank, to find its bit index in content
-            for c in content.iter().copied() {
+            for c in content.iter() {
                 let c_ones = if ONE { c.count_ones() } else { c.count_zeros() } as u16;
                 if c_ones <= rank {
                     rank -= c_ones;
                 } else {
                     let new_rank = ONES_PER_SELECT_ENTRY as u16 - c_ones + rank;
-                    ones_positions.push((bit_index + select64(if ONE {c} else {!c}, rank as u8) as u32) >> 11);    // each l2 entry covers 2^11 bits
+                    ones_positions.push((bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11);    // each l2 entry covers 2^11 bits
                     rank = new_rank;
                 }
                 bit_index = bit_index.wrapping_add(64);

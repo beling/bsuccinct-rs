@@ -44,8 +44,8 @@ fn main() {
     print!("time/item to [ns]: get {:.2}", get_time_nanos as f64 / data.len() as f64);
 
     let start_moment = ThreadTime::now();
-    for v in data.iter().copied() {
-        black_box(ef.index_of(v));
+    for v in data.iter() {
+        black_box(ef.index_of(*v));
     }
     let index_time_nanos = start_moment.elapsed().as_nanos();
     println!(", index {:.2}", index_time_nanos as f64 / data.len() as f64);
