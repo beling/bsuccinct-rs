@@ -377,6 +377,18 @@ impl BitAccess for [u64] {
 
     fn get_bits(&self, begin: usize, len: u8) -> u64 {
         let index_segment = begin / 64;
+        let offset = (begin % 64) as u8;
+        let w1 = self[index_segment] >> offset;
+        let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
+        (if len > bits_in_w1 { // do we need more bits (from next segment)?
+            w1 | (self[index_segment+1] << bits_in_w1)
+        } else {
+            w1
+        }) & n_lowest_bits(len)
+    }
+
+    /*fn get_bits(&self, begin: usize, len: u8) -> u64 {
+        let index_segment = begin / 64;
         //data += index_bit / 64;
         let offset = (begin % 64) as u8;
         let w1 = self[index_segment]>>offset;
@@ -389,7 +401,8 @@ impl BitAccess for [u64] {
         } else {
             w1 & v_mask
         }
-    }
+    }*/
+
 
     fn init_bits(&mut self, begin: usize, v: u64, len: u8) {
         debug_assert!({let f = self.get_bits(begin, len); f == 0 || f == v});
