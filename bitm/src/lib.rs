@@ -36,7 +36,7 @@ pub use bitvec::*;
     } else {
         max_value.checked_next_power_of_two().unwrap_or(0).trailing_zeros()
     }) as u8*/
-    max_value.into().checked_ilog2().map_or(0, |v| v+1) as u8
+    max_value.into().checked_ilog2().map_or(0, |v| v as u8+1)
 }
 
 #[cfg(test)]

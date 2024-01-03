@@ -464,7 +464,7 @@ impl BitAccess for [u64] {
         }) & n_lowest_bits(len)
     }
 
-    unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64 {    // always better than first, original ver.
+    unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64 {
         let index_segment = begin / 64;
         let offset = (begin % 64) as u8;
         let w1 = self.get_unchecked(index_segment) >> offset;
