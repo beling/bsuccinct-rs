@@ -414,7 +414,7 @@ impl<S: BuildSeededHasher> Function<S> {
 
     /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
     /// 
-    /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
+    /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection given during construction,
     /// either [`None`] or an undetermined value from the specified range is returned.
     pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {

@@ -4,6 +4,9 @@ use bitm::BitAccess;
 pub fn get_bits(c: &mut Criterion) {
     let v = [0x6A_21_55_79_10_90_32_F3; 4];
 
+    c.bench_function("get_bit (checked)", |b| b.iter(|| v.get_bit(black_box(30))));
+    c.bench_function("get_bit (unchecked)", |b| b.iter(|| unsafe{v.get_bit_unchecked(black_box(30))}));
+
     let mut group = c.benchmark_group("get_bits (checked)");
     for size in [20, 40, 60].iter() {
         //group.throughput(Throughput::Bytes(*size as u64));
@@ -12,10 +15,6 @@ pub fn get_bits(c: &mut Criterion) {
         });
     }
     group.finish();
-}
-
-pub fn get_bits_unchecked(c: &mut Criterion) {
-    let v = [0x6A_21_55_79_10_90_32_F3; 4];
 
     let mut group = c.benchmark_group("get_bits_unchecked");
     for size in [20, 40, 60].iter() {
@@ -38,10 +37,6 @@ pub fn set_bits(c: &mut Criterion) {
         });
     }
     group.finish();
-}
-
-pub fn set_bits_unchecked(c: &mut Criterion) {
-    let mut v = [0x6A_21_55_79_10_90_32_F3; 4];
 
     let mut group = c.benchmark_group("set_bits_unchecked");
     for size in [20, 40, 60].iter() {
@@ -53,5 +48,5 @@ pub fn set_bits_unchecked(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(bit_vector, get_bits, get_bits_unchecked, set_bits, set_bits_unchecked);
+criterion_group!(bit_vector, get_bits, set_bits);
 criterion_main!(bit_vector);

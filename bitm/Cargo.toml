@@ -21,3 +21,7 @@ criterion = "0.4"
 [[bench]]
 name = "bitvec"
 harness = false
+
+[[bench]]
+name = "rank_select"
+harness = false
