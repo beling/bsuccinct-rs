@@ -9,30 +9,30 @@ use dyn_size_of::GetSize;
 /// Trait for rank queries on bit vector.
 /// Rank query returns the number of ones (or zeros) in requested number of the first bits.
 pub trait Rank {
-    /// Returns the number of ones in first `index` bits or [`None`] if `index` is out of bound.
+    /// Returns the number of ones in first `index` bits or [`None`] if `index` is out of bounds.
     fn try_rank(&self, index: usize) -> Option<usize>;
 
-    /// Returns the number of ones in first `index` bits or panics if `index` is out of bound.
+    /// Returns the number of ones in first `index` bits or panics if `index` is out of bounds.
     #[inline] fn rank(&self, index: usize) -> usize {
         self.try_rank(index).expect("rank index out of bound")
     }
 
     /// Returns the number of ones in first `index` bits.
-    /// The result is undefined if `index` is out of bound.
+    /// The result is undefined if `index` is out of bounds.
     #[inline] unsafe fn rank_unchecked(&self, index: usize) -> usize {
         self.rank(index)
     }
 
-    /// Returns the number of zeros in first `index` bits or [`None`] if `index` is out of bound.
+    /// Returns the number of zeros in first `index` bits or [`None`] if `index` is out of bounds.
     #[inline] fn try_rank0(&self, index: usize) -> Option<usize> {
          self.try_rank(index).map(|r| index-r)
     }
 
-    /// Returns the number of zeros in first `index` bits or panics if `index` is out of bound.
+    /// Returns the number of zeros in first `index` bits or panics if `index` is out of bounds.
     #[inline] fn rank0(&self, index: usize) -> usize { index - self.rank(index) }
 
     /// Returns the number of ones in first `index` bits.
-    /// The result is undefined if `index` is out of bound.
+    /// The result is undefined if `index` is out of bounds.
     #[inline] unsafe fn rank0_unchecked(&self, index: usize) -> usize {
         index - self.rank_unchecked(index)
     }
@@ -98,7 +98,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
     fn try_rank(&self, index: usize) -> Option<usize> {
         let block = index / 512;
         let word_idx = index / 64;
-        // we start from access to content, as if given index of content is not out of bound,
+        // we start from access to content, as if given index of content is not out of bounds,
         // then corresponding indices l1ranks and l2ranks are also not out of bound
         let mut r = (self.content.get(word_idx)? & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
         let mut block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];

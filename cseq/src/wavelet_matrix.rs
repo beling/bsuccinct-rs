@@ -224,7 +224,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
              content_len, bits_per_item)
     }
 
-    /// Returns an item with given `index`. The result is undefined if `index` is out of bound.
+    /// Returns an item with given `index`. The result is undefined if `index` is out of bounds.
     pub unsafe fn get_unchecked(&self, mut index: usize) -> u64 {
         let mut result = 0;
         for level in self.levels.iter() {
@@ -239,17 +239,17 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         result
     }
 
-    /// Returns an item with given `index` or [`None`] if `index` is out of bound.
+    /// Returns an item with given `index` or [`None`] if `index` is out of bounds.
     #[inline] pub fn get(&self, index: usize) -> Option<u64> {
         (index < self.len()).then(|| unsafe {self.get_unchecked(index)})
     }
 
-    /// Returns an item with given `index` or panics if `index` is out of bound.
+    /// Returns an item with given `index` or panics if `index` is out of bounds.
     #[inline] pub fn get_or_panic(&self, index: usize) -> u64 {
         self.get(index).expect("wavelet_matrix::Sequence::get index out of bound")
     }
 
-    /// Returns the number of `item` occurrences in the given `range`, or [`None`] if `range` is out of bound.
+    /// Returns the number of `item` occurrences in the given `range`, or [`None`] if `range` is out of bounds.
     pub fn try_count_in_range(&self, mut range: std::ops::Range<usize>, item: u64) -> Option<usize> {
         if self.len() < range.end { return None; }
         let mut level_bit_mask = 1 << self.bits_per_item();
@@ -266,17 +266,17 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         Some(range.len())
     }
 
-    /// Returns the number of `item` occurrences in the given `range`, or panics if `range` is out of bound.
+    /// Returns the number of `item` occurrences in the given `range`, or panics if `range` is out of bounds.
     pub fn count_in_range(&self, range: std::ops::Range<usize>, item: u64) -> usize {
         self.try_count_in_range(range, item).expect("wavelet_matrix::Sequence::count_in_range range out of bound")
     }
 
-    /// Returns the number of `item` occurrences before given `index`, or [`None`] if `index` is out of bound.
+    /// Returns the number of `item` occurrences before given `index`, or [`None`] if `index` is out of bounds.
     #[inline] pub fn try_rank(&self, index: usize, item: u64) -> Option<usize> {
         self.try_count_in_range(0..index, item)
     }
 
-    /// Returns the number of `item` occurrences before the given `index`, or panics if `index` is out of bound.
+    /// Returns the number of `item` occurrences before the given `index`, or panics if `index` is out of bounds.
     #[inline] pub fn rank(&self, index: usize, item: u64) -> usize {
         self.try_rank(index, item).expect("wavelet_matrix::Sequence::rank index out of bound")
     }

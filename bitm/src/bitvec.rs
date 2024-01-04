@@ -67,20 +67,20 @@ pub type BitZerosIterator<'a> = BitBIterator<'a, false>;
 /// The trait that is implemented for the array of `u64` and extends it with methods for
 /// accessing and modifying single bits or arbitrary fragments consisted of few (up to 63) bits.
 pub trait BitAccess {
-    /// Gets bit with given index `bit_nr`. Panics if `bit_nr` is out of bound.
+    /// Gets bit with given index `bit_nr`. Panics if `bit_nr` is out of bounds.
     fn get_bit(&self, bit_nr: usize) -> bool;
 
     /// Gets bit with given index `bit_nr`, without bound checking.
     unsafe fn get_bit_unchecked(&self, bit_nr: usize) -> bool;
 
-    /// Gets bit with given index `bit_nr` and increase `bit_nr` by 1. Panics if `bit_nr` is out of bound.
+    /// Gets bit with given index `bit_nr` and increase `bit_nr` by 1. Panics if `bit_nr` is out of bounds.
     #[inline] fn get_successive_bit(&self, bit_nr: &mut usize) -> bool {
         let result = self.get_bit(*bit_nr);
         *bit_nr += 1;
         result
     }
 
-    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise). Panics if `bit_nr` is out of bound.
+    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise). Panics if `bit_nr` is out of bounds.
     #[inline] fn set_bit_to(&mut self, bit_nr: usize, value: bool) {
         if value { self.set_bit(bit_nr) } else { self.clear_bit(bit_nr) }
     }
@@ -91,14 +91,14 @@ pub trait BitAccess {
     }
 
     /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise) and increase `bit_nr` by 1.
-    /// Panics if `bit_nr` is out of bound.
+    /// Panics if `bit_nr` is out of bounds.
     #[inline] fn set_successive_bit_to(&mut self, bit_nr: &mut usize, value: bool) {
         if value { self.set_bit(*bit_nr) } else { self.clear_bit(*bit_nr) };
         *bit_nr += 1;
     }
 
     /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise) and increase `bit_nr` by 1.
-    /// The result is undefined if `bit_nr` is out of bound.
+    /// The result is undefined if `bit_nr` is out of bounds.
     #[inline] unsafe fn set_successive_bit_to_unchecked(&mut self, bit_nr: &mut usize, value: bool) {
         if value { self.set_bit_unchecked(*bit_nr) } else { self.clear_bit_unchecked(*bit_nr) };
         *bit_nr += 1;
@@ -106,14 +106,14 @@ pub trait BitAccess {
 
     /// Initialize bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise).
     /// Before initialization, the bit is assumed to be cleared or already set to `value`.
-    /// Panics if `bit_nr` is out of bound.
+    /// Panics if `bit_nr` is out of bounds.
     #[inline] fn init_bit(&mut self, bit_nr: usize, value: bool) {
         if value { self.set_bit(bit_nr) }
     }
 
     /// Initialize bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise).
     /// Before initialization, the bit is assumed to be cleared or already set to `value`.
-    /// The result is undefined if `bit_nr` is out of bound.
+    /// The result is undefined if `bit_nr` is out of bounds.
     #[inline] unsafe fn init_bit_unchecked(&mut self, bit_nr: usize, value: bool) {
         if value { self.set_bit_unchecked(bit_nr) }
     }
@@ -121,7 +121,7 @@ pub trait BitAccess {
     /// Initialize bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise)
     /// and increase `bit_nr` by 1.
     /// Before initialization, the bit is assumed to be cleared or already set to `value`.
-    /// Panics if `bit_nr` is out of bound.
+    /// Panics if `bit_nr` is out of bounds.
     #[inline] fn init_successive_bit(&mut self, bit_nr: &mut usize, value: bool) {
         self.init_bit(*bit_nr, value);
         *bit_nr += 1;
@@ -130,30 +130,30 @@ pub trait BitAccess {
     /// Initialize bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise)
     /// and increase `bit_nr` by 1.
     /// Before initialization, the bit is assumed to be cleared or already set to `value`.
-    /// The result is undefined if `bit_nr` is out of bound.
+    /// The result is undefined if `bit_nr` is out of bounds.
     #[inline] unsafe fn init_successive_bit_unchecked(&mut self, bit_nr: &mut usize, value: bool) {
         self.init_bit_unchecked(*bit_nr, value);
         *bit_nr += 1;
     }
 
-    /// Sets bit with given index `bit_nr` to `1`. Panics if `bit_nr` is out of bound.
+    /// Sets bit with given index `bit_nr` to `1`. Panics if `bit_nr` is out of bounds.
     fn set_bit(&mut self, bit_nr: usize);
 
     /// Sets bit with given index `bit_nr` to `1`, without bound checking.
     unsafe fn set_bit_unchecked(&mut self, bit_nr: usize);
 
-    /// Sets bit with given index `bit_nr` to `0`. Panics if `bit_nr` is out of bound.
+    /// Sets bit with given index `bit_nr` to `0`. Panics if `bit_nr` is out of bounds.
     fn clear_bit(&mut self, bit_nr: usize);
 
     /// Sets bit with given index `bit_nr` to `0`, without bound checking.
     unsafe fn clear_bit_unchecked(&mut self, bit_nr: usize);
 
-    /// Gets bits `[begin, begin+len)`. Panics if the range is out of bound.
+    /// Gets bits `[begin, begin+len)`. Panics if the range is out of bounds.
     #[inline] fn get_bits(&self, begin: usize, len: u8) -> u64 {    // always better than first, original ver.
         self.try_get_bits(begin, len).expect("bit range out of bound")
     }
 
-    /// Gets bits `[begin, begin+len)`. Returns [`None`] if the range is out of bound.
+    /// Gets bits `[begin, begin+len)`. Returns [`None`] if the range is out of bounds.
     fn try_get_bits(&self, begin: usize, len: u8) -> Option<u64>;
 
     /// Gets bits `[begin, begin+len)` without bound checking.
@@ -179,10 +179,10 @@ pub trait BitAccess {
         *begin += len as usize;
     }
 
-    /// Sets bits `[begin, begin+len)` to the content of `v`. Panics if the range is out of bound.
+    /// Sets bits `[begin, begin+len)` to the content of `v`. Panics if the range is out of bounds.
     fn set_bits(&mut self, begin: usize, v: u64, len: u8);
 
-    /// Sets bits `[begin, begin+len)` to the content of `v` and increase `begin` by `len`. Panics if the range is out of bound.
+    /// Sets bits `[begin, begin+len)` to the content of `v` and increase `begin` by `len`. Panics if the range is out of bounds.
     #[inline] fn set_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
         self.set_bits(*begin, v, len);
         *begin += len as usize;
@@ -191,11 +191,11 @@ pub trait BitAccess {
     /// Sets bits `[begin, begin+len)` to the content of `v`, without bound checking.
     unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8);
 
-    /// Xor at least `len` bits of `self`, staring from index `begin`, with `v`. Panics if the range is out of bound.
+    /// Xor at least `len` bits of `self`, staring from index `begin`, with `v`. Panics if the range is out of bounds.
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8);
 
     /// Xor at least `len` bits of `self`, staring from index `begin`, with `v` and increase `begin` by `len`.
-    /// Panics if the range is out of bound.
+    /// Panics if the range is out of bounds.
     fn xor_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
         self.xor_bits(*begin, v, len);
         *begin += len as usize;
@@ -214,13 +214,13 @@ pub trait BitAccess {
     fn bit_zeros(&self) -> BitZerosIterator;
 
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
-    /// Panics if the range is out of bound.
+    /// Panics if the range is out of bounds.
     #[inline(always)] fn get_fragment(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits(index * v_size as usize, v_size)
     }
 
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
-    /// Returns [`None`] if the range is out of bound.
+    /// Returns [`None`] if the range is out of bounds.
     #[inline(always)] fn try_get_fragment(&self, index: usize, v_size: u8) -> Option<u64> {
         self.try_get_bits(index * v_size as usize, v_size)
     }
@@ -238,13 +238,13 @@ pub trait BitAccess {
     }
 
     /// Initializes `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
-    /// Panics if the range is out of bound. Before initialization, the bits are assumed to be cleared or already set to `v`.
+    /// Panics if the range is out of bounds. Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline(always)] fn init_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.init_bits(index * v_size as usize, v, v_size)
     }
 
     /// Initializes `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`
-    /// Next, increases `index` by 1. Panics if the range is out of bound.
+    /// Next, increases `index` by 1. Panics if the range is out of bounds.
     /// Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline(always)] fn init_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.init_fragment(*index, v, v_size);
@@ -252,31 +252,31 @@ pub trait BitAccess {
     }
 
     /// Sets index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
-    /// Panics if the range is out of bound.
+    /// Panics if the range is out of bounds.
     #[inline(always)] fn set_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.set_bits(index * v_size as usize, v, v_size)
     }
 
     /// Sets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
-    /// The result is undefined if the range is out of bound.
+    /// The result is undefined if the range is out of bounds.
     #[inline(always)] unsafe fn set_fragment_unchecked(&mut self, index: usize, v: u64, v_size: u8) {
         self.set_bits_unchecked(index * v_size as usize, v, v_size)
     }
 
     /// Sets index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
-    /// Next, increases `index` by 1. Panics if the range is out of bound.
+    /// Next, increases `index` by 1. Panics if the range is out of bounds.
     #[inline(always)] fn set_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.set_fragment(*index, v, v_size);
         *index += 1;
     }
 
-    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v`. Panics if the range is out of bound.
+    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v`. Panics if the range is out of bounds.
     #[inline(always)] fn xor_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.xor_bits(index * v_size as usize, v, v_size)
     }
 
     /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v` and increase `index` by 1.
-    /// Panics if the range is out of bound.
+    /// Panics if the range is out of bounds.
     #[inline(always)] fn xor_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.xor_fragment(*index, v, v_size);
         *index += 1;

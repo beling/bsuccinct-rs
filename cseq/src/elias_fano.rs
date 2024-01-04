@@ -292,39 +292,39 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
 }
 
 impl<S: SelectForRank101111, S0> Sequence<S, S0> {
-    /// Returns value at given `index`. The result is undefined if `index` is out of bound.
+    /// Returns value at given `index`. The result is undefined if `index` is out of bounds.
     #[inline] pub unsafe fn get_unchecked(&self, index: usize) -> u64 {
         (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
             self.lo.get_fragment(index, self.bits_per_lo)
     }
 
-    /// Returns value at given `index` or [`None`] if `index` is out of bound.
+    /// Returns value at given `index` or [`None`] if `index` is out of bounds.
     #[inline] pub fn get(&self, index: usize) -> Option<u64> {
         (index < self.len).then(|| unsafe{self.get_unchecked(index)} )
     }
 
-    /// Returns value at given `index` or panics if `index` is out of bound.
+    /// Returns value at given `index` or panics if `index` is out of bounds.
     pub fn get_or_panic(&self, index: usize) -> u64 {
         self.get(index).expect("attempt to retrieve value for an index out of bounds of the Elias-Fano Sequence")
     }
 
     /// Returns difference between the value at given `index` and the previous value.
     /// If `index` is 0, returns value at index 0,just like [`Self::get_unchecked`].
-    /// The result is undefined if `index` is out of bound.
+    /// The result is undefined if `index` is out of bounds.
     #[inline] pub unsafe fn diff_unchecked(&self, index: usize) -> u64 {
         self.diff_at_position_unchecked(self.position_at_unchecked(index))
     }
 
     /// Returns difference between the value at given `index` and the previous value.
     /// If `index` is 0, returns value at index 0, just like [`Self::get`].
-    /// Returns [`None`] if `index` is out of bound.
+    /// Returns [`None`] if `index` is out of bounds.
     #[inline] pub fn diff(&self, index: usize) -> Option<u64> {
         (index < self.len).then(|| unsafe{self.diff_unchecked(index)})
     }
 
     /// Returns difference between the value at given `index` and the previous value.
     /// If `index` is 0, returns value at index 0, just like [`Self::get_or_panic`].
-    /// Panics if `index` is out of bound.
+    /// Panics if `index` is out of bounds.
     #[inline] pub fn diff_or_panic(&self, index: usize) -> u64 {
         self.diff(index).expect("attempt to retrieve diff for an index out of bounds of the Elias-Fano Sequence")
     }
@@ -338,13 +338,13 @@ impl<S: SelectForRank101111, S0> Sequence<S, S0> {
     }*/
 
     /// Returns valid cursor that points to given `index` of `self`.
-    /// Result is undefined if `index` is out of bound.
+    /// Result is undefined if `index` is out of bounds.
     #[inline] pub unsafe fn cursor_at_unchecked(&self, index: usize) -> Cursor<S, S0> {
         self.cursor(self.position_at_unchecked(index))
     }
 
     /// Returns valid cursor that points to given `index` of `self`,
-    /// or [`None`] if `index` is out of bound.
+    /// or [`None`] if `index` is out of bounds.
     #[inline] pub unsafe fn cursor_at(&self, index: usize) -> Option<Cursor<S, S0>> {
         (index < self.len).then(|| unsafe { self.cursor_at_unchecked(index) })
     }
