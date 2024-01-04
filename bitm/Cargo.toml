@@ -16,7 +16,7 @@ keywords = [ "bit", "bitmap", "rank", "bitvector", "bitset" ]
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 
 [[bench]]
 name = "bitvec"

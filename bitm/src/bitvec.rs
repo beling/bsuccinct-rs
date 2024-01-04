@@ -149,7 +149,12 @@ pub trait BitAccess {
     unsafe fn clear_bit_unchecked(&mut self, bit_nr: usize);
 
     /// Gets bits `[begin, begin+len)`. Panics if the range is out of bound.
-    fn get_bits(&self, begin: usize, len: u8) -> u64;
+    #[inline] fn get_bits(&self, begin: usize, len: u8) -> u64 {    // always better than first, original ver.
+        self.try_get_bits(begin, len).expect("bit range out of bound")
+    }
+
+    /// Gets bits `[begin, begin+len)`. Returns [`None`] if the range is out of bound.
+    fn try_get_bits(&self, begin: usize, len: u8) -> Option<u64>;
 
     /// Gets bits `[begin, begin+len)` without bound checking.
     unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64;
@@ -204,38 +209,46 @@ pub trait BitAccess {
     /// Returns iterator over indices of ones (set bits).
     fn bit_zeros(&self) -> BitZerosIterator;
 
-    /// Gets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`). Panics if the range is out of bound.
+    /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
+    /// Panics if the range is out of bound.
     #[inline(always)] fn get_fragment(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits(index * v_size as usize, v_size)
     }
 
-    /// Gets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`), without bound checking.
+    /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
+    /// Returns [`None`] if the range is out of bound.
+    #[inline(always)] fn try_get_fragment(&self, index: usize, v_size: u8) -> Option<u64> {
+        self.try_get_bits(index * v_size as usize, v_size)
+    }
+
+    /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), without bound checking.
     #[inline(always)] unsafe fn get_fragment_unchecked(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits_unchecked(index * v_size as usize, v_size)
     }
 
-    /// Gets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) and increase `index` by 1.
+    /// Gets `index`-th fragment of `v_size` bits and increases `index` by 1.
     #[inline(always)] fn get_successive_fragment(&self, index: &mut usize, v_size: u8) -> u64 {
         let result = self.get_fragment(*index, v_size);
         *index += 1;
         result
     }
 
-    /// Inits `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
-    /// Before initialization, the bits are assumed to be cleared or already set to `v`.
+    /// Initializes `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
+    /// Panics if the range is out of bound. Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline(always)] fn init_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.init_bits(index * v_size as usize, v, v_size)
     }
 
-    /// Inits `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`
-    /// and increase `index` by 1.
+    /// Initializes `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`
+    /// Next, increases `index` by 1. Panics if the range is out of bound.
     /// Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline(always)] fn init_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.init_fragment(*index, v, v_size);
         *index += 1;
     }
 
-    /// Sets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
+    /// Sets index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
+    /// Panics if the range is out of bound.
     #[inline(always)] fn set_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.set_bits(index * v_size as usize, v, v_size)
     }
@@ -245,18 +258,19 @@ pub trait BitAccess {
         self.set_bits_unchecked(index * v_size as usize, v, v_size)
     }*/
 
-    /// Sets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v` and increase `index` by 1.
+    /// Sets index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
+    /// Next, increases `index` by 1. Panics if the range is out of bound.
     #[inline(always)] fn set_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.set_fragment(*index, v, v_size);
         *index += 1;
     }
 
-    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v`.
+    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v`. Panics if the range is out of bound.
     #[inline(always)] fn xor_fragment(&mut self, index: usize, v: u64, v_size: u8) {
         self.xor_bits(index * v_size as usize, v, v_size)
     }
 
-    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v` and increase `index` by 1.
+    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v` and increase `index` by 1. Panics if the range is out of bound.
     #[inline(always)] fn xor_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.xor_fragment(*index, v, v_size);
         *index += 1;
@@ -440,28 +454,17 @@ impl BitAccess for [u64] {
         BitZerosIterator::new(self)
     }
 
-    /*fn get_bits(&self, begin: usize, len: u8) -> u64 {    // better for splitted words
+    #[inline(always)] fn try_get_bits(&self, begin: usize, len: u8) -> Option<u64> {
+        //(begin+(len as usize) < self.len()*64).then(|| unsafe{self.get_bits_unchecked(begin, len)})
         let index_segment = begin / 64;
         let offset = (begin % 64) as u8;
-        let w1 = self[index_segment] >> offset;
-        let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
-        (if len > bits_in_w1 { // do we need more bits (from next segment)?
-            w1 | (self[index_segment+1] << bits_in_w1)
-        } else {
-            w1
-        }) & n_lowest_bits(len)
-    }*/
-
-    fn get_bits(&self, begin: usize, len: u8) -> u64 {    // always better than first, original ver.
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u8;
-        let w1 = self[index_segment] >> offset;
-        (if offset+len > 64 /*len > bits_in_w1*/ { // do we need more bits (from next segment)?
+        let w1 = self.get(index_segment)? >> offset;
+        Some((if offset+len > 64 { // do we need more bits (from next segment)? Does len > bits_in_w1?
             let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
-            w1 | (self[index_segment+1] << bits_in_w1)
+            w1 | (self.get(index_segment+1)? << bits_in_w1)
         } else {
             w1
-        }) & n_lowest_bits(len)
+        }) & n_lowest_bits(len))
     }
 
     unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64 {
