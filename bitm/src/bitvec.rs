@@ -179,19 +179,23 @@ pub trait BitAccess {
         *begin += len as usize;
     }
 
-    /// Sets bits `[begin, begin+len)` to the content of `v`.
+    /// Sets bits `[begin, begin+len)` to the content of `v`. Panics if the range is out of bound.
     fn set_bits(&mut self, begin: usize, v: u64, len: u8);
 
-    /// Sets bits `[begin, begin+len)` to the content of `v` and increase `begin` by `len`.
+    /// Sets bits `[begin, begin+len)` to the content of `v` and increase `begin` by `len`. Panics if the range is out of bound.
     #[inline] fn set_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
         self.set_bits(*begin, v, len);
         *begin += len as usize;
     }
 
-    /// Xor at least `len` bits of `self`, staring from index `begin`, with `v`.
+    /// Sets bits `[begin, begin+len)` to the content of `v`, without bound checking.
+    unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8);
+
+    /// Xor at least `len` bits of `self`, staring from index `begin`, with `v`. Panics if the range is out of bound.
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8);
 
     /// Xor at least `len` bits of `self`, staring from index `begin`, with `v` and increase `begin` by `len`.
+    /// Panics if the range is out of bound.
     fn xor_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
         self.xor_bits(*begin, v, len);
         *begin += len as usize;
@@ -253,12 +257,13 @@ pub trait BitAccess {
         self.set_bits(index * v_size as usize, v, v_size)
     }
 
-    // Sets `v_size` bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
-    /*#[inline(always)] fn set_fragment_unchecked(&mut self, index: usize, v: u64, v_size: u8) {
+    /// Sets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
+    /// The result is undefined if the range is out of bound.
+    #[inline(always)] unsafe fn set_fragment_unchecked(&mut self, index: usize, v: u64, v_size: u8) {
         self.set_bits_unchecked(index * v_size as usize, v, v_size)
-    }*/
+    }
 
-    /// Sets index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`) to `v`.
+    /// Sets index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
     /// Next, increases `index` by 1. Panics if the range is out of bound.
     #[inline(always)] fn set_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.set_fragment(*index, v, v_size);
@@ -270,7 +275,8 @@ pub trait BitAccess {
         self.xor_bits(index * v_size as usize, v, v_size)
     }
 
-    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v` and increase `index` by 1. Panics if the range is out of bound.
+    /// Xor at least `v_size` bits of `self` begging from `index*v_size` with `v` and increase `index` by 1.
+    /// Panics if the range is out of bound.
     #[inline(always)] fn xor_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.xor_fragment(*index, v, v_size);
         *index += 1;
@@ -280,8 +286,8 @@ pub trait BitAccess {
     fn swap_fragments(&mut self, index1: usize, index2: usize, v_size: u8) {
         // TODO faster implementation
         let v1 = self.get_fragment(index1, v_size);
-        self.set_fragment(index1, self.get_fragment(index2, v_size), v_size);
-        self.set_fragment(index2, v1, v_size);
+        unsafe{self.set_fragment_unchecked(index1, self.get_fragment(index2, v_size), v_size)};
+        unsafe{self.set_fragment_unchecked(index2, v1, v_size);}
     }
 
     /// Conditionally (if `new_value` does not return [`None`]) changes
@@ -292,7 +298,7 @@ pub trait BitAccess {
         where NewValue: FnOnce(u64) -> Option<u64>
     {
         let old = self.get_bits(begin, v_size);
-        if let Some(new) = new_value(old) { self.set_bits(begin, new, v_size); }
+        if let Some(new) = new_value(old) { unsafe{self.set_bits_unchecked(begin, new, v_size)}; }
         old
     }
 
@@ -495,11 +501,28 @@ impl BitAccess for [u64] {
         let v_mask = n_lowest_bits(len);
         if offset + len > 64 {
             let shift = 64-offset;
-            self[index_segment+1] &= !(v_mask >> shift);
-            self[index_segment+1] |= v >> shift;
+            let s = &mut self[index_segment+1];
+            *s &= !(v_mask >> shift);
+            *s |= v >> shift;
         }
-        self[index_segment] &= !(v_mask << offset);
-        self[index_segment] |= v << offset;
+        let s = &mut self[index_segment];
+        *s &= !(v_mask << offset);
+        *s |= v << offset;
+    }
+
+    unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
+        let index_segment = begin / 64;
+        let offset = (begin % 64) as u8;   // the lowest bit to set in index_segment
+        let v_mask = n_lowest_bits(len);
+        if offset + len > 64 {
+            let shift = 64-offset;
+            let s = self.get_unchecked_mut(index_segment+1);
+            *s &= !(v_mask >> shift);
+            *s |= v >> shift;
+        }
+        let s = self.get_unchecked_mut(index_segment);
+        *s &= !(v_mask << offset);
+        *s |= v << offset;
     }
 
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8) {

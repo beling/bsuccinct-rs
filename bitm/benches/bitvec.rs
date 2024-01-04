@@ -27,5 +27,31 @@ pub fn get_bits_unchecked(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(bit_vector, get_bits, get_bits_unchecked);
+pub fn set_bits(c: &mut Criterion) {
+    let mut v = [0x6A_21_55_79_10_90_32_F3; 4];
+
+    let mut group = c.benchmark_group("set_bits (checked)");
+    for size in [20, 40, 60].iter() {
+        //group.throughput(Throughput::Bytes(*size as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
+            b.iter(|| v.set_bits(black_box(30), black_box(0), size))
+        });
+    }
+    group.finish();
+}
+
+pub fn set_bits_unchecked(c: &mut Criterion) {
+    let mut v = [0x6A_21_55_79_10_90_32_F3; 4];
+
+    let mut group = c.benchmark_group("set_bits_unchecked");
+    for size in [20, 40, 60].iter() {
+        //group.throughput(Throughput::Bytes(*size as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
+            b.iter(|| unsafe{v.set_bits_unchecked(black_box(30), black_box(0), size)})
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(bit_vector, get_bits, get_bits_unchecked, set_bits, set_bits_unchecked);
 criterion_main!(bit_vector);
