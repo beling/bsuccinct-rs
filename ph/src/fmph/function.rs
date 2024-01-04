@@ -719,7 +719,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore = "too slow"]
+    #[ignore = "uses much memory and time"]
     fn test_fmph_for_over_2to32_keys() {
         const LEN: u64 = 5_000_000_000;
         let f = Function::with_stats(

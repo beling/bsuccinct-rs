@@ -252,6 +252,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
     /// Returns the number of `item` occurrences in the given `range`, or [`None`] if `range` is out of bounds.
     pub fn try_count_in_range(&self, mut range: std::ops::Range<usize>, item: u64) -> Option<usize> {
         if self.len() < range.end { return None; }
+        if item >> self.bits_per_item() != 0 { return Some(0); }
         let mut level_bit_mask = 1 << self.bits_per_item();
         for level in self.levels.iter() {
             level_bit_mask >>= 1;
@@ -304,13 +305,14 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
     /// Returns the index of the `rank`-th (counting from 0) occurrence of `item`
     /// or [`None`] if there are not so many occurrences.
     pub fn try_select(&self, rank: usize, item: u64) -> Option<usize> {
+        if item >> self.bits_per_item() != 0 { return None; }
         self.sel(rank, item, 0, 0)
     }
 
     /// Returns the index of the `rank`-th (counting from 0) occurrence of `item`
     /// or panics if there are not so many occurrences.
     #[inline] pub fn select(&self, rank: usize, item: u64) -> usize {
-        self.try_select(rank, item).expect("wavelet_matrix::Sequence::select: there are no rank occurrences of the item")
+        self.try_select(rank, item).expect("wavelet_matrix::Sequence::select: not enough occurrences of the item")
     }
 
     /// Returns iterator over all items.
@@ -411,10 +413,12 @@ mod tests {
         assert_eq!(wm.get(4), None);
         assert_eq!(wm.try_rank(3, 1), Some(2));
         assert_eq!(wm.try_rank(3, 0), Some(1));
+        assert_eq!(wm.try_rank(3, 2), Some(0));
         assert_eq!(wm.try_select(0, 0), Some(1));
         assert_eq!(wm.try_select(1, 0), None);
         assert_eq!(wm.try_select(2, 1), Some(3));
         assert_eq!(wm.try_select(3, 1), None);
+        assert_eq!(wm.try_select(0, 2), None);
         assert_eq!(wm.iter().collect::<Vec<_>>(), [1, 0, 1, 1]);
         test_read_write(wm);
     }
@@ -479,20 +483,34 @@ mod tests {
         assert_eq!(wm.len(), 1<<16);
         assert_eq!(wm.bits_per_item(), 8);
         for i in (0..1<<16).step_by(33) {
-            assert_eq!(wm.get(i), Some(i as u64 % 256));
-            assert_eq!(wm.try_rank(i, 255), Some(i/256));
+            assert_eq!(wm.get(i), Some(i as u64 % 256), "wrong value at index {i}");
+            assert_eq!(wm.try_rank(i, 255), Some(i/256), "wrong 255 rank at index {i}");
         }
         test_read_write(wm);
     }
 
     #[test]
-    fn test_mid_16_levels() {
-        let wm = Sequence::from_fn(|| 0..1<<16);
+    fn test_mid_21_levels() {
+        let wm = Sequence::from_fn(|| (0..1<<16).map(|v| v * 32));
         assert_eq!(wm.len(), 1<<16);
-        assert_eq!(wm.bits_per_item(), 16);
+        assert_eq!(wm.bits_per_item(), 21);
         for i in (1..1<<16).step_by(33) {
-            assert_eq!(wm.get(i), Some(i as u64));
-            assert_eq!(wm.try_rank(i, 0), Some(1));
+            assert_eq!(wm.get(i), Some(i as u64 * 32), "wrong value at index {i}");
+            assert_eq!(wm.try_rank(i, 0), Some(1), "wrong 0 rank at index {i}");
+            assert_eq!(wm.try_rank(i, 31), Some(0), "wrong 31 rank at index {i}");
+        }
+        test_read_write(wm);
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn test_huge_9_levels() {
+        let wm = Sequence::from_fn(|| (0..1<<33).map(|v| v % 512));
+        assert_eq!(wm.len(), 1<<33);
+        assert_eq!(wm.bits_per_item(), 9);
+        for i in (0..1<<33).step_by(33) {
+            assert_eq!(wm.get(i), Some(i as u64 % 512), "wrong value at index {i}");
+            assert_eq!(wm.try_rank(i, 511), Some(i/512), "wrong 511 rank at index {i}");
         }
         test_read_write(wm);
     }
