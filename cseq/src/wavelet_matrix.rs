@@ -132,7 +132,7 @@ impl Sequence<CombinedSampling> {
         Self::from_fn_len_s(content, content_len, bits_per_item)
     }
 
-    /// Constructs [`Sequence`] items exposed by iterator returned by `content` function.
+    /// Constructs [`Sequence`] with items exposed by iterator returned by `content` function.
     pub fn from_fn<I, F>(content: F) -> Self
         where I: IntoIterator<Item = u64>, F: FnMut() -> I
     {
@@ -202,7 +202,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         Self { levels: levels.into_boxed_slice(), len: content_len }
     }
 
-    /// Constructs [`Sequence`] items exposed by iterator returned by `content` function,
+    /// Constructs [`Sequence`] with items exposed by iterator returned by `content` function,
     /// and custom select strategy.
     pub fn from_fn_s<I, F>(mut content: F) -> Self
         where I: IntoIterator<Item = u64>, F: FnMut() -> I
@@ -470,6 +470,30 @@ mod tests {
         assert_eq!(wm.try_select(0, 0b0001), Some(1));
         assert_eq!(wm.try_select(1, 0b0001), Some(2));
         assert_eq!(wm.try_select(2, 0b0001), None);
+        test_read_write(wm);
+    }
+
+    #[test]
+    fn test_mid_8_levels() {
+        let wm = Sequence::from_fn(|| (0..1<<16).map(|v| v % 256));
+        assert_eq!(wm.len(), 1<<16);
+        assert_eq!(wm.bits_per_item(), 8);
+        for i in (0..1<<16).step_by(33) {
+            assert_eq!(wm.get(i), Some(i as u64 % 256));
+            assert_eq!(wm.try_rank(i, 255), Some(i/256));
+        }
+        test_read_write(wm);
+    }
+
+    #[test]
+    fn test_mid_16_levels() {
+        let wm = Sequence::from_fn(|| 0..1<<16);
+        assert_eq!(wm.len(), 1<<16);
+        assert_eq!(wm.bits_per_item(), 16);
+        for i in (1..1<<16).step_by(33) {
+            assert_eq!(wm.get(i), Some(i as u64));
+            assert_eq!(wm.try_rank(i, 0), Some(1));
+        }
         test_read_write(wm);
     }
 }
