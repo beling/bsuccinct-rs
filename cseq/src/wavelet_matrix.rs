@@ -504,6 +504,19 @@ mod tests {
 
     #[test]
     #[ignore = "uses much memory and time"]
+    fn test_huge_11_levels() {
+        let wm = Sequence::from_fn(|| (0..1<<32).map(|v| v % 2048));
+        assert_eq!(wm.len(), 1<<32);
+        assert_eq!(wm.bits_per_item(), 11);
+        for i in (1<<32)-2055..1<<32 {
+            assert_eq!(wm.get(i), Some(i as u64 % 2048), "wrong value at index {i}");
+            assert_eq!(wm.try_rank(i, 2047), Some(i/2048), "wrong 2047 rank at index {i}");
+        }
+        test_read_write(wm);
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
     fn test_huge_9_levels() {
         let wm = Sequence::from_fn(|| (0..1<<33).map(|v| v % 512));
         assert_eq!(wm.len(), 1<<33);
