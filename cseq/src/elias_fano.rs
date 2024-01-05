@@ -701,4 +701,55 @@ mod tests {
         assert_eq!(ef.geq_cursor(3).diffs().collect::<Vec<_>>(), [2, 0, 2]);
         test_read_write(ef);
     }
+
+    #[test]
+    fn test_mid_1() {
+        let mut ef = Builder::new(1<<16, 1<<16);
+        ef.push_all(0..1<<16);
+        let ef: Sequence = ef.finish();
+        for i in (1..1<<16).step_by(33) {
+            assert_eq!(ef.get(i), Some(i as u64));
+            assert_eq!(ef.diff(i), Some(1));
+            assert_eq!(ef.index_of(i as u64), Some(i));
+            assert_eq!(ef.geq_index(i as u64), i);
+        }
+        test_read_write(ef);
+    }
+
+    #[test]
+    fn test_mid_3() {
+        let mut ef = Builder::new(1<<16, (1<<16)*3 + 1);
+        ef.push_all((1..=1<<16).map(|v|v*3));
+        let ef: Sequence = ef.finish();
+        for i in (1usize..1<<16).step_by(33) {
+            let value = (i as u64 + 1) * 3;
+            assert_eq!(ef.get(i), Some(value));
+            assert_eq!(ef.diff(i), Some(3));
+            assert_eq!(ef.index_of(value), Some(i));
+            assert_eq!(ef.geq_index(value), i);
+        }
+        test_read_write(ef);
+    }
+
+    #[test]
+    #[ignore = "uses much memory and time"]
+    fn test_huge() {
+        let mut ef = Builder::new(1<<33, (1<<33)/2 + 1);
+        ef.push_all((1..=1<<33).map(|v|v/2));
+        let ef: Sequence = ef.finish();
+        let mut prev_value = 0;
+        for i in (1<<33)-2050..1<<33 {
+            let value = (i as u64 + 1) / 2;
+            assert_eq!(ef.get(i), Some(value));
+            if prev_value != 0 {
+                if value != prev_value {
+                    assert_eq!(ef.index_of(value), Some(i));
+                    assert_eq!(ef.geq_index(value), i);
+                }
+                assert_eq!(ef.diff(i), Some(value-prev_value));
+            }
+            prev_value = value;
+        }
+        test_read_write(ef);
+    }
 }
