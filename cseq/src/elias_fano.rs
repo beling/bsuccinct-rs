@@ -154,6 +154,7 @@ impl<S, S0> Sequence<S, S0> {
     /// Returns whether the sequence is empty.
     #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
 
+    /// Advance `position` by 1 forward. The result is undefined if `position` is invalid.
     #[inline] unsafe fn advance_position_unchecked(&self, position: &mut Position) {
         position.lo += 1;
         position.hi = if position.lo != self.len {
@@ -163,6 +164,7 @@ impl<S, S0> Sequence<S, S0> {
         }
     }
 
+    /// Advance `position` by 1 backward. The result is undefined if `position` points to index 0.
     #[inline] unsafe fn advance_position_back_unchecked(&self, position: &mut Position) {
         position.lo -= 1;
         position.hi = self.hi.content.rfind_bit_one_unchecked(position.hi-1);
@@ -199,14 +201,17 @@ impl<S, S0> Sequence<S, S0> {
         (position.lo != self.len).then(|| unsafe { self.diff_at_position_unchecked(position) })
     }
 
+    /// Returns value at given `position` or [`None`] if the `position` is invalid.
     #[inline] fn value_at_position(&self, position: Position) -> Option<u64> {
         (position.lo != self.len).then(|| unsafe { self.value_at_position_unchecked(position) })
     }
 
+    /// Returns position that points to the first item of `self`.
     #[inline] fn begin_position(&self) -> Position {
         Position { hi: self.hi.content.trailing_zero_bits(), lo: 0 }
     }
 
+    /// Returns position that points past the end.
     #[inline] fn end_position(&self) -> Position {
         Position { hi: self.hi.content.len() * 64, lo: self.len }
     }
