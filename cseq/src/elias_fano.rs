@@ -68,9 +68,9 @@ impl Builder {
     /// Pushes a `value`. It must be greater than or equal to previous one, and less than universe.
     /// Otherwise, or in case of an attempt to push too many items, panics.
     pub fn push(&mut self, value: u64) {
-        assert!(value < self.universe, "EliasFanoBuilder: cannot push value {value} outside the universe (<{})", self.universe);
-        assert!(self.current_len < self.target_len, "EliasFanoBuilder: push exceeds the declared length of {} values", self.target_len);
-        assert!(self.last_added <= value, "EliasFanoBuilder: values must be pushed in non-decreasing order, but received {value} after {}", self.last_added);
+        assert!(value < self.universe, "Elias-Fano Builder: cannot push value {value} outside the universe (<{})", self.universe);
+        assert!(self.current_len < self.target_len, "Elias-Fano Builder: push exceeds the declared length of {} values", self.target_len);
+        assert!(self.last_added <= value, "Elias-Fano Builder: values must be pushed in non-decreasing order, but received {value} after {}", self.last_added);
         unsafe { self.push_unchecked(value) }
     }
 
