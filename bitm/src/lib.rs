@@ -18,6 +18,15 @@ pub use bitvec::*;
 /// Returns the largest `how_many`-bit number, i.e. 0..01..1 mask with `how_many` ones. `how_many` must be in range [1, 64].
 #[inline(always)] pub const fn n_lowest_bits_1_64(how_many: u8) -> u64 { u64::MAX >> (64-how_many) }
 
+/// Returns the largest `how_many`-bit number, i.e. 0..01..1 mask with `how_many` ones. `how_many` must be in range [0, 64].
+/// 
+/// It is a bit slower than [`n_lowest_bits`] and [`n_lowest_bits_1_64`].
+#[inline(always)] pub const fn n_lowest_bits_0_64(how_many: u8) -> u64 {
+    // 1u64.checked_shl(how_many as u32).unwrap_or(0).wrapping_sub(1) gives the same assembly but is not allowed in const fn
+    if how_many >= 64 { return u64::MAX; }
+    n_lowest_bits(how_many)
+}
+
 /// Calculates the minimal number of bits needed to store values from `0` to given `max_value`.
 ///
 /// # Example

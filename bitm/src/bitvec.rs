@@ -420,9 +420,9 @@ pub fn bitvec_with_items<V: Into<u64>, I: IntoIterator<Item=V>>(items: I, fragme
     *to_change |= (value as u64) << bit_nr;
 }
 
-#[inline(always)] fn set_bits_to(to_change: &mut u64, shift: u8, v: u64, v_mask: u64) {
-    *to_change &= !(v_mask >> shift);
-    *to_change |= v >> shift;
+#[inline(always)] fn set_bits_to(to_change: &mut u64, shifted_v: u64, shifted_v_mask: u64) {
+    *to_change &= !shifted_v_mask;
+    *to_change |= shifted_v;
 }
 
 impl BitAccess for [u64] {
@@ -524,9 +524,10 @@ impl BitAccess for [u64] {
         let v_mask = n_lowest_bits_1_64(len);
         //let lo_bit_len = 64-offset;
         if offset + len > 64 /*len > lo_bit_len*/ {
-            set_bits_to(&mut self[index_segment+1], 64-offset /*lo_bit_len*/, v, v_mask);
+            let shift = 64-offset; //lo_bit_len
+            set_bits_to(&mut self[index_segment+1], v>>shift, v_mask>>shift);
         }
-        set_bits_to(&mut self[index_segment], offset, v, v_mask);
+        set_bits_to(&mut self[index_segment], v<<offset, v_mask<<offset);
     }
 
     unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
@@ -534,9 +535,10 @@ impl BitAccess for [u64] {
         let offset = (begin % 64) as u8;   // the lowest bit to set in index_segment
         let v_mask = n_lowest_bits_1_64(len);
         if offset + len > 64 {
-            set_bits_to(self.get_unchecked_mut(index_segment+1), 64-offset /*lo_bit_len*/, v, v_mask);
+            let shift = 64-offset; //lo_bit_len
+            set_bits_to(self.get_unchecked_mut(index_segment+1), v>>shift, v_mask>>shift);
         }
-        set_bits_to(self.get_unchecked_mut(index_segment), offset, v, v_mask);
+        set_bits_to(self.get_unchecked_mut(index_segment), v<<offset, v_mask<<offset);
     }
 
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8) {
