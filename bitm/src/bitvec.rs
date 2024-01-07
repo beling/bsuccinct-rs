@@ -70,7 +70,7 @@ pub trait BitAccess {
     /// Gets bit with given index `bit_nr`. Panics if `bit_nr` is out of bounds.
     fn get_bit(&self, bit_nr: usize) -> bool;
 
-    /// Gets bit with given index `bit_nr`, without bound checking.
+    /// Gets bit with given index `bit_nr`, without bounds checking.
     unsafe fn get_bit_unchecked(&self, bit_nr: usize) -> bool;
 
     /// Gets bit with given index `bit_nr` and increase `bit_nr` by 1. Panics if `bit_nr` is out of bounds.
@@ -85,23 +85,9 @@ pub trait BitAccess {
         if value { self.set_bit(bit_nr) } else { self.clear_bit(bit_nr) }
     }
 
-    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise), without bound checking.
+    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise), without bounds checking.
     #[inline] unsafe fn set_bit_to_unchecked(&mut self, bit_nr: usize, value: bool) {
         if value { self.set_bit_unchecked(bit_nr) } else { self.clear_bit_unchecked(bit_nr) }
-    }
-
-    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise) and increase `bit_nr` by 1.
-    /// Panics if `bit_nr` is out of bounds.
-    #[inline] fn set_successive_bit_to(&mut self, bit_nr: &mut usize, value: bool) {
-        if value { self.set_bit(*bit_nr) } else { self.clear_bit(*bit_nr) };
-        *bit_nr += 1;
-    }
-
-    /// Set bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise) and increase `bit_nr` by 1.
-    /// The result is undefined if `bit_nr` is out of bounds.
-    #[inline] unsafe fn set_successive_bit_to_unchecked(&mut self, bit_nr: &mut usize, value: bool) {
-        if value { self.set_bit_unchecked(*bit_nr) } else { self.clear_bit_unchecked(*bit_nr) };
-        *bit_nr += 1;
     }
 
     /// Initialize bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise).
@@ -139,25 +125,41 @@ pub trait BitAccess {
     /// Sets bit with given index `bit_nr` to `1`. Panics if `bit_nr` is out of bounds.
     fn set_bit(&mut self, bit_nr: usize);
 
-    /// Sets bit with given index `bit_nr` to `1`, without bound checking.
+    /// Sets bit with given index `bit_nr` to `1`, without bounds checking.
     unsafe fn set_bit_unchecked(&mut self, bit_nr: usize);
 
     /// Sets bit with given index `bit_nr` to `0`. Panics if `bit_nr` is out of bounds.
     fn clear_bit(&mut self, bit_nr: usize);
 
-    /// Sets bit with given index `bit_nr` to `0`, without bound checking.
+    /// Sets bit with given index `bit_nr` to `0`, without bounds checking.
     unsafe fn clear_bit_unchecked(&mut self, bit_nr: usize);
+
+    /// Gets at least `len` bits beginning from the bit index `begin`. Panics if the range is out of bounds.
+    #[inline] fn get_bits_unmasked(&self, begin: usize, len: u8) -> u64 {    // always better than first, original ver.
+        self.try_get_bits_unmasked(begin, len).expect("bit range out of bound")
+    }
 
     /// Gets bits `[begin, begin+len)`. Panics if the range is out of bounds.
     #[inline] fn get_bits(&self, begin: usize, len: u8) -> u64 {    // always better than first, original ver.
-        self.try_get_bits(begin, len).expect("bit range out of bound")
+        self.get_bits_unmasked(begin, len) & n_lowest_bits_1_64(len)
     }
 
-    /// Gets bits `[begin, begin+len)`. Returns [`None`] if the range is out of bounds.
-    fn try_get_bits(&self, begin: usize, len: u8) -> Option<u64>;
+    /// Gets at least `len` bits beginning from the bit index `begin`.
+    /// Returns [`None`] if the range is out of bounds.
+    fn try_get_bits_unmasked(&self, begin: usize, len: u8) -> Option<u64>;
 
-    /// Gets bits `[begin, begin+len)` without bound checking.
-    unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64;
+    /// Gets bits `[begin, begin+len)`. Returns [`None`] if the range is out of bounds.
+    #[inline(always)] fn try_get_bits(&self, begin: usize, len: u8) -> Option<u64> {
+        self.try_get_bits_unmasked(begin, len).map(|result| result & n_lowest_bits_1_64(len))
+    }
+
+    /// Gets at least `len` bits beginning from the bit index `begin` without bounds checking.
+    unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64;
+
+    /// Gets bits `[begin, begin+len)` without bounds checking.
+    #[inline(always)] unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64 {
+        self.get_bits_unmasked_unchecked(begin, len) & n_lowest_bits_1_64(len)
+    }
 
     /// Gets bits `[begin, begin+len)` and increase `bit_nr` by `len`.
     #[inline] fn get_successive_bits(&self, begin: &mut usize, len: u8) -> u64 {
@@ -188,7 +190,7 @@ pub trait BitAccess {
         *begin += len as usize;
     }
 
-    /// Sets bits `[begin, begin+len)` to the content of `v`, without bound checking.
+    /// Sets bits `[begin, begin+len)` to the content of `v`, without bounds checking.
     unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8);
 
     /// Xor at least `len` bits of `self`, staring from index `begin`, with `v`. Panics if the range is out of bounds.
@@ -225,7 +227,7 @@ pub trait BitAccess {
         self.try_get_bits(index * v_size as usize, v_size)
     }
 
-    /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), without bound checking.
+    /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), without bounds checking.
     #[inline(always)] unsafe fn get_fragment_unchecked(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits_unchecked(index * v_size as usize, v_size)
     }
@@ -460,29 +462,29 @@ impl BitAccess for [u64] {
         BitZerosIterator::new(self)
     }
 
-    #[inline(always)] fn try_get_bits(&self, begin: usize, len: u8) -> Option<u64> {
+    #[inline] fn try_get_bits_unmasked(&self, begin: usize, len: u8) -> Option<u64> {
         //(begin+(len as usize) < self.len()*64).then(|| unsafe{self.get_bits_unchecked(begin, len)})
         let index_segment = begin / 64;
         let offset = (begin % 64) as u8;
         let w1 = self.get(index_segment)? >> offset;
-        Some((if offset+len > 64 { // do we need more bits (from next segment)? Does len > bits_in_w1?
+        Some(if offset+len > 64 { // do we need more bits (from next segment)? Does len > bits_in_w1?
             let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
             w1 | (self.get(index_segment+1)? << bits_in_w1)
         } else {
             w1
-        }) & n_lowest_bits(len))
+        })
     }
 
-    unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64 {
+    #[inline] unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64 {
         let index_segment = begin / 64;
         let offset = (begin % 64) as u8;
         let w1 = self.get_unchecked(index_segment) >> offset;
-        (if offset+len > 64 /*len > bits_in_w1*/ { // do we need more bits (from next segment)?
+        if offset+len > 64 /*len > bits_in_w1*/ { // do we need more bits (from next segment)?
             let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
             w1 | (self.get_unchecked(index_segment+1) << bits_in_w1)
         } else {
             w1
-        }) & n_lowest_bits(len)
+        }
     }
 
     fn init_bits(&mut self, begin: usize, v: u64, len: u8) {

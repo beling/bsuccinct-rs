@@ -17,6 +17,8 @@ dyn_size_of = { version="0.4", path="../dyn_size_of" }
 
 [dev-dependencies]
 criterion = "0.4"
+iai-callgrind = "0.9"
+
 
 [[bench]]
 name = "bitvec"
@@ -25,3 +27,10 @@ harness = false
 [[bench]]
 name = "rank_select"
 harness = false
+
+[[bench]]
+name = "bitvec-iai"
+harness = false
+
+[profile.bench]
+debug = true
