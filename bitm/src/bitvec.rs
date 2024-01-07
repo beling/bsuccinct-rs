@@ -141,7 +141,8 @@ pub trait BitAccess {
 
     /// Gets bits `[begin, begin+len)`. Panics if the range is out of bounds.
     #[inline] fn get_bits(&self, begin: usize, len: u8) -> u64 {    // always better than first, original ver.
-        self.get_bits_unmasked(begin, len) & n_lowest_bits_1_64(len)
+        //if len == 0 { return 0; }
+        self.get_bits_unmasked(begin, len) & n_lowest_bits(len)
     }
 
     /// Gets at least `len` bits beginning from the bit index `begin`.
