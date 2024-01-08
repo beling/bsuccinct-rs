@@ -43,12 +43,20 @@ fn set_bit_to_unchecked(tab: &mut [u64], index: usize, value: bool) {
     unsafe{tab.set_bit_to_unchecked(index, value)}
 }
 
+#[library_benchmark]
+#[bench::short(&mut [0x6A_21_55_79_10_90_32_F3; 2], 10, 30)]
+#[bench::long(&mut [0x6A_21_55_79_10_90_32_F3; 2], 10, 60)]
+fn conditionally_change_bits(tab: &mut [u64], index: usize, v_size: u8) -> u64 {
+    black_box(tab.conditionally_change_bits(|v| (v>2).then(|| v-1), index, v_size))
+}
+
 library_benchmark_group!(
     name = bitvec;
     benchmarks =
         get_bits, get_bits_unchecked,
         set_bits, set_bits_unchecked,
-        set_bit_to, set_bit_to_unchecked
+        set_bit_to, set_bit_to_unchecked,
+        conditionally_change_bits
 );
 
 main!(library_benchmark_groups = bitvec);

@@ -22,7 +22,8 @@ pub use bitvec::*;
 /// 
 /// It is a bit slower than [`n_lowest_bits`] and [`n_lowest_bits_1_64`].
 #[inline(always)] pub const fn n_lowest_bits_0_64(how_many: u8) -> u64 {
-    // 1u64.checked_shl(how_many as u32).unwrap_or(0).wrapping_sub(1) gives the same assembly but is not allowed in const fn
+    // 1u64.checked_shl(how_many as u32).unwrap_or(0).wrapping_sub(1) gives the same assembly (as version with how_many >= 64) but is not allowed in const fn
+    // version with how_many == 64 gives a bit different, very similar assembly
     if how_many >= 64 { return u64::MAX; }
     n_lowest_bits(how_many)
 }

@@ -427,7 +427,7 @@ pub fn bitvec_with_items<V: Into<u64>, I: IntoIterator<Item=V>>(items: I, fragme
 
 impl BitAccess for [u64] {
     #[inline(always)] fn get_bit(&self, bit_nr: usize) -> bool {
-        self[bit_nr / 64] & (1u64 << (bit_nr % 64) as u64) != 0
+        self[bit_nr / 64] & (1u64 << (bit_nr % 64)) != 0
     }
 
     #[inline(always)] fn set_bit_to(&mut self, bit_nr: usize, value: bool) {
@@ -485,24 +485,23 @@ impl BitAccess for [u64] {
 
     #[inline] fn try_get_bits_unmasked(&self, begin: usize, len: u8) -> Option<u64> {
         //((begin+(len as usize))/64 < self.len()).then(|| unsafe{self.get_bits_unmasked_unchecked(begin, len)})
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u8;
-        let w1 = self.get(index_segment)? >> offset;
-        Some(if offset+len > 64 { // do we need more bits (from next segment)? Does len > bits_in_w1?
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
+        let w1 = self.get(segment)? >> offset;
+        //let bits_in_w1 = 64-offset;
+        Some(if offset+len > 64 /*len > bits_in_w1*/ { // do we need more bits (from next segment)? Does len > bits_in_w1?
             let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
-            w1 | (self.get(index_segment+1)? << bits_in_w1)
+            w1 | (self.get(segment+1)? << bits_in_w1)
         } else {
             w1
         })
     }
 
     #[inline] unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64 {
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u8;
-        let w1 = self.get_unchecked(index_segment) >> offset;
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
+        let w1 = self.get_unchecked(segment) >> offset;
         if offset+len > 64 /*len > bits_in_w1*/ { // do we need more bits (from next segment)?
             let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
-            w1 | (self.get_unchecked(index_segment+1) << bits_in_w1)
+            w1 | (self.get_unchecked(segment+1) << bits_in_w1)
         } else {
             w1
         }
@@ -510,70 +509,60 @@ impl BitAccess for [u64] {
 
     fn init_bits(&mut self, begin: usize, v: u64, len: u8) {
         debug_assert!({let f = self.get_bits(begin, len); f == 0 || f == v});
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u8;   // the lowest bit to init in index_segment
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
-            self[index_segment+1] |= v >> (64-offset);
+            self[segment+1] |= v >> (64-offset);
         }
-        self[index_segment] |= v << offset;
+        self[segment] |= v << offset;
     }
 
     fn set_bits(&mut self, begin: usize, v: u64, len: u8) {
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u8;   // the lowest bit to set in index_segment
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
         let v_mask = n_lowest_bits_1_64(len);
         //let lo_bit_len = 64-offset;
         if offset + len > 64 /*len > lo_bit_len*/ {
             let shift = 64-offset; //lo_bit_len
-            set_bits_to(&mut self[index_segment+1], v>>shift, v_mask>>shift);
+            set_bits_to(&mut self[segment+1], v>>shift, v_mask>>shift);
         }
-        set_bits_to(&mut self[index_segment], v<<offset, v_mask<<offset);
+        set_bits_to(&mut self[segment], v<<offset, v_mask<<offset);
     }
 
     unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u8;   // the lowest bit to set in index_segment
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
         let v_mask = n_lowest_bits_1_64(len);
         if offset + len > 64 {
             let shift = 64-offset; //lo_bit_len
-            set_bits_to(self.get_unchecked_mut(index_segment+1), v>>shift, v_mask>>shift);
+            set_bits_to(self.get_unchecked_mut(segment+1), v>>shift, v_mask>>shift);
         }
-        set_bits_to(self.get_unchecked_mut(index_segment), v<<offset, v_mask<<offset);
+        set_bits_to(self.get_unchecked_mut(segment), v<<offset, v_mask<<offset);
     }
 
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8) {
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u64;   // the lowest bit to xored in index_segment
-        if offset + len as u64 > 64 {
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
+        if offset + len > 64 {
             let shift = 64-offset;
-            self[index_segment+1] ^= v >> shift;
+            self[segment+1] ^= v >> shift;
         }
-        self[index_segment] ^= v << offset;
+        self[segment] ^= v << offset;
     }
 
     fn conditionally_change_bits<NewValue>(&mut self, new_value: NewValue, begin: usize, v_size: u8) -> u64
         where NewValue: FnOnce(u64) -> Option<u64>
     {
-        let index_segment = begin / 64;
-        //data += index_bit / 64;
-        let offset = (begin % 64) as u64;
-        let w1 = self[index_segment]>>offset;
-        let end_bit = offset+v_size as u64;
+        let (segment, offset) = (begin / 64, (begin % 64) as u64);
+        let w1 = self[segment]>>offset;
+        let bits_in_w1 = 64-offset;
         let v_mask = n_lowest_bits(v_size);
-        let r = if end_bit > 64 {
-            let shift = 64-offset;
-            w1 | ((self[index_segment+1] & (v_mask >> shift)) << shift)
+        let r = if v_size as u64 > bits_in_w1 {
+            w1 | (self[segment+1] << bits_in_w1)
         } else {
-            w1 & v_mask
-        };
+            w1
+        } & v_mask;
         if let Some(v) = new_value(r) {
-            if end_bit > 64 {
-                let shift = 64 - offset;
-                self[index_segment + 1] &= !(v_mask >> shift);
-                self[index_segment + 1] |= v >> shift;
+            if v_size as u64 > bits_in_w1 {
+                set_bits_to(&mut self[segment + 1], v >> bits_in_w1, v_mask >> bits_in_w1);
             }
-            self[index_segment] &= !(v_mask << offset);
-            self[index_segment] |= v << offset;
+            set_bits_to(&mut self[segment], v << offset, v_mask << offset);
         }
         r
     }
