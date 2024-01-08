@@ -570,28 +570,23 @@ impl BitAccess for [u64] {
     fn conditionally_copy_bits<Pred>(&mut self, src: &Self, predicate: Pred, begin: usize, v_size: u8)
         where Pred: FnOnce(u64, u64) -> bool
     {
-        let index_segment = begin / 64;
-        let offset = (begin % 64) as u64;
-        let self_w1 = self[index_segment]>>offset;
-        let mut src_w1 = src[index_segment]>>offset;
-        let end_bit = offset+v_size as u64;
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
+        let self_w1 = self[segment]>>offset;
+        let mut src_w1 = src[segment]>>offset;
+        let bits_in_w1 = 64-offset;
         let v_mask = n_lowest_bits(v_size);
-        if end_bit > 64 {
-            let shift = 64-offset;
-            let w2_mask = v_mask >> shift;
-            let self_bits = self_w1 | ((self[index_segment+1] & w2_mask) << shift);
-            let src_w2 = src[index_segment+1] & w2_mask;
-            if predicate(self_bits, src_w1 | (src_w2 << shift)) {
-                self[index_segment+1] &= !w2_mask;
-                self[index_segment+1] |= src_w2;
-                self[index_segment] &= !(v_mask << offset);
-                self[index_segment] |= src_w1 << offset;
+        if v_size > bits_in_w1 {
+            let w2_mask = v_mask >> bits_in_w1;
+            let self_bits = self_w1 | ((self[segment+1] & w2_mask) << bits_in_w1);
+            let src_w2 = src[segment+1] & w2_mask;
+            if predicate(self_bits, src_w1 | (src_w2 << bits_in_w1)) {
+                set_bits_to(&mut self[segment+1], src_w2, w2_mask);
+                set_bits_to(&mut self[segment], src_w1 << offset, v_mask << offset);
             }
         } else {
             src_w1 &= v_mask;
             if predicate(self_w1 & v_mask, src_w1) {
-                self[index_segment] &= !(v_mask << offset);
-                self[index_segment] |= src_w1 << offset;
+                set_bits_to(&mut self[segment], src_w1 << offset, v_mask << offset);
             }
         };
     }
