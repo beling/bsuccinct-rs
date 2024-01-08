@@ -142,7 +142,7 @@ pub trait BitAccess {
     /// Gets bits `[begin, begin+len)`. Panics if the range is out of bounds.
     #[inline] fn get_bits(&self, begin: usize, len: u8) -> u64 {
         //if len == 0 { return 0; }
-        self.get_bits_unmasked(begin, len) & n_lowest_bits_1_64(len)
+        self.get_bits_unmasked(begin, len) & n_lowest_bits(len)
     }
 
     /// Gets at least `len` bits beginning from the bit index `begin`.
@@ -151,7 +151,7 @@ pub trait BitAccess {
 
     /// Gets bits `[begin, begin+len)`. Returns [`None`] if the range is out of bounds.
     #[inline(always)] fn try_get_bits(&self, begin: usize, len: u8) -> Option<u64> {
-        self.try_get_bits_unmasked(begin, len).map(|result| result & n_lowest_bits_1_64(len))
+        self.try_get_bits_unmasked(begin, len).map(|result| result & n_lowest_bits(len))
     }
 
     /// Gets at least `len` bits beginning from the bit index `begin` without bounds checking.
@@ -159,7 +159,7 @@ pub trait BitAccess {
 
     /// Gets bits `[begin, begin+len)` without bounds checking.
     #[inline(always)] unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64 {
-        self.get_bits_unmasked_unchecked(begin, len) & n_lowest_bits_1_64(len)
+        self.get_bits_unmasked_unchecked(begin, len) & n_lowest_bits(len)
     }
 
     /// Gets bits `[begin, begin+len)` and increase `bit_nr` by `len`.
@@ -518,7 +518,7 @@ impl BitAccess for [u64] {
 
     fn set_bits(&mut self, begin: usize, v: u64, len: u8) {
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
-        let v_mask = n_lowest_bits_1_64(len);
+        let v_mask = n_lowest_bits(len);
         //let lo_bit_len = 64-offset;
         if offset + len > 64 /*len > lo_bit_len*/ {
             let shift = 64-offset; //lo_bit_len
@@ -529,7 +529,7 @@ impl BitAccess for [u64] {
 
     unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
-        let v_mask = n_lowest_bits_1_64(len);
+        let v_mask = n_lowest_bits(len);
         if offset + len > 64 {
             let shift = 64-offset; //lo_bit_len
             set_bits_to(self.get_unchecked_mut(segment+1), v>>shift, v_mask>>shift);
