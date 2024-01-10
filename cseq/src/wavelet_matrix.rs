@@ -193,7 +193,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
             let mut level = LevelBuilder::new(
                 number_of_zeros[current_bit as usize], content_len, current_bit);
             for index in (0..content_len*rest_bits_per_item as usize).step_by(rest_bits_per_item as usize) {
-                level.push(rest.get_bits(index, rest_bits_per_item));
+                level.push(rest.get_bits(bitm::Bits::index_len(index, rest_bits_per_item)));
             }
             rest = level.lower_bits;
             levels.push(Level::new(level.upper_bit, number_of_zeros[current_bit as usize]));
