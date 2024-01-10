@@ -275,10 +275,22 @@ pub trait BitAccess {
     /// Returns iterator over indices of ones (set bits).
     fn bit_zeros(&self) -> BitZerosIterator;
 
+    /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
+    /// Panics if the range is out of bounds.
+    #[inline(always)] fn get_fragment_unmasked(&self, index: usize, v_size: u8) -> u64 {
+        self.get_bits_unmasked(index * v_size as usize, v_size)
+    }
+
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     /// Panics if the range is out of bounds.
     #[inline(always)] fn get_fragment(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits(BitRange::begin_len(index * v_size as usize, v_size))
+    }
+
+    /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
+    /// Returns [`None`] if the range is out of bounds.
+    #[inline(always)] fn try_get_fragment_unmasked(&self, index: usize, v_size: u8) -> Option<u64> {
+        self.try_get_bits_unmasked(index * v_size as usize, v_size)
     }
 
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
@@ -287,7 +299,14 @@ pub trait BitAccess {
         self.try_get_bits(BitRange::begin_len(index * v_size as usize, v_size))
     }
 
-    /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), without bounds checking.
+    /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`),
+    /// without bounds checking.
+    #[inline(always)] unsafe fn get_fragment_unmasked_unchecked(&self, index: usize, v_size: u8) -> u64 {
+        self.get_bits_unmasked_unchecked(index * v_size as usize, v_size)
+    }
+
+    /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`),
+    /// without bounds checking.
     #[inline(always)] unsafe fn get_fragment_unchecked(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits_unchecked(BitRange::begin_len(index * v_size as usize, v_size))
     }
