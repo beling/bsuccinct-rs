@@ -11,7 +11,7 @@ pub fn get_bits(c: &mut Criterion) {
     for size in [20, 40, 60].iter() {
         //group.throughput(Throughput::Bytes(*size as u64));
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
-            b.iter(|| v.get_bits(bitm::Bits::index_len(black_box(30), size)))
+            b.iter(|| v.get_bits(bitm::BitRange::begin_len(black_box(30), size)))
         });
     }
     group.finish();
@@ -20,7 +20,7 @@ pub fn get_bits(c: &mut Criterion) {
     for size in [20, 40, 60].iter() {
         //group.throughput(Throughput::Bytes(*size as u64));
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
-            b.iter(|| unsafe{ v.get_bits_unchecked(bitm::Bits::index_len(black_box(30), size)) })
+            b.iter(|| unsafe{ v.get_bits_unchecked(bitm::BitRange::begin_len(black_box(30), size)) })
         });
     }
     group.finish();

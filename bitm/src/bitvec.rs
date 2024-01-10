@@ -39,25 +39,25 @@ impl Mask for M0_64 {
 }
 
 #[derive(Clone, Copy)]
-pub struct Bits<M: Mask = M0_63> {
+pub struct BitRange<M: Mask = M0_63> {
     pub begin: usize,
     pub len: u8,
     m: std::marker::PhantomData<M>
 }
 
-impl<M: Mask> Bits<M> {
-    #[inline(always)] pub fn index_len(index: usize, len: u8) -> Self { Self { begin: index, len, m: Default::default() } }
-    #[inline(always)] pub fn successive_index_len(index: &mut usize, len: u8) -> Self {
-         let r = Self::index_len(*index, len); *index += len as usize; r
+impl<M: Mask> BitRange<M> {
+    #[inline(always)] pub fn begin_len(begin: usize, len: u8) -> Self { Self { begin, len, m: Default::default() } }
+    #[inline(always)] pub fn successive_begin_len(begin: &mut usize, len: u8) -> Self {
+         let r = Self::begin_len(*begin, len); *begin += len as usize; r
     }
     #[inline(always)] pub fn fragment(index: usize, len: u8) -> Self { Self { begin: index * len as usize, len, m: Default::default() } }
     #[inline(always)] pub fn successive_fragment(index: &mut usize, len: u8) -> Self {
         let r = Self::fragment(*index, len); *index += 1; r
     }
 
-    #[inline(always)] pub fn index_len_checked(index: usize, len: u8) -> Self { M::check(len); Self::index_len(index, len) }
-    #[inline(always)] pub fn successive_index_len_checked(index: &mut usize, len: u8) -> Self {
-        M::check(len); Self::successive_index_len_checked(index, len)
+    #[inline(always)] pub fn begin_len_checked(begin: usize, len: u8) -> Self { M::check(len); Self::begin_len(begin, len) }
+    #[inline(always)] pub fn successive_begin_len_checked(begin: &mut usize, len: u8) -> Self {
+        M::check(len); Self::successive_begin_len_checked(begin, len)
     }
     #[inline(always)] pub fn fragment_checked(index: usize, len: u8) -> Self { M::check(len); Self::fragment(index, len) }
     #[inline(always)] pub fn successive_fragment_checked(index: &mut usize, len: u8) -> Self {
@@ -199,36 +199,36 @@ pub trait BitAccess {
     unsafe fn clear_bit_unchecked(&mut self, bit_nr: usize);
 
     /// Gets at least `len` bits beginning from the bit index `begin`. Panics if the range is out of bounds.
-    #[inline] fn get_bits_unmasked<M: Mask>(&self, addr: Bits<M>) -> u64 {
+    #[inline] fn get_bits_unmasked<M: Mask>(&self, addr: BitRange<M>) -> u64 {
         self.try_get_bits_unmasked(addr).expect("bit range out of bounds")
     }
 
     /// Gets bits `[begin, begin+len)`. Panics if the range is out of bounds.
-    #[inline] fn get_bits<M: Mask>(&self, addr: Bits<M>) -> u64 {
+    #[inline] fn get_bits<M: Mask>(&self, addr: BitRange<M>) -> u64 {
         //if len == 0 { return 0; }
         self.get_bits_unmasked(addr) & n_lowest_bits(addr.len)
     }
 
     /// Gets at least `len` bits beginning from the bit index `begin`.
     /// Returns [`None`] if the range is out of bounds.
-    fn try_get_bits_unmasked<M: Mask>(&self, addr: Bits<M>) -> Option<u64>;
+    fn try_get_bits_unmasked<M: Mask>(&self, addr: BitRange<M>) -> Option<u64>;
 
     /// Gets bits `[begin, begin+len)`. Returns [`None`] if the range is out of bounds.
-    #[inline(always)] fn try_get_bits<M: Mask>(&self, addr: Bits<M>) -> Option<u64> {
+    #[inline(always)] fn try_get_bits<M: Mask>(&self, addr: BitRange<M>) -> Option<u64> {
         self.try_get_bits_unmasked(addr).map(|result| result & n_lowest_bits(addr.len))
     }
 
     /// Gets at least `len` bits beginning from the bit index `begin` without bounds checking.
-    unsafe fn get_bits_unmasked_unchecked<M: Mask>(&self, addr: Bits<M>) -> u64;
+    unsafe fn get_bits_unmasked_unchecked<M: Mask>(&self, addr: BitRange<M>) -> u64;
 
     /// Gets bits `[begin, begin+len)` without bounds checking.
-    #[inline(always)] unsafe fn get_bits_unchecked<M: Mask>(&self, addr: Bits<M>) -> u64 {
+    #[inline(always)] unsafe fn get_bits_unchecked<M: Mask>(&self, addr: BitRange<M>) -> u64 {
         self.get_bits_unmasked_unchecked(addr) & n_lowest_bits(addr.len)
     }
 
     /// Gets bits `[begin, begin+len)` and increase `bit_nr` by `len`.
     #[inline] fn get_successive_bits(&self, begin: &mut usize, len: u8) -> u64 {
-        let result = self.get_bits::<M0_63>(Bits::index_len(*begin, len));
+        let result = self.get_bits::<M0_63>(BitRange::begin_len(*begin, len));
         *begin += len as usize;
         result
     }
@@ -278,18 +278,18 @@ pub trait BitAccess {
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     /// Panics if the range is out of bounds.
     #[inline(always)] fn get_fragment(&self, index: usize, v_size: u8) -> u64 {
-        self.get_bits(Bits::index_len(index * v_size as usize, v_size))
+        self.get_bits(BitRange::begin_len(index * v_size as usize, v_size))
     }
 
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     /// Returns [`None`] if the range is out of bounds.
     #[inline(always)] fn try_get_fragment(&self, index: usize, v_size: u8) -> Option<u64> {
-        self.try_get_bits(Bits::index_len(index * v_size as usize, v_size))
+        self.try_get_bits(BitRange::begin_len(index * v_size as usize, v_size))
     }
 
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), without bounds checking.
     #[inline(always)] unsafe fn get_fragment_unchecked(&self, index: usize, v_size: u8) -> u64 {
-        self.get_bits_unchecked(Bits::index_len(index * v_size as usize, v_size))
+        self.get_bits_unchecked(BitRange::begin_len(index * v_size as usize, v_size))
     }
 
     /// Gets `index`-th fragment of `v_size` bits and increases `index` by 1.
@@ -356,7 +356,7 @@ pub trait BitAccess {
     fn conditionally_change_bits<NewValue>(&mut self, new_value: NewValue, begin: usize, v_size: u8) -> u64
         where NewValue: FnOnce(u64) -> Option<u64>
     {
-        let old = self.get_bits(Bits::index_len(begin, v_size));
+        let old = self.get_bits(BitRange::begin_len(begin, v_size));
         if let Some(new) = new_value(old) { unsafe{self.set_bits_unchecked(begin, new, v_size)}; }
         old
     }
@@ -378,7 +378,7 @@ pub trait BitAccess {
     #[inline(always)] fn conditionally_copy_bits<Pred>(&mut self, src: &Self, predicate: Pred, begin: usize, v_size: u8)
         where Pred: FnOnce(u64, u64) -> bool
     {
-        let src_bits = src.get_bits(Bits::index_len(begin, v_size));
+        let src_bits = src.get_bits(BitRange::begin_len(begin, v_size));
         self.conditionally_change_bits(|self_bits| predicate(self_bits, src_bits).then(|| src_bits), begin, v_size);
     }
 
@@ -547,7 +547,7 @@ impl BitAccess for [u64] {
         BitZerosIterator::new(self)
     }
 
-    #[inline] fn try_get_bits_unmasked<M: Mask>(&self, addr: Bits<M>) -> Option<u64> {
+    #[inline] fn try_get_bits_unmasked<M: Mask>(&self, addr: BitRange<M>) -> Option<u64> {
         //((begin+(len as usize))/64 < self.len()).then(|| unsafe{self.get_bits_unmasked_unchecked(begin, len)})
         let (segment, offset) = (addr.begin / 64, (addr.begin % 64) as u8);
         let w1 = self.get(segment)? >> offset;
@@ -560,7 +560,7 @@ impl BitAccess for [u64] {
         })
     }
 
-    #[inline] unsafe fn get_bits_unmasked_unchecked<M: Mask>(&self, addr: Bits<M>) -> u64 {
+    #[inline] unsafe fn get_bits_unmasked_unchecked<M: Mask>(&self, addr: BitRange<M>) -> u64 {
         let (segment, offset) = (addr.begin / 64, (addr.begin % 64) as u8);
         let w1 = self.get_unchecked(segment) >> offset;
         if offset+addr.len > 64 /*len > bits_in_w1*/ { // do we need more bits (from next segment)?
@@ -572,7 +572,7 @@ impl BitAccess for [u64] {
     }
 
     fn init_bits(&mut self, begin: usize, v: u64, len: u8) {
-        debug_assert!({let f = self.get_bits(Bits::index_len(begin, len)); f == 0 || f == v});
+        debug_assert!({let f = self.get_bits(BitRange::begin_len(begin, len)); f == 0 || f == v});
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
             self[segment+1] |= v >> (64-offset);

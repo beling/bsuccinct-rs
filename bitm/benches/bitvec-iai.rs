@@ -5,14 +5,14 @@ use bitm::BitAccess;
 #[bench::short(&[0x6A_21_55_79_10_90_32_F3; 2], 10, 30)]
 #[bench::long(&[0x6A_21_55_79_10_90_32_F3; 2], 10, 60)]
 fn get_bits(tab: &[u64], index: usize, v_size: u8) -> u64 {
-    black_box(tab.get_bits(bitm::Bits::index_len(index, v_size)))
+    black_box(tab.get_bits(bitm::BitRange::begin_len(index, v_size)))
 }
 
 #[library_benchmark]
 #[bench::short(&[0x6A_21_55_79_10_90_32_F3; 2], 10, 30)]
 #[bench::long(&[0x6A_21_55_79_10_90_32_F3; 2], 10, 60)]
 fn get_bits_unchecked(tab: &[u64], index: usize, v_size: u8) -> u64 {
-    black_box(unsafe{tab.get_bits_unchecked(bitm::Bits::index_len(index, v_size))})
+    black_box(unsafe{tab.get_bits_unchecked(bitm::BitRange::begin_len(index, v_size))})
 }
 
 #[library_benchmark]
