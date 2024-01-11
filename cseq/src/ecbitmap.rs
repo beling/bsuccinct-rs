@@ -8,7 +8,7 @@ struct L1Block {
 
 impl L1Block {
     /// Number of universe bits per L1 block; 2^32.
-    const UNIVERSE_BITS: usize = 1<<32;
+    const COVERED_UNIVERSE_BITS: usize = 1<<32;
 }
 
 /// L2 block covering 64 L3 blocks, which means 64*64=4096 bits of the universe.
@@ -23,36 +23,58 @@ struct L2Block {
     l3_sizes: [u64; 7],
 }
 
-/// Read 7 least significant bits `block`. Increase `accumulative_bit_size`.
-fn consume7(block: &mut u64, accumulative_bit_size: &mut u64) -> u8 {
-    let result = (*block & 127) as u8;
-    *block >>= 7;
-    //TODO accumulative_bit_size += size[result]
-    return result;
+/// Returns 7 the least significant bits of `block`.
+#[inline(always)] fn lo7(blocks: u64) -> u8 { (blocks & 127) as u8 }
+
+/// Reads 7 bit size of L3 blocks and removes it from `block`.
+/// Increase `l3_begin` by the size of the L3 block read.
+fn move7(blocks: &mut u64, l3_begin: &mut usize) {
+    let result = lo7(*blocks);
+    *blocks >>= 7;
+    //TODO bit_index += size[result]
 }
 
-fn get7(mut block: u64, index: u8, accumulative_bit_size: &mut u64) -> Option<u8> {
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 0 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 1 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 2 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 3 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 4 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 5 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 6 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 7 { return Some(v); }
-    let v = consume7(&mut block, accumulative_bit_size);    if index == 8 { return Some(v); }
+fn get7(mut blocks: u64, index: &mut usize, l3_begin: &mut usize) -> Option<u8> {
+    if *index < 1 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 2 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 3 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 4 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 5 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 6 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 7 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 8 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    if *index < 9 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
+    *index -= 9 * 64;
     None
 }
 
 impl L2Block {
     /// Number of universe bits per L3 block.
-    const L3_UNIVERSE_BITS: usize = 64;
+    const BITS_PER_L3: usize = 64;
+
+    /// Number of L3 block covered by one L2 block.
+    const COVERED_L3_BLOCKS: usize = 64;
 
     /// Number of universe bits per L2 block.
-    const UNIVERSE_BITS: usize = 64 * Self::L3_UNIVERSE_BITS;
+    const COVERED_UNIVERSE_BITS: usize = Self::COVERED_L3_BLOCKS * Self::BITS_PER_L3;
 
-    fn get(index: u8, accumulative_bit_size: &mut u64) -> u8 {
+    #[inline(always)] fn get_sizes(&self, index: usize) -> u64 {
+        self.l3_sizes[index] << index | self.l3_sizes[index-1] >> (64-index)
+    }
 
+    /// Gets size of L3 block with given bit `index` within `self`
+    /// and decreases `index` to point bit in decoded L3 block.
+    /// Increases `l3_begin` to show the first bit of encoded L3 block in the `content`.
+    fn get_size(&self, index: &mut usize, l3_begin: &mut usize) -> u8 {
+        if let Some(s) = get7(self.l3_sizes[0], index, l3_begin) { return s; }
+        if let Some(s) = get7(self.get_sizes(1), index, l3_begin) { return s; }
+        if let Some(s) = get7(self.get_sizes(2), index, l3_begin) { return s; }
+        if let Some(s) = get7(self.get_sizes(3), index, l3_begin) { return s; }
+        if let Some(s) = get7(self.get_sizes(4), index, l3_begin) { return s; }
+        if let Some(s) = get7(self.get_sizes(5), index, l3_begin) { return s; }
+        if let Some(s) = get7(self.get_sizes(6), index, l3_begin) { return s; }
+        debug_assert!(*index < 64);
+        (self.l3_sizes[6] >> (64-7)) as u8
     }
 }
 
@@ -64,14 +86,13 @@ pub struct ECBitMap {
 }
 
 impl ECBitMap {
-    pub fn get(&self, index: usize) -> Option<usize> {
-        let begin =
-            self.l1.get(index / L1Block::UNIVERSE_BITS)?.begin_index
-
-        let l2 = self.l2.get(index / L2Block::UNIVERSE_BITS)?;
-        let begin = l2.begin_index as usize +
-            //unsafe {self.l1.get_unchecked(index / L1Block::UNIVERSE_BITS)}.begin_index
-            self.l1[index / L1Block::UNIVERSE_BITS].begin_index +
+    pub fn get(&self, mut index: usize) -> Option<bool> {
+        let l2 = self.l2.get(index / L2Block::COVERED_UNIVERSE_BITS)?;
+        let mut bit_index = l2.begin_index as usize +
+            //unsafe {self.l1.get_unchecked(index / L1Block::COVERED_UNIVERSE_BITS)}.begin_index    // safe as corresponding l2 block exists
+            self.l1[index / L1Block::COVERED_UNIVERSE_BITS].begin_index;
+        index %= L2Block::COVERED_UNIVERSE_BITS;
+        let size = l2.get_size(index, &mut bit_index);
 
     }
 }
