@@ -35,16 +35,15 @@ fn move7(blocks: &mut u64, l3_begin: &mut usize) {
 }
 
 fn get7(mut blocks: u64, index: &mut usize, l3_begin: &mut usize) -> Option<u8> {
-    if *index < 1 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 2 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 3 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 4 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 5 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 6 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 7 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 8 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    if *index < 9 * 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin) }
-    *index -= 9 * 64;
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
     None
 }
 
