@@ -34,6 +34,10 @@ fn move7(blocks: &mut u64, l3_begin: &mut usize) {
     //TODO bit_index += size[result]
 }
 
+/// Returns 7 bit size of L3 block that covers given universe `index` and is contained in the `block`.
+/// Decreases `index` by 64 times number of the skipped L3 blocks.
+/// Increases `l3_begin` by the sizes of the skipped L3 blocks.
+/// Returns [`None`] if `index` equals or exceeds 9*64 before decreasing.
 fn get7(mut blocks: u64, index: &mut usize, l3_begin: &mut usize) -> Option<u8> {
     if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
     if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
@@ -57,6 +61,8 @@ impl L2Block {
     /// Number of universe bits per L2 block.
     const COVERED_UNIVERSE_BITS: usize = Self::COVERED_L3_BLOCKS * Self::BITS_PER_L3;
 
+    /// Returns `index`-th (counting from 0) vector of 9, 7 bit sizes of L3 blocks described by `self`.
+    /// `index` must be in range `[1, 6]`.
     #[inline(always)] fn get_sizes(&self, index: usize) -> u64 {
         self.l3_sizes[index] << index | self.l3_sizes[index-1] >> (64-index)
     }
@@ -87,11 +93,11 @@ pub struct ECBitMap {
 impl ECBitMap {
     pub fn get(&self, mut index: usize) -> Option<bool> {
         let l2 = self.l2.get(index / L2Block::COVERED_UNIVERSE_BITS)?;
-        let mut bit_index = l2.begin_index as usize +
+        let mut l3_begin = l2.begin_index as usize +
             //unsafe {self.l1.get_unchecked(index / L1Block::COVERED_UNIVERSE_BITS)}.begin_index    // safe as corresponding l2 block exists
             self.l1[index / L1Block::COVERED_UNIVERSE_BITS].begin_index;
         index %= L2Block::COVERED_UNIVERSE_BITS;
-        let size = l2.get_size(index, &mut bit_index);
+        let size = l2.get_size(&mut index, &mut l3_begin);
 
     }
 }
