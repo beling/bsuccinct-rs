@@ -1,26 +1,29 @@
-use bitm::BitAccess;
+use bitm::{BitAccess, ceiling_div, BitVec};
 
 /// L1 block covering 2^20=1048576 L2 blocks, which means 2^32 bits of universe.
 struct L1Block {
-    /// The number of bit ones preceding this block in the universe.
-    rank: u64,
     /// Index of the first bit of this block in the universe.
     begin_index: usize,
+    /// The number of bit ones preceding this block in the universe.
+    rank: u64,
 }
 
 impl L1Block {
     /// Number of universe bits per L1 block; 2^32.
     const COVERED_UNIVERSE_BITS: usize = 1<<32;
+
+    /// Number of L3 block covered by one L1 block.
+    const COVERED_L3_BLOCKS: usize = Self::COVERED_UNIVERSE_BITS / 64;
 }
 
 /// L2 block covering 64 L3 blocks, which means 64*64=4096 bits of the universe.
 /// 
 /// Each L3 block covers 64 bits of the universe and uses 7 bits to store the number of one bits it contains.
 struct L2Block {
-    /// Number of bit ones preceding this block in the enclosing L1 block.
-    rank: u32,
     /// Relative (to the beginning of the enclosing L1 block) index of the first universe bit of this block
     begin_index: u32,
+    /// Number of bit ones preceding this block in the enclosing L1 block.
+    rank: u32,
     /// 64 number of ones in consecutive L3 blocks contained in this block, each stored on 7 bits
     l3_ones: [u64; 7],
 }
@@ -67,6 +70,10 @@ impl L2Block {
     /// Number of universe bits per L2 block.
     const COVERED_UNIVERSE_BITS: usize = Self::COVERED_L3_BLOCKS * Self::BITS_PER_L3;
 
+    fn new(begin_index: u32, rank: u32) -> Self {
+        Self { begin_index, rank, l3_ones: [0; 7] }
+    }
+
     /// Returns `index`-th (counting from 0) vector of 9, 7 bit numbers of ones in L3 blocks described by `self`.
     /// `index` must be in range `[1, 6]`.
     #[inline(always)] fn numbers_of_ones(&self, index: usize) -> u64 {
@@ -105,6 +112,38 @@ impl ECBitMap {
         index %= L2Block::COVERED_UNIVERSE_BITS;
         let number_of_ones = l2.number_of_ones(&mut index, &mut l3_begin);
         Some(bit_from_enumerative_code(self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]), number_of_ones, index as u8))
+    }
+
+    pub fn from_bitmap(bitmap: &[u64]) -> Self {
+        let mut l1 = Vec::with_capacity(ceiling_div(bitmap.len(), L1Block::COVERED_L3_BLOCKS));
+        let mut l2 = Vec::with_capacity(ceiling_div(bitmap.len(), L2Block::COVERED_L3_BLOCKS));
+        let content_len = bitmap.iter().map(|bits| CHOOSE64_BIT_LEN[bits.count_ones() as usize] as usize).sum::<usize>().max(1);
+        let mut content = Box::<[u64]>::with_zeroed_bits(content_len);
+        let (mut l1_content_index, mut l1_rank) = (0, 0);
+        for c1 in bitmap.chunks(L1Block::COVERED_L3_BLOCKS) {
+            l1.push(L1Block { begin_index: l1_content_index, rank: l1_rank });
+            let (mut l2_content_index, mut l2_rank) = (0, 0);
+            for c2 in c1.chunks(L2Block::COVERED_L3_BLOCKS) {
+                let mut l2_block = L2Block::new(l2_content_index, l2_rank);
+                let mut l2_index = 0;
+                for bits in c2 {
+                    let (code, bit_ones) = enumerative_encode(*bits);
+                    let code_len = CHOOSE64_BIT_LEN[bit_ones as usize];
+                    l2_block.l3_ones.set_successive_bits(&mut l2_index, bit_ones as u64, 7);
+                    content.set_bits(l1_content_index, code, code_len);
+                    l1_content_index += code_len as usize;
+                    l2_content_index += code_len as u32;
+                    l2_rank += bit_ones as u32;
+                }
+                l2.push(l2_block);
+                l1_rank += l2_rank as u64;
+            }    
+        }
+        Self {
+            l1: l1.into_boxed_slice(),
+            l2: l2.into_boxed_slice(),
+            content,
+        }
     }
 }
 
@@ -194,6 +233,19 @@ mod tests {
         check_enumerative_coding_for(u64::MAX - 23876534);
         check_enumerative_coding_for(u64::MAX - 34432);
         check_enumerative_coding_for(u64::MAX);
+    }
+
+    #[test]
+    fn test_small_from_bitmap() {
+        let bitmap = [0, u64::MAX];
+        let ecbitmap = ECBitMap::from_bitmap(&bitmap);
+        assert_eq!(ecbitmap.get(0), Some(false), "wrong value for index 0");
+        assert_eq!(ecbitmap.get(26), Some(false), "wrong value for index 26");
+        assert_eq!(ecbitmap.get(63), Some(false), "wrong value for index 63");
+        assert_eq!(ecbitmap.get(64), Some(true), "wrong value for index 64");
+        assert_eq!(ecbitmap.get(77), Some(true), "wrong value for index 77");
+        assert_eq!(ecbitmap.get(127), Some(true), "wrong value for index 127");
+        assert_eq!(ecbitmap.get(128), None, "wrong value for index 128");
     }
 }
 
