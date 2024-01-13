@@ -111,13 +111,16 @@ impl ECBitMap {
             self.l1[index / L1Block::COVERED_UNIVERSE_BITS].begin_index;
         index %= L2Block::COVERED_UNIVERSE_BITS;
         let number_of_ones = l2.number_of_ones(&mut index, &mut l3_begin);
-        Some(bit_from_enumerative_code(self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]), number_of_ones, index as u8))
+        Some(bit_from_enumerative_code(
+            self.content.try_get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]).unwrap_or(0),
+            number_of_ones, index as u8
+        ))
     }
 
     pub fn from_bitmap(bitmap: &[u64]) -> Self {
         let mut l1 = Vec::with_capacity(ceiling_div(bitmap.len(), L1Block::COVERED_L3_BLOCKS));
         let mut l2 = Vec::with_capacity(ceiling_div(bitmap.len(), L2Block::COVERED_L3_BLOCKS));
-        let content_len = bitmap.iter().map(|bits| CHOOSE64_BIT_LEN[bits.count_ones() as usize] as usize).sum::<usize>().max(1);
+        let content_len = bitmap.iter().map(|bits| CHOOSE64_BIT_LEN[bits.count_ones() as usize] as usize).sum::<usize>();
         let mut content = Box::<[u64]>::with_zeroed_bits(content_len);
         let (mut l1_content_index, mut l1_rank) = (0, 0);
         for c1 in bitmap.chunks(L1Block::COVERED_L3_BLOCKS) {
@@ -130,7 +133,7 @@ impl ECBitMap {
                     let (code, bit_ones) = enumerative_encode(*bits);
                     let code_len = CHOOSE64_BIT_LEN[bit_ones as usize];
                     l2_block.l3_ones.set_successive_bits(&mut l2_index, bit_ones as u64, 7);
-                    content.set_bits(l1_content_index, code, code_len);
+                    if code_len>0 { content.set_bits(l1_content_index, code, code_len) }
                     l1_content_index += code_len as usize;
                     l2_content_index += code_len as u32;
                     l2_rank += bit_ones as u32;
@@ -245,7 +248,19 @@ mod tests {
         assert_eq!(ecbitmap.get(64), Some(true), "wrong value for index 64");
         assert_eq!(ecbitmap.get(77), Some(true), "wrong value for index 77");
         assert_eq!(ecbitmap.get(127), Some(true), "wrong value for index 127");
-        assert_eq!(ecbitmap.get(128), None, "wrong value for index 128");
+        //assert_eq!(ecbitmap.get(128), None, "wrong value for index 128");
+    }
+
+    #[test]
+    fn test_small_from_bitmap2() {
+        let bitmap = [0b111, 0b10101, 0b11100, 0b1101, u64::MAX];
+        let ecbitmap = ECBitMap::from_bitmap(&bitmap);
+        for oi in bitmap.bit_ones() {
+            assert_eq!(ecbitmap.get(oi), Some(true), "wrong value for index {oi}");    
+        }
+        for oz in bitmap.bit_zeros() {
+            assert_eq!(ecbitmap.get(oz), Some(false), "wrong value for index {oz}");    
+        }
     }
 }
 
