@@ -197,7 +197,18 @@ mod tests {
     }
 }
 
-
+/* Python code to generate the tables below:
+N = 64
+K = N//2 + 1
+choose = [0] * (N+1)
+print(f'const CHOOSE64: [[u64; {K}]; {N}] = [')
+for n in range(N+1):
+    choose[n] = 1
+    for k in range(n-1, 0, -1): choose[k] = choose[k-1] + choose[k]
+    if n != N: print(choose[:K], ',', sep='')
+print('];')
+print(f'const CHOOSE64_BIT_LEN: [u8; {N+1}] = ', [(v-1).bit_length() for v in choose], ';', sep='')
+*/
 const CHOOSE64: [[u64; 33]; 64] = [
 [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
