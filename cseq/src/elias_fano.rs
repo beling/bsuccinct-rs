@@ -604,7 +604,6 @@ impl<S, S0> FusedIterator for Cursor<'_, S, S0> {}
 #[cfg(test)]
 mod tests {
     use bitm::BinaryRankSearch;
-
     use super::*;
 
     fn test_read_write<S: SelectForRank101111, S0: Select0ForRank101111>(seq: Sequence<S, S0>) {
