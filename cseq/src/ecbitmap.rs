@@ -111,10 +111,9 @@ impl ECBitMap {
             self.l1[index / L1Block::COVERED_UNIVERSE_BITS].begin_index;
         index %= L2Block::COVERED_UNIVERSE_BITS;
         let number_of_ones = l2.number_of_ones(&mut index, &mut l3_begin);
-        let code_len = CHOOSE64_BIT_LEN[number_of_ones as usize];
-        if code_len == 0 { return Some(number_of_ones != 0); } // l3 block contains either only zeros or only ones
-        Some(bit_from_enumerative_code(self.content.get_bits(l3_begin, code_len), number_of_ones, index as u8))
-        //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, code_len)}, number_of_ones, index as u8))
+        if number_of_ones & 63 == 0 { return Some(number_of_ones != 0); } // l3 block contains either only zeros or only ones
+        Some(bit_from_enumerative_code(self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]), number_of_ones, index as u8))
+        //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize])}, number_of_ones, index as u8))
     }
 
     pub fn from_bitmap(bitmap: &[u64]) -> Self {
@@ -122,9 +121,9 @@ impl ECBitMap {
         let mut l2 = Vec::with_capacity(ceiling_div(bitmap.len(), L2Block::COVERED_L3_BLOCKS));
         let content_len = bitmap.iter().map(|bits| CHOOSE64_BIT_LEN[bits.count_ones() as usize] as usize).sum::<usize>();
         let mut content = Box::<[u64]>::with_zeroed_bits(content_len);
-        let (mut l1_content_index, mut l1_rank) = (0, 0);
+        let (mut absolute_content_index, mut l1_rank) = (0, 0);
         for c1 in bitmap.chunks(L1Block::COVERED_L3_BLOCKS) {
-            l1.push(L1Block { begin_index: l1_content_index, rank: l1_rank });
+            l1.push(L1Block { begin_index: absolute_content_index, rank: l1_rank });
             let (mut l2_content_index, mut l2_rank) = (0, 0);
             for c2 in c1.chunks(L2Block::COVERED_L3_BLOCKS) {
                 let mut l2_block = L2Block::new(l2_content_index, l2_rank);
@@ -132,9 +131,9 @@ impl ECBitMap {
                 for bits in c2 {
                     let (code, bit_ones) = enumerative_encode(*bits);
                     let code_len = CHOOSE64_BIT_LEN[bit_ones as usize];
-                    l2_block.l3_ones.set_successive_bits(&mut l2_index, bit_ones as u64, 7);
-                    if code_len>0 { content.set_bits(l1_content_index, code, code_len) }
-                    l1_content_index += code_len as usize;
+                    l2_block.l3_ones.init_successive_bits(&mut l2_index, bit_ones as u64, 7);
+                    if code_len>0 { content.init_bits(absolute_content_index, code, code_len) }
+                    absolute_content_index += code_len as usize;
                     l2_content_index += code_len as u32;
                     l2_rank += bit_ones as u32;
                 }
