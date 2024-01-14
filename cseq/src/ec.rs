@@ -102,13 +102,13 @@ impl L2Block {
 }
 
 /// Enumerative coding/compressed bitmap.
-pub struct ECBitMap {
+pub struct BitMap {
     l1: Box<[L1Block]>,
     l2: Box<[L2Block]>,
     content: Box<[u64]>
 }
 
-impl ECBitMap {
+impl BitMap {
     pub fn try_get_bit(&self, mut index: usize) -> Option<bool> {
         let l2 = self.l2.get(index / L2Block::COVERED_UNIVERSE_BITS)?;
         let mut l3_begin = l2.begin_index as usize +
@@ -158,7 +158,7 @@ impl ECBitMap {
     }
 }
 
-impl GetSize for ECBitMap {
+impl GetSize for BitMap {
     fn size_bytes_dyn(&self) -> usize { self.l1.size_bytes_dyn() + self.l2.size_bytes_dyn() + self.content.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn test_small_from_bitmap() {
         let bitmap = [0, u64::MAX];
-        let ecbitmap = ECBitMap::from_bitmap(&bitmap);
+        let ecbitmap = BitMap::from_bitmap(&bitmap);
         assert_eq!(ecbitmap.try_get_bit(0), Some(false), "wrong value for index 0");
         assert_eq!(ecbitmap.try_get_bit(26), Some(false), "wrong value for index 26");
         assert_eq!(ecbitmap.try_get_bit(63), Some(false), "wrong value for index 63");
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn test_small_from_bitmap2() {
         let bitmap = [0b111, 0b10101, 0b11100, 0b1101, u64::MAX];
-        let ecbitmap = ECBitMap::from_bitmap(&bitmap);
+        let ecbitmap = BitMap::from_bitmap(&bitmap);
         for oi in bitmap.bit_ones() {
             assert_eq!(ecbitmap.try_get_bit(oi), Some(true), "wrong value for index {oi}");    
         }
