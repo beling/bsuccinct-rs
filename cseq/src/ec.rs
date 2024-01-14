@@ -1,4 +1,4 @@
-use bitm::{BitAccess, ceiling_div, BitVec};
+use bitm::{BitAccess, ceiling_div, BitVec, Rank};
 use dyn_size_of::GetSize;
 
 /// L1 block covering 2^20=1048576 L2 blocks, which means 2^32 bits of universe.
@@ -39,11 +39,19 @@ impl GetSize for L2Block {}
 /// Returns 7 the least significant bits of `block`.
 #[inline(always)] fn lo7(blocks: u64) -> u8 { (blocks & 127) as u8 }
 
-/// Reads 7 bit size of L3 blocks and removes it from `block`.
-/// Increase `l3_begin` by the size of the L3 block read.
-fn move7(blocks: &mut u64, l3_begin: &mut usize) {
-    let number_of_ones = lo6(*blocks);  // for CHOOSE64 same as lo7(*blocks), as (64 0) = (64 64)
+/// Increases `l3_begin` by the size of the first L3 block in `blocks` and removes the block from `blocks`.
+#[inline(always)] fn move7(blocks: &mut u64, l3_begin: &mut usize) {
+    let number_of_ones = lo6(*blocks);  // for CHOOSE64 same as lo7(*blocks), as (64 0) = (64 64) = 1
     *blocks >>= 7;
+    *l3_begin += CHOOSE64_BIT_LEN[number_of_ones as usize] as usize;
+}
+
+/// Increases `l3_begin` by the size of the first L3 block in `blocks` and removes the block from `blocks`.
+/// Increases `rank` by the number og ones in removed block.
+#[inline(always)] fn move7_rank(blocks: &mut u64, rank: &mut u64, l3_begin: &mut usize) {
+    let number_of_ones = lo7(*blocks);  // for CHOOSE64 same as lo7(*blocks), as (64 0) = (64 64) = 1
+    *blocks >>= 7;
+    *rank += number_of_ones as u64;
     *l3_begin += CHOOSE64_BIT_LEN[number_of_ones as usize] as usize;
 }
 
@@ -62,6 +70,35 @@ fn get7(mut blocks: u64, index: &mut usize, l3_begin: &mut usize) -> Option<u8> 
     if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
     if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
     if *index < 64 { return Some(lo7(blocks)); } else { move7(&mut blocks, l3_begin); *index -= 64; }
+    None
+}
+
+/// Works like [`get7`] but additionally increases `rank` by the number of ones in skipped L3 blocks.
+fn get7_rank(mut blocks: u64, index: &mut usize, rank: &mut u64, l3_begin: &mut usize) -> Option<u8> {
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
+    None
+}
+
+/// Returns number of ones in L3 block with given `rank` (relative to beginning of the block)
+/// and is contained in the `block`.
+/// Decreases `rank` by number of ones in the skipped L3 blocks.
+/// Increases `l3_begin` by the sizes of the skipped L3 blocks.
+/// Returns [`None`] if `blocks` does not contain L3 block with given `rank`.
+fn select7(mut blocks: u64, rank: &mut usize, l3_begin: &mut usize) -> Option<u8> {
+    for _ in 0..9 {
+        let number_of_ones = lo7(blocks);
+        if *rank < number_of_ones as usize { return Some(number_of_ones); }
+        blocks >>= 7;
+        *l3_begin += CHOOSE64_BIT_LEN[number_of_ones as usize] as usize;
+    }
     None
 }
 
@@ -99,6 +136,32 @@ impl L2Block {
         debug_assert!(*index < 64);
         (self.l3_ones[6] >> (64-7)) as u8
     }
+
+    fn number_of_ones_and_rank(&self, index: &mut usize, rank: &mut u64, l3_begin: &mut usize) -> u8 {
+        if let Some(s) = get7_rank(self.l3_ones[0], index, rank, l3_begin) { return s; }
+        if let Some(s) = get7_rank(self.numbers_of_ones(1), index, rank, l3_begin) { return s; }
+        if let Some(s) = get7_rank(self.numbers_of_ones(2), index, rank, l3_begin) { return s; }
+        if let Some(s) = get7_rank(self.numbers_of_ones(3), index, rank, l3_begin) { return s; }
+        if let Some(s) = get7_rank(self.numbers_of_ones(4), index, rank, l3_begin) { return s; }
+        if let Some(s) = get7_rank(self.numbers_of_ones(5), index, rank, l3_begin) { return s; }
+        if let Some(s) = get7_rank(self.numbers_of_ones(6), index, rank, l3_begin) { return s; }
+        debug_assert!(*index < 64);
+        (self.l3_ones[6] >> (64-7)) as u8
+    }
+
+    /// Gets number of ones in L3 block with given `rank` (relative to beginning of the block)
+    /// and decreases `rank` not to exceed the number of ones in the mentioned L3 block.
+    /// Increases `l3_begin` to show the first bit of encoded L3 block in the `content`.
+    fn select(&self, rank: &mut usize, l3_begin: &mut usize) -> u8 {
+        if let Some(s) = select7(self.l3_ones[0], rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(1), rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(2), rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(3), rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(4), rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(5), rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(6), rank, l3_begin) { return s; }
+        (self.l3_ones[6] >> (64-7)) as u8
+    }
 }
 
 /// Enumerative coding/compressed bitmap.
@@ -122,7 +185,7 @@ impl BitMap {
     }
 
     #[inline] pub fn get_bit(&self, index: usize) -> bool {
-        self.try_get_bit(index).expect("ec::BitMap index ({index}) out of bounds")
+        self.try_get_bit(index).expect("ec::BitMap::get_bit index out of bounds")
     }
 
     pub fn from_bitmap(bitmap: &[u64]) -> Self {
@@ -155,6 +218,25 @@ impl BitMap {
             l2: l2.into_boxed_slice(),
             content,
         }
+    }
+}
+
+impl Rank for BitMap {
+    fn try_rank(&self, mut index: usize) -> Option<usize> {
+        let l2 = self.l2.get(index / L2Block::COVERED_UNIVERSE_BITS)?;
+        let l1 = &self.l1[index / L1Block::COVERED_UNIVERSE_BITS];   // safe as corresponding l2 block exists
+        // let l1 = //unsafe {self.l1.get_unchecked(index / L1Block::COVERED_UNIVERSE_BITS)};
+        let mut l3_begin = l1.begin_index + l2.begin_index as usize;
+        index %= L2Block::COVERED_UNIVERSE_BITS;
+        let mut rank = l1.rank + l2.rank as u64;
+        let number_of_ones = l2.number_of_ones_and_rank(&mut index, &mut rank, &mut l3_begin);
+        if number_of_ones == 0 { return Some(rank as usize); } // l3 block contains only zeros
+        if number_of_ones == 64 { return Some(rank as usize + index); } // l3 block contains only ones
+        Some(rank as usize + rank_from_enumerative_code(
+            self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]),
+            number_of_ones, index as u8) as usize)
+        //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize])}, number_of_ones, index as u8))
+    
     }
 }
 
@@ -216,6 +298,21 @@ fn bit_from_enumerative_code(mut code: u64, mut number_of_ones: u8, mut index: u
     (code >= choose64_32(index, number_of_ones)) == below_33_ones
 }
 
+fn rank_from_enumerative_code(mut code: u64, mut number_of_ones: u8, index: u8) -> u8 {
+    let below_33_ones = number_of_ones <= 32; // we will get complementary value and therefore reverse the result if `below_33_ones` is `false`
+    if !below_33_ones { number_of_ones = 64 - number_of_ones }
+    let mut remaining_ones = number_of_ones;
+    for i in (64 - index..64).rev() {
+        let c = choose64_32(i, remaining_ones);
+        if code >= c {
+            code -= c;
+            remaining_ones -= 1;
+        }
+    }
+    let ones_found = number_of_ones - remaining_ones;
+    if below_33_ones { ones_found } else { index - ones_found }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,8 +322,12 @@ mod tests {
         assert_eq!(number_of_ones, bits.count_ones() as u8);
         assert!(code < 1<<CHOOSE64_BIT_LEN[number_of_ones as usize]);
         assert_eq!(enumerative_decode(code, number_of_ones), bits);
+        let mut rank = 0;
         for index in 0..64 {
-            assert_eq!(bit_from_enumerative_code(code, number_of_ones, index), bits & 1<<index != 0)
+            let is_one = bits & 1<<index != 0;
+            assert_eq!(bit_from_enumerative_code(code, number_of_ones, index), is_one);
+            assert_eq!(rank_from_enumerative_code(code, number_of_ones, index), rank);
+            if is_one { rank += 1; }
         }
     }
 
