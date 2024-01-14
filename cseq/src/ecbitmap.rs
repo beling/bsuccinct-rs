@@ -111,10 +111,10 @@ impl ECBitMap {
             self.l1[index / L1Block::COVERED_UNIVERSE_BITS].begin_index;
         index %= L2Block::COVERED_UNIVERSE_BITS;
         let number_of_ones = l2.number_of_ones(&mut index, &mut l3_begin);
-        Some(bit_from_enumerative_code(
-            self.content.try_get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]).unwrap_or(0),
-            number_of_ones, index as u8
-        ))
+        let code_len = CHOOSE64_BIT_LEN[number_of_ones as usize];
+        if code_len == 0 { return Some(number_of_ones != 0); } // l3 block contains either only zeros or only ones
+        Some(bit_from_enumerative_code(self.content.get_bits(l3_begin, code_len), number_of_ones, index as u8))
+        //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, code_len)}, number_of_ones, index as u8))
     }
 
     pub fn from_bitmap(bitmap: &[u64]) -> Self {
