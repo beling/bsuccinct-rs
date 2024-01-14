@@ -236,7 +236,6 @@ impl Rank for BitMap {
             self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]),
             number_of_ones, index as u8) as usize)
         //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize])}, number_of_ones, index as u8))
-    
     }
 }
 
@@ -302,7 +301,7 @@ fn rank_from_enumerative_code(mut code: u64, mut number_of_ones: u8, index: u8) 
     let below_33_ones = number_of_ones <= 32; // we will get complementary value and therefore reverse the result if `below_33_ones` is `false`
     if !below_33_ones { number_of_ones = 64 - number_of_ones }
     let mut remaining_ones = number_of_ones;
-    for i in (64 - index..64).rev() {
+    for i in (64-index..64).rev() {
         let c = choose64_32(i, remaining_ones);
         if code >= c {
             code -= c;
