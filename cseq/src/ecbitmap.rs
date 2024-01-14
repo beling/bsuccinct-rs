@@ -1,4 +1,5 @@
 use bitm::{BitAccess, ceiling_div, BitVec};
+use dyn_size_of::GetSize;
 
 /// L1 block covering 2^20=1048576 L2 blocks, which means 2^32 bits of universe.
 struct L1Block {
@@ -16,6 +17,8 @@ impl L1Block {
     const COVERED_L3_BLOCKS: usize = Self::COVERED_UNIVERSE_BITS / 64;
 }
 
+impl GetSize for L1Block {}
+
 /// L2 block covering 64 L3 blocks, which means 64*64=4096 bits of the universe.
 /// 
 /// Each L3 block covers 64 bits of the universe and uses 7 bits to store the number of one bits it contains.
@@ -27,6 +30,8 @@ struct L2Block {
     /// 64 number of ones in consecutive L3 blocks contained in this block, each stored on 7 bits
     l3_ones: [u64; 7],
 }
+
+impl GetSize for L2Block {}
 
 /// Returns 6 the least significant bits of `block`.
 #[inline(always)] fn lo6(blocks: u64) -> u8 { (blocks & 63) as u8 }
@@ -104,7 +109,7 @@ pub struct ECBitMap {
 }
 
 impl ECBitMap {
-    pub fn get(&self, mut index: usize) -> Option<bool> {
+    pub fn try_get_bit(&self, mut index: usize) -> Option<bool> {
         let l2 = self.l2.get(index / L2Block::COVERED_UNIVERSE_BITS)?;
         let mut l3_begin = l2.begin_index as usize +
             //unsafe {self.l1.get_unchecked(index / L1Block::COVERED_UNIVERSE_BITS)}.begin_index    // safe as corresponding l2 block exists
@@ -114,6 +119,10 @@ impl ECBitMap {
         if number_of_ones & 63 == 0 { return Some(number_of_ones != 0); } // l3 block contains either only zeros or only ones
         Some(bit_from_enumerative_code(self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]), number_of_ones, index as u8))
         //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize])}, number_of_ones, index as u8))
+    }
+
+    #[inline] pub fn get_bit(&self, index: usize) -> bool {
+        self.try_get_bit(index).expect("ec::BitMap index ({index}) out of bounds")
     }
 
     pub fn from_bitmap(bitmap: &[u64]) -> Self {
@@ -147,6 +156,11 @@ impl ECBitMap {
             content,
         }
     }
+}
+
+impl GetSize for ECBitMap {
+    fn size_bytes_dyn(&self) -> usize { self.l1.size_bytes_dyn() + self.l2.size_bytes_dyn() + self.content.size_bytes_dyn() }
+    const USES_DYN_MEM: bool = true;
 }
 
 #[inline(always)] fn choose64_32(n: u8, k: u8) -> u64 {    // TODO wrong for n = 63 and k = 64
@@ -241,12 +255,12 @@ mod tests {
     fn test_small_from_bitmap() {
         let bitmap = [0, u64::MAX];
         let ecbitmap = ECBitMap::from_bitmap(&bitmap);
-        assert_eq!(ecbitmap.get(0), Some(false), "wrong value for index 0");
-        assert_eq!(ecbitmap.get(26), Some(false), "wrong value for index 26");
-        assert_eq!(ecbitmap.get(63), Some(false), "wrong value for index 63");
-        assert_eq!(ecbitmap.get(64), Some(true), "wrong value for index 64");
-        assert_eq!(ecbitmap.get(77), Some(true), "wrong value for index 77");
-        assert_eq!(ecbitmap.get(127), Some(true), "wrong value for index 127");
+        assert_eq!(ecbitmap.try_get_bit(0), Some(false), "wrong value for index 0");
+        assert_eq!(ecbitmap.try_get_bit(26), Some(false), "wrong value for index 26");
+        assert_eq!(ecbitmap.try_get_bit(63), Some(false), "wrong value for index 63");
+        assert_eq!(ecbitmap.try_get_bit(64), Some(true), "wrong value for index 64");
+        assert_eq!(ecbitmap.try_get_bit(77), Some(true), "wrong value for index 77");
+        assert_eq!(ecbitmap.try_get_bit(127), Some(true), "wrong value for index 127");
         //assert_eq!(ecbitmap.get(128), None, "wrong value for index 128");
     }
 
@@ -255,10 +269,10 @@ mod tests {
         let bitmap = [0b111, 0b10101, 0b11100, 0b1101, u64::MAX];
         let ecbitmap = ECBitMap::from_bitmap(&bitmap);
         for oi in bitmap.bit_ones() {
-            assert_eq!(ecbitmap.get(oi), Some(true), "wrong value for index {oi}");    
+            assert_eq!(ecbitmap.try_get_bit(oi), Some(true), "wrong value for index {oi}");    
         }
         for oz in bitmap.bit_zeros() {
-            assert_eq!(ecbitmap.get(oz), Some(false), "wrong value for index {oz}");    
+            assert_eq!(ecbitmap.try_get_bit(oz), Some(false), "wrong value for index {oz}");    
         }
     }
 }
