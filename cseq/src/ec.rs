@@ -1,3 +1,5 @@
+//! Enumerative coding/compressed bitmap.
+
 use bitm::{BitAccess, ceiling_div, BitVec, Rank};
 use dyn_size_of::GetSize;
 
@@ -188,6 +190,7 @@ impl BitMap {
         self.try_get_bit(index).expect("ec::BitMap::get_bit index out of bounds")
     }
 
+    /// Constructs `Self` from uncompressed `bitmap`.
     pub fn from_bitmap(bitmap: &[u64]) -> Self {
         let mut l1 = Vec::with_capacity(ceiling_div(bitmap.len(), L1Block::COVERED_L3_BLOCKS));
         let mut l2 = Vec::with_capacity(ceiling_div(bitmap.len(), L2Block::COVERED_L3_BLOCKS));
@@ -232,7 +235,7 @@ impl Rank for BitMap {
         let number_of_ones = l2.number_of_ones_and_rank(&mut index, &mut rank, &mut l3_begin);
         if number_of_ones == 0 { return Some(rank as usize); } // l3 block contains only zeros
         if number_of_ones == 64 { return Some(rank as usize + index); } // l3 block contains only ones
-        Some(rank as usize + rank_from_enumerative_code(
+        Some(rank as usize + rank_in_enumerative_code(
             self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]),
             number_of_ones, index as u8) as usize)
         //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize])}, number_of_ones, index as u8))
@@ -297,7 +300,7 @@ fn bit_from_enumerative_code(mut code: u64, mut number_of_ones: u8, mut index: u
     (code >= choose64_32(index, number_of_ones)) == below_33_ones
 }
 
-fn rank_from_enumerative_code(mut code: u64, mut number_of_ones: u8, index: u8) -> u8 {
+fn rank_in_enumerative_code(mut code: u64, mut number_of_ones: u8, index: u8) -> u8 {
     let below_33_ones = number_of_ones <= 32; // we will get complementary value and therefore reverse the result if `below_33_ones` is `false`
     if !below_33_ones { number_of_ones = 64 - number_of_ones }
     let mut remaining_ones = number_of_ones;
@@ -310,6 +313,26 @@ fn rank_from_enumerative_code(mut code: u64, mut number_of_ones: u8, index: u8) 
     }
     let ones_found = number_of_ones - remaining_ones;
     if below_33_ones { ones_found } else { index - ones_found }
+}
+
+fn select_in_enumerative_code(mut code: u64, mut number_of_ones: u8, mut rank: u8, mut select_one: bool) -> u8 {
+	if number_of_ones > 32 {
+        number_of_ones = 64 - number_of_ones;
+        select_one = !select_one;
+    }
+    for i in 0..64 {
+        let c = choose64_32(63-i, number_of_ones);
+        let has_one = code >= c;
+        if has_one == select_one {
+            if rank == 0 { return i; }
+            rank -= 1;
+        }
+        if has_one {
+            code -= c;
+            number_of_ones -= 1;
+        }
+    }
+    unreachable!("select_in_enumerative_code called with too high rank")
 }
 
 #[cfg(test)]
@@ -325,7 +348,12 @@ mod tests {
         for index in 0..64 {
             let is_one = bits & 1<<index != 0;
             assert_eq!(bit_from_enumerative_code(code, number_of_ones, index), is_one);
-            assert_eq!(rank_from_enumerative_code(code, number_of_ones, index), rank);
+            assert_eq!(rank_in_enumerative_code(code, number_of_ones, index), rank);
+            if is_one {
+                assert_eq!(select_in_enumerative_code(code, number_of_ones, rank, true), index);
+            } else {
+                assert_eq!(select_in_enumerative_code(code, number_of_ones, index-rank, false), index);
+            }
             if is_one { rank += 1; }
         }
     }
@@ -351,6 +379,16 @@ mod tests {
         check_enumerative_coding_for(u64::MAX);
     }
 
+    fn check_ec_bitmap(bitmap: &[u64]) {
+        let ecbitmap = BitMap::from_bitmap(&bitmap);
+        let mut expected_rank = 0;
+        for (index, expected_value) in bitmap.bit_iter().enumerate() {
+            assert_eq!(ecbitmap.try_get_bit(index), Some(expected_value));
+            assert_eq!(ecbitmap.try_rank(index), Some(expected_rank));
+            if expected_value { expected_rank += 1; }
+        }
+    }
+
     #[test]
     fn test_small_from_bitmap() {
         let bitmap = [0, u64::MAX];
@@ -366,14 +404,7 @@ mod tests {
 
     #[test]
     fn test_small_from_bitmap2() {
-        let bitmap = [0b111, 0b10101, 0b11100, 0b1101, u64::MAX];
-        let ecbitmap = BitMap::from_bitmap(&bitmap);
-        for oi in bitmap.bit_ones() {
-            assert_eq!(ecbitmap.try_get_bit(oi), Some(true), "wrong value for index {oi}");    
-        }
-        for oz in bitmap.bit_zeros() {
-            assert_eq!(ecbitmap.try_get_bit(oz), Some(false), "wrong value for index {oz}");    
-        }
+        check_ec_bitmap(&[0b111, 0b10101, 0b11100, 0b1101, u64::MAX]);
     }
 }
 
