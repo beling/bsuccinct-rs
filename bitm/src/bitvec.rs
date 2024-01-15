@@ -1,10 +1,13 @@
 use std::iter::FusedIterator;
 use super::{ceiling_div, n_lowest_bits, n_lowest_bits_1_64};
 
-/// Iterator over bits set to 1 (if `B` is `true`) or 0 (if `B` is `false`) in slice of `u64`.
+/// Iterator over indices of bits set to 1 (if `B` is `true`) or 0 (if `B` is `false`) in slice of `u64`.
 pub struct BitBIterator<'a, const B: bool> {
+    /// Iterator over 64-bit segments.
     segment_iter: std::slice::Iter<'a, u64>,
+    /// 64 * index of the current segment.
     first_segment_bit: usize,
+    /// Copy of the current segment (or its negation if `!B`) with zeroed already exposed bits.
     current_segment: u64
 }
 
