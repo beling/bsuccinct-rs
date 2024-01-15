@@ -65,6 +65,56 @@ pub type BitOnesIterator<'a> = BitBIterator<'a, true>;
 /// Iterator over bits set to 0 in slice of `u64`.
 pub type BitZerosIterator<'a> = BitBIterator<'a, false>;
 
+
+/// Iterator over bits in slice of `u64`. It yields `true` for bit 1 and `false` for 0.
+pub struct BitIterator<'a> {
+    /// Iterator over 64-bit segments.
+    segment_iter: std::slice::Iter<'a, u64>,
+    /// Copy of the current segment.
+    current_segment: u64,
+    /// 1-bit mask that shows current bit in `current_segment`. `0` if next segment should be obtained.
+    current_bit_mask: u64,
+}
+
+impl<'a> BitIterator<'a> {
+    /// Constructs iterator over bits in the given `slice`.
+    pub fn new(slice: &'a [u64]) -> Self {
+        Self {
+            segment_iter: slice.into_iter(),
+            current_segment: 0,
+            current_bit_mask: 0
+        }
+    }
+}
+
+impl<'a> Iterator for BitIterator<'a> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current_bit_mask == 0 {
+            self.current_segment = *self.segment_iter.next()?;
+            self.current_bit_mask = 1;
+        }
+        let result = self.current_segment & self.current_bit_mask != 0;
+        self.current_bit_mask <<= 1;    // going to next bit or zeroing
+        Some(result)
+    }
+
+    #[inline] fn size_hint(&self) -> (usize, Option<usize>) {
+        let result = self.len();
+        (result, Some(result))
+    }
+}
+
+impl<'a> ExactSizeIterator for BitIterator<'a> {
+    #[inline] fn len(&self) -> usize {
+        (self.segment_iter.len() + 1) * 64 - self.current_bit_mask.trailing_zeros() as usize
+    }
+}
+
+impl<'a> FusedIterator for BitIterator<'a> where std::slice::Iter<'a, u64>: FusedIterator {}
+
+
 /// The trait that is implemented for the array of `u64` and extends it with methods for
 /// accessing and modifying single bits or arbitrary fragments consisted of few (up to 63) bits.
 pub trait BitAccess {
@@ -213,6 +263,9 @@ pub trait BitAccess {
 
     /// Returns iterator over indices of ones (set bits).
     fn bit_zeros(&self) -> BitZerosIterator;
+
+    /// Returns iterator over all bits in `self` that yields `true` for each one and `false` for each zero.
+    fn bit_iter(&self) -> BitIterator;
 
     /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     /// Panics if the range is out of bounds.
@@ -505,6 +558,10 @@ impl BitAccess for [u64] {
         BitZerosIterator::new(self)
     }
 
+    #[inline(always)] fn bit_iter(&self) -> BitIterator {
+        BitIterator::new(self)
+    }
+
     #[inline] fn try_get_bits_unmasked(&self, begin: usize, len: u8) -> Option<u64> {
         //((begin+(len as usize))/64 < self.len()).then(|| unsafe{self.get_bits_unmasked_unchecked(begin, len)})
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
@@ -773,5 +830,24 @@ mod tests {
         assert_eq!(ones.len(), 0);
         assert_eq!(ones.next(), None);
         assert_eq!(ones.len(), 0);
+        let mut all = b.bit_iter();
+        assert_eq!(all.len(), 2*64);
+        assert_eq!(all.next(), Some(true));
+        assert_eq!(all.len(), 2*64-1);
+        assert_eq!(all.next(), Some(false));
+        assert_eq!(all.len(), 2*64-2);
+        assert_eq!(all.next(), Some(true));
+        assert_eq!(all.len(), 2*64-3);
+        assert_eq!(all.nth(64-4), Some(false)); // consume 63-th element
+        assert_eq!(all.len(), 64);
+        assert_eq!(all.next(), Some(false));
+        assert_eq!(all.len(), 63);
+        assert_eq!(all.next(), Some(true));
+        assert_eq!(all.len(), 62);
+        assert_eq!(all.nth(61), Some(false));
+        assert_eq!(all.len(), 0);
+        assert_eq!(all.len(), 0);
+        assert_eq!(all.next(), None);
+        assert_eq!(all.len(), 0);
     }
 }
