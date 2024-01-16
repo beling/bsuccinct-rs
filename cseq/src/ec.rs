@@ -273,10 +273,10 @@ fn enumerative_decode(mut code: u64, mut number_of_ones: u8) -> u64 {
 	let mut bits = if number_of_ones > 32 {
         number_of_ones = 64 - number_of_ones;   u64::MAX
     } else { 0 };
-    for i in 0..64 {
-        let c = choose64_32(63-i, number_of_ones);
+    for i in (0..64).rev() {
+        let c = choose64_32(i, number_of_ones);
         if code >= c {
-            bits ^= 1 << i;
+            bits ^= (1<<63) >> i;
             code -= c;
             number_of_ones -= 1;
             // if number_of_ones == 0 { return bits }
@@ -320,14 +320,14 @@ fn select_in_enumerative_code(mut code: u64, mut number_of_ones: u8, mut rank: u
         number_of_ones = 64 - number_of_ones;
         select_one = !select_one;
     }
-    for i in 0..64 {
-        let c = choose64_32(63-i, number_of_ones);
-        let has_one = code >= c;
-        if has_one == select_one {
-            if rank == 0 { return i; }
+    for i in (0..64).rev() {
+        let c = choose64_32(i, number_of_ones);
+        let is_one = code >= c;
+        if is_one == select_one {
+            if rank == 0 { return 63-i; }
             rank -= 1;
         }
-        if has_one {
+        if is_one {
             code -= c;
             number_of_ones -= 1;
         }
