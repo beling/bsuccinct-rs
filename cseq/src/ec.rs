@@ -169,7 +169,9 @@ impl L2Block {
 /// Enumerative coding/compressed bitmap.
 /// 
 /// The method is described in:
-/// - Gonzalo Navarro, Eliana Providel, "Fast, Small, Simple Rank/Select on Bitmaps", SEA 2012
+/// - Gonzalo Navarro, Eliana Providel, "Fast, Small, Simple Rank/Select on Bitmaps",
+///   SEA 2012: Experimental Algorithms, pages 295–306,
+///   <https://link.springer.com/chapter/10.1007/978-3-642-30850-5_26>
 pub struct BitMap {
     l1: Box<[L1Block]>,
     l2: Box<[L2Block]>,

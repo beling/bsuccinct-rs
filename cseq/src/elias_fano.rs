@@ -140,9 +140,9 @@ impl Builder {
 /// - Sebastiano Vigna "Quasi-succinct indices", 2013,
 ///   In Proceedings of the sixth ACM international conference on Web search and data mining (WSDM '13),
 ///   Association for Computing Machinery, New York, NY, USA, 83–92. <https://doi.org/10.1145/2433396.2433409>
-/// - Daisuke Okanohara, Kunihiko Sadakane "Practical Entropy-Compressed Rank/Select Dictionary", 2007,
-///   Proceedings of the Ninth Workshop on Algorithm Engineering and Experiments (ALENEX),
-///   <https://doi.org/10.1137/1.9781611972870.6> (Section 6 "SDarrays")
+/// - Daisuke Okanohara, Kunihiko Sadakane, "Practical entropy-compressed rank/select dictionary",
+///   Proceedings of the Meeting on Algorithm Engineering & Expermiments, January 2007, pages 60–70,
+///   <https://dl.acm.org/doi/10.5555/2791188.2791194> (Section 6 "SDarrays")
 pub struct Sequence<S = CombinedSampling, S0 = CombinedSampling> {
     hi: ArrayWithRankSelect101111<S, S0>,   // most significant bits of each item, unary coded
     lo: Box<[u64]>, // least significant bits of each item, vector of `bits_per_lo` bit items
