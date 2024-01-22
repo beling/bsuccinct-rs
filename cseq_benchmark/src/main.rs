@@ -2,12 +2,26 @@
 
 mod elias_fano;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
+
+#[allow(non_camel_case_types)]
+//#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Subcommand)]
+pub enum Structure {
+    /// Elias-Fano
+    EliasFano,
+    /// Non-compressed bit vector from bitm library
+    BitVec,
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 /// Compact sequences benchmark.
 pub struct Conf {
+    /// Structure to test
+    #[command(subcommand)]
+    pub structure: Structure,
+
     /// The number of items to use
     #[arg(short = 'n', long, default_value_t = 1_000_000)]
     pub num: usize,
@@ -23,6 +37,8 @@ pub struct Conf {
 
 fn main() {
     let conf: Conf = Conf::parse();
-
-    elias_fano::benchmark(&conf);
+    match conf.structure {
+        Structure::EliasFano => elias_fano::benchmark(&conf),
+        Structure::BitVec => todo!(),
+    }
 }
