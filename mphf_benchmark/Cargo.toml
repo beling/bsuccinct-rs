@@ -1,6 +1,6 @@
 [package]
 name = "mphf_benchmark"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
 description = "The program for benchmarking Minimal Perfect Hash Functions"
@@ -16,6 +16,7 @@ keywords = [ "perfect", "hashing", "minimal", "mphf" ]
 
 [dependencies]
 bitm = { version="0.3", path="../bitm" }
+butils = { version="0.0", path="../butils" }
 rayon = "1.5"
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 cpu-time = "1"
