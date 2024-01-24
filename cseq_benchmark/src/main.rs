@@ -108,6 +108,8 @@ impl Conf {
     }
 }
 
+fn percent_of(overhead: usize, whole: usize) -> f64 { (overhead*100) as f64 / whole as f64 }
+
 fn main() {
     let conf: Conf = Conf::parse();
     match conf.structure {

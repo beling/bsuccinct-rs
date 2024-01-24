@@ -151,6 +151,14 @@ pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = Binary
     select0: Select0,  // support for select (zero)
 }
 
+impl<S, S0> ArrayWithRankSelect101111<S, S0> {
+    /// Returns reference to structure that support select (one) operation.
+    #[inline] pub fn select_support(&self) -> &S { &self.select }
+
+    /// Returns reference to structure that support select zero operation.
+    #[inline] pub fn select0_support(&self) -> &S0 { &self.select0 }
+}
+
 impl<S: GetSize, S0: GetSize> GetSize for ArrayWithRankSelect101111<S, S0> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
