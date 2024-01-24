@@ -4,7 +4,7 @@ version = "0.0.2"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "The program for benchmarking compact sequences"
+description = "The program for benchmarking compact sequences and bitmaps"
 documentation = "https://docs.rs/cseq_benchmark"
 repository = "https://github.com/beling/bsuccinct-rs"
 readme = "README.md"
@@ -13,8 +13,9 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "compression", "sequence", "succinct", "elias-fano", "benchmark" ]
 
 [dependencies]
-cseq = { version ="0.1", path = "../cseq" }
+butils = { version="0.0", path="../butils" }
 clap = { version="4", features = ["derive"] }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
-cpu-time = "1"
+cseq = { version ="0.1", path = "../cseq" }
 bitm = { version="0.3", path="../bitm" }
+sucds = "0.8"

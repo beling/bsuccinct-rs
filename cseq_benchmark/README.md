@@ -1,4 +1,4 @@
-`cseq_benchmark` is the program (by Piotr Beling) for benchmarking compact sequences.
+`cseq_benchmark` is the program (by Piotr Beling) for benchmarking compact sequences and bitmaps.
 
 It can test the algorithms included in the following creates:
 - [cseq](https://crates.io/crates/cseq) (only Elias-Fano).

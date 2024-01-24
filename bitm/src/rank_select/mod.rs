@@ -39,9 +39,89 @@ pub trait Rank {
 }
 
 /// Returns number of bits set (to one) in `content`.
-#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
+/*#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
     content.iter().map(|v| v.count_ones() as usize).sum()
+}*/
+
+/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+/*#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
+    let mut it = content.iter().map(|v| v.count_ones() as usize);
+    let mut result = 0;
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; }
+    return result;
+}*/
+
+/*#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {  // almost the same asm as above
+    let l = content.len();
+    let mut result = 0;
+    for i in 0..8 {
+        if i < l { result += unsafe{ content.get_unchecked(i) }.count_ones() as usize; }
+    }
+    return result;
+}*/
+
+/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+#[inline(always)] fn count_bits_in(mut content: &[u64]) -> usize {
+    let mut result = 0;
+    if content.len() >= 3 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(1) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(2) }.count_ones() as usize;
+        content = &content[3..];
+        if content.len() >= 3 {
+            result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+                unsafe{ content.get_unchecked(1) }.count_ones() as usize +
+                unsafe{ content.get_unchecked(2) }.count_ones() as usize;
+            content = &content[3..];
+        }
+    }
+    // up to 2 elements
+    let l = content.len();
+    if l > 0 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize;
+        if l > 1 {
+            result += unsafe{ content.get_unchecked(1) }.count_ones() as usize;
+        }
+    }
+    result
 }
+
+/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+/*#[inline(always)] fn count_bits_in(mut content: &[u64]) -> usize {
+    let mut result = 0;
+    // up to 8 elements
+    if content.len() >= 4 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(1) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(2) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(3) }.count_ones() as usize;
+        content = &content[4..];
+    }
+    // up to 4 elements
+    if content.len() >= 2 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(1) }.count_ones() as usize;
+        content = &content[2..];
+    }
+    // up to 2 elements
+    let l = content.len();
+    if l > 0 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize;
+        if l > 1 {
+            result += unsafe{ content.get_unchecked(1) }.count_ones() as usize;
+        }
+    }
+    result
+}*/
+
+
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 3.125% extra space.
 /// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
@@ -110,7 +190,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
 
     fn rank(&self, index: usize) -> usize {
         let block = index / 512;
-        let mut block_content =  self.l2ranks[index/2048];//self.ranks[block/4];
+        let mut block_content = self.l2ranks[index/2048];//self.ranks[block/4];
         let mut r = unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
         block_content >>= 32;   // remove the lowest 32 bits
         r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
@@ -120,6 +200,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
             r += self.content[w].count_ones() as u64;
         }*/
         r + (self.content[word_idx] & n_lowest_bits(index as u8 % 64)).count_ones() as usize
+        //r + ((self.content[word_idx] << 1) << (63 - index % 64)).count_ones() as usize    // alternative, seems to generate worse asm.
     }
 }
 

@@ -217,8 +217,6 @@ impl Select0ForRank101111 for BinaryRankSearch {
     }
 }
 
-pub const ONES_PER_SELECT_ENTRY: usize = 8192;
-
 /// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
 /// 
 /// It is implemented according to the paper:
@@ -230,19 +228,19 @@ pub const ONES_PER_SELECT_ENTRY: usize = 8192;
 /// - G. Navarro, E. Providel, "Fast, small, simple rank/select on bitmaps",
 ///   in: R. Klasing (Ed.), Experimental Algorithms, Springer Berlin Heidelberg, Berlin, Heidelberg, 2012, pp. 295–306
 #[derive(Clone)]
-pub struct CombinedSampling {
+pub struct CombinedSampling<const ONES_PER_SELECT_ENTRY: usize = 8192 /*1024*/> {
     /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one (or zero in the case of select 0) in content, starting from the first one.
     select: Box<[u32]>,
     /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
     select_begin: Box<[usize]>,
 }
 
-impl GetSize for CombinedSampling {
+impl<const ONES_PER_SELECT_ENTRY: usize> GetSize for CombinedSampling<ONES_PER_SELECT_ENTRY> {
     fn size_bytes_dyn(&self) -> usize { self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl CombinedSampling {
+impl<const ONES_PER_SELECT_ENTRY: usize> CombinedSampling<ONES_PER_SELECT_ENTRY> {
     #[inline]
     fn new<const ONE: bool>(content: &[u64], l1ranks: &[usize], total_rank: usize) -> Self {
         if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default() } }
@@ -299,7 +297,7 @@ impl CombinedSampling {
     }
 }
 
-impl SelectForRank101111 for CombinedSampling {
+impl<const ONES_PER_SELECT_ENTRY: usize> SelectForRank101111 for CombinedSampling<ONES_PER_SELECT_ENTRY> {
     fn new(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<true>(content, l1ranks, total_rank)
     }
@@ -309,7 +307,7 @@ impl SelectForRank101111 for CombinedSampling {
     }
 }
 
-impl Select0ForRank101111 for CombinedSampling {
+impl<const ONES_PER_SELECT_ENTRY: usize> Select0ForRank101111 for CombinedSampling<ONES_PER_SELECT_ENTRY> {
     fn new0(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<false>(content, l1ranks, total_rank)
     }
