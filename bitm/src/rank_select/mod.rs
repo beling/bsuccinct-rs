@@ -143,15 +143,17 @@ pub trait Rank {
 /// 
 /// For in-word selection, it uses the [`select64`] function.
 #[derive(Clone)]
-pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch> {
+pub struct ArrayWithRankSelect101111<Select: SelectForRank101111 = BinaryRankSearch, Select0: Select0ForRank101111 = BinaryRankSearch> {
     pub content: Box<[u64]>,  // bit vector
     pub l1ranks: Box<[usize]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
     select: Select,  // support for select (one)
     select0: Select0,  // support for select (zero)
+    select_conf: Select::Conf,
+    select0_conf: Select0::Conf,
 }
 
-impl<S, S0> ArrayWithRankSelect101111<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111<S, S0> {
     /// Returns reference to structure that support select (one) operation.
     #[inline] pub fn select_support(&self) -> &S { &self.select }
 
@@ -159,7 +161,7 @@ impl<S, S0> ArrayWithRankSelect101111<S, S0> {
     #[inline] pub fn select0_support(&self) -> &S0 { &self.select0 }
 }
 
-impl<S: GetSize, S0: GetSize> GetSize for ArrayWithRankSelect101111<S, S0> {
+impl<S: GetSize + SelectForRank101111, S0: GetSize + Select0ForRank101111> GetSize for ArrayWithRankSelect101111<S, S0> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
     }
@@ -170,15 +172,15 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> From<Box<[u64]>> for Arra
     #[inline] fn from(value: Box<[u64]>) -> Self { Self::build(value).0 }
 }
 
-impl<S: SelectForRank101111, S0> Select for ArrayWithRankSelect101111<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Select for ArrayWithRankSelect101111<S, S0> {
     fn try_select(&self, rank: usize) -> Option<usize> {
-        self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
+        self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank, self.select_conf)
     }
 }
 
-impl<S, S0: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S, S0> {
     fn try_select0(&self, rank: usize) -> Option<usize> {
-        self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
+        self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank, self.select0_conf)
     }
 }
 
@@ -249,9 +251,9 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111
         }
         let l1ranks = l1ranks.into_boxed_slice();
         let l2ranks = l2ranks.into_boxed_slice();
-        let select = S::new(&content, &l1ranks, &l2ranks, current_total_rank);
-        let select0 = S0::new0(&content, &l1ranks, &l2ranks, current_total_rank);
-        (Self{content, l1ranks, l2ranks, select, select0}, current_total_rank)
+        let (select_conf, select) = S::new(&content, &l1ranks, &l2ranks, current_total_rank);
+        let (select0_conf, select0) = S0::new0(&content, &l1ranks, &l2ranks, current_total_rank);
+        (Self{content, l1ranks, l2ranks, select, select0, select_conf, select0_conf}, current_total_rank)
     }
 }
 

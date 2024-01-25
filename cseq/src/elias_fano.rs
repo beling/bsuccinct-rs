@@ -143,14 +143,14 @@ impl Builder {
 /// - Daisuke Okanohara, Kunihiko Sadakane, "Practical entropy-compressed rank/select dictionary",
 ///   Proceedings of the Meeting on Algorithm Engineering & Expermiments, January 2007, pages 60–70,
 ///   <https://dl.acm.org/doi/10.5555/2791188.2791194> (Section 6 "SDarrays")
-pub struct Sequence<S = CombinedSampling, S0 = CombinedSampling> {
+pub struct Sequence<S: SelectForRank101111 = CombinedSampling, S0: Select0ForRank101111 = CombinedSampling> {
     hi: ArrayWithRankSelect101111<S, S0>,   // most significant bits of each item, unary coded
     lo: Box<[u64]>, // least significant bits of each item, vector of `bits_per_lo` bit items
     bits_per_lo: u8, // bit size of each entry in lo
     len: usize  // number of items
 }
 
-impl<S, S0> Sequence<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
     /// Returns number of stored values.
     #[inline] pub fn len(&self) -> usize { self.len }
 
@@ -299,7 +299,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
     }
 }
 
-impl<S: SelectForRank101111, S0> Sequence<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
     /// Returns value at given `index`. The result is undefined if `index` is out of bounds.
     #[inline] pub unsafe fn get_unchecked(&self, index: usize) -> u64 {
         (((unsafe{self.hi.select_unchecked(index)} - index) as u64) << self.bits_per_lo) |
@@ -358,7 +358,7 @@ impl<S: SelectForRank101111, S0> Sequence<S, S0> {
     }
 }
 
-impl<S, S0: Select0ForRank101111> Sequence<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
     /// Returns the uncorrected position of first `self` item with value greater than or equal to given `value`.
     /// The `hi` of result may need correction (moving forward to first 1 bit) if it is not an index of 1 bit.
     /// `lo` is already correct.
@@ -412,25 +412,25 @@ impl<S, S0: Select0ForRank101111> Sequence<S, S0> {
     }
 }
 
-impl<S: SelectForRank101111, S0> Select for Sequence<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Select for Sequence<S, S0> {
     #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
         self.get(rank).map(|v| v as usize)
     }
 }
 
-impl<S, S0: Select0ForRank101111> Rank for Sequence<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for Sequence<S, S0> {
     /// Returns the number of `self` items with values less than given `value`.
     #[inline] fn try_rank(&self, value: usize) -> Option<usize> {
         Some(self.geq_index(value as u64))
     }
 }
 
-impl<S, S0> GetSize for Sequence<S, S0> where ArrayWithRankSelect101111<S, S0>: GetSize {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> GetSize for Sequence<S, S0> where ArrayWithRankSelect101111<S, S0>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.lo.size_bytes_dyn() + self.hi.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<'ef, S, S0> IntoIterator for &'ef Sequence<S, S0> {
+impl<'ef, S: SelectForRank101111, S0: Select0ForRank101111> IntoIterator for &'ef Sequence<S, S0> {
     type Item = u64;
     type IntoIter = Iterator<'ef, S, S0>;
     #[inline] fn into_iter(self) -> Self::IntoIter { self.iter() }
@@ -449,13 +449,13 @@ impl Position {
 }
 
 /// Iterator over [`Sequence`] values, returned by [`Sequence::iter`] .
-pub struct Iterator<'ef, S, S0> {
+pub struct Iterator<'ef, S: SelectForRank101111, S0: Select0ForRank101111> {
     sequence: &'ef Sequence<S, S0>,
     begin: Position,
     end: Position
 }
 
-impl<S, S0> Iterator<'_, S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Iterator<'_, S, S0> {
     /// Returns the [`Sequence`] over which `self` iterates.
     pub fn sequence(&self) -> &Sequence<S, S0> { self.sequence }
 
@@ -466,7 +466,7 @@ impl<S, S0> Iterator<'_, S, S0> {
     pub fn back_index(&self) -> usize { self.begin.lo }
 }
 
-impl<S, S0> std::iter::Iterator for Iterator<'_, S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> std::iter::Iterator for Iterator<'_, S, S0> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -474,7 +474,7 @@ impl<S, S0> std::iter::Iterator for Iterator<'_, S, S0> {
     }
 }
 
-impl<S, S0> DoubleEndedIterator for Iterator<'_, S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> DoubleEndedIterator for Iterator<'_, S, S0> {
     fn next_back(&mut self) -> Option<Self::Item> {
         (self.begin.lo != self.end.lo).then(|| unsafe {
             self.sequence.advance_position_back_unchecked(&mut self.end);
@@ -483,17 +483,17 @@ impl<S, S0> DoubleEndedIterator for Iterator<'_, S, S0> {
     }
 }
 
-impl<S, S0> FusedIterator for Iterator<'_, S, S0> {}
+impl<S: SelectForRank101111, S0: Select0ForRank101111> FusedIterator for Iterator<'_, S, S0> {}
 
 /// Iterator that yields the value of the first item followed by the differences
 /// between the values of subsequent items of [`Sequence`].
-pub struct DiffIterator<'ef, S, S0> {
+pub struct DiffIterator<'ef, S: SelectForRank101111, S0: Select0ForRank101111> {
     sequence: &'ef Sequence<S, S0>,
     position: Position,
     prev_value: u64
 }
 
-impl<S, S0> DiffIterator<'_, S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> DiffIterator<'_, S, S0> {
     /// Returns the [`Sequence`] over which `self` iterates.
     pub fn sequence(&self) -> &Sequence<S, S0> { self.sequence }
 
@@ -501,7 +501,7 @@ impl<S, S0> DiffIterator<'_, S, S0> {
     pub fn index(&self) -> usize { self.position.lo }
 }
 
-impl<S, S0> std::iter::Iterator for DiffIterator<'_, S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> std::iter::Iterator for DiffIterator<'_, S, S0> {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -512,17 +512,17 @@ impl<S, S0> std::iter::Iterator for DiffIterator<'_, S, S0> {
     }
 }
 
-impl<S, S0> FusedIterator for DiffIterator<'_, S, S0> {}
+impl<S: SelectForRank101111, S0: Select0ForRank101111> FusedIterator for DiffIterator<'_, S, S0> {}
 
 /// Points either a position or past the end in Elias-Fano [`Sequence`].
 /// It is a kind of iterator over the [`Sequence`].
 #[derive(Clone, Copy)]
-pub struct Cursor<'ef, S, S0> {
+pub struct Cursor<'ef, S: SelectForRank101111, S0: Select0ForRank101111> {
     sequence: &'ef Sequence<S, S0>,
     position: Position,
 }
 
-impl<S, S0> Cursor<'_, S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> Cursor<'_, S, S0> {
     /// Returns the [`Sequence`] in which `self` points the item.
     pub fn sequence(&self) -> &Sequence<S, S0> { self.sequence }
 
@@ -589,7 +589,7 @@ impl<S, S0> Cursor<'_, S, S0> {
     }
 }
 
-impl<S, S0> std::iter::Iterator for Cursor<'_, S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111> std::iter::Iterator for Cursor<'_, S, S0> {
     type Item = u64;
 
     /// Returns value pointed by `self` and advances it one position forward.
@@ -598,7 +598,7 @@ impl<S, S0> std::iter::Iterator for Cursor<'_, S, S0> {
     }
 }
 
-impl<S, S0> FusedIterator for Cursor<'_, S, S0> {}
+impl<S: SelectForRank101111, S0: Select0ForRank101111> FusedIterator for Cursor<'_, S, S0> {}
 
 
 #[cfg(test)]

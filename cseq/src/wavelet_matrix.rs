@@ -52,7 +52,7 @@ impl LevelBuilder {
 }
 
 /// Level of the we wavelet matrix.
-struct Level<S = CombinedSampling> {
+struct Level<S: SelectForRank101111+Select0ForRank101111 = CombinedSampling> {
     /// Level content as bit vector with support for rank and select queries.
     content: ArrayWithRankSelect101111::<S, S>,
 
@@ -60,12 +60,12 @@ struct Level<S = CombinedSampling> {
     number_of_zeros: usize
 }
 
-impl<S> GetSize for Level<S> where ArrayWithRankSelect101111<S, S>: GetSize {
+impl<S: SelectForRank101111+Select0ForRank101111> GetSize for Level<S> where ArrayWithRankSelect101111<S, S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.content.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S> Level<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u64]>> {
+impl<S: SelectForRank101111+Select0ForRank101111> Level<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u64]>> {
     /// Constructs level with given `content` that contain given number of zero bits.
     fn new(content: Box::<[u64]>, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
@@ -74,13 +74,13 @@ impl<S> Level<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u64]>> {
     }
 }
 
-impl<S> Level<S> where S: SelectForRank101111 {
+impl<S: SelectForRank101111+Select0ForRank101111> Level<S> where S: SelectForRank101111 {
     fn try_select(&self, rank: usize, len: usize) -> Option<usize> {
         self.content.try_select(rank).filter(|i| *i < len)
     }
 }
 
-impl<S> Level<S> where S: Select0ForRank101111 {
+impl<S: SelectForRank101111+Select0ForRank101111> Level<S> where S: Select0ForRank101111 {
     fn try_select0(&self, rank: usize, len: usize) -> Option<usize> {
         self.content.try_select0(rank).filter(|i| *i < len)
     }
@@ -107,12 +107,12 @@ impl<S> Level<S> where S: Select0ForRank101111 {
 /// Additionally, our implementation draws some ideas (like elimination of recursion)
 /// from the Go implementation by Daisuke Okanohara,
 /// available at <https://github.com/hillbig/waveletTree/>.
-pub struct Sequence<S = CombinedSampling> {
+pub struct Sequence<S: SelectForRank101111+Select0ForRank101111 = CombinedSampling> {
     levels: Box<[Level<S>]>,
     len: usize
 }
 
-impl<S> Sequence<S> {
+impl<S: SelectForRank101111+Select0ForRank101111> Sequence<S> {
     /// Returns number of stored items.
     #[inline] pub fn len(&self) -> usize { self.len }
 
@@ -336,12 +336,12 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
     }
 }
 
-impl<S> GetSize for Sequence<S> where ArrayWithRankSelect101111<S, S>: GetSize {
+impl<S: SelectForRank101111+Select0ForRank101111> GetSize for Sequence<S> where ArrayWithRankSelect101111<S, S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.levels.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S> Sequence<S> {
+impl<S: SelectForRank101111+Select0ForRank101111> Sequence<S> {
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         AsIs::size(self.len) +

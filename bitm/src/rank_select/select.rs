@@ -2,6 +2,7 @@ use dyn_size_of::GetSize;
 
 #[cfg(target_arch = "x86")] use core::arch::x86 as arch;
 #[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
+use std::marker::PhantomData;
 
 use super::utils::partition_point_with_index;
 
@@ -51,14 +52,16 @@ pub trait Select0 {
 
 /// Trait implemented by strategies for select (ones) operations for `ArrayWithRank101111`.
 pub trait SelectForRank101111 {
-    fn new(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
-    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
+    type Conf: Copy;
+    fn new(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> (Self::Conf, Self);
+    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize, conf: Self::Conf) -> Option<usize>;
 }
 
 /// Trait implemented by strategies for select zeros operations for `ArrayWithRank101111`.
 pub trait Select0ForRank101111 {
-    fn new0(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
-    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
+    type Conf: Copy;
+    fn new0(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> (Self::Conf, Self);
+    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize, conf: Self::Conf) -> Option<usize>;
 }
 
 /// Returns the position of the `rank`-th (counting from 0) one in the bit representation of `n`,
@@ -188,9 +191,11 @@ impl GetSize for BinaryRankSearch {}
 }
 
 impl SelectForRank101111 for BinaryRankSearch {
-    #[inline] fn new(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
+    type Conf = ();
 
-    #[inline] fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+    #[inline] fn new(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> ((), Self) { ((), Self) }
+
+    #[inline] fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize, _conf: ()) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<true>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
@@ -202,9 +207,11 @@ impl SelectForRank101111 for BinaryRankSearch {
 }
 
 impl Select0ForRank101111 for BinaryRankSearch {
-    #[inline] fn new0(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
+    type Conf = ();
 
-    #[inline] fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+    #[inline] fn new0(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> ((), Self) { ((), Self) }
+
+    #[inline] fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize, _conf: ()) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<false>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
@@ -296,25 +303,25 @@ pub struct CombinedSampling<D: CombinedSamplingDensity = /*ConstCombinedSampling
     select: Box<[u32]>,
     /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
     select_begin: Box<[usize]>,
-    /// Sampling density (ZST for const density).
-    density: D::SamplingDensity,
+
+    d: PhantomData<D>
 }
 
 impl<D: CombinedSamplingDensity> GetSize for CombinedSampling<D> where D::SamplingDensity: GetSize {
     fn size_bytes_dyn(&self) -> usize {
-        self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() + self.density.size_bytes_dyn()
+        self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() /*+ self.density.size_bytes_dyn()*/
     }
     const USES_DYN_MEM: bool = true;
 }
 
 impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     #[inline]
-    fn new<const ONE: bool>(content: &[u64], l1ranks: &[usize], total_rank: usize) -> Self {
+    fn new<const ONE: bool>(content: &[u64], l1ranks: &[usize], total_rank: usize) -> (D::SamplingDensity, Self) {
         let density = D::density_for(
             if ONE { total_rank } else { content.len()*64-total_rank },
             content.len()*64
         );
-        if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default(), density } }
+        if content.is_empty() { return (density, Self{ select: Default::default(), select_begin: Default::default(), d: Default::default() }) }
         let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
         ones_positions_begin.push(0);
@@ -347,16 +354,16 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             }
         }
         debug_assert_eq!(ones_positions.len(), ones_positions_len);
-        Self { select: ones_positions.into_boxed_slice(), select_begin: ones_positions_begin.into_boxed_slice(), density }
+        (density, Self { select: ones_positions.into_boxed_slice(), select_begin: ones_positions_begin.into_boxed_slice(), d: Default::default() })
     }
 
     #[inline]
-    fn select<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+    fn select<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize, density: D::SamplingDensity) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
-        let mut l2_index = l2_begin + *self.select.get(self.select_begin[l1_index] + D::divide_by_density(rank as usize, self.density))? as usize;
+        let mut l2_index = l2_begin + *self.select.get(self.select_begin[l1_index] + D::divide_by_density(rank as usize, density))? as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks[l2_index+1] & 0xFF_FF_FF_FF) as usize}
@@ -369,22 +376,26 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
 }
 
 impl<D: CombinedSamplingDensity> SelectForRank101111 for CombinedSampling<D> {
-    fn new(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
+    type Conf = D::SamplingDensity;
+
+    fn new(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> (Self::Conf, Self) {
         Self::new::<true>(content, l1ranks, total_rank)
     }
 
-    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
-        Self::select::<true>(&self, content, l1ranks, l2ranks, rank)
+    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize, conf: Self::Conf) -> Option<usize> {
+        Self::select::<true>(&self, content, l1ranks, l2ranks, rank, conf)
     }
 }
 
 impl<D: CombinedSamplingDensity> Select0ForRank101111 for CombinedSampling<D> {
-    fn new0(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
+    type Conf = D::SamplingDensity;
+
+    fn new0(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> (Self::Conf, Self) {
         Self::new::<false>(content, l1ranks, total_rank)
     }
 
-    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
-        Self::select::<false>(&self, content, l1ranks, l2ranks, rank)
+    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize, conf: Self::Conf) -> Option<usize> {
+        Self::select::<false>(&self, content, l1ranks, l2ranks, rank, conf)
     }
 }
 
