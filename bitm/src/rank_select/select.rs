@@ -263,12 +263,12 @@ pub trait CombinedSamplingDensity: Copy {
 /// Specifies a constant sampling of select responses by [`CombinedSampling`] given as
 /// the base 2 logarithm (which can be calculated by [`optimal_combined_sampling`] function).
 /// 
-/// Default value 12 means sampling positions of every 2^12=4096 ones (or zeros for select0),
-/// which leads to about 0.39% space overhead in vectors filled with bit ones in about half.
+/// Default value 12 means sampling positions of every 2^13=8192 ones (or zeros for select0),
+/// which leads to about 0.20% space overhead in vectors filled with bit ones in about half.
 /// As sampling decreases, the speed of response to select queries increases at the expense of higher
 /// space overhead (which doubles with each decrease by 1).
 #[derive(Clone, Copy)]
-pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 12>;
+pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 13>;
 
 impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDensity<VALUE_LOG2> {
     type SamplingDensity = ();
@@ -299,10 +299,11 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
 
 /// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
 /// 
-/// Space/speed trade-off can be adjusted by the template parameter.
-/// See [`ConstCombinedSamplingDensity`] and [`AdaptiveCombinedSamplingDensity`].
+/// Space/speed trade-off can be adjusted by the template parameter, by giving one of:
+/// - [`AdaptiveCombinedSamplingDensity`] (default) which works well with a wide range of bit vectors,
+/// - [`ConstCombinedSamplingDensity`] which is recommended for vectors filled with bit ones in about half.
 /// 
-/// It is mostly implemented according to the paper:
+/// The implementation generally follows the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>

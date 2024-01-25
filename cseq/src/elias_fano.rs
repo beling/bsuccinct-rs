@@ -3,7 +3,7 @@
 use std::{iter::FusedIterator, io};
 
 use binout::{AsIs, Serializer};
-use bitm::{Select, ArrayWithRankSelect101111, CombinedSampling, SelectForRank101111, BitAccess, BitVec, n_lowest_bits, Select0ForRank101111, Rank, Select0, ceiling_div};
+use bitm::{ceiling_div, n_lowest_bits, ArrayWithRankSelect101111, BitAccess, BitVec, CombinedSampling, ConstCombinedSamplingDensity, Rank, Select, Select0, Select0ForRank101111, SelectForRank101111};
 use dyn_size_of::GetSize;
 
 /// Builds [`Sequence`] of values added by push methods.
@@ -143,7 +143,7 @@ impl Builder {
 /// - Daisuke Okanohara, Kunihiko Sadakane, "Practical entropy-compressed rank/select dictionary",
 ///   Proceedings of the Meeting on Algorithm Engineering & Expermiments, January 2007, pages 60–70,
 ///   <https://dl.acm.org/doi/10.5555/2791188.2791194> (Section 6 "SDarrays")
-pub struct Sequence<S = CombinedSampling, S0 = CombinedSampling> {
+pub struct Sequence<S = CombinedSampling<ConstCombinedSamplingDensity>, S0 = CombinedSampling<ConstCombinedSamplingDensity>> {
     hi: ArrayWithRankSelect101111<S, S0>,   // most significant bits of each item, unary coded
     lo: Box<[u64]>, // least significant bits of each item, vector of `bits_per_lo` bit items
     bits_per_lo: u8, // bit size of each entry in lo
