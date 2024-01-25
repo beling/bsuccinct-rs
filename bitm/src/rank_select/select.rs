@@ -263,9 +263,9 @@ pub trait CombinedSamplingDensity: Copy {
 /// Specifies a constant sampling of select responses by [`CombinedSampling`] given as
 /// the base 2 logarithm (which can be calculated by [`optimal_combined_sampling`] function).
 /// 
-/// Default value 12 means sampling positions of every 2^13=8192 ones (or zeros for select0),
+/// Default value 13 means sampling positions of every 2^13=8192 ones (or zeros for select0),
 /// which leads to about 0.20% space overhead in vectors filled with bit ones in about half.
-/// As sampling decreases, the speed of response to select queries increases at the expense of higher
+/// As sampling decreases, the speed of select queries increases at the expense of higher
 /// space overhead (which doubles with each decrease by 1).
 #[derive(Clone, Copy)]
 pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 13>;
@@ -300,8 +300,8 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
 /// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
 /// 
 /// Space/speed trade-off can be adjusted by the template parameter, by giving one of:
-/// - [`AdaptiveCombinedSamplingDensity`] (default) which works well with a wide range of bit vectors,
-/// - [`ConstCombinedSamplingDensity`] which is recommended for vectors filled with bit ones in about half.
+/// - [`AdaptiveCombinedSamplingDensity`] (default) -- works well with a wide range of bit vectors,
+/// - [`ConstCombinedSamplingDensity`] -- recommended for vectors filled with bit ones in about half.
 /// 
 /// The implementation generally follows the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
