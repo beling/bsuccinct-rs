@@ -1,6 +1,5 @@
 use dyn_size_of::GetSize;
 
-use crate::ceiling_div;
 #[cfg(target_arch = "x86")] use core::arch::x86 as arch;
 #[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
 
@@ -217,6 +216,67 @@ impl Select0ForRank101111 for BinaryRankSearch {
     }
 }
 
+/// Calculates the optimal sampling of select responses for a combined sampling algorithm.
+/// 
+/// The parameters describe the bit vector and the desired result range:
+/// - `n` -- numbers of ones (for select) or zeros (for select0) in the vector,
+/// - `len` -- length of the vector in bits,
+/// - `max_result` -- the largest possible result, returned only and always for n >= 75%len.
+/// 
+/// The result is the base 2 logarithm of the recommended sampling.
+/// 
+/// A good value for `max_result` is 14, which leads to about 0.39% space overhead,
+/// and, for n = 50%u, results in sampling positions of every 2^13=8192 ones (or zeros for select0).
+/// Increasing `max_result` by 1 doubles the space overhead and speeds up select queries.
+pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8) -> u8 {
+    if 4*n >= 3*len { return max_result; }
+    if 2*n > len { n = len - n; }
+    if n == 0 { return 0; }
+    max_result.saturating_sub((len/n).ilog2() as u8)    // note: len/n >= 2
+}
+
+pub trait CombinedSamplingDensity: Copy {
+    type SamplingDensity: Copy;
+
+    /// Returns density for given parameters of bit vector:
+    /// - `number_of_items` -- numbers of ones (for select) or zeros (for select0) in the vector,
+    /// - `len` -- length of the vector in bits.
+    fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity;
+
+    /// Returns number of bit ones or zeros (in the case of select0) per each sample (entry).
+    fn items_per_sample(density: Self::SamplingDensity) -> u32;
+
+    /// Returns `index` divided by [`Self::items_per_sample(density)`].
+    fn divide_by_density(index: usize, density: Self::SamplingDensity) -> usize;
+
+    /// Returns `index` divided by [`Self::items_per_sample(density)`].
+    fn ceiling_divide_by_density(index: usize, density: Self::SamplingDensity) -> usize {
+        Self::divide_by_density(index+Self::items_per_sample(density) as usize-1, density)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 13>;
+
+impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDensity<VALUE_LOG2> {
+    type SamplingDensity = ();
+    #[inline(always)] fn density_for(_number_of_items: usize, _len: usize) -> Self::SamplingDensity { () }
+    #[inline(always)] fn items_per_sample(_density: Self::SamplingDensity) -> u32 { 1<<VALUE_LOG2 }
+    #[inline(always)] fn divide_by_density(index: usize, _density: Self::SamplingDensity) -> usize { index>>VALUE_LOG2 }
+}
+
+#[derive(Clone, Copy)]
+pub struct AdaptiveCombinedSamplingDensity<const MAX_VALUE_LOG2: u8 = 14>;
+
+impl<const MAX_VALUE_LOG2: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingDensity<MAX_VALUE_LOG2> {
+    type SamplingDensity = u8;
+    #[inline(always)] fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity {
+        optimal_combined_sampling(number_of_items, len, MAX_VALUE_LOG2)
+    }
+    #[inline(always)] fn items_per_sample(density: Self::SamplingDensity) -> u32 { 1 << density }
+    #[inline(always)] fn divide_by_density(index: usize, density: Self::SamplingDensity) -> usize { index >> density }
+}
+
 /// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
 /// 
 /// It is implemented according to the paper:
@@ -228,47 +288,55 @@ impl Select0ForRank101111 for BinaryRankSearch {
 /// - G. Navarro, E. Providel, "Fast, small, simple rank/select on bitmaps",
 ///   in: R. Klasing (Ed.), Experimental Algorithms, Springer Berlin Heidelberg, Berlin, Heidelberg, 2012, pp. 295–306
 #[derive(Clone)]
-pub struct CombinedSampling<const ONES_PER_SELECT_ENTRY: usize = 8192 /*1024*/> {
+pub struct CombinedSampling<D: CombinedSamplingDensity = /*AdaptiveCombinedSamplingDensity*/ ConstCombinedSamplingDensity<0>> {
     /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one (or zero in the case of select 0) in content, starting from the first one.
     select: Box<[u32]>,
     /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
     select_begin: Box<[usize]>,
+    /// Sampling density (ZST for const density).
+    density: D::SamplingDensity,
 }
 
-impl<const ONES_PER_SELECT_ENTRY: usize> GetSize for CombinedSampling<ONES_PER_SELECT_ENTRY> {
-    fn size_bytes_dyn(&self) -> usize { self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() }
+impl<D: CombinedSamplingDensity> GetSize for CombinedSampling<D> where D::SamplingDensity: GetSize {
+    fn size_bytes_dyn(&self) -> usize {
+        self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() + self.density.size_bytes_dyn()
+    }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<const ONES_PER_SELECT_ENTRY: usize> CombinedSampling<ONES_PER_SELECT_ENTRY> {
+impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     #[inline]
     fn new<const ONE: bool>(content: &[u64], l1ranks: &[usize], total_rank: usize) -> Self {
-        if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default() } }
+        let density = D::density_for(
+            if ONE { total_rank } else { content.len()*64-total_rank },
+            content.len()*64
+        );
+        if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default(), density } }
         let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
         ones_positions_begin.push(0);
         for ones in l1ranks.windows(2) {
-            let chunk_len = ceiling_div(
+            let chunk_len = D::ceiling_divide_by_density(
                 if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
-                ONES_PER_SELECT_ENTRY);
+                density);
             ones_positions_len += chunk_len;
             ones_positions_begin.push(ones_positions_len);
         }
-        ones_positions_len += ceiling_div(
+        ones_positions_len += D::ceiling_divide_by_density(
             if ONE {(total_rank - l1ranks.last().unwrap()) as usize }
             else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - (total_rank - l1ranks.last().unwrap()) as usize },
-            ONES_PER_SELECT_ENTRY);
+            density);
         let mut ones_positions = Vec::with_capacity(ones_positions_len);
         for content in content.chunks(U64_PER_L1_ENTRY) {
             //TODO use l2ranks for faster reducing rank
             let mut bit_index = 0;
             let mut rank = 0; /*ONES_PER_SELECT_ENTRY as u16 - 1;*/    // we scan for 1 with this rank, to find its bit index in content
             for c in content.iter() {
-                let c_ones = if ONE { c.count_ones() } else { c.count_zeros() } as u16;
+                let c_ones = if ONE { c.count_ones() } else { c.count_zeros() };
                 if c_ones <= rank {
                     rank -= c_ones;
                 } else {
-                    let new_rank = ONES_PER_SELECT_ENTRY as u16 - c_ones + rank;
+                    let new_rank = D::items_per_sample(density) - c_ones + rank;
                     ones_positions.push((bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11);    // each l2 entry covers 2^11 bits
                     rank = new_rank;
                 }
@@ -276,7 +344,7 @@ impl<const ONES_PER_SELECT_ENTRY: usize> CombinedSampling<ONES_PER_SELECT_ENTRY>
             }
         }
         debug_assert_eq!(ones_positions.len(), ones_positions_len);
-        Self { select: ones_positions.into_boxed_slice(), select_begin: ones_positions_begin.into_boxed_slice() }
+        Self { select: ones_positions.into_boxed_slice(), select_begin: ones_positions_begin.into_boxed_slice(), density }
     }
 
     #[inline]
@@ -285,7 +353,7 @@ impl<const ONES_PER_SELECT_ENTRY: usize> CombinedSampling<ONES_PER_SELECT_ENTRY>
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
-        let mut l2_index = l2_begin + *self.select.get(self.select_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY)? as usize;
+        let mut l2_index = l2_begin + *self.select.get(self.select_begin[l1_index] + D::divide_by_density(rank as usize, self.density))? as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks[l2_index+1] & 0xFF_FF_FF_FF) as usize}
@@ -297,7 +365,7 @@ impl<const ONES_PER_SELECT_ENTRY: usize> CombinedSampling<ONES_PER_SELECT_ENTRY>
     }
 }
 
-impl<const ONES_PER_SELECT_ENTRY: usize> SelectForRank101111 for CombinedSampling<ONES_PER_SELECT_ENTRY> {
+impl<D: CombinedSamplingDensity> SelectForRank101111 for CombinedSampling<D> {
     fn new(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<true>(content, l1ranks, total_rank)
     }
@@ -307,7 +375,7 @@ impl<const ONES_PER_SELECT_ENTRY: usize> SelectForRank101111 for CombinedSamplin
     }
 }
 
-impl<const ONES_PER_SELECT_ENTRY: usize> Select0ForRank101111 for CombinedSampling<ONES_PER_SELECT_ENTRY> {
+impl<D: CombinedSamplingDensity> Select0ForRank101111 for CombinedSampling<D> {
     fn new0(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<false>(content, l1ranks, total_rank)
     }
@@ -320,6 +388,29 @@ impl<const ONES_PER_SELECT_ENTRY: usize> Select0ForRank101111 for CombinedSampli
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_cs_auto() {
+        assert_eq!(optimal_combined_sampling(4, 5, 14), 14);
+        assert_eq!(optimal_combined_sampling(3, 4, 14), 14);
+        assert_eq!(optimal_combined_sampling(299, 400, 14), 13);
+        assert_eq!(optimal_combined_sampling(1, 2, 14), 13);
+        assert_eq!(optimal_combined_sampling(101, 200, 14), 13);
+        assert_eq!(optimal_combined_sampling(99, 200, 14), 13);
+        assert_eq!(optimal_combined_sampling(3, 8, 14), 13);
+        assert_eq!(optimal_combined_sampling(1, 4, 14), 12);
+        assert_eq!(optimal_combined_sampling(10, 41, 14), 12);
+        assert_eq!(optimal_combined_sampling(9, 41, 14), 12);
+        assert_eq!(optimal_combined_sampling(1, 8, 14), 11);
+        assert_eq!(optimal_combined_sampling(10, 81, 14), 11);
+        assert_eq!(optimal_combined_sampling(9, 81, 14), 11);
+        assert_eq!(optimal_combined_sampling(1, 32, 14), 9);
+        assert_eq!(optimal_combined_sampling(10, 321, 14), 9);
+        assert_eq!(optimal_combined_sampling(9, 319, 14), 9);
+        assert_eq!(optimal_combined_sampling(1, 10, 14), 11);
+        assert_eq!(optimal_combined_sampling(1, 100000000, 14), 0);
+        assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 0);
+    }
 
     #[test]
     fn test_select64() {
