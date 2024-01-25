@@ -221,18 +221,21 @@ impl Select0ForRank101111 for BinaryRankSearch {
 /// The parameters describe the bit vector and the desired result range:
 /// - `n` -- numbers of ones (for select) or zeros (for select0) in the vector,
 /// - `len` -- length of the vector in bits,
-/// - `max_result` -- the largest possible result, returned only and always for n >= 75%len.
+/// - `max_result` (must be in range [6, `max_result`]) -- the largest possible result,
+///         returned only and always for n >= 75%len.
 /// 
-/// The result is the base 2 logarithm of the recommended sampling.
+/// The result is the base 2 logarithm of the recommended sampling, and it is always in range [6, `max_result`].
+/// (The minimum value is 6, as we never sample two bits in the same 64-bit word.)
 /// 
-/// A good value for `max_result` is 14, which leads to about 0.39% space overhead,
-/// and, for n = 50%u, results in sampling positions of every 2^13=8192 ones (or zeros for select0).
-/// Increasing `max_result` by 1 doubles the space overhead and speeds up select queries.
+/// A good value for `max_result` is 13, which leads to about 0.39% space overhead,
+/// and, for n = 50%u, results in sampling positions of every 2^12=4096 ones (or zeros for select0).
+/// Decreasing `max_result` by 1 doubles the space overhead and speeds up select queries.
 pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8) -> u8 {
     if 4*n >= 3*len { return max_result; }
     if 2*n > len { n = len - n; }
-    if n == 0 { return 0; }
-    max_result.saturating_sub((len/n).ilog2() as u8)    // note: len/n >= 2
+    if n == 0 { return 6; }
+    let r = max_result.saturating_sub((len/n).ilog2() as u8); // note: len/n >= 2
+    return if r <= 6 { 6 } else { r }   // max is not allowed in const
 }
 
 pub trait CombinedSamplingDensity: Copy {
@@ -256,7 +259,7 @@ pub trait CombinedSamplingDensity: Copy {
 }
 
 #[derive(Clone, Copy)]
-pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 13>;
+pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 12>;
 
 impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDensity<VALUE_LOG2> {
     type SamplingDensity = ();
@@ -266,7 +269,7 @@ impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDens
 }
 
 #[derive(Clone, Copy)]
-pub struct AdaptiveCombinedSamplingDensity<const MAX_VALUE_LOG2: u8 = 14>;
+pub struct AdaptiveCombinedSamplingDensity<const MAX_VALUE_LOG2: u8 = 13>;
 
 impl<const MAX_VALUE_LOG2: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingDensity<MAX_VALUE_LOG2> {
     type SamplingDensity = u8;
@@ -288,7 +291,7 @@ impl<const MAX_VALUE_LOG2: u8> CombinedSamplingDensity for AdaptiveCombinedSampl
 /// - G. Navarro, E. Providel, "Fast, small, simple rank/select on bitmaps",
 ///   in: R. Klasing (Ed.), Experimental Algorithms, Springer Berlin Heidelberg, Berlin, Heidelberg, 2012, pp. 295–306
 #[derive(Clone)]
-pub struct CombinedSampling<D: CombinedSamplingDensity = /*AdaptiveCombinedSamplingDensity*/ ConstCombinedSamplingDensity<0>> {
+pub struct CombinedSampling<D: CombinedSamplingDensity = /*ConstCombinedSamplingDensity*/AdaptiveCombinedSamplingDensity> {
     /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one (or zero in the case of select 0) in content, starting from the first one.
     select: Box<[u32]>,
     /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
@@ -390,7 +393,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cs_auto() {
+    fn test_optimal_combined_sampling_14() {
         assert_eq!(optimal_combined_sampling(4, 5, 14), 14);
         assert_eq!(optimal_combined_sampling(3, 4, 14), 14);
         assert_eq!(optimal_combined_sampling(299, 400, 14), 13);
@@ -408,8 +411,21 @@ mod tests {
         assert_eq!(optimal_combined_sampling(10, 321, 14), 9);
         assert_eq!(optimal_combined_sampling(9, 319, 14), 9);
         assert_eq!(optimal_combined_sampling(1, 10, 14), 11);
-        assert_eq!(optimal_combined_sampling(1, 100000000, 14), 0);
-        assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 0);
+        assert_eq!(optimal_combined_sampling(1, 100000000, 14), 6);
+        assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 6);
+    }
+
+    #[test]
+    fn test_optimal_combined_sampling_15() {
+        assert_eq!(optimal_combined_sampling(4, 5, 15), 15);
+        assert_eq!(optimal_combined_sampling(3, 4, 15), 15);
+        assert_eq!(optimal_combined_sampling(299, 400, 15), 14);
+        assert_eq!(optimal_combined_sampling(1, 2, 15), 14);
+        assert_eq!(optimal_combined_sampling(101, 200, 15), 14);
+        assert_eq!(optimal_combined_sampling(99, 200, 15), 14);
+        assert_eq!(optimal_combined_sampling(3, 8, 15), 14);
+        assert_eq!(optimal_combined_sampling(1, 4, 15), 13);
+        assert_eq!(optimal_combined_sampling(1, 10, 15), 12);
     }
 
     #[test]
