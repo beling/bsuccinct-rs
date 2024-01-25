@@ -229,7 +229,8 @@ impl Select0ForRank101111 for BinaryRankSearch {
 /// 
 /// A good value for `max_result` is 13, which leads to about 0.39% space overhead,
 /// and, for n = 50%u, results in sampling positions of every 2^12=4096 ones (or zeros for select0).
-/// Decreasing `max_result` by 1 doubles the space overhead and speeds up select queries.
+/// As `max_result` decreases, the speed of select queries increases
+/// at the cost of higher space overhead (which doubles with each decrease by 1).
 pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8) -> u8 {
     if 4*n >= 3*len { return max_result; }
     if 2*n > len { n = len - n; }
@@ -238,6 +239,7 @@ pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8)
     return if r <= 6 { 6 } else { r }   // max is not allowed in const
 }
 
+/// Trait that determines the sampling density of select values by [`CombinedSampling`].
 pub trait CombinedSamplingDensity: Copy {
     type SamplingDensity: Copy;
 
@@ -258,6 +260,13 @@ pub trait CombinedSamplingDensity: Copy {
     }
 }
 
+/// Specifies a constant sampling of select responses by [`CombinedSampling`] given as
+/// the base 2 logarithm (which can be calculated by [`optimal_combined_sampling`] function).
+/// 
+/// Default value 12 means sampling positions of every 2^12=4096 ones (or zeros for select0),
+/// which leads to about 0.39% space overhead in vectors filled with bit ones in about half.
+/// As sampling decreases, the speed of response to select queries increases at the expense of higher
+/// space overhead (which doubles with each decrease by 1).
 #[derive(Clone, Copy)]
 pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 12>;
 
@@ -268,13 +277,21 @@ impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDens
     #[inline(always)] fn divide_by_density(index: usize, _density: Self::SamplingDensity) -> usize { index>>VALUE_LOG2 }
 }
 
+/// Specifies adaptive sampling of select values by [`CombinedSampling`].
+/// 
+/// The sampling density is calculated based on the content of the bit vector
+/// using the [`optimal_combined_sampling`] function, with the given `MAX_RESULT` parameter.
+/// As `MAX_RESULT` decreases, the speed of select queries increases
+/// at the cost of higher space overhead (which doubles with each decrease by 1).
+/// Its value 13 leads to about 0.39% space overhead, and, for n = 50%u, results in sampling
+/// positions of every 2^12=4096 ones (or zeros for select0).
 #[derive(Clone, Copy)]
-pub struct AdaptiveCombinedSamplingDensity<const MAX_VALUE_LOG2: u8 = 13>;
+pub struct AdaptiveCombinedSamplingDensity<const MAX_RESULT: u8 = 13>;
 
-impl<const MAX_VALUE_LOG2: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingDensity<MAX_VALUE_LOG2> {
+impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingDensity<MAX_RESULT> {
     type SamplingDensity = u8;
     #[inline(always)] fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity {
-        optimal_combined_sampling(number_of_items, len, MAX_VALUE_LOG2)
+        optimal_combined_sampling(number_of_items, len, MAX_RESULT)
     }
     #[inline(always)] fn items_per_sample(density: Self::SamplingDensity) -> u32 { 1 << density }
     #[inline(always)] fn divide_by_density(index: usize, density: Self::SamplingDensity) -> usize { index >> density }
@@ -282,10 +299,15 @@ impl<const MAX_VALUE_LOG2: u8> CombinedSamplingDensity for AdaptiveCombinedSampl
 
 /// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
 /// 
-/// It is implemented according to the paper:
+/// Space/speed trade-off can be adjusted by the template parameter.
+/// See [`ConstCombinedSamplingDensity`] and [`AdaptiveCombinedSamplingDensity`].
+/// 
+/// It is mostly implemented according to the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
+/// However, our implementation can automatically adjust the sampling density according to the content of the vector
+/// (see [`AdaptiveCombinedSamplingDensity`]).
 /// 
 /// Combined Sampling was proposed in:
 /// - G. Navarro, E. Providel, "Fast, small, simple rank/select on bitmaps",
