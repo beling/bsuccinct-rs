@@ -216,13 +216,14 @@ impl Select0ForRank101111 for BinaryRankSearch {
     }
 }
 
-/// Calculates the optimal sampling of select responses for a combined sampling algorithm.
+/// Calculates such a sampling density of select values that provides an approximately constant space overhead
+/// (independent of set/unset bits ratio in the vector) of [`CombinedSampling`].
 /// 
 /// The parameters describe the bit vector and the desired result range:
 /// - `n` -- numbers of ones (for select) or zeros (for select0) in the vector,
 /// - `len` -- length of the vector in bits,
-/// - `max_result` (must be in range [6, `max_result`]) -- the largest possible result,
-///         returned only and always for n >= 75%len.
+/// - `max_result` -- the largest possible result, returned only and always for n >= 75%len
+///                   (must be in range [6, 31]).
 /// 
 /// The result is the base 2 logarithm of the recommended sampling, and it is always in range [6, `max_result`].
 /// (The minimum value is 6, as we never sample two bits in the same 64-bit word.)
@@ -260,7 +261,7 @@ pub trait CombinedSamplingDensity: Copy {
     }
 }
 
-/// Specifies a constant sampling of select responses by [`CombinedSampling`] given as
+/// Specifies a constant sampling of select values by [`CombinedSampling`], given as
 /// the base 2 logarithm (which can be calculated by [`optimal_combined_sampling`] function).
 /// 
 /// Default value 13 means sampling positions of every 2^13=8192 ones (or zeros for select0),
