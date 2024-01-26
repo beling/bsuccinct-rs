@@ -301,7 +301,8 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
 /// 
 /// Space/speed trade-off can be adjusted by the template parameter, by giving one of:
 /// - [`AdaptiveCombinedSamplingDensity`] (default) -- works well with a wide range of bit vectors,
-/// - [`ConstCombinedSamplingDensity`] -- recommended for vectors filled with bit ones in about half.
+/// - [`ConstCombinedSamplingDensity`] -- recommended for vectors with a known ratio of set/unset bits;
+///                with default parameters, recommended for vectors filled with bit ones in about half.
 /// 
 /// The implementation generally follows the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
