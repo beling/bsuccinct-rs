@@ -63,3 +63,19 @@ impl Iterator for XorShift32 {
 }
 
 //impl ExactSizeIterator for XorShift32 {}
+
+/// Trait defined to add some methods to the `f64` type.
+pub trait UnitPrefix {
+    /// Returns `self * 1_000_000`.
+    fn micros(self) -> f64;
+    /// Returns `self * 1_000_000_000`.
+    fn nanos(self) -> f64;
+    /// Returns `self * 1_000_000_000_000`.
+    fn picos(self) -> f64;
+}
+
+impl UnitPrefix for f64 {
+    #[inline(always)] fn micros(self) -> f64 { self * 1_000_000.0 }
+    #[inline(always)] fn nanos(self) -> f64 { self * 1_000_000_000.0 }
+    #[inline(always)] fn picos(self) -> f64 { self * 1_000_000_000_000.0 }
+}

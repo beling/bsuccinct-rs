@@ -1,7 +1,9 @@
 `cseq_benchmark` is the program (by Piotr Beling) for benchmarking compact sequences and bitmaps.
 
 It can test the algorithms included in the following creates:
-- [cseq](https://crates.io/crates/cseq) (only Elias-Fano).
+- [cseq](https://crates.io/crates/cseq): Elias-Fano,
+- [bitm](https://crates.io/crates/bitm): rank and select operation on bit vectors,
+- [sucds](https://crates.io/crates/sucds): rank and select operation on bit vectors.
 
 Please run the program with the `--help` switch to see the available options.
 

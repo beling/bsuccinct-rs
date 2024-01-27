@@ -9,18 +9,6 @@ use std::{hint::black_box, iter::StepBy, num::NonZeroU64, ops::Range, time::Inst
 use butils::XorShift64;
 use clap::{Parser, Subcommand};
 
-trait UnitPrefix {
-    fn micros(self) -> f64;
-    fn nanos(self) -> f64;
-    fn picos(self) -> f64;
-}
-
-impl UnitPrefix for f64 {
-    #[inline(always)] fn micros(self) -> f64 { self * 1_000_000.0 }
-    #[inline(always)] fn nanos(self) -> f64 { self * 1_000_000_000.0 }
-    #[inline(always)] fn picos(self) -> f64 { self * 1_000_000_000_000.0 }
-}
-
 //#[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand)]

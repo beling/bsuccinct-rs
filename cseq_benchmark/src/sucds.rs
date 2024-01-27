@@ -1,5 +1,6 @@
+use butils::UnitPrefix;
 use sucds::{bit_vectors::{Rank9Sel, BitVector, Rank, Select}, Serializable};
-use crate::{percent_of, UnitPrefix};
+use crate::percent_of;
 
 fn benchmark_select(conf: &super::Conf, rs: &impl Select) -> f64 {
     conf.num_sampling_measure(1000000, |index| rs.select1(index))

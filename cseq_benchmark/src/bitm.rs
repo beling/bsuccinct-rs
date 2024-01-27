@@ -1,6 +1,7 @@
 use bitm::{ArrayWithRankSelect101111, BinaryRankSearch, BitAccess, BitVec, CombinedSampling, Rank, Select, Select0};
+use butils::UnitPrefix;
 use dyn_size_of::GetSize;
-use crate::{percent_of, UnitPrefix};
+use crate::percent_of;
 
 fn benchmark_select(conf: &super::Conf, rs: &impl Select) -> f64 {
     conf.num_sampling_measure(1000000, |index| rs.select(index))
