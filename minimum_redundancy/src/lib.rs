@@ -3,14 +3,13 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use co_sort::{co_sort, Permutation};
-use iterators::ReversedCodesIterator;
 
 use std::borrow::Borrow;
 use binout::{VByte, Serializer};
 use dyn_size_of::GetSize;
 
 mod code;
-pub use code::{Code, CodeIterator};
+pub use code::{Code, CodeIterator, ReversedCodeIterator};
 
 mod frequencies;
 pub use frequencies::Frequencies;
@@ -19,7 +18,7 @@ pub use degree::*;
 mod decoder;
 pub use decoder::Decoder;
 mod iterators;
-pub use iterators::{CodesIterator, LevelIterator};
+pub use iterators::{CodesIterator, ReversedCodesIterator, LevelIterator};
 
 
 /// Succinct representation of minimum-redundancy coding
