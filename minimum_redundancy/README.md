@@ -27,6 +27,12 @@ assert_eq!(huffman.codes_for_values(), hashmap!(
                 'b' => Code{ content: 0b00, len: 2 },
                 'c' => Code{ content: 0b01, len: 2 }
                ));
+// reverse codes encode the first levels of the tree on the least significant bits (e.g., c -> 01):
+assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{ content: 0b1, len: 1 },
+                'b' => Code{ content: 0b00, len: 2 },
+                'c' => Code{ content: 0b10, len: 2 }
+               ));
 let mut decoder_for_a = huffman.decoder();
 assert_eq!(decoder_for_a.consume(1), DecodingResult::Value(&'a'));
 let mut decoder_for_b = huffman.decoder();

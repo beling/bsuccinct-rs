@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use co_sort::{co_sort, Permutation};
+use iterators::ReversedCodesIterator;
 
 use std::borrow::Borrow;
 use binout::{VByte, Serializer};
@@ -239,15 +240,34 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         })
     }
 
-    /// Return iterator over the levels of the huffman tree.
+    /// Returns iterator over the levels of the huffman tree.
     #[inline] pub fn levels(&self) -> LevelIterator<'_, ValueType, D> {
         LevelIterator::<'_, ValueType, D>::new(&self)
+    }
+
+    /// Reverse the `codeword`.
+    #[inline(always)] pub fn reverse_code(&self, codeword: &mut Code) {
+        codeword.content = self.degree.reverse_code(codeword.content, codeword.len);
+    }
+
+    /// Returns reversed copy of the given `codeword`.
+    #[inline(always)] pub fn reversed_code(&self, codeword: Code) -> Code {
+        Code {
+            content: self.degree.reverse_code(codeword.content, codeword.len),
+            len: codeword.len
+        }
     }
 
     /// Returns iterator over value-codeword pairs.
     pub fn codes(&self) -> CodesIterator<'_, ValueType, D> {
         CodesIterator::<'_, ValueType, D>::new(&self)
     }
+
+    /// Returns iterator over value-codeword pairs with reversed codewords.
+    pub fn reversed_codes(&self) -> ReversedCodesIterator<'_, ValueType, D> {
+        ReversedCodesIterator::<'_, ValueType, D>::new(&self)
+    }
+
     /*pub fn codes(&self) -> impl Iterator<Item=(&ValueType, Code)> {
         self.levels().flat_map(|(values, first_code_bits, fragments)|
             values.iter().enumerate().map(move |(i, v)| {
@@ -270,9 +290,17 @@ impl<ValueType: Hash + Eq, D: TreeDegree> Coding<ValueType, D> {
 
     /// Returns a map from (references to) values to their codes.
     pub fn codes_for_values_ref(&self) -> HashMap<&ValueType, Code> {
-        // fill map for encoding:
         let mut result = HashMap::<&ValueType, Code>::with_capacity(self.values.len());
         for (value, code) in self.codes() {
+            result.insert(value, code);
+        };
+        return result;
+    }
+
+    /// Returns a map from (references to) values to their reversed codes.
+    pub fn reversed_codes_for_values_ref(&self) -> HashMap<&ValueType, Code> {
+        let mut result = HashMap::<&ValueType, Code>::with_capacity(self.values.len());
+        for (value, code) in self.reversed_codes() {
             result.insert(value, code);
         };
         return result;
@@ -292,9 +320,17 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
 
     /// Returns a map from (clones of) values to their codes.
     pub fn codes_for_values(&self) -> HashMap<ValueType, Code> {
-        // fill map for encoding:
         let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
         for (value, code) in self.codes() {
+            result.insert(value.clone(), code);
+        };
+        return result;
+    }
+
+    /// Returns a map from (clones of) values to their reversed codes.
+    pub fn reversed_codes_for_values(&self) -> HashMap<ValueType, Code> {
+        let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
+        for (value, code) in self.reversed_codes() {
             result.insert(value.clone(), code);
         };
         return result;
@@ -365,6 +401,11 @@ mod tests {
                 'b' => Code{ content: 0b00, len: 2 },
                 'c' => Code{ content: 0b01, len: 2 }
                ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{ content: 0b1, len: 1 },
+                'b' => Code{ content: 0b00, len: 2 },
+                'c' => Code{ content: 0b10, len: 2 }
+               ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(1), DecodingResult::Value(&'a'));
         let mut decoder_for_b = huffman.decoder();
@@ -393,6 +434,11 @@ mod tests {
                 'b' => Code{ content: 1, len: 1 },
                 'c' => Code{ content: 2, len: 1 }
                ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{ content: 0, len: 1 },
+                'b' => Code{ content: 1, len: 1 },
+                'c' => Code{ content: 2, len: 1 }
+        ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Value(&'a'));
         let mut decoder_for_b = huffman.decoder();
@@ -425,6 +471,14 @@ mod tests {
                 'c' => Code{content: 0b0001, len: 4 },
                 'd' => Code{content: 0b01, len: 2 },
                 'e' => Code{content: 0b10, len: 2 },
+                'f' => Code{content: 0b11, len: 2 }
+               ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{content: 0b100, len: 3 },
+                'b' => Code{content: 0b0000, len: 4 },
+                'c' => Code{content: 0b1000, len: 4 },
+                'd' => Code{content: 0b10, len: 2 },
+                'e' => Code{content: 0b01, len: 2 },
                 'f' => Code{content: 0b11, len: 2 }
                ));
         let mut decoder_for_a = huffman.decoder();
@@ -475,6 +529,14 @@ mod tests {
                 'e' => Code{content: 0b10, len: 1 },
                 'f' => Code{content: 0b11, len: 1 }
                ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{content: 0b00_00, len: 2 },
+                'b' => Code{content: 0b01_00, len: 2 },
+                'c' => Code{content: 0b10_00, len: 2 },
+                'd' => Code{content: 0b01, len: 1 },
+                'e' => Code{content: 0b10, len: 1 },
+                'f' => Code{content: 0b11, len: 1 }
+               ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Incomplete);
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Value(&'a'));
@@ -514,6 +576,13 @@ mod tests {
                 'a' => Code{content: 0+0, len: 2 },
                 'b' => Code{content: 0+1, len: 2 },
                 'c' => Code{content: 0+2, len: 2 },
+                'd' => Code{content: 1, len: 1 },
+                'e' => Code{content: 2, len: 1 }
+               ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{content: 0+0, len: 2 },
+                'b' => Code{content: 0+3*1, len: 2 },
+                'c' => Code{content: 0+3*2, len: 2 },
                 'd' => Code{content: 1, len: 1 },
                 'e' => Code{content: 2, len: 1 }
                ));

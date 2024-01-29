@@ -6,66 +6,84 @@ use crate::TreeDegree;
 /// Represents a codeword.
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Default)]
 pub struct Code {
-    /// Concatenated fragments of the codeword. The most significant bits contain the first fragment.
-    /// It stores only few last fragments, and can represent the code with length > 32 bits, with zeroed few first fragments.
+    /// Concatenated fragments of the codeword.
+    /// 
+    /// If the code is too short to take up all the bits,
+    /// only the least significant ones are used.
+    /// The first fragments of the code are stored either on the most significant or,
+    /// in the case of an reversed code, on the least significant, of these bits.
+    /// 
+    /// If the code is too long, only the last few fragments are explicitly stored.
+    /// Fragments that do not fit contain zeros and are not explicitly stored.
     pub content: u32,
     /// Length of the code in fragments.
     pub len: u32
 }
 
 impl Code {
-    /// Appends the `fragment` (that must be less than `degree.as_u32()`) to the end of `self`.
-    #[inline] pub fn push(&mut self, fragment: u32, degree: impl TreeDegree) {
-        degree.push_front(&mut self.content, fragment)
-    }
-
-    /// Gets `fragment_nr`-th fragment from the end.
+    /// Gets `fragment_nr`-th fragment from either the end or, if `self` is reversed, the beginning.
+    /// 
+    /// Result is undefined if `fragment_nr` is out of bounds (i.e. not less than `len`).
     #[inline(always)] pub unsafe fn get_rev_unchecked(&self, fragment_nr: u32, degree: impl TreeDegree) -> u32 {
         degree.get_fragment(self.content, fragment_nr)
     }
 
-    /// Gets `fragment_nr`-th fragment from the end.
+    /// Gets `fragment_nr`-th fragment from either the end or, if `self` is reversed, the beginning.
+    /// 
+    /// Returns [`None`] if `fragment_nr` is out of bounds (i.e. not less than `len`).
     #[inline] pub fn get_rev(&self, fragment_nr: u32, degree: impl TreeDegree) -> Option<u32> {
         (fragment_nr < self.len).then(|| degree.get_fragment(self.content, fragment_nr))
     }
 
-    /// Gets `fragment_nr`-th fragment.
+    /// Gets `fragment_nr`-th fragment from either the beginning or, if `self` is reversed, the end.
+    /// 
+    /// Result is undefined if `fragment_nr` is out of bounds (i.e. not less than `len`).
     #[inline] pub unsafe fn get_unchecked(&self, fragment_nr: u32, degree: impl TreeDegree) -> u32 {
         self.get_rev_unchecked(self.len - fragment_nr - 1, degree)
     }
 
+    /// Gets `fragment_nr`-th fragment from either the beginning or, if `self` is reversed, the end.
+    /// 
+    /// Returns [`None`] if `fragment_nr` is out of bounds (i.e. not less than `len`).
     #[inline] pub fn get(&self, fragment_nr: u32, degree: impl TreeDegree) -> Option<u32> {
         (fragment_nr < self.len).then(|| unsafe { self.get_unchecked(fragment_nr, degree) })
     }
 
-    /// Extracts and returns first, remaining code fragment.
+    /// Extracts and returns the first remaining fragment of the unreversed `code`.
+    /// 
+    /// Return [`None`] if `code` is empty.
     pub fn extract_first(&mut self, degree: impl TreeDegree) -> Option<u32> {
         (self.len != 0).then(|| {
             self.len -= 1;
             unsafe { self.get_rev_unchecked(self.len, degree) }
         })
+    }
 
-        /*self.fragments -= 1;
-        let shift = self.bits_per_fragment as u32 * self.fragments as u32;
-        return if let Some(shifted) = self.bits.checked_shr(shift) {
-            let result = shifted & ((1u32 << self.bits_per_fragment as u32) - 1);
-            self.bits ^= result << shift;
-            result
-        } else {
-            0
-        }*/
+    /// Extracts and returns the first remaining fragment of the reversed `code`.
+    /// 
+    /// Return [`None`] if `code` is empty.
+    pub fn extract_rev_first(&mut self, degree: impl TreeDegree) -> Option<u32> {
+        (self.len != 0).then(|| {
+            self.len -= 1;
+            degree.pop_front(&mut self.content)
+        })
     }
 
     /// Returns whether `self` consists of zero fragments.
     #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
 
-    /// Returns iterator over the fragments of code.
+    /// Returns iterator over the fragments of unreversed code.
     #[inline] pub fn iter<D: TreeDegree>(&self, degree: D) -> CodeIterator<D> {
         CodeIterator { code: *self, degree }
     }
+
+    /// Returns iterator over the fragments of reversed code.
+    #[inline] pub fn iter_rev<D: TreeDegree>(&self, degree: D) -> ReversedCodeIterator<D> {
+        ReversedCodeIterator { code: *self, degree }
+    }
 }
 
-/// Iterator over the fragments of code.
+/// Iterator over the fragments of (unreversed) code.
 pub struct CodeIterator<D: TreeDegree> {
     code: Code,
     degree: D
@@ -84,6 +102,33 @@ impl<D: TreeDegree> Iterator for CodeIterator<D> {
 
     #[inline] fn next(&mut self) -> Option<Self::Item> {
         self.code.extract_first(self.degree)
+    }
+
+    #[inline] fn size_hint(&self) -> (usize, Option<usize>) {
+        let l = self.len(); (l, Some(l))
+    }
+}
+
+
+/// Iterator over the fragments of reversed code.
+pub struct ReversedCodeIterator<D: TreeDegree> {
+    code: Code,
+    degree: D
+}
+
+impl<D: TreeDegree> FusedIterator for ReversedCodeIterator<D> {}
+
+impl<D: TreeDegree> ExactSizeIterator for ReversedCodeIterator<D> {
+    #[inline] fn len(&self) -> usize {
+        self.code.len as usize
+    }
+}
+
+impl<D: TreeDegree> Iterator for ReversedCodeIterator<D> {
+    type Item = u32;
+
+    #[inline] fn next(&mut self) -> Option<Self::Item> {
+        self.code.extract_rev_first(self.degree)
     }
 
     #[inline] fn size_hint(&self) -> (usize, Option<usize>) {

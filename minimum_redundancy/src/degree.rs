@@ -26,10 +26,13 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32;
 
     /// Appends the `fragment` (that must be less than `self.tree_degree`)
-    /// to the lowest digits (bits) of `bits`.
+    /// to the least significant digit (bits) of `bits`.
     fn push_front(&self, bits: &mut u32, fragment: u32) {
         *bits = *self * *bits + fragment;
     }
+
+    /// Removes from `bits` and returns its fragment stored on least significant digit (bits).
+    fn pop_front(&self, bits: &mut u32) -> u32;
 
     /// Returns the largest number of fragments that can be explicitly stored in the code.
     /// Longer codes begin with a sequence of zeros and only their last fragments are explicitly represented.
@@ -94,8 +97,14 @@ impl TreeDegree for BitsPerFragment {
         //(bits >> (bits_per_fragment as u32 * fragment_nr as u32)) & ((1u32 << bits_per_fragment as u32) - 1)
     }
 
-    fn push_front(&self, bits: &mut u32, fragment: u32) {
+    #[inline] fn push_front(&self, bits: &mut u32, fragment: u32) {
         *bits = *self * *bits | fragment;
+    }
+
+    #[inline] fn pop_front(&self, bits: &mut u32) -> u32 {
+        let result = *bits & (self.as_u32() - 1);
+        *bits >>= self.0;
+        result
     }
 
     #[inline(always)] fn code_capacity(&self) -> u8 { 32 / self.0 }
@@ -169,6 +178,12 @@ impl TreeDegree for Degree {
 
     #[inline] fn code_capacity(&self) -> u8 {
         (1u64<<32).ilog(self.0 as u64) as u8
+    }
+
+    #[inline] fn pop_front(&self, bits: &mut u32) -> u32 {
+        let result = *bits % self.0;
+        *bits /= self.0;
+        result
     }
     
     #[inline] fn reverse_code(&self, mut bits: u32, mut len: u32) -> u32 {
