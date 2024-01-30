@@ -1,10 +1,11 @@
 use crate::{BitsPerFragment, Coding, DecodingResult, TreeDegree};
 
-/// Decoder that decodes a value for given code, consuming one codeword fragment at a time.
+/// Decoder that decodes a value for given code, consuming one codeword fragment
+/// (and going one level down the huffman tree) at a time.
 ///
 /// Time complexity of decoding the whole code is:
 /// - pessimistic: *O(length of the longest code)*
-/// - expected: *O(log(number of values, i.e. length of coding.values))*
+/// - expected: *O(log(number of values, i.e. length of `coding.values`))*
 /// - optimistic: *O(1)*
 ///
 /// Memory complexity: *O(1)*
@@ -80,9 +81,13 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
     /// Tries to decode and return a single value from the `fragments` iterator,
     /// consuming as many fragments as needed.
     /// 
-    /// Returns [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
-    /// ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
-    /// Returns [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
+    /// To decode the next value, self must be [reset](Self::reset) first
+    /// (see also [Self::decode_next]).
+    /// 
+    /// In case of failure, returns:
+    /// - [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
+    ///   ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
+    /// - [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
     pub fn decode<I: Iterator<Item = u32>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
         loop {
             let fragment = match fragments.next() {
@@ -99,11 +104,14 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
 
     /// Tries to decode and return a single value from the `fragments` iterator,
     /// consuming as many fragments as needed.
-    /// If successful, it [resets](Self::reset) `self` to be ready to decode the next value.
     /// 
-    /// Returns [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
-    /// ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
-    /// Returns [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
+    /// If successful, it [resets](Self::reset) `self` to be ready to decode the next value
+    /// (see also [Self::decode]).
+    /// 
+    /// In case of failure, returns:
+    /// - [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
+    ///   ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
+    /// - [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
     pub fn decode_next<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
         loop {
             let fragment = match fragments.next() {
