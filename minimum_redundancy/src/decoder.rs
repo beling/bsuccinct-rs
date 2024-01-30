@@ -14,10 +14,10 @@ pub struct Decoder<'huff, ValueType, D = BitsPerFragment> {
     shift: u32,
     /// Number of leafs at all previous levels.
     first_leaf_nr: u32,
-    /// Current level size = number of: internal nodes + leaves.
-    level_size: u32,
     /// Number of the current level.
-    level: u32
+    level: u32,
+    /// Current level size = number of: internal nodes + leaves.
+    level_size: u32
 }
 
 impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
@@ -27,15 +27,26 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
             coding,
             shift: 0,
             first_leaf_nr: 0,
+            level: 0,
             level_size: coding.degree.as_u32(),
-            level: 0
         }
     }
 
+    /// Resets `self` to initial state and makes it ready to decode next value.
+    pub fn reset(&mut self) {
+        self.shift = 0;
+        self.first_leaf_nr = 0;
+        self.level = 0;
+        self.level_size = self.coding.degree.as_u32();
+    }
+
+    /// Returns the number of fragments consumed since construction or last reset.
+    #[inline(always)] pub fn consumed_fragments(&self) -> u32 { self.level }
+
     /// Consumes a `fragment` of the codeword and returns:
     /// - a value if the given `fragment` finishes the valid codeword;
-    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
-    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for bits per fragment > 1).
+    /// - an [`DecodingResult::Incomplete`] if the codeword is incomplete and the next fragment is needed;
+    /// - or [`DecodingResult::Invalid`] if the codeword is invalid (possible only for bits per fragment > 1).
     ///
     /// Result is undefined if `fragment` exceeds `tree_degree`.
     pub fn consume(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
@@ -55,8 +66,8 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
 
     /// Consumes a `fragment` of the codeword and returns:
     /// - a value if the given `fragment` finishes the valid codeword;
-    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
-    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for `degree` greater than 2)
+    /// - an [`DecodingResult::Incomplete`] if the codeword is incomplete and the next fragment is needed;
+    /// - or [`DecodingResult::Invalid`] if the codeword is invalid (possible only for `degree` greater than 2)
     ///     or `fragment` is not less than `degree`.
     #[inline(always)] pub fn consume_checked(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
         if fragment < self.coding.degree.as_u32() {
@@ -65,6 +76,62 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
             DecodingResult::Invalid
         }
     }
+
+    /// Tries to decode and return a single value from the `fragments` iterator,
+    /// consuming as many fragments as needed.
+    /// 
+    /// Returns [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
+    /// ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
+    /// Returns [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
+    pub fn decode<I: Iterator<Item = u32>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        loop {
+            let fragment = match fragments.next() {
+                Some(fragment) => fragment,
+                None => return DecodingResult::Incomplete
+            };
+            let result = self.consume(fragment);
+            match result {
+                DecodingResult::Incomplete => {},
+                _ => { return result; }
+            }
+        }
+    }
+
+    /// Tries to decode and return a single value from the `fragments` iterator,
+    /// consuming as many fragments as needed.
+    /// If successful, it [resets](Self::reset) `self` to be ready to decode the next value.
+    /// 
+    /// Returns [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
+    /// ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
+    /// Returns [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
+    pub fn decode_next<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        loop {
+            let fragment = match fragments.next() {
+                Some(fragment) => fragment,
+                None => return DecodingResult::Incomplete
+            };
+            let result = self.consume(fragment.into());
+            match result {
+                DecodingResult::Value(_) => {
+                    self.reset();
+                    return result;
+                },
+                DecodingResult::Invalid => { return result; }
+                DecodingResult::Incomplete => {},
+            }
+        }
+    }
+
+    /*pub fn decode_next<I: Iterator<Item = u32>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        let result = self.decode(fragments);
+        match result {
+            DecodingResult::Value(_) => {
+                self.reset();
+                result
+            },
+            _ => { result }
+        }
+    }*/
 
     /// Returns number of internal (i.e. non-leafs) nodes at the current level of the tree.
     #[inline(always)] fn internal_nodes_count(&self) -> u32 {
