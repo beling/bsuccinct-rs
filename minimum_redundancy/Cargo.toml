@@ -1,6 +1,6 @@
 [package]
 name = "minimum_redundancy"
-version = "0.2.5"
+version = "0.3.0"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
