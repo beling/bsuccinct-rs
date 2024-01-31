@@ -88,18 +88,14 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
     /// - [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
     ///   ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
     /// - [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
-    pub fn decode<I: Iterator<Item = u32>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
-        loop {
-            let fragment = match fragments.next() {
-                Some(fragment) => fragment,
-                None => return DecodingResult::Incomplete
-            };
-            let result = self.consume(fragment);
-            match result {
+    #[inline] pub fn decode<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        while let Some(fragment) = fragments.next() {
+            match self.consume(fragment.into()) {
                 DecodingResult::Incomplete => {},
-                _ => { return result; }
+                result => { return result; }
             }
         }
+        DecodingResult::Incomplete
     }
 
     /// Tries to decode and return a single value from the `fragments` iterator,
@@ -112,33 +108,23 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
     /// - [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
     ///   ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
     /// - [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
-    pub fn decode_next<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
-        loop {
-            let fragment = match fragments.next() {
-                Some(fragment) => fragment,
-                None => return DecodingResult::Incomplete
-            };
-            let result = self.consume(fragment.into());
-            match result {
-                DecodingResult::Value(_) => {
+    #[inline] pub fn decode_next<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        let result = self.decode(fragments);
+        if let DecodingResult::Value(_) = result { self.reset(); }
+        result
+    }
+    /*pub fn decode_next<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        while let Some(fragment) = fragments.next() {
+            match self.consume(fragment.into()) {
+                DecodingResult::Incomplete => {},
+                result @ DecodingResult::Value(_) => {
                     self.reset();
                     return result;
                 },
-                DecodingResult::Invalid => { return result; }
-                DecodingResult::Incomplete => {},
+                result @ DecodingResult::Invalid => { return result; }
             }
         }
-    }
-
-    /*pub fn decode_next<I: Iterator<Item = u32>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
-        let result = self.decode(fragments);
-        match result {
-            DecodingResult::Value(_) => {
-                self.reset();
-                result
-            },
-            _ => { result }
-        }
+        DecodingResult::Incomplete
     }*/
 
     /// Returns number of internal (i.e. non-leafs) nodes at the current level of the tree.
