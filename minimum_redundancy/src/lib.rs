@@ -258,12 +258,12 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     }
 
     /// Returns iterator over value-codeword pairs.
-    pub fn codes(&self) -> CodesIterator<'_, ValueType, D> {
+    #[inline] pub fn codes(&self) -> CodesIterator<'_, ValueType, D> {
         CodesIterator::<'_, ValueType, D>::new(&self)
     }
 
     /// Returns iterator over value-codeword pairs with reversed codewords.
-    pub fn reversed_codes(&self) -> ReversedCodesIterator<'_, ValueType, D> {
+    #[inline] pub fn reversed_codes(&self) -> ReversedCodesIterator<'_, ValueType, D> {
         ReversedCodesIterator::<'_, ValueType, D>::new(&self)
     }
 
@@ -280,41 +280,28 @@ impl<ValueType: Hash + Eq, D: TreeDegree> Coding<ValueType, D> {
 
     /// Returns a map from (references to) values to the lengths of their codes.
     pub fn code_lengths_ref(&self) -> HashMap<&ValueType, u32> {
-        let mut result = HashMap::<&ValueType, u32>::with_capacity(self.values.len());
-        for (value, code) in self.codes() {
-            result.insert(value, code.len);
-        }
-        return result;
+        self.codes().map(|(v, c)| (v, c.len)).collect()
     }
 
     /// Returns a map from (references to) values to their codes.
     pub fn codes_for_values_ref(&self) -> HashMap<&ValueType, Code> {
-        let mut result = HashMap::<&ValueType, Code>::with_capacity(self.values.len());
-        for (value, code) in self.codes() {
-            result.insert(value, code);
-        };
-        return result;
+        self.codes().collect()
     }
 
     /// Returns a map from (references to) values to their reversed codes.
     pub fn reversed_codes_for_values_ref(&self) -> HashMap<&ValueType, Code> {
-        let mut result = HashMap::<&ValueType, Code>::with_capacity(self.values.len());
-        for (value, code) in self.reversed_codes() {
-            result.insert(value, code);
-        };
-        return result;
+        self.reversed_codes().collect()
     }
 }
 
 impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
-
     /// Returns a map from (clones of) values to the lengths of their codes.
     pub fn code_lengths(&self) -> HashMap<ValueType, u32> {
         let mut result = HashMap::<ValueType, u32>::with_capacity(self.values.len());
         for (value, code) in self.codes() {
             result.insert(value.clone(), code.len);
         }
-        return result;
+        result
     }
 
     /// Returns a map from (clones of) values to their codes.
@@ -323,7 +310,7 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
         for (value, code) in self.codes() {
             result.insert(value.clone(), code);
         };
-        return result;
+        result
     }
 
     /// Returns a map from (clones of) values to their reversed codes.
@@ -331,6 +318,35 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
         let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
         for (value, code) in self.reversed_codes() {
             result.insert(value.clone(), code);
+        };
+        result
+    }
+}
+
+impl<D: TreeDegree> Coding<u8, D> {
+    /// Returns array indexed by values that contains the lengths of their codes.
+    pub fn code_lengths_array(&self) -> [u32; 256] {
+        let mut result = [0; 256];
+        for (value, code) in self.codes() {
+            result[*value as usize] = code.len;
+        }
+        result
+    }
+
+    /// Returns array indexed by values that contains their codes.
+    pub fn codes_for_values_array(&self) -> [Code; 256] {
+        let mut result = [Default::default(); 256];
+        for (value, code) in self.codes() {
+            result[*value as usize] = code;
+        };
+        return result;
+    }
+
+    /// Returns array indexed by values that contains their reversed codes.
+    pub fn reversed_codes_for_values_array(&self) -> [Code; 256] {
+        let mut result = [Default::default(); 256];
+        for (value, code) in self.reversed_codes() {
+            result[*value as usize] = code;
         };
         return result;
     }

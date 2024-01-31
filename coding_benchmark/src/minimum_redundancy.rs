@@ -16,19 +16,17 @@ pub fn benchmark(conf: &super::Conf) {
     ).as_nanos());
     let mut frequencies= <[u32; 256]>::with_occurrences_of(text.iter());
 
-    let dec_const_ns = conf.measure(||
-        Coding::from_frequencies(BitsPerFragment(1), frequencies)
-    ).as_nanos();
+    let dec_const_ns = conf.measure(|| Coding::from_frequencies(BitsPerFragment(1), frequencies)).as_nanos();
     let coding = Coding::from_frequencies(BitsPerFragment(1), frequencies);
-    let enc_constr_ns = conf.measure(|| coding.reversed_codes_for_values()).as_nanos();
+    let enc_constr_ns = conf.measure(|| coding.reversed_codes_for_values_array()).as_nanos();
 
     println!("Decoder + encoder construction time [ns]: {:.0} + {:.0} = {:.0}", dec_const_ns, enc_constr_ns, dec_const_ns+enc_constr_ns);
     println!("Decoder size [bytes]: {}", coding.size_bytes());
 
-    let book = coding.reversed_codes_for_values();
+    let book = coding.reversed_codes_for_values_array();
 
     let total_size_bits = frequencies.drain_frequencies().fold(0usize, |acc, (k, w)|
-        acc + book[&k].len as usize * w as usize
+        acc + book[k as usize].len as usize * w as usize
     );
     //let total_size_values = frequencies.values().fold(0, |acc, v| acc + *v as usize);
 
@@ -36,7 +34,7 @@ pub fn benchmark(conf: &super::Conf) {
     let mut compressed_text = Box::<[u64]>::with_zeroed_bits(total_size_bits);
     let mut bit_index = 0usize;
     for k in text.iter() {
-        let c = book[k];
+        let c = book[*k as usize];
         compressed_text.init_successive_bits(&mut bit_index, c.content as u64, c.len as u8)
     }
     assert_eq!(bit_index, total_size_bits);
