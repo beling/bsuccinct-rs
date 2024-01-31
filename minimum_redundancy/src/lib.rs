@@ -62,7 +62,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     pub fn from_iter<Iter>(degree: D, iter: Iter) -> Self
         where Iter: IntoIterator, Iter::Item: Borrow<ValueType>, ValueType: Hash + Eq + Clone
     {
-        Self::from_frequencies(degree, HashMap::<ValueType, u32>::with_counted_all(iter))
+        Self::from_frequencies(degree, HashMap::<ValueType, u32>::with_occurrences_of(iter))
     }
 
     /// Returns total (summarized) number of code fragments of all values.

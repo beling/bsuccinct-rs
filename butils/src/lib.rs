@@ -67,18 +67,18 @@ impl Iterator for XorShift32 {
 /// Trait defined to extend the `f64` type with unit conversion methods.
 pub trait UnitPrefix {
     /// Returns `self * 1_000`.
-    fn to_milis(self) -> Self;
+    fn as_milis(self) -> Self;
     /// Returns `self * 1_000_000`.
-    fn to_micros(self) -> Self;
+    fn as_micros(self) -> Self;
     /// Returns `self * 1_000_000_000`.
-    fn to_nanos(self) -> Self;
+    fn as_nanos(self) -> Self;
     /// Returns `self * 1_000_000_000_000`.
-    fn to_picos(self) -> Self;
+    fn as_picos(self) -> Self;
 }
 
 impl UnitPrefix for f64 {
-    #[inline(always)] fn to_milis(self) -> f64 { self * 1_000.0 }
-    #[inline(always)] fn to_micros(self) -> f64 { self * 1_000_000.0 }
-    #[inline(always)] fn to_nanos(self) -> f64 { self * 1_000_000_000.0 }
-    #[inline(always)] fn to_picos(self) -> f64 { self * 1_000_000_000_000.0 }
+    #[inline(always)] fn as_milis(self) -> f64 { self * 1_000.0 }
+    #[inline(always)] fn as_micros(self) -> f64 { self * 1_000_000.0 }
+    #[inline(always)] fn as_nanos(self) -> f64 { self * 1_000_000_000.0 }
+    #[inline(always)] fn as_picos(self) -> f64 { self * 1_000_000_000_000.0 }
 }

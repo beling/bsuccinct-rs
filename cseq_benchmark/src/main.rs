@@ -37,12 +37,12 @@ pub struct Conf {
     #[arg(short = 'u', long, default_value_t = 1024*1024*1024)]
     pub universe: usize,
 
-    /// Whether to warm up the CPU cache before measuring
-    #[arg(short='w', long, default_value_t = true)]
-    pub warm: bool,
+    /// Disable warming up the CPU cache before measuring
+    #[arg(short='w', long, default_value_t = false)]
+    pub no_warm: bool,
 
     /// Whether to check the validity of built sequence
-    #[arg(short='v', long, default_value_t = true)]
+    #[arg(short='v', long, default_value_t = false)]
     pub verify: bool,
 
     /// Seed for (XorShift64) rundom number generator
@@ -57,7 +57,7 @@ impl Conf {
      where F: Fn()
     {
         let mut iters = 1;
-        if self.warm {
+        if !self.no_warm {
             let time = Instant::now();
             loop {
                 f();

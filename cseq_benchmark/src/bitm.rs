@@ -33,18 +33,18 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
     //assert_eq!(ones, conf.num);
 
     println!("  rank space overhead: {:.2}%", percent_of(rs.size_bytes()-rs.content.size_bytes(), rs.content.size_bytes()));
-    println!("  time/rank query [ns]: {:.2}", conf.universe_sampling_measure(1000000, |index| rs.rank(index)).to_nanos());
+    println!("  time/rank query [ns]: {:.2}", conf.universe_sampling_measure(1000000, |index| rs.rank(index)).as_nanos());
 
     println!(" select by binary search over ranks (no extra space overhead):");
-    println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).to_nanos());
-    println!("  time/select0 query [ns]: {:.2}", benchmark_select0(conf, &rs).to_nanos());
+    println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).as_nanos());
+    println!("  time/select0 query [ns]: {:.2}", benchmark_select0(conf, &rs).as_nanos());
 
     let (rs, _) = ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>::build(rs.content);
     println!(" select by combined sampling:");
     println!("  space overhead: select1 {:.2}% select0 {:.2}% (+rank overhead)",
         percent_of(rs.select_support().size_bytes(), rs.content.size_bytes()),
         percent_of(rs.select0_support().size_bytes(), rs.content.size_bytes()));
-    println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).to_nanos());
-    println!("  time/select0 query [ns]: {:.2}", benchmark_select0(conf, &rs).to_nanos());
+    println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).as_nanos());
+    println!("  time/select0 query [ns]: {:.2}", benchmark_select0(conf, &rs).as_nanos());
     
 }

@@ -11,29 +11,64 @@ pub trait Frequencies {
     /// Type of value.
     type Value;
 
+    /// Adds one to the stored number of `value` occurrences.
+    fn add_occurence_of(&mut self, value: Self::Value);
+
+    /// Returns number of values with a non-zero number of occurrences.
+    fn number_of_occurring_values(&self) -> usize;
+
+    /// Returns the total number of occurrences of all values.
+    #[inline] fn total_occurrences(&self) -> u32 { self.occurrences().sum() }
+
+    /// Returns occurring values along with non-zero numbers of their occurrences.
+    /// Leaves `self` in an undefined state.
+    /// 
+    /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
+    fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)>;
+
+    /// Returns a non-zero number of occurrences of occurring values.
+    /// 
+    /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
+    fn occurrences(&self) -> impl Iterator<Item = u32>;
+
+    /// Constructs empty `Self` (without any occurrences).
+    fn without_occurrences() -> Self;
+
     /// Constructs `Self` that counts occurrences of all values exposed by `iter`.
-    fn with_counted_all<Iter: IntoIterator>(iter: Iter) -> Self
-        where Iter::Item: Borrow<Self::Value>, Self: Default, Self::Value: Clone
+    fn with_occurrences_of<Iter>(iter: Iter) -> Self
+        where Iter: IntoIterator, Iter::Item: Borrow<Self::Value>, Self::Value: Clone, Self: Sized
     {
-        let mut result = Self::default();
-        result.count_all(iter);
+        let mut result = Self::without_occurrences();
+        result.add_occurences_of(iter);
         return result;
     }
 
-    /// Adds one to the stored number of `value` occurrences.
-    fn count(&mut self, value: Self::Value);
-
-    /// Calls `count` for all items exposed by `iter`.
-    fn count_all<Iter: IntoIterator>(&mut self, iter: Iter) where Iter::Item: Borrow<Self::Value>, Self::Value: Clone {
-        for v in iter { self.count(v.borrow().clone()); }
+    /// Calls [`Self::add_occurence_of`] for all items exposed by `iter`.
+    fn add_occurences_of<Iter>(&mut self, iter: Iter)
+        where Iter: IntoIterator, Iter::Item: Borrow<Self::Value>, Self::Value: Clone
+    {
+        for v in iter { self.add_occurence_of(v.borrow().clone()); }
     }
 
     /// Returns the Shannon entropy of the values counted so far.
-    fn entropy(&self) -> f64;
+    fn entropy(&self) -> f64 {
+        let sum = self.total_occurrences() as f64;
+        - FSum::with_all(self.occurrences()
+            .map(|v| { let p = v as f64 / sum; p * p.log2()})).value()
+    }
 
     /// Converts `self` to the pair of boxed slices that contain
     /// distinct values and numbers of their occurrences respectively.
-    fn into_unsorted(self) -> (Box<[Self::Value]>, Box<[u32]>);
+    fn into_unsorted(mut self) -> (Box<[Self::Value]>, Box<[u32]>) where Self: Sized {
+        let len = self.number_of_occurring_values();
+        let mut freq = Vec::<u32>::with_capacity(len);
+        let mut values = Vec::<Self::Value>::with_capacity(len);
+        for (val, fr) in self.drain_frequencies() {
+            freq.push(fr);
+            values.push(val);
+        }
+        (values.into_boxed_slice(), freq.into_boxed_slice())
+    }
 
     /// Converts `self` to the pair of boxed slices that contain
     /// distinct values and numbers of their occurrences (in non decreasing order) respectively.
@@ -44,27 +79,40 @@ pub trait Frequencies {
     }
 }
 
-impl<Value: Eq + Hash, S: BuildHasher> Frequencies for HashMap<Value, u32, S> {
+impl<Value: Eq + Hash, S: BuildHasher + Default> Frequencies for HashMap<Value, u32, S> {
     type Value = Value;
 
-    fn count(&mut self, value: Value) {
+    #[inline(always)] fn number_of_occurring_values(&self) -> usize { self.len() }
+
+    #[inline(always)] fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)> { HashMap::drain(self) }
+
+    #[inline(always)] fn occurrences(&self) -> impl Iterator<Item = u32> { self.values().copied() }
+
+    #[inline(always)] fn add_occurence_of(&mut self, value: Value) {
         *self.entry(value).or_insert(0) += 1;
     }
 
-    fn entropy(&self) -> f64 {
-        let sum = self.values().sum::<u32>() as f64;
-        - FSum::with_all(self.values()
-            .map(|v| { let p = *v as f64 / sum; p * p.log2()})).value()
+    #[inline(always)] fn without_occurrences() -> Self { Default::default() }
+}
+
+impl Frequencies for [u32; 256] {
+    type Value = u8;
+
+    #[inline(always)] fn add_occurence_of(&mut self, value: Self::Value) {
+        self[value as usize] += 1
     }
 
-    fn into_unsorted(mut self) -> (Box<[Self::Value]>, Box<[u32]>) {
-        let len = self.len();
-        let mut freq = Vec::<u32>::with_capacity(len);
-        let mut values = Vec::<Self::Value>::with_capacity(len);
-        for (val, fr) in self.drain() {
-            freq.push(fr);
-            values.push(val);
-        }
-        (values.into_boxed_slice(), freq.into_boxed_slice())
+    #[inline(always)] fn number_of_occurring_values(&self) -> usize {
+        self.iter().filter(|occ| **occ > 0).count()
     }
+
+    #[inline(always)] fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)> {
+        self.iter().enumerate().filter_map(|(v, o)| (*o > 0).then(|| (v as u8, *o)))
+    }
+
+    #[inline(always)] fn occurrences(&self) -> impl Iterator<Item = u32> {
+        self.iter().filter_map(|occ| (*occ > 0).then_some(*occ))
+    }
+
+    #[inline(always)] fn without_occurrences() -> Self { [0; 256] }
 }

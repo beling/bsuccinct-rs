@@ -33,14 +33,14 @@ impl From<(Box<[u32]>, Box<[u8]>, HashMap<u8, u32>)> for Input {
 
 impl From<(Box<[u32]>, Box<[u8]>)> for Input {
     fn from((keys, values): (Box<[u32]>, Box<[u8]>)) -> Self {
-        let frequencies = HashMap::<u8, u32>::with_counted_all(values.iter());
+        let frequencies = HashMap::<u8, u32>::with_occurrences_of(values.iter());
         (keys, values, frequencies).into()
     }
 }
 
 impl From<(Box<[u32]>, Box<[u8]>, f64)> for Input {
     fn from((keys, values, entropy): (Box<[u32]>, Box<[u8]>, f64)) -> Self {
-        let frequencies = HashMap::<u8, u32>::with_counted_all(values.iter());
+        let frequencies = HashMap::<u8, u32>::with_occurrences_of(values.iter());
         Self { keys, values, frequencies, entropy }
     }
 }

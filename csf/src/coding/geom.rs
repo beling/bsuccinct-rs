@@ -161,7 +161,7 @@ impl BuildCoding<u16> for BuildGeometricUnlimited
         if bits_per_fragment == 0 { bits_per_fragment = self.bits_per_fragment; }
         if bits_per_fragment == 0 {
             //bits_per_fragment = entropy_to_bpf(HashMap::<Value, u32>::with_counted_all(iter).entropy()-0.2);
-            bits_per_fragment = entropy_to_bpf(HashMap::<u16, u32>::with_counted_all(iter).entropy()-0.2);
+            bits_per_fragment = entropy_to_bpf(HashMap::<u16, u32>::with_occurrences_of(iter).entropy()-0.2);
             // old: we use 1 bit less than sound maximum... probably better heuristic exists
             //bits_per_fragment = bits_to_store!(iter.into_iter().map(|v|Into::<u32>::into(v.borrow().clone())).max().unwrap_or(0));
             //if bits_per_fragment > 1 { bits_per_fragment -= 1; }
