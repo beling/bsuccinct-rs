@@ -45,15 +45,15 @@ pub struct Conf {
     #[arg(short = 'r', long, default_value_t = NonZeroU16::new(100).unwrap())]
     pub range: NonZeroU16,
 
-    /// Disable warming up the CPU cache before measuring
-    #[arg(short='w', long, default_value_t = false)]
-    pub no_warm: bool,
+    /// Time [ms] of measuring and warming up the CPU cache before measuring
+    #[arg(short='t', long, default_value_t = 3000)]
+    pub time: u32,
 
     /// Whether to check the validity
     #[arg(short='v', long, default_value_t = false)]
     pub verify: bool,
 
-    /// Seed for (XorShift64) rundom number generator
+    /// Seed for random number generators
     #[arg(short='s', long, default_value_t = 1234)]
     pub seed: u64,
     //pub seed: NonZeroU64,
@@ -75,11 +75,11 @@ impl Conf {
      where F: FnMut() -> R
     {
         let mut iters = 1;
-        if !self.no_warm {
+        if self.time > 0 {
             let time = Instant::now();
             loop {
                 black_box(f());
-                if time.elapsed().as_millis() > 3000 { break; }
+                if time.elapsed().as_millis() > self.time as u128 { break; }
                 iters += 1;
             }
         }
