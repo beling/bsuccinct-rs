@@ -43,7 +43,10 @@ pub fn benchmark(conf: &super::Conf) {
 
     let book = coding.reversed_codes_for_values_array();
 
-    conf.print_speed("Encoding", conf.measure(|| {
+    conf.print_speed("Encoding without adding to bit vector", conf.measure(|| {
+        for k in text.iter() { black_box(book[*k as usize]); }
+    }));
+    conf.print_speed("Encoding + adding to bit vector", conf.measure(|| {
         compress_u8(&text, &book, total_size_bits_u8(&mut frequencies, &book))
     }));
     let total_size_bits = total_size_bits_u8(&mut frequencies, &book);

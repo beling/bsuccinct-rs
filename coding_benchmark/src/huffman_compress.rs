@@ -42,7 +42,10 @@ pub fn benchmark(conf: &super::Conf) {
 
     println!("Approximate decoder size: {} bytes", 24 * (frequencies.number_of_occurring_values() - 1) + 32);
 
-    conf.print_speed("Encoding", conf.measure(|| encode(&text, &book)));
+    conf.print_speed("Encoding without adding to bit vector", conf.measure(|| {
+        for k in text.iter() { black_box(book.get(k)); }
+    }));
+    conf.print_speed("Encoding + adding to bit vector", conf.measure(|| encode(&text, &book)));
     let compressed_text = encode(&text, &book);
 
     conf.print_speed("Decoding", conf.measure(|| {
