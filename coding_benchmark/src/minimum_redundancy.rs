@@ -29,27 +29,27 @@ use crate::compare_texts;
 pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
 
-    println!("Counting symbol occurrences [ns]: {:.0}", conf.measure(||
+    conf.print_speed("Counting symbol occurrences", conf.measure(||
         <[u32; 256]>::with_occurrences_of(text.iter())
-    ).as_nanos());
+    ));
     let mut frequencies= <[u32; 256]>::with_occurrences_of(text.iter());
 
-    let dec_const_ns = conf.measure(|| Coding::from_frequencies(BitsPerFragment(1), frequencies)).as_nanos();
+    let dec_constr_ns = conf.measure(|| Coding::from_frequencies(BitsPerFragment(1), frequencies)).as_nanos();
     let coding = Coding::from_frequencies(BitsPerFragment(1), frequencies);
     let enc_constr_ns = conf.measure(|| coding.reversed_codes_for_values_array()).as_nanos();
 
-    println!("Decoder + encoder construction time [ns]: {:.0} + {:.0} = {:.0}", dec_const_ns, enc_constr_ns, dec_const_ns+enc_constr_ns);
-    println!("Decoder size [bytes]: {}", coding.size_bytes());
+    println!("Decoder + encoder construction time [ns]: {:.0} + {:.0} = {:.0}", dec_constr_ns, enc_constr_ns, dec_constr_ns+enc_constr_ns);
+    println!("Decoder size: {} bytes", coding.size_bytes());
 
     let book = coding.reversed_codes_for_values_array();
 
-    println!("Encoding time [ns]: {:.0}", conf.measure(|| {
+    conf.print_speed("Encoding", conf.measure(|| {
         compress_u8(&text, &book, total_size_bits_u8(&mut frequencies, &book))
-    }).as_nanos());
+    }));
     let total_size_bits = total_size_bits_u8(&mut frequencies, &book);
     let compressed_text = compress_u8(&text, &book, total_size_bits);
 
-    println!("Decoding time [ns]: {:.0}", conf.measure(|| {
+    conf.print_speed("Decoding", conf.measure(|| {
         let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
         let mut d = coding.decoder();
         while let Some(b) = bits.next() {
@@ -58,7 +58,7 @@ pub fn benchmark(conf: &super::Conf) {
                 d.reset();
             }
         }
-    }).as_nanos());
+    }));
 
     if conf.verify {
         print!("Verification... ");

@@ -5,7 +5,7 @@ mod huffman_compress;
 use std::num::{NonZeroU16, NonZeroU8};
 use std::{hint::black_box, time::Instant};
 
-use butils::XorShift64;
+use butils::{UnitPrefix, XorShift64};
 //use butils::XorShift64;
 use clap::{Parser, Subcommand};
 
@@ -84,6 +84,17 @@ impl Conf {
         let start_moment = Instant::now();
         for _ in 0..iters { black_box(f()); }
         return start_moment.elapsed().as_secs_f64() / iters as f64
+    }
+
+    fn print_speed(&self, label: &str, sec: f64) {
+        print!("{}:   ", label);
+        if self.len >= 512 * 1024 {
+            print!("{:.0} µs   ", sec.as_micros());
+        } else {
+            print!("{:.0} ns   ", sec.as_nanos());
+        }
+        let mb = self.len as f64 / (1024 * 1024) as f64;
+        println!("{:.0} mb/sec", mb / sec);
     }
 }
 

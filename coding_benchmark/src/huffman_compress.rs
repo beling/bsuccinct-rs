@@ -32,22 +32,22 @@ use crate::compare_texts;
 pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
     
-    println!("Counting symbol occurrences [ns]: {:.0}", conf.measure(||
+    conf.print_speed("Counting symbol occurrences", conf.measure(||
         <[u32; 256]>::with_occurrences_of(text.iter())
-    ).as_nanos());
+    ));
     let mut frequencies= <[u32; 256]>::with_occurrences_of(text.iter());
 
     println!("Decoder + encoder construction time [ns]: {:.0}", conf.measure(|| build_coder(&mut frequencies)).as_nanos());
     let (book, tree) = build_coder(&mut frequencies);
 
-    println!("Approximate decoder size [bytes]: {}", 24 * (frequencies.number_of_occurring_values() - 1) + 32);
+    println!("Approximate decoder size: {} bytes", 24 * (frequencies.number_of_occurring_values() - 1) + 32);
 
-    println!("Encoding time [ns]: {:.0}", conf.measure(|| encode(&text, &book)).as_nanos());
+    conf.print_speed("Encoding", conf.measure(|| encode(&text, &book)));
     let compressed_text = encode(&text, &book);
 
-    println!("Decoding time [ns]: {:.0}", conf.measure(|| {
+    conf.print_speed("Decoding", conf.measure(|| {
         for sym in tree.unbounded_decoder(compressed_text.iter()) { black_box(sym); };
-    }).as_nanos());
+    }));
 
     if conf.verify {
         print!("Verification... ");
