@@ -60,7 +60,8 @@ pub struct Conf {
 impl Conf {
     //fn rand_gen(&self) -> XorShift64 { XorShift64(self.seed.get()) }
 
-    fn rand_text(&self) -> Box<[u8]> {
+    /// Returns pseudo-random text for testing.
+    fn text(&self) -> Box<[u8]> {
         let r = self.range.get() as u64;
         let weights: Vec<_> = XorShift64(self.seed).take(self.symbols.get() as usize).map(|v| (v % r) as u16).collect();
         let dist = WeightedIndex::new(&weights).unwrap();
