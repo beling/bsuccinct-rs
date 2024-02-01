@@ -19,7 +19,8 @@ use crate::compare_texts;
     let mut bit_index = 0usize;
     for k in text.iter() {
         let c = book[*k as usize];
-        compressed_text.init_successive_bits(&mut bit_index, c.content as u64, c.len as u8)
+        compressed_text.init_bits(bit_index, c.content as u64, c.len.min(32) as u8);
+        bit_index += c.len as usize;
     }
     assert_eq!(bit_index, total_size_bits);
     compressed_text
