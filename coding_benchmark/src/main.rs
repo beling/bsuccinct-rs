@@ -84,20 +84,6 @@ impl Conf {
         for _ in 0..iters { black_box(f()); }
         return start_moment.elapsed().as_secs_f64() / iters as f64
     }
-
-    /*fn frequencies(&self) -> HashMap<u32, u32> {
-        let mut weights = HashMap::new();
-        weights.insert(0, 29371);
-        weights.insert(1, 3446);
-        weights.insert(2, 463);
-        weights.insert(3, 467);
-        weights.insert(4, 191);
-        weights.insert(5, 111);
-        weights.insert(6, 110);
-        weights.insert(7, 92);
-        weights.insert(8, 33);
-        weights
-    }*/
 }
 
 fn compare_texts(original: &[u8], decoded: &[u8]) {

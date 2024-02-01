@@ -11,8 +11,11 @@ pub trait Frequencies {
     /// Type of value.
     type Value;
 
+    /// Returns stored number of `value` occurrences.
+    fn occurrences_of(&mut self, value: &Self::Value) -> u32;
+
     /// Adds one to the stored number of `value` occurrences.
-    fn add_occurence_of(&mut self, value: Self::Value);
+    fn add_occurrence_of(&mut self, value: Self::Value);
 
     /// Returns number of values with a non-zero number of occurrences.
     fn number_of_occurring_values(&self) -> usize;
@@ -47,7 +50,7 @@ pub trait Frequencies {
     fn add_occurences_of<Iter>(&mut self, iter: Iter)
         where Iter: IntoIterator, Iter::Item: Borrow<Self::Value>, Self::Value: Clone
     {
-        for v in iter { self.add_occurence_of(v.borrow().clone()); }
+        for v in iter { self.add_occurrence_of(v.borrow().clone()); }
     }
 
     /// Returns the Shannon entropy of the values counted so far.
@@ -82,23 +85,33 @@ pub trait Frequencies {
 impl<Value: Eq + Hash, S: BuildHasher + Default> Frequencies for HashMap<Value, u32, S> {
     type Value = Value;
 
+    #[inline(always)] fn occurrences_of(&mut self, value: &Self::Value) -> u32 {
+        self.get(value).map_or(0, |v| *v)
+    }
+
     #[inline(always)] fn number_of_occurring_values(&self) -> usize { self.len() }
 
     #[inline(always)] fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)> { HashMap::drain(self) }
 
-    #[inline(always)] fn occurrences(&self) -> impl Iterator<Item = u32> { self.values().copied() }
+    #[inline(always)] fn occurrences(&self) -> impl Iterator<Item = u32> { self.values().cloned() }
 
-    #[inline(always)] fn add_occurence_of(&mut self, value: Value) {
+    #[inline(always)] fn add_occurrence_of(&mut self, value: Value) {
         *self.entry(value).or_insert(0) += 1;
     }
 
     #[inline(always)] fn without_occurrences() -> Self { Default::default() }
+
+    
 }
 
 impl Frequencies for [u32; 256] {
     type Value = u8;
 
-    #[inline(always)] fn add_occurence_of(&mut self, value: Self::Value) {
+    #[inline(always)] fn occurrences_of(&mut self, value: &Self::Value) -> u32 {
+        self[*value as usize]
+    }
+
+    #[inline(always)] fn add_occurrence_of(&mut self, value: Self::Value) {
         self[value as usize] += 1
     }
 
