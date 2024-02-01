@@ -26,6 +26,31 @@ use crate::compare_texts;
     compressed_text
 }
 
+#[inline(always)] fn decode(coding: &Coding<u8>, compressed_text: &Box<[u64]>, total_size_bits: usize) {
+    let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
+    let mut d = coding.decoder();
+    while let Some(b) = bits.next() {
+        if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
+            black_box(v);
+            d.reset();
+        }
+    }
+}
+
+fn verify(text: Box<[u8]>, compressed_text: Box<[u64]>, coding: Coding<u8>, total_size_bits: usize) {
+    print!("Verification... ");
+    let mut decoded_text = Vec::with_capacity(text.len());
+    let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
+    let mut d = coding.decoder();
+    while let Some(b) = bits.next() {
+        if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
+            decoded_text.push(*v);
+            d.reset();
+        }
+    }
+    compare_texts(&text, &decoded_text);
+}
+
 pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
 
@@ -52,28 +77,7 @@ pub fn benchmark(conf: &super::Conf) {
     let total_size_bits = total_size_bits_u8(&mut frequencies, &book);
     let compressed_text = compress_u8(&text, &book, total_size_bits);
 
-    conf.print_speed("Decoding", conf.measure(|| {
-        let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
-        let mut d = coding.decoder();
-        while let Some(b) = bits.next() {
-            if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
-                black_box(v);
-                d.reset();
-            }
-        }
-    }));
+    conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, total_size_bits)));
 
-    if conf.verify {
-        print!("Verification... ");
-        let mut decoded_text = Vec::with_capacity(text.len());
-        let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
-        let mut d = coding.decoder();
-        while let Some(b) = bits.next() {
-            if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
-                decoded_text.push(*v);
-                d.reset();
-            }
-        }
-        compare_texts(&text, &decoded_text);
-    }
+    if conf.verify { verify(text, compressed_text, coding, total_size_bits); }
 }
