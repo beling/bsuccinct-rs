@@ -57,6 +57,15 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         Self::from_sorted(degree, values, &mut freq)
     }
 
+    /// Constructs coding for given `frequencies` of values and `degree` of the Huffman tree.
+    /// Values are cloned from `frequencies`.
+    pub fn from_frequencies_cloned<F: Frequencies<Value=ValueType>>(degree: D, frequencies: &F) -> Self
+        where F::Value: Clone
+    {
+        let (values, mut freq) = frequencies.sorted();
+        Self::from_sorted(degree, values, &mut freq)
+    }
+
     /// Counts occurrences of all values exposed by `iter` and constructs coding for obtained
     /// frequencies of values and `degree` of the Huffman tree.
     pub fn from_iter<Iter>(degree: D, iter: Iter) -> Self

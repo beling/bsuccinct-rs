@@ -17,8 +17,10 @@ use rand_pcg::Pcg64Mcg;
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand)]
 pub enum Coding {
-    /// Huffman coding implementation from minimum_redundancy
+    /// Huffman coding implementation from minimum_redundancy (generic)
     MinimumRedundancy,
+    /// Huffman coding implementation from minimum_redundancy with u8-specific improvements
+    MinimumRedundancyU8,
     /// Huffman coding implementation from huffman-compress
     HuffmanCompress,
 }
@@ -116,6 +118,7 @@ fn main() {
     let conf: Conf = Conf::parse();
     match conf.coding {
         Coding::MinimumRedundancy => minimum_redundancy::benchmark(&conf),
+        Coding::MinimumRedundancyU8 => minimum_redundancy::benchmark_u8(&conf),
         Coding::HuffmanCompress => huffman_compress::benchmark(&conf),
     }
 }

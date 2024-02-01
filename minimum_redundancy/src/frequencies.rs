@@ -29,6 +29,11 @@ pub trait Frequencies {
     /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
     fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)>;
 
+    /// Returns occurring values along with non-zero numbers of their occurrences.
+    /// 
+    /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
+    fn frequencies(&self) -> impl Iterator<Item=(Self::Value, u32)> where Self::Value: Clone;
+
     /// Returns a non-zero number of occurrences of occurring values.
     /// 
     /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
@@ -80,6 +85,27 @@ pub trait Frequencies {
         co_sort!(freq, values);
         (values, freq)
     }
+
+    /// Returns the pair of boxed slices that contain
+    /// distinct values and numbers of their occurrences respectively.
+    fn unsorted(&self) -> (Box<[Self::Value]>, Box<[u32]>) where Self: Sized, Self::Value: Clone {
+        let len = self.number_of_occurring_values();
+        let mut freq = Vec::<u32>::with_capacity(len);
+        let mut values = Vec::<Self::Value>::with_capacity(len);
+        for (val, fr) in self.frequencies() {
+            freq.push(fr);
+            values.push(val);
+        }
+        (values.into_boxed_slice(), freq.into_boxed_slice())
+    }
+
+    /// Returns the pair of boxed slices that contain
+    /// distinct values and numbers of their occurrences (in non decreasing order) respectively.
+    fn sorted(&self) -> (Box<[Self::Value]>, Box<[u32]>) where Self: Sized, Self::Value: Clone {
+        let (mut values, mut freq) = self.unsorted();
+        co_sort!(freq, values);
+        (values, freq)
+    }
 }
 
 impl<Value: Eq + Hash, S: BuildHasher + Default> Frequencies for HashMap<Value, u32, S> {
@@ -92,6 +118,10 @@ impl<Value: Eq + Hash, S: BuildHasher + Default> Frequencies for HashMap<Value, 
     #[inline(always)] fn number_of_occurring_values(&self) -> usize { self.len() }
 
     #[inline(always)] fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)> { HashMap::drain(self) }
+
+    #[inline(always)] fn frequencies(&self) -> impl Iterator<Item=(Self::Value, u32)> where Self::Value: Clone {
+        self.into_iter().map(|(k, v)| (k.clone(), *v))
+    }
 
     #[inline(always)] fn occurrences(&self) -> impl Iterator<Item = u32> { self.values().cloned() }
 
@@ -120,6 +150,10 @@ impl Frequencies for [u32; 256] {
     }
 
     #[inline(always)] fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)> {
+        self.frequencies()
+    }
+
+    #[inline(always)] fn frequencies(&self) -> impl Iterator<Item=(Self::Value, u32)> where Self::Value: Clone {
         self.iter().enumerate().filter_map(|(v, o)| (*o > 0).then(|| (v as u8, *o)))
     }
 

@@ -12,12 +12,12 @@ use crate::compare_texts;
     )
 }*/
 
-#[inline(always)] fn build_coder(frequencies: &mut [u32; 256]) -> (huffman_compress::Book<u8>, huffman_compress::Tree<u8>) {
+#[inline(always)] fn build_coder(frequencies: &[u32; 256]) -> (huffman_compress::Book<u8>, huffman_compress::Tree<u8>) {
     let mut c = CodeBuilder::with_capacity(frequencies.len());
-    for (k, w) in frequencies.drain_frequencies() { c.push(k, w) }
+    for (k, w) in frequencies.frequencies() { c.push(k, w) }
     c.finish()
     // above is a bit faster than:
-    //CodeBuilder::from_iter(weights.drain_frequencies()).finish()
+    //CodeBuilder::from_iter(weights.frequencies()).finish()
 }
 
 #[inline(always)] fn encode(text: &Box<[u8]>, book: &huffman_compress::Book<u8>) -> BitVec {

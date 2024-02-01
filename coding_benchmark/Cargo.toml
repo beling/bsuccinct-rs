@@ -22,4 +22,3 @@ minimum_redundancy = { version="0.3", path="../minimum_redundancy" }
 huffman-compress = "0.6.1"
 bitm = { version="0.3", path="../bitm" }
 bit-vec = "0.6"
-constriction = "0.3"
