@@ -19,7 +19,7 @@ use rand_pcg::Pcg64Mcg;
 pub enum Coding {
     /// Huffman coding implementation from minimum_redundancy (generic)
     MinimumRedundancy,
-    /// Huffman coding implementation from minimum_redundancy with u8-specific improvements
+    /// Huffman coding implementation from minimum_redundancy with u8 specific improvements
     MinimumRedundancyU8,
     /// Huffman coding implementation from huffman-compress
     HuffmanCompress,

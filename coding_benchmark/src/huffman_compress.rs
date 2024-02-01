@@ -1,4 +1,4 @@
-use std::hint::black_box;
+use std::{collections::HashMap, hint::black_box};
 use bit_vec::BitVec;
 use butils::UnitPrefix;
 use huffman_compress::CodeBuilder;
@@ -6,14 +6,14 @@ use minimum_redundancy::Frequencies;
 
 use crate::compare_texts;
 
-/*#[inline(always)] fn total_size_bits_u8(frequencies: &mut [u32; 256], book: &huffman_compress::Book::<u8>) -> usize {
-    frequencies.drain_frequencies().fold(0usize, |acc, (k, w)|
+/*#[inline(always)] fn total_size_bits_u8(frequencies: &[u32; 256], book: &huffman_compress::Book::<u8>) -> usize {
+    frequencies.frequencies().fold(0usize, |acc, (k, w)|
         acc + book.get(&k).unwrap().len() as usize * w as usize
     )
 }*/
 
-#[inline(always)] fn build_coder(frequencies: &[u32; 256]) -> (huffman_compress::Book<u8>, huffman_compress::Tree<u8>) {
-    let mut c = CodeBuilder::with_capacity(frequencies.len());
+#[inline(always)] fn build_coder_u8(frequencies: &[u32; 256]) -> (huffman_compress::Book<u8>, huffman_compress::Tree<u8>) {
+    let mut c = CodeBuilder::with_capacity(frequencies.number_of_occurring_values());
     for (k, w) in frequencies.frequencies() { c.push(k, w) }
     c.finish()
     // above is a bit faster than:
@@ -32,13 +32,21 @@ use crate::compare_texts;
 pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
     
-    conf.print_speed("Counting symbol occurrences", conf.measure(||
+    conf.print_speed("Counting symbol occurrences (generic method)", conf.measure(||
+        HashMap::<u8, u32>::with_occurrences_of(text.iter())
+    ));
+    let frequencies= HashMap::<u8, u32>::with_occurrences_of(text.iter());
+    println!("Decoder + encoder construction time (generic method): {:.0} ns", conf.measure(||
+        CodeBuilder::from_iter(frequencies.iter()).finish()
+    ).as_nanos());
+    drop(frequencies);
+
+    conf.print_speed("Counting symbol occurrences (u8 specific method)", conf.measure(||
         <[u32; 256]>::with_occurrences_of(text.iter())
     ));
-    let mut frequencies= <[u32; 256]>::with_occurrences_of(text.iter());
-
-    println!("Decoder + encoder construction time [ns]: {:.0}", conf.measure(|| build_coder(&mut frequencies)).as_nanos());
-    let (book, tree) = build_coder(&mut frequencies);
+    let frequencies= <[u32; 256]>::with_occurrences_of(text.iter());
+    println!("Decoder + encoder construction time (u8 specific method): {:.0} ns", conf.measure(|| build_coder_u8(&frequencies)).as_nanos());
+    let (book, tree) = build_coder_u8(&frequencies);
 
     println!("Approximate decoder size: {} bytes", 24 * (frequencies.number_of_occurring_values() - 1) + 32);
 
