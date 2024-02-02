@@ -108,6 +108,7 @@ pub fn benchmark_u8(conf: &super::Conf) {
     }));
     let total_size_bits = total_size_bits_u8(&frequencies, &book);
     let compressed_text = compress_u8(&text, &book, total_size_bits);
+    println!("Compressed size: {} bits", total_size_bits);
 
     conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, total_size_bits)));
 
@@ -135,6 +136,7 @@ pub fn benchmark(conf: &super::Conf) {
     ));
     let total_size_bits = total_size_bits(&frequencies, &book);
     let compressed_text = compress(&text, &book, total_size_bits);
+    println!("Compressed size: {} bits", total_size_bits);
 
     conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, total_size_bits)));
 
