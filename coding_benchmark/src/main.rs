@@ -45,9 +45,9 @@ pub struct Conf {
     #[arg(short = 'r', long, default_value_t = NonZeroU16::new(100).unwrap())]
     pub range: NonZeroU16,
 
-    /// Time [ms] of measuring and warming up the CPU cache before measuring
-    #[arg(short='t', long, default_value_t = 3000)]
-    pub time: u32,
+    /// Time (in seconds) of measuring and warming up the CPU cache before measuring
+    #[arg(short='t', long, default_value_t = 3)]
+    pub time: u16,
 
     /// Whether to check the validity
     #[arg(short='v', long, default_value_t = false)]
@@ -79,7 +79,7 @@ impl Conf {
             let time = Instant::now();
             loop {
                 black_box(f());
-                if time.elapsed().as_millis() > self.time as u128 { break; }
+                if time.elapsed().as_secs() > self.time as u64 { break; }
                 iters += 1;
             }
         }
