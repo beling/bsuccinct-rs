@@ -79,12 +79,12 @@ impl<'bv> BitIterator<'bv> {
         Self { bit_vec, bit_range: 0..bit_vec.len()*64 }
     }
 
-    /// Constructs iterator over given bit range in the given `bit_vec`.
+    /// Constructs iterator over given bit range of `bit_vec`.
     #[inline] pub unsafe fn with_range_unchecked(bit_vec: &'bv [u64], bit_range: Range<usize>) -> Self {
         Self { bit_vec, bit_range }
     }
 
-    /// Constructs iterator over given bit range in the given `bit_vec`.
+    /// Constructs iterator over given bit range of `bit_vec`.
     #[inline] pub fn with_range(bit_vec: &'bv [u64], bit_index: Range<usize>) -> Self {
         assert!(bit_index.end <= bit_vec.len()*64, "BitIterator bit range out of bounds.");
         Self { bit_vec, bit_range: bit_index }
@@ -93,7 +93,7 @@ impl<'bv> BitIterator<'bv> {
     /// Returns the remaining range of bits to be yielded by `self`.
     #[inline] pub fn bit_range(&self) -> &Range<usize> { &self.bit_range }
 
-    /// Returns underling bit vector.
+    /// Returns underling bit vector (slice).
     #[inline] pub fn bit_vec(&self) -> &'bv [u64] { &self.bit_vec }
 }
 
