@@ -17,7 +17,7 @@ pub trait Frequencies {
     /// Adds one to the stored number of `value` occurrences.
     fn add_occurrence_of(&mut self, value: Self::Value);
 
-    /// Returns number of values with a non-zero number of occurrences.
+    /// Returns number of distinct values with a non-zero number of occurrences.
     fn number_of_occurring_values(&self) -> usize;
 
     /// Returns the total number of occurrences of all values.

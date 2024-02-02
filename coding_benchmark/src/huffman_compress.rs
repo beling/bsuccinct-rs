@@ -1,7 +1,7 @@
-use std::hint::black_box;
+use std::{hint::black_box, mem::size_of};
 use bit_vec::BitVec;
 use butils::UnitPrefix;
-use huffman_compress::CodeBuilder;
+use huffman_compress::{CodeBuilder, Tree};
 use minimum_redundancy::Frequencies;
 
 use crate::{compare_texts, minimum_redundancy::{frequencies, frequencies_u8}};
@@ -42,8 +42,8 @@ pub fn benchmark(conf: &super::Conf) {
     let (book, tree) = build_coder_u8(&frequencies);
 
     println!("Decoder size (lower estimate): {} bytes",
-        24 * (frequencies.number_of_occurring_values() - 1) + 32
-    );
+        (2*size_of::<usize>() + size_of::<Option<usize>>()) * (2*frequencies.number_of_occurring_values() - 1) + size_of::<Tree<u8>>()
+    );  // on heap it allocates: (2 usizes + Option<usize>) per node of Huffman tree + maybe some paddings (uncounted)
 
     conf.print_speed("Encoding without adding to bit vector", conf.measure(|| {
         for k in text.iter() { black_box(book.get(k)); }
