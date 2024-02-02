@@ -41,7 +41,9 @@ pub fn benchmark(conf: &super::Conf) {
     println!("Decoder + encoder construction time (u8 specific method): {:.0} ns", conf.measure(|| build_coder_u8(&frequencies)).as_nanos());
     let (book, tree) = build_coder_u8(&frequencies);
 
-    println!("Approximate decoder size: {} bytes", 24 * (frequencies.number_of_occurring_values() - 1) + 32);
+    println!("Decoder size (lower estimate): {} bytes",
+        24 * (frequencies.number_of_occurring_values() - 1) + 32
+    );
 
     conf.print_speed("Encoding without adding to bit vector", conf.measure(|| {
         for k in text.iter() { black_box(book.get(k)); }

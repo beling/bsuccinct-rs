@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 mod minimum_redundancy;
 mod huffman_compress;
+mod constriction;
 
 use std::num::{NonZeroU16, NonZeroU8};
 use std::{hint::black_box, time::Instant};
@@ -23,6 +24,8 @@ pub enum Coding {
     MinimumRedundancyU8,
     /// Huffman coding implementation from huffman-compress
     HuffmanCompress,
+    /// Huffman coding implementation from constriction
+    Constriction
 }
 
 #[derive(Parser)]
@@ -120,5 +123,6 @@ fn main() {
         Coding::MinimumRedundancy => minimum_redundancy::benchmark(&conf),
         Coding::MinimumRedundancyU8 => minimum_redundancy::benchmark_u8(&conf),
         Coding::HuffmanCompress => huffman_compress::benchmark(&conf),
+        Coding::Constriction => constriction::benchmark(&conf),
     }
 }
