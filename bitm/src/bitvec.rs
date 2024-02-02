@@ -1,4 +1,4 @@
-use std::iter::FusedIterator;
+use std::{iter::FusedIterator, ops::Range};
 use super::{ceiling_div, n_lowest_bits, n_lowest_bits_1_64};
 
 /// Iterator over indices of bits set to 1 (if `B` is `true`) or 0 (if `B` is `false`) in slice of `u64`.
@@ -66,53 +66,68 @@ pub type BitOnesIterator<'a> = BitBIterator<'a, true>;
 pub type BitZerosIterator<'a> = BitBIterator<'a, false>;
 
 
+
 /// Iterator over bits in slice of `u64`. It yields `true` for bit 1 and `false` for 0.
-pub struct BitIterator<'a> {
-    /// Iterator over 64-bit segments.
-    segment_iter: std::slice::Iter<'a, u64>,
-    /// Copy of the current segment.
-    current_segment: u64,
-    /// 1-bit mask that shows current bit in `current_segment`. `0` if next segment should be obtained.
-    current_bit_mask: u64,
+pub struct BitIterator<'bv> {
+    bit_vec: &'bv [u64],
+    bit_range: Range<usize>,
 }
 
-impl<'a> BitIterator<'a> {
-    /// Constructs iterator over bits in the given `slice`.
-    pub fn new(slice: &'a [u64]) -> Self {
-        Self {
-            segment_iter: slice.into_iter(),
-            current_segment: 0,
-            current_bit_mask: 0
-        }
+impl<'bv> BitIterator<'bv> {
+    /// Constructs iterator over all bits in the given `bit_vec`.
+    #[inline] pub fn new(bit_vec: &'bv [u64]) -> Self {
+        Self { bit_vec, bit_range: 0..bit_vec.len()*64 }
     }
+
+    /// Constructs iterator over given bit range in the given `bit_vec`.
+    #[inline] pub unsafe fn with_range_unchecked(bit_vec: &'bv [u64], bit_range: Range<usize>) -> Self {
+        Self { bit_vec, bit_range }
+    }
+
+    /// Constructs iterator over given bit range in the given `bit_vec`.
+    #[inline] pub fn with_range(bit_vec: &'bv [u64], bit_index: Range<usize>) -> Self {
+        assert!(bit_index.end <= bit_vec.len()*64, "BitIterator bit range out of bounds.");
+        Self { bit_vec, bit_range: bit_index }
+    }
+
+    /// Returns the remaining range of bits to be yielded by `self`.
+    #[inline] pub fn bit_range(&self) -> &Range<usize> { &self.bit_range }
+
+    /// Returns underling bit vector.
+    #[inline] pub fn bit_vec(&self) -> &'bv [u64] { &self.bit_vec }
 }
 
-impl<'a> Iterator for BitIterator<'a> {
+impl<'bv> Iterator for BitIterator<'bv> {
     type Item = bool;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.current_bit_mask == 0 {
-            self.current_segment = *self.segment_iter.next()?;
-            self.current_bit_mask = 1;
-        }
-        let result = self.current_segment & self.current_bit_mask != 0;
-        self.current_bit_mask <<= 1;    // going to next bit or zeroing
-        Some(result)
+    #[inline] fn next(&mut self) -> Option<Self::Item> {
+        self.bit_range.next().map(|bit_nr| unsafe { self.bit_vec.get_bit_unchecked(bit_nr) })
+    }
+
+    #[inline] fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        self.bit_range.nth(n).map(|bit_nr| unsafe { self.bit_vec.get_bit_unchecked(bit_nr) })
     }
 
     #[inline] fn size_hint(&self) -> (usize, Option<usize>) {
-        let result = self.len();
-        (result, Some(result))
+        self.bit_range.size_hint()
     }
 }
 
-impl<'a> ExactSizeIterator for BitIterator<'a> {
-    #[inline] fn len(&self) -> usize {
-        (self.segment_iter.len() + 1) * 64 - self.current_bit_mask.trailing_zeros() as usize
+impl<'bv> DoubleEndedIterator for BitIterator<'bv> {
+    #[inline] fn next_back(&mut self) -> Option<Self::Item> {
+        self.bit_range.next_back().map(|bit_nr| unsafe { self.bit_vec.get_bit_unchecked(bit_nr) })
+    }
+
+    #[inline] fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+        self.bit_range.nth_back(n).map(|bit_nr| unsafe { self.bit_vec.get_bit_unchecked(bit_nr) })
     }
 }
 
-impl<'a> FusedIterator for BitIterator<'a> where std::slice::Iter<'a, u64>: FusedIterator {}
+impl<'a> ExactSizeIterator for BitIterator<'a> where Range<usize>: ExactSizeIterator {
+    #[inline] fn len(&self) -> usize { self.bit_range.len() }
+}
+
+impl<'a> FusedIterator for BitIterator<'a> where Range<usize>: FusedIterator {}
 
 
 /// The trait that is implemented for the array of `u64` and extends it with methods for
@@ -266,6 +281,13 @@ pub trait BitAccess {
 
     /// Returns iterator over all bits in `self` that yields `true` for each one and `false` for each zero.
     fn bit_iter(&self) -> BitIterator;
+
+    /// Returns iterator over given range of `self` bits that yields `true` for each one and `false` for each zero.
+    fn bit_in_range_iter(&self, bit_range: Range<usize>) -> BitIterator;
+
+    /// Returns iterator over given range (whose bounds are unchecked) of `self` bits
+    /// that yields `true` for each one and `false` for each zero.
+    unsafe fn bit_in_unchecked_range_iter(&self, bit_range: Range<usize>) -> BitIterator;
 
     /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     /// Panics if the range is out of bounds.
@@ -560,6 +582,14 @@ impl BitAccess for [u64] {
 
     #[inline(always)] fn bit_iter(&self) -> BitIterator {
         BitIterator::new(self)
+    }
+
+    #[inline(always)] fn bit_in_range_iter(&self, bit_range: Range<usize>) -> BitIterator {
+        BitIterator::with_range(self, bit_range)
+    }
+
+    #[inline(always)] unsafe fn bit_in_unchecked_range_iter(&self, bit_range: Range<usize>) -> BitIterator {
+        BitIterator::with_range_unchecked(self, bit_range)
     }
 
     #[inline] fn try_get_bits_unmasked(&self, begin: usize, len: u8) -> Option<u64> {

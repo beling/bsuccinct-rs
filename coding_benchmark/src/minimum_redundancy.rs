@@ -46,7 +46,8 @@ use crate::compare_texts;
 }
 
 #[inline(always)] fn decode(coding: &Coding<u8>, compressed_text: &Box<[u64]>, total_size_bits: usize) {
-    let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
+    //let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
+    let mut bits = unsafe{compressed_text.bit_in_unchecked_range_iter(0..total_size_bits)};
     let mut d = coding.decoder();
     while let Some(b) = bits.next() {
         if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
@@ -59,7 +60,7 @@ use crate::compare_texts;
 fn verify(text: Box<[u8]>, compressed_text: Box<[u64]>, coding: Coding<u8>, total_size_bits: usize) {
     print!("Verification... ");
     let mut decoded_text = Vec::with_capacity(text.len());
-    let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
+    let mut bits = compressed_text.bit_in_range_iter(0..total_size_bits);
     let mut d = coding.decoder();
     while let Some(b) = bits.next() {
         if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
