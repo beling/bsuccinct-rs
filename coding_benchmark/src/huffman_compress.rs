@@ -1,10 +1,10 @@
-use std::{collections::HashMap, hint::black_box};
+use std::hint::black_box;
 use bit_vec::BitVec;
 use butils::UnitPrefix;
 use huffman_compress::CodeBuilder;
 use minimum_redundancy::Frequencies;
 
-use crate::compare_texts;
+use crate::{compare_texts, minimum_redundancy::{frequencies, frequencies_u8}};
 
 /*#[inline(always)] fn total_size_bits_u8(frequencies: &[u32; 256], book: &huffman_compress::Book::<u8>) -> usize {
     frequencies.frequencies().fold(0usize, |acc, (k, w)|
@@ -31,20 +31,13 @@ use crate::compare_texts;
 
 pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
-    
-    conf.print_speed("Counting symbol occurrences (generic method)", conf.measure(||
-        HashMap::<u8, u32>::with_occurrences_of(text.iter())
-    ));
-    let frequencies= HashMap::<u8, u32>::with_occurrences_of(text.iter());
+    let frequencies= frequencies(conf, &text);
     println!("Decoder + encoder construction time (generic method): {:.0} ns", conf.measure(||
         CodeBuilder::from_iter(frequencies.iter()).finish()
     ).as_nanos());
     drop(frequencies);
 
-    conf.print_speed("Counting symbol occurrences (u8 specific method)", conf.measure(||
-        <[u32; 256]>::with_occurrences_of(text.iter())
-    ));
-    let frequencies= <[u32; 256]>::with_occurrences_of(text.iter());
+    let frequencies= frequencies_u8(conf, &text);
     println!("Decoder + encoder construction time (u8 specific method): {:.0} ns", conf.measure(|| build_coder_u8(&frequencies)).as_nanos());
     let (book, tree) = build_coder_u8(&frequencies);
 

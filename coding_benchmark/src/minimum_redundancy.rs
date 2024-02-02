@@ -71,13 +71,25 @@ fn verify(text: Box<[u8]>, compressed_text: Box<[u64]>, coding: Coding<u8>, tota
     compare_texts(&text, &decoded_text);
 }
 
-pub fn benchmark_u8(conf: &super::Conf) {
-    let text = conf.text();
-
+/// Prints speed of and returns counting symbol occurrences.
+pub fn frequencies_u8(conf: &super::Conf, text: &[u8]) -> [u32; 256] {
     conf.print_speed("Counting symbol occurrences", conf.measure(||
         <[u32; 256]>::with_occurrences_of(text.iter())
     ));
-    let frequencies= <[u32; 256]>::with_occurrences_of(text.iter());
+    <[u32; 256]>::with_occurrences_of(text.iter())
+}
+
+/// Prints speed of and returns counting symbol occurrences.
+pub fn frequencies(conf: &super::Conf, text: &[u8]) -> HashMap::<u8, u32> {
+    conf.print_speed("Counting symbol occurrences", conf.measure(||
+        HashMap::<u8, u32>::with_occurrences_of(text.iter())
+    ));
+    HashMap::<u8, u32>::with_occurrences_of(text.iter())
+}
+
+pub fn benchmark_u8(conf: &super::Conf) {
+    let text = conf.text();
+    let frequencies= frequencies_u8(conf, &text);
 
     let dec_constr_ns = conf.measure(|| Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies)).as_nanos();
     let coding = Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies);
@@ -104,11 +116,7 @@ pub fn benchmark_u8(conf: &super::Conf) {
 
 pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
-
-    conf.print_speed("Counting symbol occurrences", conf.measure(||
-        HashMap::<u8, u32>::with_occurrences_of(text.iter())
-    ));
-    let mut frequencies= HashMap::<u8, u32>::with_occurrences_of(text.iter());
+    let frequencies= frequencies(conf, &text);
 
     let dec_constr_ns = conf.measure(|| Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies)).as_nanos();
     let coding = Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies);
@@ -125,7 +133,7 @@ pub fn benchmark(conf: &super::Conf) {
     conf.print_speed("Encoding + adding to bit vector", conf.measure(|| 
         compress(&text, &book, total_size_bits(&frequencies, &book))
     ));
-    let total_size_bits = total_size_bits(&mut frequencies, &book);
+    let total_size_bits = total_size_bits(&frequencies, &book);
     let compressed_text = compress(&text, &book, total_size_bits);
 
     conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, total_size_bits)));
