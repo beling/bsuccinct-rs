@@ -52,7 +52,7 @@ pub fn benchmark(conf: &super::Conf) {
     let compressed_text = encode(&text, &book);
     println!("Compressed size: {} bits", compressed_text.len());
 
-    conf.print_speed("Decoding", conf.measure(|| {
+    conf.print_speed("Decoding (without storing)", conf.measure(|| {
         for sym in tree.unbounded_decoder(compressed_text.iter()) { black_box(sym); };
     }));
 
