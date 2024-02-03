@@ -93,7 +93,9 @@ impl Conf {
 
     fn print_speed(&self, label: &str, sec: f64) {
         print!("{}:   ", label);
-        if self.len >= 512 * 1024 {
+        if self.len >= 512 * 1024 * 1024 {
+            print!("{:.0} ms   ", sec.as_milis());
+        } else if self.len >= 512 * 1024 {
             print!("{:.0} µs   ", sec.as_micros());
         } else {
             print!("{:.0} ns   ", sec.as_nanos());
