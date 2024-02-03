@@ -15,15 +15,15 @@ use crate::compare_texts;
     )
 }
 
-#[inline(always)] fn compress_u8(text: &Box<[u8]>, book: &[minimum_redundancy::Code; 256], total_size_bits: usize) -> Box<[u64]> {
-    let mut compressed_text = Box::<[u64]>::with_zeroed_bits(total_size_bits);
+#[inline(always)] fn compress_u8(text: &Box<[u8]>, book: &[minimum_redundancy::Code; 256], compressed_size_bits: usize) -> Box<[u64]> {
+    let mut compressed_text = Box::<[u64]>::with_zeroed_bits(compressed_size_bits);
     let mut bit_index = 0usize;
     for k in text.iter() {
         let c = book[*k as usize];
         compressed_text.init_bits(bit_index, c.content as u64, c.len.min(32) as u8);
         bit_index += c.len as usize;
     }
-    assert_eq!(bit_index, total_size_bits);
+    assert_eq!(bit_index, compressed_size_bits);
     compressed_text
 }
 
@@ -33,15 +33,15 @@ use crate::compare_texts;
     )
 }
 
-#[inline(always)] fn compress(text: &Box<[u8]>, book: &HashMap<u8, Code>, total_size_bits: usize) -> Box<[u64]> {
-    let mut compressed_text = Box::<[u64]>::with_zeroed_bits(total_size_bits);
+#[inline(always)] fn compress(text: &Box<[u8]>, book: &HashMap<u8, Code>, compressed_size_bits: usize) -> Box<[u64]> {
+    let mut compressed_text = Box::<[u64]>::with_zeroed_bits(compressed_size_bits);
     let mut bit_index = 0usize;
     for k in text.iter() {
         let c = book[k];
         compressed_text.init_bits(bit_index, c.content as u64, c.len.min(32) as u8);
         bit_index += c.len as usize;
     }
-    assert_eq!(bit_index, total_size_bits);
+    assert_eq!(bit_index, compressed_size_bits);
     compressed_text
 }
 
@@ -89,7 +89,7 @@ pub fn frequencies(conf: &super::Conf, text: &[u8]) -> HashMap::<u8, u32> {
 
 pub fn benchmark_u8(conf: &super::Conf) {
     let text = conf.text();
-    let frequencies= frequencies_u8(conf, &text);
+    let frequencies = frequencies_u8(conf, &text);
 
     let dec_constr_ns = conf.measure(|| Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies)).as_nanos();
     let coding = Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies);
@@ -106,18 +106,18 @@ pub fn benchmark_u8(conf: &super::Conf) {
     conf.print_speed("Encoding + adding to bit vector", conf.measure(|| {
         compress_u8(&text, &book, total_size_bits_u8(&frequencies, &book))
     }));
-    let total_size_bits = total_size_bits_u8(&frequencies, &book);
-    let compressed_text = compress_u8(&text, &book, total_size_bits);
-    println!("Compressed size: {} bits", total_size_bits);
+    let compressed_size_bits = total_size_bits_u8(&frequencies, &book);
+    let compressed_text = compress_u8(&text, &book, compressed_size_bits);
+    println!("Compressed size: {} bits", compressed_size_bits);
 
-    conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, total_size_bits)));
+    conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, compressed_size_bits)));
 
-    if conf.verify { verify(text, compressed_text, coding, total_size_bits); }
+    if conf.verify { verify(text, compressed_text, coding, compressed_size_bits); }
 }
 
 pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
-    let frequencies= frequencies(conf, &text);
+    let frequencies = frequencies(conf, &text);
 
     let dec_constr_ns = conf.measure(|| Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies)).as_nanos();
     let coding = Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies);
@@ -134,11 +134,11 @@ pub fn benchmark(conf: &super::Conf) {
     conf.print_speed("Encoding + adding to bit vector", conf.measure(|| 
         compress(&text, &book, total_size_bits(&frequencies, &book))
     ));
-    let total_size_bits = total_size_bits(&frequencies, &book);
-    let compressed_text = compress(&text, &book, total_size_bits);
-    println!("Compressed size: {} bits", total_size_bits);
+    let compressed_size_bits = total_size_bits(&frequencies, &book);
+    let compressed_text = compress(&text, &book, compressed_size_bits);
+    println!("Compressed size: {} bits", compressed_size_bits);
 
-    conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, total_size_bits)));
+    conf.print_speed("Decoding", conf.measure(|| decode(&coding, &compressed_text, compressed_size_bits)));
 
-    if conf.verify { verify(text, compressed_text, coding, total_size_bits); }
+    if conf.verify { verify(text, compressed_text, coding, compressed_size_bits); }
 }
