@@ -38,11 +38,11 @@ pub struct Conf {
     pub universe: usize,
 
     /// Time (in seconds) of measuring and warming up the CPU cache before measuring
-    #[arg(short='t', long, default_value_t = 3)]
+    #[arg(short='t', long, default_value_t = 5)]
     pub time: u16,
 
     /// Whether to check the validity of built sequence
-    #[arg(short='v', long, default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     pub verify: bool,
 
     /// Seed for (XorShift64) random number generator

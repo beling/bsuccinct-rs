@@ -49,11 +49,11 @@ pub struct Conf {
     pub range: NonZeroU16,
 
     /// Time (in seconds) of measuring and warming up the CPU cache before measuring
-    #[arg(short='t', long, default_value_t = 3)]
+    #[arg(short='t', long, default_value_t = 5)]
     pub time: u16,
 
     /// Whether to check the validity
-    #[arg(short='v', long, default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     pub verify: bool,
 
     /// Seed for random number generators
