@@ -1,14 +1,14 @@
 use bitm::{ArrayWithRankSelect101111, BinaryRankSearch, BitAccess, BitVec, CombinedSampling, Rank, Select, Select0};
 use butils::UnitPrefix;
 use dyn_size_of::GetSize;
-use crate::percent_of;
+use crate::{percent_of, Conf};
 
-fn benchmark_select(conf: &super::Conf, rs: &impl Select) -> f64 {
-    conf.num_sampling_measure(1000000, |index| rs.select(index))
+fn benchmark_select(conf: &Conf, rs: &impl Select) -> f64 {
+    conf.num_queries_measure(|index| rs.select(index))
 }
 
-fn benchmark_select0(conf: &super::Conf, rs: &impl Select0) -> f64 {
-    conf.num_complement_sampling_measure(1000000, |index| rs.select0(index))
+fn benchmark_select0(conf: &Conf, rs: &impl Select0) -> f64 {
+    conf.num_complement_queries_measure(|index| rs.select0(index))
 }
 
 pub fn benchmark_rank_select(conf: &super::Conf) {
@@ -33,7 +33,8 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
     //assert_eq!(ones, conf.num);
 
     println!("  rank space overhead: {:.2}%", percent_of(rs.size_bytes()-rs.content.size_bytes(), rs.content.size_bytes()));
-    println!("  time/rank query [ns]: {:.2}", conf.universe_sampling_measure(1000000, |index| rs.rank(index)).as_nanos());
+    println!("  time/rank query [ns]: {:.2}", conf.universe_queries_measure(|index| unsafe{rs.rank_unchecked(index)}).as_nanos());
+    //println!("  time/rank query [ns]: {:.2}", conf.universe_queries_measure(|index| rs.try_rank(index)).as_nanos());
 
     println!(" select by binary search over ranks (no extra space overhead):");
     println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).as_nanos());

@@ -4,7 +4,7 @@ mod elias_fano;
 mod bitm;
 mod sucds;
 
-use std::{hint::black_box, iter::StepBy, num::NonZeroU64, ops::Range, time::Instant};
+use std::{hint::black_box, num::NonZeroU64, time::Instant};
 
 use butils::XorShift64;
 use clap::{Parser, Subcommand};
@@ -30,11 +30,11 @@ pub struct Conf {
     pub structure: Structure,
 
     /// The number of items to use
-    #[arg(short = 'n', long, default_value_t = 1024*1024*1024/2)]
+    #[arg(short = 'n', long, default_value_t = 500_000_000)]
     pub num: usize,
 
     /// Item universe.
-    #[arg(short = 'u', long, default_value_t = 1024*1024*1024)]
+    #[arg(short = 'u', long, default_value_t = 1_000_000_000)]
     pub universe: usize,
 
     /// Time (in seconds) of measuring and warming up the CPU cache before measuring
@@ -51,7 +51,15 @@ pub struct Conf {
 }
 
 impl Conf {
+    pub const QUERIES: usize = 1_000_000;
+    //pub const STEPS_NUM: usize = 194_933;   // prime
+    //pub const STEPS_NUM: usize = 1_949_333;
+
     fn rand_gen(&self) -> XorShift64 { XorShift64(self.seed.get()) }
+
+    fn rand_queries(&self, query_universe: usize) -> Box<[usize]> {
+        self.rand_gen().take(Self::QUERIES).map(|v| v as usize % query_universe).collect()
+    }
 
     #[inline(always)] fn measure<F>(&self, f: F) -> f64
      where F: Fn()
@@ -70,7 +78,31 @@ impl Conf {
         return start_moment.elapsed().as_secs_f64() / iters as f64
     }
 
-    #[inline(always)] fn sampling_measure<R, F>(&self, steps: StepBy<Range<usize>>, f: F) -> f64
+    #[inline(always)] fn queries_measure<R, F>(&self, queries: &[usize], f: F) -> f64
+    where F: Fn(usize) -> R
+    {
+        self.measure(|| for i in queries { black_box(f(*i)); }) / queries.len() as f64
+    }
+
+    #[inline(always)] fn num_queries_measure<R, F>(&self, f: F) -> f64
+    where F: Fn(usize) -> R
+    {
+        self.queries_measure(&self.rand_queries(self.num), f)
+    }
+
+    #[inline(always)] fn num_complement_queries_measure<R, F>(&self, f: F) -> f64
+    where F: Fn(usize) -> R
+    {
+        self.queries_measure(&self.rand_queries(self.universe - self.num), f)
+    }
+
+    #[inline(always)] fn universe_queries_measure<R, F>(&self, f: F) -> f64
+    where F: Fn(usize) -> R
+    {
+        self.queries_measure(&self.rand_queries(self.universe), f)
+    }
+
+    /*#[inline(always)] fn sampling_measure<R, F>(&self, steps: StepBy<Range<usize>>, f: F) -> f64
     where F: Fn(usize) -> R
     {
         self.measure(|| for i in steps.clone() { black_box(f(i)); }) / steps.len() as f64
@@ -93,7 +125,7 @@ impl Conf {
     where F: Fn(usize) -> R
     {
         self.sampling_measure((0..self.universe).step_by((self.universe / steps_num).max(1)), f)
-    }
+    }*/
 }
 
 fn percent_of(overhead: usize, whole: usize) -> f64 { (overhead*100) as f64 / whole as f64 }

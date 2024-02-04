@@ -1,16 +1,16 @@
 use butils::UnitPrefix;
 use sucds::{bit_vectors::{Rank9Sel, BitVector, Rank, Select}, Serializable};
-use crate::percent_of;
+use crate::{percent_of, Conf};
 
-fn benchmark_select(conf: &super::Conf, rs: &impl Select) -> f64 {
-    conf.num_sampling_measure(1000000, |index| rs.select1(index))
+fn benchmark_select(conf: &Conf, rs: &impl Select) -> f64 {
+    conf.num_queries_measure(|index| rs.select1(index))
 }
 
-fn benchmark_select0(conf: &super::Conf, rs: &impl Select) -> f64 {
-    conf.num_complement_sampling_measure(1000000, |index| rs.select0(index))
+fn benchmark_select0(conf: &Conf, rs: &impl Select) -> f64 {
+    conf.num_complement_queries_measure(|index| rs.select0(index))
 }
 
-pub fn benchmark_rank9_select(conf: &super::Conf) {
+pub fn benchmark_rank9_select(conf: &Conf) {
     println!("sucds bit vector Rank9Sel:");
 
     let inserted_values = conf.num * 2 < conf.universe;
@@ -28,7 +28,7 @@ pub fn benchmark_rank9_select(conf: &super::Conf) {
     let mut rs = Rank9Sel::new(content);
     let rs_size_without_hints = rs.size_in_bytes();
     println!("  rank space overhead: {:.2}%", percent_of(rs_size_without_hints - content_size, content_size));
-    println!("  time/rank query [ns]: {:.2}", conf.universe_sampling_measure(1000000, |index| rs.rank1(index)).as_nanos());
+    println!("  time/rank query [ns]: {:.2}", conf.universe_queries_measure(|index| rs.rank1(index)).as_nanos());
 
     println!(" select without hints (no extra space overhead):");
     println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).as_nanos());

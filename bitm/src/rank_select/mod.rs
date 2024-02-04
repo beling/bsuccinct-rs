@@ -195,24 +195,28 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
         // we start from access to content, as if given index of content is not out of bounds,
         // then corresponding indices l1ranks and l2ranks are also not out of bound
         let mut r = (self.content.get(word_idx)? & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
-        let mut block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
+        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
         r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
-        block_content >>= 32;   // remove the lowest 32 bits
-        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;        
-        Some(r + count_bits_in(unsafe {self.content.get_unchecked(block * 8..word_idx)}))
+
+        //r += (((block_content>>32) >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
+        if block & 3 != 0 { r += ((block_content >> ((32+33) - 11 * (block & 3))) & 0b1_11111_11111) as usize }
+
+        //Some(r + count_bits_in(unsafe {self.content.get_unchecked(block * 8/*word_idx&!7*/..word_idx)}))
+        Some(r + count_bits_in(unsafe {self.content.get_unchecked(word_idx&!7..word_idx)}))
     }
 
     unsafe fn rank_unchecked(&self, index: usize) -> usize {
         let block = index / 512;
-        let word_idx = index / 64;
-        // we start from access to content, as if given index of content is not out of bounds,
-        // then corresponding indices l1ranks and l2ranks are also not out of bound       
-        let mut block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
+        let word_idx = index / 64;   
+        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
         let mut r = *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
-        block_content >>= 32;   // remove the lowest 32 bits
         r += (self.content.get_unchecked(word_idx) & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
-        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;        
-        Some(r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))).unwrap_unchecked()
+
+        //r += (((block_content>>32) >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
+        if block & 3 != 0 { r += ((block_content >> ((32+33) - 11 * (block & 3))) & 0b1_11111_11111) as usize }
+
+        //r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))
+        r + count_bits_in(self.content.get_unchecked(word_idx&!7..word_idx))
     }
 
     /*unsafe fn rank_unchecked(&self, index: usize) -> usize {
@@ -292,7 +296,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> AsRef<[u64]> for ArrayWit
 }
 
 /// [`ArrayWithRankSelect101111`] with [`BinaryRankSearch`] (which does not introduce a space overhead) for select queries.
-pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch>;
+pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch, BinaryRankSearch>;
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
