@@ -32,5 +32,5 @@ harness = false
 name = "bitvec-iai"
 harness = false
 
-[profile.bench]
-debug = true
+#[profile.bench]
+#debug = true

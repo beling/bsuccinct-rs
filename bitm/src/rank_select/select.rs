@@ -1,7 +1,9 @@
 use dyn_size_of::GetSize;
 
-#[cfg(target_arch = "x86")] use core::arch::x86 as arch;
-#[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
+#[cfg(all(target_arch = "x86", target_feature = "bmi2"))] use core::arch::x86 as arch;
+#[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))] use core::arch::x86_64 as arch;
+//#[cfg(target_arch = "x86")] use core::arch::x86 as arch;
+//#[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
 
 use super::utils::partition_point_with_index;
 
@@ -173,9 +175,9 @@ impl GetSize for BinaryRankSearch {}
             }
         }
     };
-    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
+    /*#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
          arch::_mm_prefetch(content.as_ptr().wrapping_add(c) as *const i8, arch::_MM_HINT_NTA);
-    } }
+    } }*/
     for (i, v) in content.get(c..)?.iter().enumerate() {
         let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
         if ones <= rank {

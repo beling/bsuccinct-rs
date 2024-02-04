@@ -46,7 +46,7 @@ pub trait Rank {
 }*/
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
-/*#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
+#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
     let mut it = content.iter().map(|v| v.count_ones() as usize);
     let mut result = 0;
     if let Some(v) = it.next() { result += v; } else { return result; }
@@ -58,7 +58,7 @@ pub trait Rank {
     if let Some(v) = it.next() { result += v; } else { return result; }
     if let Some(v) = it.next() { result += v; }
     return result;
-}*/
+}
 
 /*#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {  // almost the same asm as above
     let l = content.len();
@@ -70,7 +70,7 @@ pub trait Rank {
 }*/
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
-#[inline(always)] fn count_bits_in(mut content: &[u64]) -> usize {
+/*#[inline(always)] fn count_bits_in(mut content: &[u64]) -> usize {
     let mut result = 0;
     if content.len() >= 3 {
         result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
@@ -93,7 +93,7 @@ pub trait Rank {
         }
     }
     result
-}
+}*/
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
 /*#[inline(always)] fn count_bits_in(mut content: &[u64]) -> usize {
@@ -189,7 +189,7 @@ impl<S, S0: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S, S0> {
 }
 
 impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSelect101111<S, S0> {
-    fn try_rank(&self, index: usize) -> Option<usize> {
+    #[inline] fn try_rank(&self, index: usize) -> Option<usize> {
         let block = index / 512;
         let word_idx = index / 64;
         // we start from access to content, as if given index of content is not out of bounds,
@@ -202,7 +202,33 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
         Some(r + count_bits_in(unsafe {self.content.get_unchecked(block * 8..word_idx)}))
     }
 
-    fn rank(&self, index: usize) -> usize {
+    unsafe fn rank_unchecked(&self, index: usize) -> usize {
+        let block = index / 512;
+        let word_idx = index / 64;
+        // we start from access to content, as if given index of content is not out of bounds,
+        // then corresponding indices l1ranks and l2ranks are also not out of bound       
+        let mut block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
+        let mut r = *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        block_content >>= 32;   // remove the lowest 32 bits
+        r += (self.content.get_unchecked(word_idx) & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
+        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;        
+        Some(r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))).unwrap_unchecked()
+    }
+
+    /*unsafe fn rank_unchecked(&self, index: usize) -> usize {
+        let block = index / 512;
+        let word_idx = index / 64;
+        // we start from access to content, as if given index of content is not out of bounds,
+        // then corresponding indices l1ranks and l2ranks are also not out of bound
+        let mut r = (self.content.get_unchecked(word_idx) & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
+        let mut block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
+        r += *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        block_content >>= 32;   // remove the lowest 32 bits
+        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;        
+        Some(r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))).unwrap_unchecked()
+    }*/
+
+    /*fn rank(&self, index: usize) -> usize {
         let block = index / 512;
         let mut block_content = self.l2ranks[index/2048];//self.ranks[block/4];
         let mut r = unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
@@ -215,7 +241,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
         }*/
         r + (self.content[word_idx] & n_lowest_bits(index as u8 % 64)).count_ones() as usize
         //r + ((self.content[word_idx] << 1) << (63 - index % 64)).count_ones() as usize    // alternative, seems to generate worse asm.
-    }
+    }*/
 }
 
 impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111<S, S0> {
@@ -354,6 +380,7 @@ mod tests {
         for (rank, index) in a.as_ref().bit_ones().enumerate() {
             assert_eq!(a.rank(index), rank, "rank({}) should be {}", index, rank);
             assert_eq!(a.select(rank), index, "select({}) should be {}", rank, index);
+            assert_eq!(unsafe{a.rank_unchecked(index)}, rank, "rank({}) should be {}", index, rank);  
             //assert_eq!(a.try_rank(index), Some(rank), "rank({}) should be {}", index, rank);
             //assert_eq!(a.try_select(rank), Some(index), "select({}) should be {}", rank, index);
         }
@@ -363,6 +390,7 @@ mod tests {
         for (rank, index) in a.as_ref().bit_zeros().enumerate() {
             assert_eq!(a.rank0(index), rank, "rank0({}) should be {}", index, rank);
             assert_eq!(a.select0(rank), index, "select0({}) should be {}", rank, index);
+            assert_eq!(unsafe{a.rank0_unchecked(index)}, rank, "rank0({}) should be {}", index, rank);
             //assert_eq!(a.try_rank0(index), Some(rank), "rank0({}) should be {}", index, rank);
             //assert_eq!(a.try_select0(rank), Some(index), "select0({}) should be {}", rank, index);
         }
