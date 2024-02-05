@@ -27,7 +27,7 @@ pub fn benchmark_rank9_select(conf: &Conf) {
     let content_size = content.size_in_bytes();
     let mut rs = Rank9Sel::new(content);
     let rs_size_without_hints = rs.size_in_bytes();
-    println!("  rank space overhead: {:.2}%", percent_of(rs_size_without_hints - content_size, content_size));
+    println!("  rank space overhead: {:.3}%", percent_of(rs_size_without_hints - content_size, content_size));
     println!("  time/rank query [ns]: {:.2}", conf.universe_queries_measure(|index| rs.rank1(index)).as_nanos());
 
     println!(" select without hints (no extra space overhead):");
@@ -39,7 +39,7 @@ pub fn benchmark_rank9_select(conf: &Conf) {
     let rs_select1_size = rs.size_in_bytes() - rs_size_without_hints;
     rs = rs.select0_hints();
     let rs_select0_size = rs.size_in_bytes() - rs_size_without_hints - rs_select1_size;
-    println!("  space overhead: select1 {:.2}% select0 {:.2}% (+rank overhead)",
+    println!("  space overhead: select1 {:.3}% select0 {:.3}% (+rank overhead)",
         percent_of(rs_select1_size, content_size),
         percent_of(rs_select0_size, content_size));
     println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).as_nanos());

@@ -195,7 +195,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
         // we start from access to content, as if given index of content is not out of bounds,
         // then corresponding indices l1ranks and l2ranks are also not out of bound
         let mut r = (self.content.get(word_idx)? & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
-        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
+        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
         r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
 
         //r += (((block_content>>32) >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
@@ -208,7 +208,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
     unsafe fn rank_unchecked(&self, index: usize) -> usize {
         let block = index / 512;
         let word_idx = index / 64;   
-        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
+        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
         let mut r = *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
         r += (self.content.get_unchecked(word_idx) & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
 
