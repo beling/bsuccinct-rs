@@ -143,7 +143,7 @@ fn benchmark<CSF: CSFBuilder+PrintParams>(input: Input, csf: CSF, file: &mut Opt
     let map = csf.new(
         input.keys.as_ref(),
         input.values.as_ref(),
-        input.frequencies,
+        &input.frequencies,
     );
     let mut levels_searched = 0u64;
     for (k, expected_v) in input.keys.iter().copied().zip(input.values.iter().copied()) {

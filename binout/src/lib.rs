@@ -134,7 +134,7 @@ fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R, max_shift: u8) -> std::i
 /// The encoding is identical to the classic *VByte*/*LEB128* for `u16` and `u32` values.
 /// However:
 /// - `u8` value are always stored as is, using 1 byte.
-/// - For `u64` values below $2^63$, the encoding is identical to the classic *VByte*/*LEB128*;
+/// - For `u64` values below 2<sup>63</sup>, the encoding is identical to the classic *VByte*/*LEB128*;
 ///   For larger values, the encoding always stores the most significant byte of value as is, using a total of 9 bytes,
 ///   whereas a classic VByte could use 10 bytes.
 #[derive(Clone, Copy)]
