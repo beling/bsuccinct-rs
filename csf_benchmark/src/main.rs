@@ -207,7 +207,7 @@ where GetFunctions: Fn() -> CSFIter, CSFIter: IntoIterator<Item = CSF>, CSF: CSF
                 if entropy < conf.from { continue; }
                 if entropy >= conf.to { return; }
                 if lo_count == conf.keys_num / different_values || entropy - prev_entropy >= conf.resolution {
-                    println!("{}\t{}", lo_count, entropy);
+                    print!("{} {}: ", lo_count, entropy);
                     if has_multiple_functions { println!(); }
                     prev_entropy = entropy;
                     for csf in functions() {
