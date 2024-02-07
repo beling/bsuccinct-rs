@@ -229,7 +229,13 @@ fn file(conf: &Conf, function_name: &str, function_header: &str) -> Option<File>
         let file_name = format!("csf_benchmark_results/{}_{}.csv", function_name, conf.distribution.name());
         let file_already_existed = std::path::Path::new(&file_name).exists();
         let mut file = fs::OpenOptions::new().append(true).create(true).open(&file_name).unwrap();
-        if !file_already_existed { writeln!(file, "{} {} {}", Input::HEADER, function_header, BENCHMARK_HEADER).unwrap(); }
+        if !file_already_existed {
+            if function_header.is_empty() {
+                writeln!(file, "{} {}", Input::HEADER, BENCHMARK_HEADER).unwrap();
+            } else {
+                writeln!(file, "{} {} {}", Input::HEADER, function_header, BENCHMARK_HEADER).unwrap();
+            }
+        }
         file
     })
 }

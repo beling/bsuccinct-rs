@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, io::Write};
+use std::{fs::File, io::Write};
 
 use csf::coding::minimum_redundancy::Frequencies;
 
@@ -11,7 +11,7 @@ pub struct Input {
 }
 
 impl Input {
-    pub const HEADER: &'static str = "input_len entropy different_values";
+    pub const HEADER: &'static str = "input_len different_values entropy";
 
     /*pub fn print_params(&self) {
         print!("{} keys with entropy {:.2}", self.keys.len(), self.entropy);
@@ -19,7 +19,7 @@ impl Input {
 
     pub fn print_params_to(&self, file: &mut Option<File>) {
         if let Some(ref mut f) = file {
-            write!(f, "{} {} {}", self.keys.len(), self.entropy, self.frequencies.number_of_occurring_values()).unwrap();
+            write!(f, "{} {} {}", self.keys.len(), self.frequencies.number_of_occurring_values(), self.entropy).unwrap();
         }
     }
 }
