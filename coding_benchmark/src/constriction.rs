@@ -73,7 +73,7 @@ pub fn benchmark(conf: &super::Conf) {
     }
     drop(cursor);
 
-    let encoder = encode_suffix(&text, &encoder_codebook);
+    let mut encoder = encode_suffix(&text, &encoder_codebook);
     conf.print_speed("Decoding from a stack (prefix order) (without storing)", conf.measure(|| {
         let mut decoder = encoder.as_decoder();
         for sym in decoder.decode_iid_symbols(text.len(), &decoder_codebook) {
@@ -84,7 +84,7 @@ pub fn benchmark(conf: &super::Conf) {
     if conf.verify {
         print!("Verifying decoding from a stack... ");
         //let mut decoder = StackCoder::from_compressed(cursor.as_mut_view()).unwrap();
-        let reconstructed: Vec<u8> = encoder.into_decoder()
+        let reconstructed: Vec<u8> = encoder/*.into_decoder()*/
             .decode_iid_symbols(text.len(), &decoder_codebook)
             .map(|sym| sym.unwrap() as u8)
             .collect();

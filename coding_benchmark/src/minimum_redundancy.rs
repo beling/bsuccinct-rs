@@ -15,10 +15,10 @@ use crate::compare_texts;
     )
 }
 
-#[inline(always)] fn compress_u8(text: &Box<[u8]>, book: &[minimum_redundancy::Code; 256], compressed_size_bits: usize) -> Box<[u64]> {
+#[inline(always)] fn compress_u8<'i>(text: impl IntoIterator<Item = &'i u8>, book: &[minimum_redundancy::Code; 256], compressed_size_bits: usize) -> Box<[u64]> {
     let mut compressed_text = Box::<[u64]>::with_zeroed_bits(compressed_size_bits);
     let mut bit_index = 0usize;
-    for k in text.iter() {
+    for k in text {
         let c = book[*k as usize];
         compressed_text.init_bits(bit_index, c.content as u64, c.len.min(32) as u8);
         bit_index += c.len as usize;
@@ -33,10 +33,10 @@ use crate::compare_texts;
     )
 }
 
-#[inline(always)] fn compress(text: &Box<[u8]>, book: &HashMap<u8, Code>, compressed_size_bits: usize) -> Box<[u64]> {
+#[inline(always)] fn compress<'i>(text: impl IntoIterator<Item = &'i u8>, book: &HashMap<u8, Code>, compressed_size_bits: usize) -> Box<[u64]> {
     let mut compressed_text = Box::<[u64]>::with_zeroed_bits(compressed_size_bits);
     let mut bit_index = 0usize;
-    for k in text.iter() {
+    for k in text {
         let c = book[k];
         compressed_text.init_bits(bit_index, c.content as u64, c.len.min(32) as u8);
         bit_index += c.len as usize;
@@ -45,9 +45,7 @@ use crate::compare_texts;
     compressed_text
 }
 
-#[inline(always)] fn decode(coding: &Coding<u8>, compressed_text: &Box<[u64]>, total_size_bits: usize) {
-    //let mut bits = (0..total_size_bits).map(|i| unsafe{compressed_text.get_bit_unchecked(i)});
-    let mut bits = unsafe{compressed_text.bit_in_unchecked_range_iter(0..total_size_bits)};
+#[inline(always)] fn decode(coding: &Coding<u8>, mut bits: impl Iterator<Item = bool>) {
     let mut d = coding.decoder();
     while let Some(b) = bits.next() {
         if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
@@ -57,10 +55,16 @@ use crate::compare_texts;
     }
 }
 
-fn verify(text: Box<[u8]>, compressed_text: Box<[u64]>, coding: Coding<u8>, total_size_bits: usize) {
-    print!("Verification... ");
-    let mut decoded_text = Vec::with_capacity(text.len());
-    let mut bits = compressed_text.bit_in_range_iter(0..total_size_bits);
+#[inline(always)] fn decode_from_queue(coding: &Coding<u8>, compressed_text: &Box<[u64]>, total_size_bits: usize) {
+    decode(coding, compressed_text.bit_in_range_iter(0..total_size_bits));
+}
+
+#[inline(always)] fn decode_from_stack(coding: &Coding<u8>, compressed_text: &Box<[u64]>, total_size_bits: usize) {
+    decode(coding, compressed_text.bit_in_range_iter(0..total_size_bits).rev());
+}
+
+#[inline(always)] fn decoded(coding: &Coding<u8>, uncompressed_len: usize, mut bits: impl Iterator<Item = bool>) -> Vec::<u8> {
+    let mut decoded_text = Vec::with_capacity(uncompressed_len);
     let mut d = coding.decoder();
     while let Some(b) = bits.next() {
         if let minimum_redundancy::DecodingResult::Value(v) = d.consume(b as u32) {
@@ -68,7 +72,19 @@ fn verify(text: Box<[u8]>, compressed_text: Box<[u64]>, coding: Coding<u8>, tota
             d.reset();
         }
     }
-    compare_texts(&text, &decoded_text);
+    decoded_text
+}
+
+fn verify_queue(text: &[u8], compressed_text: Box<[u64]>, coding: &Coding<u8>, total_size_bits: usize) {
+    print!("Verifying decoding from a queue... ");
+    compare_texts(&text, &decoded(coding, compressed_text.len(),
+        compressed_text.bit_in_range_iter(0..total_size_bits)));
+}
+
+fn verify_stack(text: &[u8], compressed_text: Box<[u64]>, coding: &Coding<u8>, total_size_bits: usize) {
+    print!("Verifying decoding from a stack... ");
+    compare_texts(&text, &decoded(coding, compressed_text.len(),
+        compressed_text.bit_in_range_iter(0..total_size_bits).rev()));
 }
 
 /// Prints speed of and returns counting symbol occurrences.
@@ -97,26 +113,39 @@ pub fn benchmark_u8(conf: &super::Conf) {
 
     let dec_constr_ns = conf.measure(|| Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies)).as_nanos();
     let coding = Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies);
-    let enc_constr_ns = conf.measure(|| coding.reversed_codes_for_values_array()).as_nanos();
+    let enc_constr_ns = conf.measure(|| coding.codes_for_values_array()).as_nanos();
+    let rev_enc_constr_ns = conf.measure(|| coding.reversed_codes_for_values_array()).as_nanos();
 
-    println!("Decoder + encoder construction time [ns]: {:.0} + {:.0} = {:.0}", dec_constr_ns, enc_constr_ns, dec_constr_ns+enc_constr_ns);
+    println!("Decoder + suffix (prefix) encoder construction time [ns]: {:.0} + {:.0} ({:.0}) = {:.0} ({:.0})",
+         dec_constr_ns, enc_constr_ns, rev_enc_constr_ns, dec_constr_ns+enc_constr_ns, dec_constr_ns+rev_enc_constr_ns);
     println!("Decoder size: {} bytes", coding.size_bytes());
-
     let book = coding.reversed_codes_for_values_array();
-
-    conf.print_speed("Encoding without adding to bit vector", conf.measure(|| {
+    conf.print_speed("Encoding without adding to bit vector (prefix order)", conf.measure(|| {
         for k in text.iter() { black_box(book[*k as usize]); }
     }));
-    conf.print_speed("Encoding + adding to bit vector", conf.measure(|| {
-        compress_u8(&text, &book, total_size_bits_u8(&frequencies, &book))
+    conf.print_speed("Encoding + adding to bit vector (prefix order)", conf.measure(|| {
+        compress_u8(text.iter(), &book, total_size_bits_u8(&frequencies, &book))
     }));
     let compressed_size_bits = total_size_bits_u8(&frequencies, &book);
-    let compressed_text = compress_u8(&text, &book, compressed_size_bits);
+    let compressed_text = compress_u8(text.iter(), &book, compressed_size_bits);
     println!("Compressed size: {} bits", compressed_size_bits);
+    conf.print_speed("Decoding from a queue (prefix order) (without storing)",
+     conf.measure(|| decode_from_queue(&coding, &compressed_text, compressed_size_bits)));
+    if conf.verify { verify_queue(&text, compressed_text, &coding, compressed_size_bits); } else { drop(compressed_text); }
 
-    conf.print_speed("Decoding (without storing)", conf.measure(|| decode(&coding, &compressed_text, compressed_size_bits)));
-
-    if conf.verify { verify(text, compressed_text, coding, compressed_size_bits); }
+    let book = coding.codes_for_values_array();
+    conf.print_speed("Encoding without adding to bit vector (suffix order)", conf.measure(|| {
+        for k in text.iter() { black_box(book[*k as usize]); }
+    }));
+    conf.print_speed("Encoding + adding to bit vector (suffix order)", conf.measure(|| {
+        compress_u8(text.iter().rev(), &book, total_size_bits_u8(&frequencies, &book))
+    }));
+    let compressed_size_bits = total_size_bits_u8(&frequencies, &book);
+    let compressed_text = compress_u8(text.iter().rev(), &book, compressed_size_bits);
+    println!("Compressed size: {} bits", compressed_size_bits);
+    conf.print_speed("Decoding from a stack (suffix order) (without storing)",
+    conf.measure(|| decode_from_stack(&coding, &compressed_text, compressed_size_bits)));
+    if conf.verify { verify_stack(&text, compressed_text, &coding, compressed_size_bits); }
 }
 
 pub fn benchmark(conf: &super::Conf) {
@@ -125,24 +154,37 @@ pub fn benchmark(conf: &super::Conf) {
 
     let dec_constr_ns = conf.measure(|| Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies)).as_nanos();
     let coding = Coding::from_frequencies_cloned(BitsPerFragment(1), &frequencies);
-    let enc_constr_ns = conf.measure(|| coding.reversed_codes_for_values_array()).as_nanos();
+    let enc_constr_ns = conf.measure(|| coding.codes_for_values()).as_nanos();
+    let rev_enc_constr_ns = conf.measure(|| coding.reversed_codes_for_values()).as_nanos();
 
-    println!("Decoder + encoder construction time [ns]: {:.0} + {:.0} = {:.0}", dec_constr_ns, enc_constr_ns, dec_constr_ns+enc_constr_ns);
+    println!("Decoder + suffix (prefix) encoder construction time [ns]: {:.0} + {:.0} ({:.0}) = {:.0} ({:.0})",
+         dec_constr_ns, enc_constr_ns, rev_enc_constr_ns, dec_constr_ns+enc_constr_ns, dec_constr_ns+rev_enc_constr_ns);
     println!("Decoder size: {} bytes", coding.size_bytes());
-
     let book = coding.reversed_codes_for_values();
-
-    conf.print_speed("Encoding without adding to bit vector", conf.measure(|| {
+    conf.print_speed("Encoding without adding to bit vector (prefix order)", conf.measure(|| {
         for k in text.iter() { black_box(book.get(k)); }
     }));
-    conf.print_speed("Encoding + adding to bit vector", conf.measure(|| 
-        compress(&text, &book, total_size_bits(&frequencies, &book))
-    ));
+    conf.print_speed("Encoding + adding to bit vector (prefix order)", conf.measure(|| {
+        compress(text.iter(), &book, total_size_bits(&frequencies, &book))
+    }));
     let compressed_size_bits = total_size_bits(&frequencies, &book);
-    let compressed_text = compress(&text, &book, compressed_size_bits);
+    let compressed_text = compress(text.iter(), &book, compressed_size_bits);
     println!("Compressed size: {} bits", compressed_size_bits);
+    conf.print_speed("Decoding from a queue (prefix order) (without storing)",
+     conf.measure(|| decode_from_queue(&coding, &compressed_text, compressed_size_bits)));
+    if conf.verify { verify_queue(&text, compressed_text, &coding, compressed_size_bits); } else { drop(compressed_text); }
 
-    conf.print_speed("Decoding (without storing)", conf.measure(|| decode(&coding, &compressed_text, compressed_size_bits)));
-
-    if conf.verify { verify(text, compressed_text, coding, compressed_size_bits); }
+    let book = coding.codes_for_values();
+    conf.print_speed("Encoding without adding to bit vector (suffix order)", conf.measure(|| {
+        for k in text.iter() { black_box(book.get(k)); }
+    }));
+    conf.print_speed("Encoding + adding to bit vector (suffix order)", conf.measure(|| {
+        compress(text.iter().rev(), &book, total_size_bits(&frequencies, &book))
+    }));
+    let compressed_size_bits = total_size_bits(&frequencies, &book);
+    let compressed_text = compress(text.iter().rev(), &book, compressed_size_bits);
+    println!("Compressed size: {} bits", compressed_size_bits);
+    conf.print_speed("Decoding from a stack (suffix order) (without storing)",
+    conf.measure(|| decode_from_stack(&coding, &compressed_text, compressed_size_bits)));
+    if conf.verify { verify_stack(&text, compressed_text, &coding, compressed_size_bits); }
 }
