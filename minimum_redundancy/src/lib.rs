@@ -93,10 +93,11 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     ///
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
-    pub fn from_sorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self {
-        let len = freq.len();
+    pub fn from_sorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self
+    {
+        let len = freq.len() as u32;
         let tree_degree = degree.as_u32();
-        if len <= tree_degree as usize {
+        if len <= tree_degree {
             values.reverse();
             return Coding {
                 values,
@@ -107,31 +108,31 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
 
         let reduction_per_step = tree_degree - 1;
 
-        let mut current_tree_degree = ((len - 1) % reduction_per_step as usize) as u32; // desired reduction in the first step
+        let mut current_tree_degree = (len - 1) % reduction_per_step; // desired reduction in the first step
         current_tree_degree = if current_tree_degree == 0 { tree_degree } else { current_tree_degree + 1 }; // children of the internal node constructed in the first step
-        let mut internals_begin = 0usize; // first internal node = next parent node to be used
-        let mut leafs_begin = 0usize;     // next leaf to be used
-        let internal_nodes_size = (len + reduction_per_step as usize - 2) / reduction_per_step as usize;    // (len-1) / reduction_per_step rounded up
+        let mut internals_begin = 0; // first internal node = next parent node to be used
+        let mut leafs_begin = 0;     // next leaf to be used
+        let internal_nodes_size = (len + reduction_per_step - 2) / reduction_per_step;    // (len-1) / reduction_per_step rounded up
 
         for next in 0..internal_nodes_size {    // next is next value to be assigned
             // select first item for a pairing
-            if leafs_begin >= len || freq[internals_begin as usize] < freq[leafs_begin] {
-                freq[next] = freq[internals_begin];
+            if leafs_begin >= len || freq[internals_begin] < freq[leafs_begin as usize] {
+                freq[next as usize] = freq[internals_begin];
                 freq[internals_begin] = next as u32;
                 internals_begin += 1;
             } else {
-                freq[next] = freq[leafs_begin];
+                freq[next as usize] = freq[leafs_begin as usize];
                 leafs_begin += 1;
             }
 
             // add on the second, ... items
             for _ in 1..current_tree_degree {
-                if leafs_begin >= len || (internals_begin < next && freq[internals_begin] < freq[leafs_begin]) {
-                    freq[next] += freq[internals_begin];
+                if leafs_begin >= len || (internals_begin < next as usize && freq[internals_begin] < freq[leafs_begin as usize]) {
+                    freq[next as usize] += freq[internals_begin];
                     freq[internals_begin] = next as u32;
                     internals_begin += 1;
                 } else {
-                    freq[next] += freq[leafs_begin];
+                    freq[next as usize] += freq[leafs_begin as usize];
                     leafs_begin += 1;
                 }
             }
@@ -141,10 +142,10 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         //dbg!(&internal_nodes_size);
         // second pass, right to left, setting internal depths, we also find the maximum depth
         let mut max_depth = 0u8;
-        freq[internal_nodes_size - 1] = 0;    // value for the root
+        freq[(internal_nodes_size - 1) as usize] = 0;    // value for the root
         for next in (0..internal_nodes_size - 1).rev() {
-            freq[next] = freq[freq[next] as usize] + 1;
-            if freq[next] as u8 > max_depth { max_depth = freq[next] as u8; }
+            freq[next as usize] = freq[freq[next as usize] as usize] + 1;
+            if freq[next as usize] as u8 > max_depth { max_depth = freq[next as usize] as u8; }
         }
 
         values.reverse();
@@ -154,7 +155,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             degree
         };
         for i in 0..internal_nodes_size - 1 {
-            result.internal_nodes_count[freq[i] as usize - 1] += 1;  // only root is at the level 0, we skip it
+            result.internal_nodes_count[freq[i as usize] as usize - 1] += 1;  // only root is at the level 0, we skip it
         }   // no internal nodes at the last level, result.internal_nodes_count[max_depth] is 0
 
         return result;

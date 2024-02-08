@@ -3,8 +3,10 @@
 mod elias_fano;
 mod bitm;
 mod sucds;
+mod succinct;
+#[cfg(feature = "vers-vecs")] mod vers;
 
-use std::{hint::black_box, num::NonZeroU64, time::Instant};
+use std::{hint::black_box, num::{NonZeroU32, NonZeroU64}, time::Instant};
 
 use butils::XorShift64;
 use clap::{Parser, Subcommand};
@@ -19,6 +21,12 @@ pub enum Structure {
     BitmBV,
     /// Uncompressed bit vector from sucds library
     SucdsBV,
+    /// Uncompressed bit vector from succinct library
+    SuccinctJacobson,
+    /// Uncompressed bit vector from succinct library
+    SuccinctRank9,
+    /// Uncompressed bit vector from vers
+    #[cfg(feature = "vers-vecs")] Vers,
 }
 
 #[derive(Parser)]
@@ -48,17 +56,21 @@ pub struct Conf {
     /// Seed for (XorShift64) random number generator
     #[arg(short='s', long, default_value_t = NonZeroU64::new(1234).unwrap())]
     pub seed: NonZeroU64,
+
+    // Number of pre-generated queries
+    #[arg(short='q', long, default_value_t = NonZeroU32::new(1_000_000).unwrap())]
+    pub queries: NonZeroU32,
 }
 
 impl Conf {
-    pub const QUERIES: usize = 1_000_000;
+    //pub const QUERIES: usize = 1_000_000;
     //pub const STEPS_NUM: usize = 194_933;   // prime
     //pub const STEPS_NUM: usize = 1_949_333;
 
     fn rand_gen(&self) -> XorShift64 { XorShift64(self.seed.get()) }
 
     fn rand_queries(&self, query_universe: usize) -> Box<[usize]> {
-        self.rand_gen().take(Self::QUERIES).map(|v| v as usize % query_universe).collect()
+        self.rand_gen().take(self.queries.get() as usize).map(|v| v as usize % query_universe).collect()
     }
 
     #[inline(always)] fn measure<F>(&self, f: F) -> f64
@@ -136,5 +148,8 @@ fn main() {
         Structure::EliasFano => elias_fano::benchmark(&conf),
         Structure::BitmBV => bitm::benchmark_rank_select(&conf),
         Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
+        Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
+        Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
+        #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf)
     }
 }

@@ -2,11 +2,11 @@ use butils::UnitPrefix;
 use sucds::{bit_vectors::{Rank9Sel, BitVector, Rank, Select}, Serializable};
 use crate::{percent_of, Conf};
 
-fn benchmark_select(conf: &Conf, rs: &impl Select) -> f64 {
+#[inline(always)] fn benchmark_select(conf: &Conf, rs: &impl Select) -> f64 {
     conf.num_queries_measure(|index| rs.select1(index))
 }
 
-fn benchmark_select0(conf: &Conf, rs: &impl Select) -> f64 {
+#[inline(always)] fn benchmark_select0(conf: &Conf, rs: &impl Select) -> f64 {
     conf.num_complement_queries_measure(|index| rs.select0(index))
 }
 

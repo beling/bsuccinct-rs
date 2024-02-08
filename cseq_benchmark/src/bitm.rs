@@ -3,17 +3,15 @@ use butils::UnitPrefix;
 use dyn_size_of::GetSize;
 use crate::{percent_of, Conf};
 
-fn benchmark_select(conf: &Conf, rs: &impl Select) -> f64 {
+#[inline(always)] fn benchmark_select(conf: &Conf, rs: &impl Select) -> f64 {
     conf.num_queries_measure(|index| rs.select(index))
 }
 
-fn benchmark_select0(conf: &Conf, rs: &impl Select0) -> f64 {
+#[inline(always)] fn benchmark_select0(conf: &Conf, rs: &impl Select0) -> f64 {
     conf.num_complement_queries_measure(|index| rs.select0(index))
 }
 
-pub fn benchmark_rank_select(conf: &super::Conf) {
-    println!("bitm bit vector:");
-
+pub fn build_bit_vec(conf: &Conf) -> Box<[u64]> {
     let inserted_values = conf.num * 2 < conf.universe;
     let (mut content, mut to_insert): (Box::<[u64]>, _) = if inserted_values {
         (Box::with_zeroed_bits(conf.universe), conf.num)
@@ -28,6 +26,12 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
             to_insert -= 1;
         }
     }
+    content
+}
+
+pub fn benchmark_rank_select(conf: &super::Conf) {
+    println!("bitm bit vector:");
+    let content = build_bit_vec(conf);
 
     let (rs, _) = ArrayWithRankSelect101111::<BinaryRankSearch, BinaryRankSearch>::build(content);
     //assert_eq!(ones, conf.num);
@@ -47,5 +51,5 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
         percent_of(rs.select0_support().size_bytes(), rs.content.size_bytes()));
     println!("  time/select1 query [ns]: {:.2}", benchmark_select(conf, &rs).as_nanos());
     println!("  time/select0 query [ns]: {:.2}", benchmark_select0(conf, &rs).as_nanos());
-    
 }
+

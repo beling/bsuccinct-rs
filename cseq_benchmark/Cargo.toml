@@ -19,3 +19,5 @@ dyn_size_of = { version="0.4", path="../dyn_size_of" }
 cseq = { version ="0.1", path = "../cseq" }
 bitm = { version="0.3", path="../bitm" }
 sucds = "0.8"
+succinct = "0.5"
+vers-vecs = { version="1.1", optional=true }
