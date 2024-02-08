@@ -73,17 +73,21 @@ fn verify(text: Box<[u8]>, compressed_text: Box<[u64]>, coding: Coding<u8>, tota
 
 /// Prints speed of and returns counting symbol occurrences.
 pub fn frequencies_u8(conf: &super::Conf, text: &[u8]) -> [u32; 256] {
-    conf.print_speed("Counting symbol occurrences (u8 specific method)", conf.measure(||
-        <[u32; 256]>::with_occurrences_of(text.iter())
-    ));
+    if conf.extra_test {
+        conf.print_speed("Counting symbol occurrences with array (u8 specific method)", conf.measure(||
+            <[u32; 256]>::with_occurrences_of(text.iter())
+        ));
+    }
     <[u32; 256]>::with_occurrences_of(text.iter())
 }
 
 /// Prints speed of and returns counting symbol occurrences.
 pub fn frequencies(conf: &super::Conf, text: &[u8]) -> HashMap::<u8, u32> {
-    conf.print_speed("Counting symbol occurrences (generic method)", conf.measure(||
-        HashMap::<u8, u32>::with_occurrences_of(text.iter())
-    ));
+    if conf.extra_test {
+        conf.print_speed("Counting symbol occurrences with HashMap (generic method)", conf.measure(||
+            HashMap::<u8, u32>::with_occurrences_of(text.iter())
+        ));
+    }
     HashMap::<u8, u32>::with_occurrences_of(text.iter())
 }
 

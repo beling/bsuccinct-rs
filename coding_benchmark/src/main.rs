@@ -60,6 +60,10 @@ pub struct Conf {
     #[arg(short='s', long, default_value_t = 1234)]
     pub seed: u64,
     //pub seed: NonZeroU64,
+
+    /// Whether to perform additional, non-essential measurements
+    #[arg(short='e', long, default_value_t = false)]
+    pub extra_test: bool,
 }
 
 impl Conf {
