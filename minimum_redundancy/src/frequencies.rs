@@ -51,7 +51,7 @@ pub trait Frequencies {
         return result;
     }
 
-    /// Calls [`Self::add_occurence_of`] for all items exposed by `iter`.
+    /// Calls [`Self::add_occurrence_of`] for all items exposed by `iter`.
     fn add_occurences_of<Iter>(&mut self, iter: Iter)
         where Iter: IntoIterator, Iter::Item: Borrow<Self::Value>, Self::Value: Clone
     {

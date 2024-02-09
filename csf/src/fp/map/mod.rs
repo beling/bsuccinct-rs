@@ -15,7 +15,7 @@ use dyn_size_of::GetSize;
 
 /// Finger-printing based static function (immutable map) that maps hashable keys to unsigned integer values of given bit-size.
 /// 
-/// It takes somewhat more than *nb* bits to represent a function from an *n*-element set into a set of *b*-bit values.
+/// It usually takes somewhat more than *nb* bits to represent a function from an *n*-element set into a set of *b*-bit values.
 /// (Smaller sizes are achieved when the set of values is small and the same values are assigned to multiple keys.)
 /// The expected time complexities of its construction and evaluation are *O(n)* and *O(1)*, respectively.
 pub struct Map<S = BuildDefaultSeededHasher> {

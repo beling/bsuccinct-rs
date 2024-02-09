@@ -59,19 +59,23 @@ def add_to_uncompressed_plot(filename, as_percent=False, label=None):
     d.plot(legend=True)
 
 def show_entropy_plot(as_percent=False, dataset='equal', conf={}):
+    plt.title('{} space overhead for {} distribution'.format("Relative" if as_percent else "Absolute"), dataset)
+    plt.xlim(0, 8)
     if as_percent: plt.ylim(0, 300)
-    add_to_entropy_plot(f'fp_{dataset}', as_percent=as_percent, label='fp', conf=conf)
-    add_to_entropy_plot(f'fpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4, 'bits/group': 16, 'level_size': 80}, label='fpgo', conf=conf)
-    add_to_entropy_plot(f'fpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 8, 'bits/group': 32, 'level_size': 100}, label='fpgo', conf=conf)
-    add_to_entropy_plot(f'ls_{dataset}', as_percent=as_percent, label='ls', conf=conf)
+    add_to_entropy_plot(f'fp_{dataset}', as_percent=as_percent, label='fp::Map', conf=conf)
+    #add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4, 'bits/group': 16, 'level_size': 80}, label='fpgo', conf=conf)
+    #add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 8, 'bits/group': 32, 'level_size': 100}, label='fpgo', conf=conf)
+    add_to_entropy_plot(f'ls_{dataset}', as_percent=as_percent, label='ls::Map', conf=conf)
+    plt.xlabel('entropy of the distribution of function values')
     plt.ylabel('overhead/entropy [%]' if as_percent else 'overhead [bits/key]')
+    plt.savefig("{}_{}.svg".format(dataset, 'rel' if as_percent else 'abs'))
     plt.show()
 
 def show_uncompressed_plot(as_percent=False):
-    add_to_uncompressed_plot('fp_equal', as_percent=as_percent, label='fp')
-    add_to_uncompressed_plot('ls_equal', as_percent=as_percent, label='ls')
-    #add_to_uncompressed_plot('fp_dominated', as_percent=as_percent)
-    #add_to_uncompressed_plot('ls_dominated', as_percent=as_percent)
+    add_to_uncompressed_plot('fp_equal', as_percent=as_percent, label='fp::Map')
+    add_to_uncompressed_plot('ls_equal', as_percent=as_percent, label='ls::Map')
+    #add_to_uncompressed_plot('fp_dominated', as_percent=as_percent, label='fp::Map')
+    #add_to_uncompressed_plot('ls_dominated', as_percent=as_percent, label='ls::Map')
     plt.ylabel('overhead/input_size [%]' if as_percent else 'overhead [bits]')
     plt.show()
 
