@@ -58,17 +58,28 @@ def add_to_uncompressed_plot(filename, as_percent=False, label=None):
     d = d.groupby(['input_size'])[label].min() # get bit_length -> result for best configuration table
     d.plot(legend=True)
 
-def show_entropy_plot(as_percent=False, dataset='equal', conf={}):
-    plt.title('{} space overhead for {} distribution'.format("Relative" if as_percent else "Absolute"), dataset)
+def show_entropy_plot(as_percent=False, dataset='equal', compressed_methods=True, conf={}):
+    plt.title('{} space overhead for {} distribution'.format("Relative" if as_percent else "Absolute", dataset))
     plt.xlim(0, 8)
-    if as_percent: plt.ylim(0, 300)
-    add_to_entropy_plot(f'fp_{dataset}', as_percent=as_percent, label='fp::Map', conf=conf)
-    #add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4, 'bits/group': 16, 'level_size': 80}, label='fpgo', conf=conf)
-    #add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 8, 'bits/group': 32, 'level_size': 100}, label='fpgo', conf=conf)
-    add_to_entropy_plot(f'ls_{dataset}', as_percent=as_percent, label='ls::Map', conf=conf)
+    if compressed_methods:
+        add_to_entropy_plot(f'cfp_{dataset}', as_percent=as_percent, label='fp::CMap', conf=conf)
+        add_to_entropy_plot(f'cls_{dataset}', as_percent=as_percent, label='ls::CMap', conf=conf)
+        #add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4, 'bits/group': 16, 'level_size_percent': 80}, label='fp::CMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 1}, label='fp::CMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 2}, label='fp::CMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4}, label='fp::CMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 8}, label='fp::CMap', conf=conf)
+    else:
+        add_to_entropy_plot(f'fp_{dataset}', as_percent=as_percent, label='fp::Map', conf=conf)    
+        add_to_entropy_plot(f'ls_{dataset}', as_percent=as_percent, label='ls::Map', conf=conf)
     plt.xlabel('entropy of the distribution of function values')
     plt.ylabel('overhead/entropy [%]' if as_percent else 'overhead [bits/key]')
-    plt.savefig("{}_{}.svg".format(dataset, 'rel' if as_percent else 'abs'))
+    if as_percent: plt.ylim(0, 300)
+    else: plt.ylim(bottom=0)
+    plt.savefig(
+        "{}{}_{}.svg".format(dataset,'_comp' if compressed_methods else '', 'rel' if as_percent else 'abs'),
+        facecolor=(1.0, 1.0, 1.0, 0.8)
+    )
     plt.show()
 
 def show_uncompressed_plot(as_percent=False):
@@ -79,9 +90,10 @@ def show_uncompressed_plot(as_percent=False):
     plt.ylabel('overhead/input_size [%]' if as_percent else 'overhead [bits]')
     plt.show()
 
-show_entropy_plot(False, 'equal', {'uncompressed_plot': True})
-show_entropy_plot(True, 'equal', {'uncompressed_plot': True})
-show_entropy_plot(False, 'dominated', {'uncompressed_plot': True})
-show_entropy_plot(True, 'dominated', {'uncompressed_plot': True})
+compressed_methods = True
+show_entropy_plot(False, 'equal', compressed_methods, {'uncompressed_plot': True})
+show_entropy_plot(True, 'equal', compressed_methods, {'uncompressed_plot': True})
+show_entropy_plot(False, 'dominated', compressed_methods, {'uncompressed_plot': True})
+show_entropy_plot(True, 'dominated', compressed_methods, {'uncompressed_plot': True})
 #show_uncompressed_plot(False)
 #show_uncompressed_plot(True)

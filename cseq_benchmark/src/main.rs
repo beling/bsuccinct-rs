@@ -6,9 +6,10 @@ mod sucds;
 mod succinct;
 #[cfg(feature = "vers-vecs")] mod vers;
 
-use std::{hint::black_box, num::{NonZeroU32, NonZeroU64}, time::Instant};
+use std::{fs::{File, OpenOptions}, hint::black_box, num::{NonZeroU32, NonZeroU64}, time::Instant};
+use std::io::Write;
 
-use butils::XorShift64;
+use butils::{UnitPrefix, XorShift64};
 use clap::{Parser, Subcommand};
 
 //#[allow(non_camel_case_types)]
@@ -27,6 +28,8 @@ pub enum Structure {
     SuccinctRank9,
     /// Uncompressed bit vector from vers
     #[cfg(feature = "vers-vecs")] Vers,
+    /// Rank and select on bit vectors, all methods
+    BV
 }
 
 #[derive(Parser)]
@@ -60,12 +63,46 @@ pub struct Conf {
     // Number of pre-generated queries
     #[arg(short='q', long, default_value_t = NonZeroU32::new(1_000_000).unwrap())]
     pub queries: NonZeroU32,
+
+    /// Save detailed results to CSV file
+    #[arg(short='d', long, default_value_t = false)]
+    pub save_details: bool,
 }
+
+const INPUT_HEADER: &'static str = "universe,num";
+const RANK_SELECT_HEADER: &'static str = "method,space_overhead,time_per_query";
 
 impl Conf {
     //pub const QUERIES: usize = 1_000_000;
     //pub const STEPS_NUM: usize = 194_933;   // prime
     //pub const STEPS_NUM: usize = 1_949_333;
+
+    fn file(&self, file_name: &str, extra_header: &str) -> Option<File> {
+        if !self.save_details { return None; }
+        let file_name = format!("{}.csv", file_name);
+        let file_already_existed = std::path::Path::new(&file_name).exists();
+        let mut file = OpenOptions::new().append(true).create(true).open(&file_name).unwrap();
+        if !file_already_existed { writeln!(file, "{},{}", INPUT_HEADER, extra_header).unwrap(); }
+        Some(file)
+    }
+
+    fn save_rank_or_select(&self, file_name: &str, method_name: &str, space_overhead: f64, time: f64) {
+        if let Some(mut file) = self.file(file_name, RANK_SELECT_HEADER) {
+            writeln!(file, "{},{},{},{},{}", self.universe, self.num, method_name, space_overhead, time).unwrap();
+        }
+    }
+    
+    pub fn save_rank(&self, method_name: &str, space_overhead: f64, time: f64) {
+        self.save_rank_or_select("rank", method_name, space_overhead, time)
+    }
+
+    pub fn save_select1(&self, method_name: &str, space_overhead: f64, time: f64) {
+        self.save_rank_or_select("select1", method_name, space_overhead, time)
+    }
+
+    pub fn save_select0(&self, method_name: &str, space_overhead: f64, time: f64) {
+        self.save_rank_or_select("select0", method_name, space_overhead, time)
+    }
 
     fn rand_gen(&self) -> XorShift64 { XorShift64(self.seed.get()) }
 
@@ -96,22 +133,33 @@ impl Conf {
         self.measure(|| for i in queries { black_box(f(*i)); }) / queries.len() as f64
     }
 
-    #[inline(always)] fn num_queries_measure<R, F>(&self, f: F) -> f64
+    #[inline(always)]pub fn raport_rank<R, F>(&self, method_name: &str, space_overhead: f64, f: F)
     where F: Fn(usize) -> R
     {
-        self.queries_measure(&self.rand_queries(self.num), f)
+        print!("  rank:  space overhead {:.2}%", space_overhead);
+        let time = self.queries_measure(&self.rand_queries(self.universe), f).as_nanos();
+        println!("  time/query {:.2}ns", time);
+        self.save_rank(method_name, space_overhead, time)
     }
 
-    #[inline(always)] fn num_complement_queries_measure<R, F>(&self, f: F) -> f64
+    #[inline(always)]pub fn raport_select1<R, F>(&self, method_name: &str, space_overhead: f64, f: F)
     where F: Fn(usize) -> R
     {
-        self.queries_measure(&self.rand_queries(self.universe - self.num), f)
+        print!("  select1:");
+        if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
+        let time = self.queries_measure(&self.rand_queries(self.num), f).as_nanos();
+        println!("  time/query {:.2}ns", time);
+        self.save_select1(method_name, space_overhead, time)
     }
 
-    #[inline(always)] fn universe_queries_measure<R, F>(&self, f: F) -> f64
+    #[inline(always)]pub fn raport_select0<R, F>(&self, method_name: &str, space_overhead: f64, f: F)
     where F: Fn(usize) -> R
     {
-        self.queries_measure(&self.rand_queries(self.universe), f)
+        print!("  select0:");
+        if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
+        let time = self.queries_measure(&self.rand_queries(self.universe-self.num), f).as_nanos();
+        println!("  time/query {:.2}ns", time);
+        self.save_select0(method_name, space_overhead, time)
     }
 
     /*#[inline(always)] fn sampling_measure<R, F>(&self, steps: StepBy<Range<usize>>, f: F) -> f64
@@ -141,6 +189,7 @@ impl Conf {
 }
 
 fn percent_of(overhead: usize, whole: usize) -> f64 { (overhead*100) as f64 / whole as f64 }
+fn percent_of_diff(with_overhead: usize, whole: usize) -> f64 { percent_of(with_overhead-whole, whole) }
 
 fn main() {
     let conf: Conf = Conf::parse();
@@ -150,6 +199,13 @@ fn main() {
         Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
         Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
         Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
-        #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf)
+        #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf),
+        Structure::BV => {
+            bitm::benchmark_rank_select(&conf);
+            sucds::benchmark_rank9_select(&conf);
+            succinct::benchmark_rank9(&conf);
+            succinct::benchmark_jacobson(&conf);
+            #[cfg(feature = "vers-vecs")] vers::benchmark_rank_select(&conf);
+        },
     }
 }
