@@ -6,16 +6,8 @@ fn benchmark(conf: &super::Conf, method_name: &str, space_overhead: f64, rank: i
     conf.raport_rank(method_name, space_overhead, |index| rank.rank1(index as u64));
     println!(" select by binary search over ranks (no extra space overhead):");
     let select = BinSearchSelect::new(rank);
-    conf.raport_select1(method_name, space_overhead, |index| select.select1(index as u64));
-    conf.raport_select0(method_name, space_overhead, |index| select.select0(index as u64));
-
-    /*println!("  time/rank query [ns]: {:.2}",
-     conf.universe_queries_measure(|index| rank.rank1(index as u64)).as_nanos());
-
-    let select = BinSearchSelect::new(rank);
-    println!(" select by binary search over ranks (no extra space overhead):");
-    println!("  time/select1 query [ns]: {:.2}", conf.num_queries_measure(|index| select.select1(index as u64)).as_nanos());
-    println!("  time/select0 query [ns]: {:.2}", conf.num_complement_queries_measure(|index| select.select0(index as u64)).as_nanos());*/
+    conf.raport_select1(method_name, 0.0, |index| select.select1(index as u64));
+    conf.raport_select0(method_name, 0.0, |index| select.select0(index as u64));
 }
 
 pub fn benchmark_rank9(conf: &super::Conf) {
