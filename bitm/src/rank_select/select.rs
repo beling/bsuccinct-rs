@@ -210,42 +210,51 @@ impl GetSize for BinaryRankSearch {}
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
 #[inline(always)] unsafe fn select_from_l2_unchecked<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> usize {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
-    let c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
-    let v = unsafe{content.get_unchecked(c+0)};
+    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
+    
+    let v = unsafe{content.get_unchecked(c)};   // 0
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return (c+0) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
 
-    let v = unsafe{content.get_unchecked(c+1)};
+    let v = unsafe{content.get_unchecked(c)};   // 1
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return (c+1) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
 
-    let v = unsafe{content.get_unchecked(c+2)};
+    let v = unsafe{content.get_unchecked(c)};   // 2
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return (c+2) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
 
-    let v = unsafe{content.get_unchecked(c+3)};
+    let v = unsafe{content.get_unchecked(c)};   // 3
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return (c+3) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
 
-    let v = unsafe{content.get_unchecked(c+4)};
+    let v = unsafe{content.get_unchecked(c)};   // 4
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return (c+4) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
 
-    let v = unsafe{content.get_unchecked(c+5)};
+    let v = unsafe{content.get_unchecked(c)};   // 5
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return (c+5) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
 
-    let v = unsafe{content.get_unchecked(c+6)};
+    let v = unsafe{content.get_unchecked(c)};   // 6
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return (c+6) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
 
-    (c+7) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize
+    let v = unsafe{content.get_unchecked(c)};   // 7
+    c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize
 }
 
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
 #[inline(always)] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
-    let c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
+    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
     /*#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
          arch::_mm_prefetch(content.as_ptr().wrapping_add(c) as *const i8, arch::_MM_HINT_NTA);
     } }*/
@@ -257,37 +266,46 @@ impl GetSize for BinaryRankSearch {}
         } else { return Some((c+i) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
     }
     None*/
-    let v = content.get(c+0)?;
+    let v = content.get(c)?;    // 0
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return Some((c+0) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
 
-    let v = content.get(c+1)?;
+    let v = content.get(c)?;    // 1
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return Some((c+1) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
 
-    let v = content.get(c+2)?;
+    let v = content.get(c)?;    // 2
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return Some((c+2) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
 
-    let v = content.get(c+3)?;
+    let v = content.get(c)?;    // 3
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return Some((c+3) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
 
-    let v = content.get(c+4)?;
+    let v = content.get(c)?;    // 4
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return Some((c+4) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
 
-    let v = content.get(c+5)?;
+    let v = content.get(c)?;    // 5
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return Some((c+5) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
 
-    let v = content.get(c+6)?;
+    let v = content.get(c)?;    // 6
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { rank -= ones; } else { return Some((c+6) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
 
-    let v = content.get(c+7)?;
+    let v = content.get(c)?;    // 7
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-    if ones <= rank { None } else { Some((c+7) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize) }
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    
+    None
 }
 
 impl SelectForRank101111 for BinaryRankSearch {
