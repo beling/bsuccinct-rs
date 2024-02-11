@@ -302,6 +302,15 @@ impl SelectForRank101111 for BinaryRankSearch {
                 .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1;
         unsafe { select_from_l2::<true>(content, l2ranks, l2_index, rank) }
     }
+
+    #[inline] unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l1_index = select_l1::<true>(l1ranks, &mut rank);
+        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
+        let l2_index = l2_begin +
+            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
+                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1;
+        select_from_l2_unchecked::<true>(content, l2ranks, l2_index, rank)
+    }
 }
 
 impl Select0ForRank101111 for BinaryRankSearch {
@@ -316,6 +325,16 @@ impl Select0ForRank101111 for BinaryRankSearch {
                 &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
                 |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1;
         unsafe { select_from_l2::<false>(content, l2ranks, l2_index, rank) }
+    }
+
+    #[inline] unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l1_index = select_l1::<false>(l1ranks, &mut rank);
+        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
+        let l2_index = l2_begin +
+            super::utils::partition_point_with_index(
+                &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
+                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1;
+        select_from_l2_unchecked::<false>(content, l2ranks, l2_index, rank)
     }
 }
 
