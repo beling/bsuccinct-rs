@@ -218,34 +218,6 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSel
         //r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))
         r + count_bits_in(self.content.get_unchecked(word_idx&!7..word_idx))
     }
-
-    /*unsafe fn rank_unchecked(&self, index: usize) -> usize {
-        let block = index / 512;
-        let word_idx = index / 64;
-        // we start from access to content, as if given index of content is not out of bounds,
-        // then corresponding indices l1ranks and l2ranks are also not out of bound
-        let mut r = (self.content.get_unchecked(word_idx) & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
-        let mut block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
-        r += *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
-        block_content >>= 32;   // remove the lowest 32 bits
-        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;        
-        Some(r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))).unwrap_unchecked()
-    }*/
-
-    /*fn rank(&self, index: usize) -> usize {
-        let block = index / 512;
-        let mut block_content = self.l2ranks[index/2048];//self.ranks[block/4];
-        let mut r = unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
-        block_content >>= 32;   // remove the lowest 32 bits
-        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
-        let word_idx = index / 64;
-        r += count_bits_in(&self.content[block * 8..word_idx]);
-        /*for w in block * (512 / 64)..word_idx {
-            r += self.content[w].count_ones() as u64;
-        }*/
-        r + (self.content[word_idx] & n_lowest_bits(index as u8 % 64)).count_ones() as usize
-        //r + ((self.content[word_idx] << 1) << (63 - index % 64)).count_ones() as usize    // alternative, seems to generate worse asm.
-    }*/
 }
 
 impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111<S, S0> {
