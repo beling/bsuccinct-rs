@@ -177,14 +177,22 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> From<Box<[u64]>> for Arra
 }
 
 impl<S: SelectForRank101111, S0> Select for ArrayWithRankSelect101111<S, S0> {
-    fn try_select(&self, rank: usize) -> Option<usize> {
+    #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
         self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
+    }
+
+    #[inline(always)] unsafe fn select_unchecked(&self, rank: usize) -> usize {
+        self.select.select_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
 impl<S, S0: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S, S0> {
-    fn try_select0(&self, rank: usize) -> Option<usize> {
+    #[inline(always)] fn try_select0(&self, rank: usize) -> Option<usize> {
         self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
+    }
+
+    #[inline(always)] unsafe fn select0_unchecked(&self, rank: usize) -> usize {
+        self.select0.select0_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
@@ -356,7 +364,8 @@ mod tests {
         for (rank, index) in a.as_ref().bit_ones().enumerate() {
             assert_eq!(a.rank(index), rank, "rank({}) should be {}", index, rank);
             assert_eq!(a.select(rank), index, "select({}) should be {}", rank, index);
-            assert_eq!(unsafe{a.rank_unchecked(index)}, rank, "rank({}) should be {}", index, rank);  
+            assert_eq!(unsafe{a.rank_unchecked(index)}, rank, "rank({}) should be {}", index, rank);
+            assert_eq!(unsafe{a.select_unchecked(rank)}, index, "select({}) should be {}", rank, index);
             //assert_eq!(a.try_rank(index), Some(rank), "rank({}) should be {}", index, rank);
             //assert_eq!(a.try_select(rank), Some(index), "select({}) should be {}", rank, index);
         }
@@ -367,6 +376,7 @@ mod tests {
             assert_eq!(a.rank0(index), rank, "rank0({}) should be {}", index, rank);
             assert_eq!(a.select0(rank), index, "select0({}) should be {}", rank, index);
             assert_eq!(unsafe{a.rank0_unchecked(index)}, rank, "rank0({}) should be {}", index, rank);
+            assert_eq!(unsafe{a.select0_unchecked(rank)}, index, "select0({}) should be {}", rank, index);
             //assert_eq!(a.try_rank0(index), Some(rank), "rank0({}) should be {}", index, rank);
             //assert_eq!(a.try_select0(rank), Some(index), "select0({}) should be {}", rank, index);
         }
