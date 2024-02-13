@@ -208,7 +208,7 @@ impl GetSize for BinaryRankSearch {}
 }
 
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
-#[inline(always)] unsafe fn select_from_l2_unchecked<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> usize {
+#[inline] unsafe fn select_from_l2_unchecked<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> usize {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
     let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
     
@@ -252,7 +252,7 @@ impl GetSize for BinaryRankSearch {}
 }
 
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
-#[inline(always)] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
+#[inline] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
     let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
     /*#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
@@ -308,16 +308,29 @@ impl GetSize for BinaryRankSearch {}
     None
 }
 
+impl BinaryRankSearch {
+    #[inline(always)] fn select_l2index<const ONE: bool>(l1ranks: &[usize], l2ranks: &[u64], rank: &mut usize) -> usize {
+        let l2_begin = select_l1::<ONE>(l1ranks, rank) * L2_ENTRIES_PER_L1_ENTRY;
+        let rank = *rank;
+        l2_begin + if ONE {
+            //partition_index(l2_begin, l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY),
+            //    |index| unsafe{l2ranks.get_unchecked(index)&0xFFFFFFFF} as usize <= rank) - 1
+            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
+                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1
+        } else {
+            super::utils::partition_point_with_index(
+                &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
+                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1
+        }
+    }
+}
+
 impl SelectForRank101111 for BinaryRankSearch {
     #[inline] fn new(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    #[inline] fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
-        let l1_index = select_l1::<true>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2_begin +
-            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
-                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1;
+        let l2_index = BinaryRankSearch::select_l2index::<true>(l1ranks, l2ranks, &mut rank);
         unsafe {
             if l2_index + 1 == l2ranks.len() {  // unlikely
                 return select_from_l2::<true>(content, l2ranks, l2_index, rank); // this can be used for any l2_index, but is slower than unchecked ver.
@@ -326,12 +339,8 @@ impl SelectForRank101111 for BinaryRankSearch {
         }
     }
 
-    #[inline] unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
-        let l1_index = select_l1::<true>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2_begin +
-            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
-                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1;
+    unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l2_index = BinaryRankSearch::select_l2index::<true>(l1ranks, l2ranks, &mut rank);
         select_from_l2_unchecked::<true>(content, l2ranks, l2_index, rank)
     }
 }
@@ -339,14 +348,9 @@ impl SelectForRank101111 for BinaryRankSearch {
 impl Select0ForRank101111 for BinaryRankSearch {
     #[inline] fn new0(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    #[inline] fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
-        let l1_index = select_l1::<false>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2_begin +
-            super::utils::partition_point_with_index(
-                &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
-                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1;
+        let l2_index = BinaryRankSearch::select_l2index::<false>(l1ranks, l2ranks, &mut rank);
         unsafe {
             if l2_index + 1 == l2ranks.len() {  // unlikely
                 return select_from_l2::<false>(content, l2ranks, l2_index, rank); // this can be used for any l2_index, but is slower than unchecked ver.
@@ -355,13 +359,8 @@ impl Select0ForRank101111 for BinaryRankSearch {
         }
     }
 
-    #[inline] unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
-        let l1_index = select_l1::<false>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2_begin +
-            super::utils::partition_point_with_index(
-                &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
-                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1;
+    unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l2_index = BinaryRankSearch::select_l2index::<false>(l1ranks, l2ranks, &mut rank);
         select_from_l2_unchecked::<false>(content, l2ranks, l2_index, rank)
     }
 }

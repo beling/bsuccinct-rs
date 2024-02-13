@@ -722,11 +722,11 @@ mod tests {
     #[test]
     fn test_mid_3() {
         let mut ef = Builder::new(1<<16, (1<<16)*3 + 1);
-        ef.push_all((1..=1<<16).map(|v|v*3));
+        ef.push_all((1..=1<<16).map(|v|v*3));   //1, 3, 6, ...
         let ef: Sequence = ef.finish();
         for i in (1usize..1<<16).step_by(33) {
             let value = (i as u64 + 1) * 3;
-            assert_eq!(ef.get(i), Some(value));
+            assert_eq!(ef.get(i), Some(value), "get({}) should be {}", i, value);
             assert_eq!(ef.diff(i), Some(3));
             assert_eq!(ef.index_of(value), Some(i));
             assert_eq!(ef.geq_index(value), i);
