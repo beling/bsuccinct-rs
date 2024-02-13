@@ -4,6 +4,7 @@ mod elias_fano;
 mod bitm;
 mod sucds;
 mod succinct;
+mod sux;
 #[cfg(feature = "vers-vecs")] mod vers;
 
 use std::{fs::{File, OpenOptions}, hint::black_box, num::{NonZeroU32, NonZeroU64}, time::Instant};
@@ -16,19 +17,23 @@ use clap::{Parser, Subcommand};
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand)]
 pub enum Structure {
-    /// Elias-Fano
+    /// Elias-Fano from cseq crate
     EliasFano,
-    /// Uncompressed bit vector from bitm library
+    /// Rank/Select on uncompressed bit vector using bitm crate
     BitmBV,
-    /// Uncompressed bit vector from sucds library
+    /// Rank/Select on uncompressed bit vector using sucds crate
     SucdsBV,
-    /// Uncompressed bit vector from succinct library
+    /// Rank/Select on uncompressed bit vector using Jacobson from succinct crate
     SuccinctJacobson,
-    /// Uncompressed bit vector from succinct library
+    /// Rank/Select on uncompressed bit vector using Rank9 from succinct crate
     SuccinctRank9,
-    /// Uncompressed bit vector from vers
+    /// SelectFixed1 on uncompressed bit vector using sux crate
+    SuxSelectFixed1,
+    /// SelectFixed2 on uncompressed bit vector using sux crate
+    SuxSelectFixed2,
+    /// Rank/Select on uncompressed bit vector using vers crate
     #[cfg(feature = "vers-vecs")] Vers,
-    /// Rank and select on bit vectors, all methods
+    /// Rank and select on bit vectors using all supported methods and crate
     BV
 }
 
@@ -72,10 +77,127 @@ pub struct Conf {
 const INPUT_HEADER: &'static str = "universe,num";
 const RANK_SELECT_HEADER: &'static str = "method,space_overhead,time_per_query";
 
+struct Tester<'c> {
+    conf: &'c Conf,
+    number_of_ones: usize,
+    rank_includes_current: bool
+}
+
+fn check<R: Into<Option<usize>>>(structure_name: &str, operation_name: &str, argument: usize, expected: usize, got: R) {
+    if let Some(got) = got.into() {
+        if got != expected {
+            eprintln!("{structure_name}: {operation_name}({argument}) returned {got}, but should {expected}");
+        }
+    } else {
+        eprintln!("{structure_name}: select({argument}) returned None, but should {expected}")
+    }
+}
+
+impl<'c> Tester<'c> {
+    #[inline(always)] pub fn raport_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, rank: F)
+    where F: Fn(usize) -> R
+    {
+        print!("  rank:  space overhead {:.2}%", space_overhead);
+        let time = self.conf.queries_measure(&self.conf.rand_queries(self.conf.universe), &rank).as_nanos();
+        println!("  time/query {:.2}ns", time);
+        self.conf.save_rank(method_name, space_overhead, time);
+        if self.conf.verify {
+            //print!("   verification of rank answers... ");
+            self.conf.data_foreach(|index, mut expected_rank, value| {
+                if self.rank_includes_current && value { expected_rank += 1 }
+                check(method_name, "rank", index, expected_rank, rank(index))
+            });
+            //println!("DONE");
+        }
+    }
+
+    #[inline(always)] pub fn raport_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select: F)
+    where F: Fn(usize) -> R
+    {
+        print!("  select1:");
+        if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
+        let time = self.conf.queries_measure(&self.conf.rand_queries(self.number_of_ones), &select).as_nanos();
+        println!("  time/query {:.2}ns", time);
+        self.conf.save_select1(method_name, space_overhead, time);
+        if self.conf.verify {
+            //print!("   verification of select1 answers... ");
+            self.conf.data_foreach(|index, rank, value| if value {
+                check(method_name, "select", rank, index, select(rank))
+            });
+            //println!("DONE");
+        }
+    }
+
+    #[inline(always)]pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select0: F)
+    where F: Fn(usize) -> R
+    {
+        print!("  select0:");
+        if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
+        let time = self.conf.queries_measure(
+            &self.conf.rand_queries(self.conf.universe-self.number_of_ones),
+            &select0).as_nanos();
+        println!("  time/query {:.2}ns", time);
+        self.conf.save_select0(method_name, space_overhead, time);
+        if self.conf.verify {
+            //print!("   verification of select0 answers... ");
+            self.conf.data_foreach(|index, rank1, value| if !value {
+                let rank0 = index - rank1;
+                check(method_name, "select0", rank0, index, select0(rank0))
+            });
+            //println!("DONE");
+        }
+    }
+}
+
 impl Conf {
-    //pub const QUERIES: usize = 1_000_000;
-    //pub const STEPS_NUM: usize = 194_933;   // prime
-    //pub const STEPS_NUM: usize = 1_949_333;
+    fn data_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F) -> usize {
+        let mut gen = self.rand_gen();
+        let mut number_of_ones = 0;
+
+        for i in 0..self.universe {   // uniform
+            let remain_universe = self.universe - i;
+            let remain_num = self.num - number_of_ones;
+            let included = gen.get() as usize % remain_universe < remain_num;
+            f(i, number_of_ones, included);
+            number_of_ones += included as usize;
+        }
+
+        /*let (reverse, num) = if self.num * 2 > self.universe {
+            (true, self.universe - self.num)
+        } else {
+            (false, self.num)
+        };
+        let mut number_of_ones = 0;
+        let mut gen = self.rand_gen();*/
+
+        /*for i in 0..self.universe {   // uniform
+            add(i, (gen.get() as usize % self.universe < num) ^ reverse);
+        }*/
+
+        /*for i in 0..self.universe {   // linear density increase
+            let value = (gen.get() as usize % self.universe * (self.universe-1) < 2 * num * i) ^ reverse;
+            add(i, value);
+            number_of_ones += value as usize;
+        }*/
+
+        /*let half_universe = self.universe/2;
+        for i in 0..half_universe {
+            f(i, reverse);
+        }
+        for i in half_universe..self.universe {   // linear density increase
+            let value = (gen.get() as usize % self.universe * (half_universe-1) < 4 * num * (i-half_universe)) ^ reverse;
+            f(i, value);
+            number_of_ones += value as usize;
+        }*/
+
+        number_of_ones
+    }
+
+    fn rand_data<F: FnMut(usize, bool)>(&self, mut add: F) -> Tester {
+        let number_of_ones = self.data_foreach(|index, _, v| add(index, v));
+        println!(" input: number of bit ones is {} / {} ({:.2}%)", number_of_ones, self.universe, percent_of(number_of_ones, self.universe));
+        Tester { conf: self, number_of_ones, rank_includes_current: false }
+    }
 
     fn file(&self, file_name: &str, extra_header: &str) -> Option<File> {
         if !self.save_details { return None; }
@@ -133,7 +255,7 @@ impl Conf {
         self.measure(|| for i in queries { black_box(f(*i)); }) / queries.len() as f64
     }
 
-    #[inline(always)]pub fn raport_rank<R, F>(&self, method_name: &str, space_overhead: f64, f: F)
+    /*#[inline(always)]pub fn raport_rank<R, F>(&self, method_name: &str, space_overhead: f64, f: F)
     where F: Fn(usize) -> R
     {
         print!("  rank:  space overhead {:.2}%", space_overhead);
@@ -160,7 +282,7 @@ impl Conf {
         let time = self.queries_measure(&self.rand_queries(self.universe-self.num), f).as_nanos();
         println!("  time/query {:.2}ns", time);
         self.save_select0(method_name, space_overhead, time)
-    }
+    }*/
 
     /*#[inline(always)] fn sampling_measure<R, F>(&self, steps: StepBy<Range<usize>>, f: F) -> f64
     where F: Fn(usize) -> R
@@ -199,6 +321,8 @@ fn main() {
         Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
         Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
         Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
+        Structure::SuxSelectFixed1 => sux::benchmark_select_fixed1(&conf),
+        Structure::SuxSelectFixed2 => sux::benchmark_select_fixed2(&conf),
         #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf),
         Structure::BV => {
             bitm::benchmark_rank_select(&conf);
@@ -206,6 +330,8 @@ fn main() {
             succinct::benchmark_rank9(&conf);
             succinct::benchmark_jacobson(&conf);
             #[cfg(feature = "vers-vecs")] vers::benchmark_rank_select(&conf);
+            sux::benchmark_select_fixed2(&conf);
+            sux::benchmark_select_fixed1(&conf);
         },
     }
 }

@@ -21,3 +21,5 @@ bitm = { version="0.3", path="../bitm" }
 sucds = "0.8"
 succinct = "0.5"
 vers-vecs = { version="1.1", optional=true }
+sux="0.2"
+mem_dbg = "0.1" # required by sux

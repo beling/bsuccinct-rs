@@ -468,7 +468,8 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
 ///   in: R. Klasing (Ed.), Experimental Algorithms, Springer Berlin Heidelberg, Berlin, Heidelberg, 2012, pp. 295–306
 #[derive(Clone)]
 pub struct CombinedSampling<D: CombinedSamplingDensity = /*ConstCombinedSamplingDensity*/AdaptiveCombinedSamplingDensity> {
-    /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one (or zero in the case of select 0) in content, starting from the first one.
+    /// Bit indices (relative to level 1) of every d-th (d depends on D) one (or zero in the case of select 0) in content,
+    /// starting from the first one.
     select: Box<[u32]>,
     /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
     select_begin: Box<[usize]>,
@@ -536,7 +537,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize}
-             else {(l2_index+1-l2_begin) * BITS_PER_L2_ENTRY - (unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize} <= rank
+             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize} <= rank
         {
             l2_index += 1;
         }
@@ -552,12 +553,22 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     unsafe fn select_unchecked<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
+
+        /*let l2chunk = l2ranks.get_unchecked(l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY));
+        let mut l2_index = *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
+        while let Some(v) = l2chunk.get(l2_index+1) {
+            let v = if ONE {(*v & 0xFF_FF_FF_FF) as usize}
+                else {(l2_index+1) * BITS_PER_L2_ENTRY - (*v & 0xFF_FF_FF_FF) as usize};
+            if v > rank { break; }
+            l2_index += 1;
+        }
+        unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_begin+l2_index, rank) }*/
+
         let mut l2_index = l2_begin + *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
-             else {(l2_index+1-l2_begin) * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize} <= rank
+             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize} <= rank
         {
             l2_index += 1;
         }
