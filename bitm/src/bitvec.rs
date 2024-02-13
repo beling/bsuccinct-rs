@@ -515,6 +515,11 @@ pub fn bitvec_with_items<V: Into<u64>, I: IntoIterator<Item=V>>(items: I, fragme
 #[inline(always)] fn set_bit_to(to_change: &mut u64, bit_nr: usize, value: bool) {
     *to_change &= !(1u64 << bit_nr);
     *to_change |= (value as u64) << bit_nr;
+    // Conditionally set or clear bits without branching 
+    // https://graphics.stanford.edu/~seander/bithacks.html#ConditionalSetOrClearBitsWithoutBranching
+    // Slower due to benchmark:
+    //let m = 1 << bit_nr;
+    //*to_change = (*to_change & !m) | ((value as u64).wrapping_neg() & m);
 }
 
 #[inline(always)] fn set_bits_to(to_change: &mut u64, shifted_v: u64, shifted_v_mask: u64) {
