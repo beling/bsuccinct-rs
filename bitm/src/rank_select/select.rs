@@ -208,7 +208,7 @@ impl GetSize for BinaryRankSearch {}
 }
 
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
-#[inline] unsafe fn select_from_l2_unchecked<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> usize {
+#[inline(always)] unsafe fn select_from_l2_unchecked<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> usize {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
     let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
     
@@ -252,7 +252,7 @@ impl GetSize for BinaryRankSearch {}
 }
 
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
-#[inline] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
+#[inline(always)] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
     let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
     /*#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
