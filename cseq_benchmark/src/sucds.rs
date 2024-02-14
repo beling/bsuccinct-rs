@@ -41,10 +41,10 @@ pub fn benchmark_rank9_select(conf: &Conf) {
     let rs_select1_size = rs.size_in_bytes() - rs_size_without_hints;
     rs = rs.select0_hints();
     let rs_select0_size = rs.size_in_bytes() - rs_size_without_hints - rs_select1_size;
-    tester.raport_select1("sucds Rank9Sel",
+    tester.raport_select1("sucds Rank9Sel + hints",
         percent_of(rs_select1_size, content_size),
         |index| rs.select1(index));
-    tester.raport_select0("sucds Rank9Sel",
+    tester.raport_select0("sucds Rank9Sel + hints",
         percent_of(rs_select0_size, content_size),
         |index| rs.select0(index));
     /*println!("  space overhead: select1 {:.4}% select0 {:.4}% (+rank overhead)",
