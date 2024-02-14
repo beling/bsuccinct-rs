@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 
-use std::ops::Add;
-use std::{collections::HashMap, ops::AddAssign};
+use std::collections::HashMap;
 use std::hash::Hash;
 use co_sort::{co_sort, Permutation};
+use frequencies::Weight;
 
 use std::borrow::Borrow;
 use binout::{VByte, Serializer};
@@ -95,7 +95,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
     pub fn from_sorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
-        where u32: Into<W>, W: Copy + PartialOrd + AddAssign + Add<W, Output=W> + TryInto<usize>
+        where W: Weight
     {
         let len = freq.len() as u32;
         let tree_degree = degree.as_u32();
@@ -120,7 +120,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             // select first item for a pairing
             if leafs_begin >= len || freq[internals_begin] < freq[leafs_begin as usize] {
                 freq[next as usize] = freq[internals_begin];
-                freq[internals_begin] = next.into();
+                freq[internals_begin] = Weight::from(next);
                 internals_begin += 1;
             } else {
                 freq[next as usize] = freq[leafs_begin as usize];
@@ -131,7 +131,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             for _ in 1..current_tree_degree {
                 if leafs_begin >= len || (internals_begin < next as usize && freq[internals_begin] < freq[leafs_begin as usize]) {
                     freq[next as usize] += freq[internals_begin];
-                    freq[internals_begin] = next.into();
+                    freq[internals_begin] = Weight::from(next);
                     internals_begin += 1;
                 } else {
                     freq[next as usize] += freq[leafs_begin as usize];
@@ -141,13 +141,13 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             current_tree_degree = tree_degree;    // only in first iteration can be: current_tree_degree != tree_degree
         }
         //const CONVERTIBLE_TO_USIZE: &'static str = "symbol weights must be convertible to usize";
-        let convertible_to_usize = |_| { panic!("symbol weights must be convertible to usize") };
+        //let convertible_to_usize = |_| { panic!("symbol weights must be convertible to usize") };
         // second pass, right to left, setting internal depths, we also find the maximum depth
         let mut max_depth = 0usize;
-        freq[(internal_nodes_size - 1) as usize] = 0.into();    // value for the root
+        freq[(internal_nodes_size - 1) as usize] = Weight::from(0);    // value for the root
         for next in (0..internal_nodes_size - 1).rev() {
-            freq[next as usize] = freq[freq[next as usize].try_into().unwrap_or_else(convertible_to_usize)] + 1.into();
-            let f = freq[next as usize].try_into().unwrap_or_else(convertible_to_usize);
+            freq[next as usize] = freq[freq[next as usize].as_usize()] + Weight::from(1);
+            let f = freq[next as usize].as_usize();
             if f > max_depth { max_depth = f; }
         }
 
@@ -158,7 +158,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             degree
         };
         for i in 0..internal_nodes_size - 1 {
-            result.internal_nodes_count[freq[i as usize].try_into().unwrap_or_else(convertible_to_usize) - 1] += 1;  // only root is at the level 0, we skip it
+            result.internal_nodes_count[freq[i as usize].as_usize() - 1] += 1;  // only root is at the level 0, we skip it
         }   // no internal nodes at the last level, result.internal_nodes_count[max_depth] is 0
 
         return result;
@@ -169,7 +169,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     ///
     /// The algorithm runs in *O(values.len * log(values.len))* time.
     pub fn from_unsorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
-        where u32: Into<W>, W: Ord + Copy + PartialOrd + AddAssign + Add<W, Output=W> + TryInto<usize>
+        where W: Weight
     {
         co_sort!(freq, values);
         Self::from_sorted(degree, values, freq)
@@ -422,7 +422,7 @@ mod tests {
         // /\  a
         // bc
         let huffman = Coding::from_frequencies(BitsPerFragment(1),
-                                               hashmap!('a' => 100, 'b' => 50, 'c' => 10));
+                                               hashmap!('a' => 100u32, 'b' => 50, 'c' => 10));
         assert_eq!(huffman.total_fragments_count(), 5);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
@@ -455,7 +455,7 @@ mod tests {
         //  /|\
         //  abc
         let huffman = Coding::from_frequencies(BitsPerFragment(2),
-                                               hashmap!('a' => 100, 'b' => 50, 'c' => 10));
+                                               hashmap!('a' => 100u32, 'b' => 50, 'c' => 10));
         assert_eq!(huffman.total_fragments_count(), 3);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [0]);
@@ -490,7 +490,7 @@ mod tests {
         //  / \ d  ef
         // /\ a
         // bc
-        let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
+        let frequencies = hashmap!('d' => 12u32, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
         let huffman = Coding::from_frequencies(BitsPerFragment(1), frequencies);
         assert_eq!(huffman.total_fragments_count(), 17);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
@@ -546,7 +546,7 @@ mod tests {
         // /\\  d  e  f
         // abc 12 11 10
         // 321
-        let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
+        let frequencies = hashmap!('d' => 12u32, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
         let huffman = Coding::from_frequencies(BitsPerFragment(2), frequencies);
         assert_eq!(huffman.total_fragments_count(), 9);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
@@ -597,7 +597,7 @@ mod tests {
         // /\\  d  e
         // abc 12 11
         // 321
-        let frequencies = hashmap!('d' => 12, 'e' => 11, 'a' => 3, 'b' => 2, 'c' => 1);
+        let frequencies = hashmap!('d' => 12u32, 'e' => 11, 'a' => 3, 'b' => 2, 'c' => 1);
         let huffman = Coding::from_frequencies(Degree(3), frequencies);
         assert_eq!(huffman.total_fragments_count(), 8);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'a', 'b', 'c']);
