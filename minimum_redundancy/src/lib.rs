@@ -120,7 +120,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             // select first item for a pairing
             if leafs_begin >= len || freq[internals_begin] < freq[leafs_begin as usize] {
                 freq[next as usize] = freq[internals_begin];
-                freq[internals_begin] = Weight::from(next);
+                freq[internals_begin] = Weight::of(next);
                 internals_begin += 1;
             } else {
                 freq[next as usize] = freq[leafs_begin as usize];
@@ -131,7 +131,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             for _ in 1..current_tree_degree {
                 if leafs_begin >= len || (internals_begin < next as usize && freq[internals_begin] < freq[leafs_begin as usize]) {
                     freq[next as usize] += freq[internals_begin];
-                    freq[internals_begin] = Weight::from(next);
+                    freq[internals_begin] = Weight::of(next);
                     internals_begin += 1;
                 } else {
                     freq[next as usize] += freq[leafs_begin as usize];
@@ -144,9 +144,9 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         //let convertible_to_usize = |_| { panic!("symbol weights must be convertible to usize") };
         // second pass, right to left, setting internal depths, we also find the maximum depth
         let mut max_depth = 0usize;
-        freq[(internal_nodes_size - 1) as usize] = Weight::from(0);    // value for the root
+        freq[(internal_nodes_size - 1) as usize] = Weight::of(0);    // value for the root
         for next in (0..internal_nodes_size - 1).rev() {
-            freq[next as usize] = freq[freq[next as usize].as_usize()] + Weight::from(1);
+            freq[next as usize] = freq[freq[next as usize].as_usize()] + Weight::of(1);
             let f = freq[next as usize].as_usize();
             if f > max_depth { max_depth = f; }
         }
