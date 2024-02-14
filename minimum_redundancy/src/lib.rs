@@ -95,9 +95,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
     pub fn from_sorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
-        where u32: Into<W>,
-         W: Copy + PartialOrd + AddAssign + Add<W, Output=W> + TryInto<usize>,
-         //<W as TryInto<usize>>::Error: std::fmt::Debug
+        where u32: Into<W>, W: Copy + PartialOrd + AddAssign + Add<W, Output=W> + TryInto<usize>
     {
         let len = freq.len() as u32;
         let tree_degree = degree.as_u32();
@@ -170,7 +168,9 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     /// `freq` has to be of the same length as values and contain number of occurrences of corresponding values.
     ///
     /// The algorithm runs in *O(values.len * log(values.len))* time.
-    pub fn from_unsorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self{
+    pub fn from_unsorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
+        where u32: Into<W>, W: Ord + Copy + PartialOrd + AddAssign + Add<W, Output=W> + TryInto<usize>
+    {
         co_sort!(freq, values);
         Self::from_sorted(degree, values, freq)
     }
