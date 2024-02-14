@@ -590,11 +590,13 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         }
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_begin+l2_index, rank) }*/
 
-        let mut l2_index = l2_begin + *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
+        let mut l2_index = l2_begin +
+            *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
-             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize} <= rank
+             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
+             <= rank
         {
             l2_index += 1;
         }
