@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
-use std::collections::HashMap;
+use std::ops::Add;
+use std::{collections::HashMap, ops::AddAssign};
 use std::hash::Hash;
 use co_sort::{co_sort, Permutation};
 
@@ -93,7 +94,10 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     ///
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
-    pub fn from_sorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self
+    pub fn from_sorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
+        where u32: Into<W>,
+         W: Copy + PartialOrd + AddAssign + Add<W, Output=W> + TryInto<usize>,
+         //<W as TryInto<usize>>::Error: std::fmt::Debug
     {
         let len = freq.len() as u32;
         let tree_degree = degree.as_u32();
@@ -114,11 +118,11 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         let mut leafs_begin = 0;     // next leaf to be used
         let internal_nodes_size = (len + reduction_per_step - 2) / reduction_per_step;    // (len-1) / reduction_per_step rounded up
 
-        for next in 0..internal_nodes_size {    // next is next value to be assigned
+        for next in 0u32..internal_nodes_size {    // next is next value to be assigned
             // select first item for a pairing
             if leafs_begin >= len || freq[internals_begin] < freq[leafs_begin as usize] {
                 freq[next as usize] = freq[internals_begin];
-                freq[internals_begin] = next as u32;
+                freq[internals_begin] = next.into();
                 internals_begin += 1;
             } else {
                 freq[next as usize] = freq[leafs_begin as usize];
@@ -129,7 +133,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             for _ in 1..current_tree_degree {
                 if leafs_begin >= len || (internals_begin < next as usize && freq[internals_begin] < freq[leafs_begin as usize]) {
                     freq[next as usize] += freq[internals_begin];
-                    freq[internals_begin] = next as u32;
+                    freq[internals_begin] = next.into();
                     internals_begin += 1;
                 } else {
                     freq[next as usize] += freq[leafs_begin as usize];
@@ -138,24 +142,25 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
             }
             current_tree_degree = tree_degree;    // only in first iteration can be: current_tree_degree != tree_degree
         }
-        //dbg!(&freq);
-        //dbg!(&internal_nodes_size);
+        //const CONVERTIBLE_TO_USIZE: &'static str = "symbol weights must be convertible to usize";
+        let convertible_to_usize = |_| { panic!("symbol weights must be convertible to usize") };
         // second pass, right to left, setting internal depths, we also find the maximum depth
-        let mut max_depth = 0u8;
-        freq[(internal_nodes_size - 1) as usize] = 0;    // value for the root
+        let mut max_depth = 0usize;
+        freq[(internal_nodes_size - 1) as usize] = 0.into();    // value for the root
         for next in (0..internal_nodes_size - 1).rev() {
-            freq[next as usize] = freq[freq[next as usize] as usize] + 1;
-            if freq[next as usize] as u8 > max_depth { max_depth = freq[next as usize] as u8; }
+            freq[next as usize] = freq[freq[next as usize].try_into().unwrap_or_else(convertible_to_usize)] + 1.into();
+            let f = freq[next as usize].try_into().unwrap_or_else(convertible_to_usize);
+            if f > max_depth { max_depth = f; }
         }
 
         values.reverse();
         let mut result = Self {
             values,
-            internal_nodes_count: vec![0u32; max_depth as usize + 1].into_boxed_slice(),
+            internal_nodes_count: vec![0u32; max_depth + 1].into_boxed_slice(),
             degree
         };
         for i in 0..internal_nodes_size - 1 {
-            result.internal_nodes_count[freq[i as usize] as usize - 1] += 1;  // only root is at the level 0, we skip it
+            result.internal_nodes_count[freq[i as usize].try_into().unwrap_or_else(convertible_to_usize) - 1] += 1;  // only root is at the level 0, we skip it
         }   // no internal nodes at the last level, result.internal_nodes_count[max_depth] is 0
 
         return result;
