@@ -179,14 +179,14 @@ impl GetSize for BinaryRankSearch {}
     };
 }*/
 
-#[inline(always)] fn consider_l2entry<const ONE: bool>(l2_index: usize, l2_entry: u64, rank: &mut usize) -> usize {
-    if ONE {
+/*#[inline(always)] fn consider_l2entry<const ONE: bool>(l2_index: usize, l2_entry: u64, rank: &mut usize) -> usize {
+    let to_subtract = if ONE {
         *rank -= (l2_entry & 0xFFFFFFFF) as usize;
+        (l2_entry>>(32+11)) & 0b1_11111_11111
     } else {
         *rank -= (l2_index % L2_ENTRIES_PER_L1_ENTRY) * BITS_PER_L2_ENTRY - (l2_entry & 0xFFFFFFFF) as usize;
-    }
-    let to_subtract = if ONE { (l2_entry>>(32+11)) & 0b1_11111_11111 }
-        else { (2*BITS_PER_L2_RECORDS).wrapping_sub((l2_entry>>(32+11)) & 0b1_11111_11111) } as usize;
+        (2*BITS_PER_L2_RECORDS).wrapping_sub((l2_entry>>(32+11)) & 0b1_11111_11111)
+    } as usize;
     if *rank >= to_subtract {
         let to_subtract_more = if ONE { (l2_entry>>32) & 0b1_11111_11111 }
             else { (3*BITS_PER_L2_RECORDS).wrapping_sub((l2_entry>>32) & 0b1_11111_11111) } as usize;        
@@ -200,6 +200,32 @@ impl GetSize for BinaryRankSearch {}
     } else {
         let to_subtract = if ONE { l2_entry>>(32+22) }
             else { BITS_PER_L2_RECORDS.wrapping_sub(l2_entry>>(32+22)) } as usize;
+        if *rank >= to_subtract {
+            *rank -= to_subtract;
+            U64_PER_L2_RECORDS
+        } else { 0 }
+    }
+}*/
+
+#[inline(always)] fn consider_l2entry<const ONE: bool>(l2_index: usize, mut l2_entry: u64, rank: &mut usize) -> usize {
+    if !ONE {
+        const HI: u64 = ((3*BITS_PER_L2_RECORDS) << 32) | ((2*BITS_PER_L2_RECORDS) << (32+11)) | (BITS_PER_L2_RECORDS << (32+22));
+        l2_entry = (((l2_index as u64 % L2_ENTRIES_PER_L1_ENTRY as u64) * BITS_PER_L2_ENTRY as u64) | HI)
+                   .wrapping_sub(l2_entry);
+    }
+    *rank -= (l2_entry & 0xFFFFFFFF) as usize;
+    let to_subtract = ((l2_entry>>(32+11)) & 0b1_11111_11111) as usize;
+    if *rank >= to_subtract {
+        let to_subtract_more = ((l2_entry>>32) & 0b1_11111_11111) as usize;        
+        if *rank >= to_subtract_more {
+            *rank -= to_subtract_more;
+            3 * U64_PER_L2_RECORDS
+        } else {
+            *rank -= to_subtract;
+            2 * U64_PER_L2_RECORDS
+        }
+    } else {
+        let to_subtract = (l2_entry>>(32+22)) as usize;
         if *rank >= to_subtract {
             *rank -= to_subtract;
             U64_PER_L2_RECORDS
@@ -564,11 +590,13 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         }
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_begin+l2_index, rank) }*/
 
-        let mut l2_index = l2_begin + *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
+        let mut l2_index = l2_begin +
+            *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
-             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize} <= rank
+             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
+             <= rank
         {
             l2_index += 1;
         }

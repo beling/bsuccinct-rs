@@ -114,6 +114,10 @@ impl<'c> Tester<'c> {
     #[inline(always)] pub fn raport_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select: F)
     where F: Fn(usize) -> R
     {
+        if self.number_of_ones == 0 {
+            //println!("skipping select1 test as there are no ones");
+            return;
+        }
         print!("  select1:");
         if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
         let time = self.conf.queries_measure(&self.conf.rand_queries(self.number_of_ones), &select).as_nanos();
@@ -131,6 +135,10 @@ impl<'c> Tester<'c> {
     #[inline(always)]pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select0: F)
     where F: Fn(usize) -> R
     {
+        if self.conf.universe == self.number_of_ones {
+            //println!("skipping select0 test as there are no zeros");
+            return;
+        }
         print!("  select0:");
         if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
         let time = self.conf.queries_measure(

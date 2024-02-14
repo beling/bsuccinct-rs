@@ -139,10 +139,8 @@ pub trait Rank {
 /// The modification consists of different level 2 entries that hold 4 rank values (r0 <= r1 <= r2 <= r3) relative to level 1 entry.
 /// The content of level 2 entry, listing from the least significant bits, is:
 /// - original: r0 stored on 32 bits, r1-r0 on 10 bits, r2-r1 on 10 bits, r3-r2 on 10 bits;
-/// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits
-///        (and unused fields in the last entries, for out-of-bound content bits, are filled with bit ones).
-/// With this layout, we can read the corresponding value in the rank query without branching
-/// and avoid some bound checks in the select query.
+/// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits.
+/// With this layout, we can read the corresponding value in the rank query without branching.
 /// 
 /// Another modification that makes our implementation unique is the ability of the select support structure to adapt
 /// the sampling density to the content of the bit vector (see [`CombinedSampling`] and [`AdaptiveCombinedSamplingDensity`]).
@@ -250,15 +248,13 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111
                             to_append |= chunk_sum << 32;
                             if let Some(v) = vals.next() { chunk_sum += v as u64; }
                         } else {
-                            to_append |= ((1<<11)-1) << 32; // TODO powielic chunk_sum??
+                            to_append |= chunk_sum << 32;   // replication of the last chunk_sum in the last l2rank
                         }
                     } else {
-                        to_append |= ((1<<22)-1) << 32; // TODO powielic chunk_sum??
+                        to_append |= (chunk_sum << 32) | (chunk_sum << (32+11));    // replication of the last chunk_sum in the last l2rank
                     }
                     current_rank += chunk_sum;
-                } else {
-                    to_append |= 0xFF_FF_FF_FF << 32;   // TODO powielic chunk_sum??
-                }
+                } //else { to_append |= (0 << 32) | (0 << (32+11)) | (0 << (32+22)); }
                 l2ranks.push(to_append);
             }
             current_total_rank += current_rank as usize;
@@ -361,25 +357,31 @@ mod tests {
     use super::*;
 
     fn check_all_ones<ArrayWithRank: AsRef<[u64]> + Rank + Select>(a: &ArrayWithRank) {
-        for (rank, index) in a.as_ref().bit_ones().enumerate() {
+        let mut rank = 0;
+        for index in a.as_ref().bit_ones() {
             assert_eq!(a.rank(index), rank, "rank({}) should be {}", index, rank);
             assert_eq!(a.select(rank), index, "select({}) should be {}", rank, index);
             assert_eq!(unsafe{a.rank_unchecked(index)}, rank, "rank({}) should be {}", index, rank);
             assert_eq!(unsafe{a.select_unchecked(rank)}, index, "select({}) should be {}", rank, index);
             //assert_eq!(a.try_rank(index), Some(rank), "rank({}) should be {}", index, rank);
             //assert_eq!(a.try_select(rank), Some(index), "select({}) should be {}", rank, index);
+            rank += 1;
         }
+        assert_eq!(a.try_select(rank), None, "select({}) should be None", rank);
     }
 
     fn check_all_zeros<ArrayWithRank: AsRef<[u64]> + Rank + Select0>(a: &ArrayWithRank) {
-        for (rank, index) in a.as_ref().bit_zeros().enumerate() {
+        let mut rank = 0;
+        for index in a.as_ref().bit_zeros() {
             assert_eq!(a.rank0(index), rank, "rank0({}) should be {}", index, rank);
             assert_eq!(a.select0(rank), index, "select0({}) should be {}", rank, index);
             assert_eq!(unsafe{a.rank0_unchecked(index)}, rank, "rank0({}) should be {}", index, rank);
             assert_eq!(unsafe{a.select0_unchecked(rank)}, index, "select0({}) should be {}", rank, index);
             //assert_eq!(a.try_rank0(index), Some(rank), "rank0({}) should be {}", index, rank);
             //assert_eq!(a.try_select0(rank), Some(index), "select0({}) should be {}", rank, index);
+            rank += 1;
         }
+        assert_eq!(a.try_select0(rank), None, "select0({}) should be None", rank);
     }
 
     fn test_empty_array_rank<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
