@@ -11,8 +11,10 @@ pub trait Frequencies {
     /// Type of value.
     type Value;
 
+    type Weight;
+
     /// Returns stored number of `value` occurrences.
-    fn occurrences_of(&mut self, value: &Self::Value) -> u32;
+    fn occurrences_of(&mut self, value: &Self::Value) -> Self::Weight;
 
     /// Adds one to the stored number of `value` occurrences.
     fn add_occurrence_of(&mut self, value: Self::Value);
@@ -21,23 +23,23 @@ pub trait Frequencies {
     fn number_of_occurring_values(&self) -> usize;
 
     /// Returns the total number of occurrences of all values.
-    #[inline] fn total_occurrences(&self) -> u32 { self.occurrences().sum() }
+    #[inline] fn total_occurrences(&self) -> usize { self.occurrences().sum() }
 
     /// Returns occurring values along with non-zero numbers of their occurrences.
     /// Leaves `self` in an undefined state.
     /// 
     /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
-    fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, u32)>;
+    fn drain_frequencies(&mut self) -> impl Iterator<Item=(Self::Value, Self::Weight)>;
 
     /// Returns occurring values along with non-zero numbers of their occurrences.
     /// 
     /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
-    fn frequencies(&self) -> impl Iterator<Item=(Self::Value, u32)> where Self::Value: Clone;
+    fn frequencies(&self) -> impl Iterator<Item=(Self::Value, Self::Weight)> where Self::Value: Clone;
 
     /// Returns a non-zero number of occurrences of occurring values.
     /// 
     /// Number of yielded items can be obtained by [`Self::number_of_occurring_values`].
-    fn occurrences(&self) -> impl Iterator<Item = u32>;
+    fn occurrences(&self) -> impl Iterator<Item = Self::Weight>;
 
     /// Constructs empty `Self` (without any occurrences).
     fn without_occurrences() -> Self;
