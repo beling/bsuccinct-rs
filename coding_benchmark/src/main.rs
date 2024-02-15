@@ -3,11 +3,9 @@ mod minimum_redundancy;
 mod huffman_compress;
 mod constriction;
 
-use std::num::{NonZeroU16, NonZeroU8};
 use std::{hint::black_box, time::Instant};
 
-use butils::{UnitPrefix, XorShift64};
-//use butils::XorShift64;
+use butils::UnitPrefix;
 use clap::{Parser, Subcommand};
 
 use rand::prelude::*;
@@ -28,6 +26,14 @@ pub enum Coding {
     Constriction
 }
 
+/*fn parse_spread(s: &str) -> Result<f64, String> {
+    let result: f64 = s
+        .parse()
+        .map_err(|_| format!("`{s}` isn't a float number"))?;
+    if result >= 0.0 { Ok(result)
+    } else { Err(format!("spread must be non-negative")) }
+}*/
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 /// Coding benchmark.
@@ -40,13 +46,15 @@ pub struct Conf {
     #[arg(short = 'l', long, default_value_t = 1024*1024)]
     pub len: usize,
 
-    /// Number of different symbols in the test text
-    #[arg(short = 's', long, default_value_t = NonZeroU8::new(255).unwrap())]
-    pub symbols: NonZeroU8,
+    /// Number of different symbols in the test text.
+    #[arg(long, default_value_t = 256, value_parser = clap::value_parser!(u16).range(1..=256))]
+    pub symbols: u16,
 
-    /// The upper end of the range of relative frequencies of the drawn text symbols (the lower end is 1)
-    #[arg(short = 'r', long, default_value_t = NonZeroU16::new(100).unwrap())]
-    pub range: NonZeroU16,
+    /// The spread of the number of symbols (0 for all about equal).
+    #[arg(short = 'r', long, default_value_t = 100)]
+    pub spread: u32,
+    //#[arg(short = 'r', long, default_value_t = 5.0, value_parser = parse_spread)]
+    //pub spread: f64,
 
     /// Time (in seconds) of measuring and warming up the CPU cache before measuring
     #[arg(short='t', long, default_value_t = 5)]
@@ -71,11 +79,21 @@ impl Conf {
 
     /// Returns pseudo-random text for testing.
     fn text(&self) -> Box<[u8]> {
-        let r = self.range.get() as u64;
-        let weights: Vec<_> = XorShift64(self.seed).take(self.symbols.get() as usize).map(|v| (v % r) as u16).collect();
-        let dist = WeightedIndex::new(&weights).unwrap();
+        if self.len <= self.symbols as usize { return (0u8..=(self.len-1) as u8).collect(); }
+        
+        //let r = self.range.get() as u64;
+        //let weights: Vec<_> = XorShift64(self.seed).take(self.symbols.get() as usize).map(|v| (v % r) + 1).collect();
+        let spread = 1.0 + self.spread as f64*0.001;
+        let weights: Vec<_> = (1..=self.symbols as i32 + 1).map(|v|            
+            spread.powi(v)
+            // alternative: (v as f64).powi(self.spread as i32)
+        ).collect();
+        let dist = WeightedIndex::new(weights).unwrap();
         let rng = Pcg64Mcg::seed_from_u64(self.seed);
-        dist.sample_iter(rng).map(|v| v as u8).take(self.len).collect()
+
+        (0u8..=(self.symbols-1) as u8).chain(
+            dist.sample_iter(rng).map(|v| v as u8).take(self.len - self.symbols as usize)
+        ).collect()
     }
 
     #[inline(always)] fn measure<R, F>(&self, mut f: F) -> f64

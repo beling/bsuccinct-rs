@@ -25,12 +25,12 @@ pub fn benchmark(conf: &super::Conf) {
     let text = conf.text();
     let frequencies= frequencies_u8(conf, &text);
 
-    let dec_constr_ns = conf.measure(|| DecoderHuffmanTree::from_probabilities::<u32, _>(&frequencies)).as_nanos();
-    let enc_constr_ns = conf.measure(|| EncoderHuffmanTree::from_probabilities::<u32, _>(&frequencies)).as_nanos();
+    let dec_constr_ns = conf.measure(|| DecoderHuffmanTree::from_probabilities::<usize, _>(&frequencies)).as_nanos();
+    let enc_constr_ns = conf.measure(|| EncoderHuffmanTree::from_probabilities::<usize, _>(&frequencies)).as_nanos();
     println!("Decoder + encoder construction time [ns]: {:.0} + {:.0} = {:.0}", dec_constr_ns, enc_constr_ns, dec_constr_ns+enc_constr_ns);
 
-    let encoder_codebook = EncoderHuffmanTree::from_probabilities::<u32, _>(&frequencies);
-    let decoder_codebook = DecoderHuffmanTree::from_probabilities::<u32, _>(&frequencies);
+    let encoder_codebook = EncoderHuffmanTree::from_probabilities::<usize, _>(&frequencies);
+    let decoder_codebook = DecoderHuffmanTree::from_probabilities::<usize, _>(&frequencies);
     println!("Decoder size (lower estimate): {} bytes",
         (decoder_codebook.num_symbols()-1) * size_of::<[usize; 2]>() + size_of::<DecoderHuffmanTree>()
     );

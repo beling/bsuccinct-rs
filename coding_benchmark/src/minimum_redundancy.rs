@@ -9,9 +9,35 @@ use minimum_redundancy::Frequencies;
 
 use crate::compare_texts;
 
-#[inline(always)] fn total_size_bits_u8(frequencies: &[u32; 256], book: &[minimum_redundancy::Code; 256]) -> usize {
+/// Prints speed of and returns counting symbol occurrences.
+pub fn frequencies_u8(conf: &super::Conf, text: &[u8]) -> [usize; 256] {
+    if conf.extra_test {
+        conf.print_speed("Counting symbol occurrences with array (u8 specific method)", conf.measure(||
+            <[usize; 256]>::with_occurrences_of(text.iter())
+        ));
+    }
+    let result = <[usize; 256]>::with_occurrences_of(text.iter());
+    println!("Input of length {} consists of {} different symbols, its entropy is {:.2} bits/symbol.",
+        text.len(), result.number_of_occurring_values(), result.entropy());
+    result
+}
+
+/// Prints speed of and returns counting symbol occurrences.
+pub fn frequencies(conf: &super::Conf, text: &[u8]) -> HashMap::<u8, usize> {
+    if conf.extra_test {
+        conf.print_speed("Counting symbol occurrences with HashMap (generic method)", conf.measure(||
+            HashMap::<u8, usize>::with_occurrences_of(text.iter())
+        ));
+    }
+    let result = HashMap::<u8, usize>::with_occurrences_of(text.iter());
+    println!("Input of length {} consists of {} different symbols, its entropy is {:.2} bits/symbol.",
+        text.len(), result.number_of_occurring_values(), result.entropy());
+    result
+}
+
+#[inline(always)] fn total_size_bits_u8(frequencies: &[usize; 256], book: &[minimum_redundancy::Code; 256]) -> usize {
     frequencies.frequencies().fold(0usize, |acc, (k, w)|
-        acc + book[k as usize].len as usize * w as usize
+        acc + book[k as usize].len as usize * w
     )
 }
 
@@ -27,9 +53,9 @@ use crate::compare_texts;
     compressed_text
 }
 
-#[inline(always)] fn total_size_bits(frequencies: &HashMap<u8, u32>, book: &HashMap<u8, Code>) -> usize {
+#[inline(always)] fn total_size_bits(frequencies: &HashMap<u8, usize>, book: &HashMap<u8, Code>) -> usize {
     frequencies.iter().fold(0usize, |acc, (k, w)|
-        acc + book[&k].len as usize * *w as usize
+        acc + book[&k].len as usize * *w
     )
 }
 
@@ -85,26 +111,6 @@ fn verify_stack(text: &[u8], compressed_text: Box<[u64]>, coding: &Coding<u8>, t
     print!("Verifying decoding from a stack... ");
     compare_texts(&text, &decoded(coding, compressed_text.len(),
         compressed_text.bit_in_range_iter(0..total_size_bits).rev()));
-}
-
-/// Prints speed of and returns counting symbol occurrences.
-pub fn frequencies_u8(conf: &super::Conf, text: &[u8]) -> [u32; 256] {
-    if conf.extra_test {
-        conf.print_speed("Counting symbol occurrences with array (u8 specific method)", conf.measure(||
-            <[u32; 256]>::with_occurrences_of(text.iter())
-        ));
-    }
-    <[u32; 256]>::with_occurrences_of(text.iter())
-}
-
-/// Prints speed of and returns counting symbol occurrences.
-pub fn frequencies(conf: &super::Conf, text: &[u8]) -> HashMap::<u8, u32> {
-    if conf.extra_test {
-        conf.print_speed("Counting symbol occurrences with HashMap (generic method)", conf.measure(||
-            HashMap::<u8, u32>::with_occurrences_of(text.iter())
-        ));
-    }
-    HashMap::<u8, u32>::with_occurrences_of(text.iter())
 }
 
 pub fn benchmark_u8(conf: &super::Conf) {

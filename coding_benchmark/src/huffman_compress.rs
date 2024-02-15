@@ -12,7 +12,7 @@ use crate::{compare_texts, minimum_redundancy::{frequencies, frequencies_u8}};
     )
 }*/
 
-#[inline(always)] fn build_coder_u8(frequencies: &[u32; 256]) -> (huffman_compress::Book<u8>, huffman_compress::Tree<u8>) {
+#[inline(always)] fn build_coder_u8(frequencies: &[usize; 256]) -> (huffman_compress::Book<u8>, huffman_compress::Tree<u8>) {
     let mut c = CodeBuilder::with_capacity(frequencies.number_of_occurring_values());
     for (k, w) in frequencies.frequencies() { c.push(k, w) }
     c.finish()
