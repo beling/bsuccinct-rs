@@ -31,7 +31,7 @@ use crate::{compare_texts, minimum_redundancy::{frequencies, frequencies_u8}};
 
 pub fn benchmark(conf: &super::Conf) {
     //println!("Measuring huffman_compress performance:");
-    println!("### huffman_compress ###");
+    println!("### huffman_compress (prefix order only) ###");
 
     let text = conf.text();
     let frequencies= frequencies(conf, &text);
