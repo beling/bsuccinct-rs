@@ -114,7 +114,8 @@ fn verify_stack(text: &[u8], compressed_text: Box<[u64]>, coding: &Coding<u8>, t
 }
 
 pub fn benchmark_u8(conf: &super::Conf) {
-    println!("Measuring the performance of u8-specific minimum_redundancy version:");
+    //println!("Measuring the performance of u8-specific minimum_redundancy version:");
+    println!("### minimum_redundancy with u8-specific optimizations ###");
 
     let text = conf.text();
     let frequencies = frequencies_u8(conf, &text);
@@ -138,7 +139,7 @@ pub fn benchmark_u8(conf: &super::Conf) {
     }));
     let compressed_size_bits = total_size_bits_u8(&frequencies, &book);
     let compressed_text = compress_u8(text.iter(), &book, compressed_size_bits);
-    println!("  compressed size: {} bits", compressed_size_bits);
+    conf.print_compressed_size(compressed_size_bits);
     conf.print_speed("  decoding from a queue (without storing)",
      conf.measure(|| decode_from_queue(&coding, &compressed_text, compressed_size_bits)));
     if conf.verify { verify_queue(&text, compressed_text, &coding, compressed_size_bits); } else { drop(compressed_text); }
@@ -153,14 +154,15 @@ pub fn benchmark_u8(conf: &super::Conf) {
     }));
     let compressed_size_bits = total_size_bits_u8(&frequencies, &book);
     let compressed_text = compress_u8(text.iter().rev(), &book, compressed_size_bits);
-    println!("  compressed size: {} bits", compressed_size_bits);
+    conf.print_compressed_size(compressed_size_bits);
     conf.print_speed("  decoding from a stack (without storing)",
     conf.measure(|| decode_from_stack(&coding, &compressed_text, compressed_size_bits)));
     if conf.verify { verify_stack(&text, compressed_text, &coding, compressed_size_bits); }
 }
 
 pub fn benchmark(conf: &super::Conf) {
-    println!("Measuring the performance of the generic minimum_redundancy version:");
+    //println!("Measuring the performance of the generic minimum_redundancy version:");
+    println!("### minimum_redundancy, generic version ###");
     
     let text = conf.text();
     let frequencies = frequencies(conf, &text);
@@ -183,7 +185,7 @@ pub fn benchmark(conf: &super::Conf) {
     }));
     let compressed_size_bits = total_size_bits(&frequencies, &book);
     let compressed_text = compress(text.iter(), &book, compressed_size_bits);
-    println!("  compressed size: {} bits", compressed_size_bits);
+    conf.print_compressed_size(compressed_size_bits);
     conf.print_speed("  decoding from a queue (prefix order) (without storing)",
      conf.measure(|| decode_from_queue(&coding, &compressed_text, compressed_size_bits)));
     if conf.verify { verify_queue(&text, compressed_text, &coding, compressed_size_bits); } else { drop(compressed_text); }
@@ -198,7 +200,7 @@ pub fn benchmark(conf: &super::Conf) {
     }));
     let compressed_size_bits = total_size_bits(&frequencies, &book);
     let compressed_text = compress(text.iter().rev(), &book, compressed_size_bits);
-    println!("  compressed size: {} bits", compressed_size_bits);
+    conf.print_compressed_size(compressed_size_bits);
     conf.print_speed("  decoding from a stack (without storing)",
     conf.measure(|| decode_from_stack(&coding, &compressed_text, compressed_size_bits)));
     if conf.verify { verify_stack(&text, compressed_text, &coding, compressed_size_bits); }

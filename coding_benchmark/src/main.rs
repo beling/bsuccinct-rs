@@ -127,6 +127,12 @@ impl Conf {
         let mb = self.len as f64 / (1024 * 1024) as f64;
         println!("{}: {:.0} mb/sec", label, mb / sec);
     }
+
+    fn print_compressed_size(&self, compressed_size_bits: usize) {
+        let cs_f64 = compressed_size_bits as f64;
+        println!("  {:.2}:1 compression ratio, {:.2} bits/symbol (without dictionary)",
+            (8*self.len) as f64 / cs_f64, cs_f64 / self.len as f64, );
+    }
 }
 
 fn compare_texts(original: &[u8], decoded: &[u8]) {

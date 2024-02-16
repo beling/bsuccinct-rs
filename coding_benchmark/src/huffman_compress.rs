@@ -30,7 +30,8 @@ use crate::{compare_texts, minimum_redundancy::{frequencies, frequencies_u8}};
 }
 
 pub fn benchmark(conf: &super::Conf) {
-    println!("Measuring huffman_compress performance:");
+    //println!("Measuring huffman_compress performance:");
+    println!("### huffman_compress ###");
 
     let text = conf.text();
     let frequencies= frequencies(conf, &text);
@@ -47,12 +48,13 @@ pub fn benchmark(conf: &super::Conf) {
         (2*size_of::<usize>() + size_of::<Option<usize>>()) * (2*frequencies.number_of_occurring_values() - 1) + size_of::<Tree<u8>>()
     );  // on heap it allocates: (2 usizes + Option<usize>) per node of Huffman tree + maybe some paddings (uncounted)
 
-    conf.print_speed(" Encoding without adding to bit vector", conf.measure(|| {
+    println!(" Encoding:");
+    conf.print_speed("  without adding to bit vector", conf.measure(|| {
         for k in text.iter() { black_box(book.get(k)); }
     }));
-    conf.print_speed("Encoding + adding to bit vector", conf.measure(|| encode(&text, &book)));
+    conf.print_speed("  + adding to bit vector", conf.measure(|| encode(&text, &book)));
     let compressed_text = encode(&text, &book);
-    println!(" Compressed size: {} bits", compressed_text.len());
+    conf.print_compressed_size(compressed_text.len());
 
     conf.print_speed(" Decoding (without storing)", conf.measure(|| {
         for sym in tree.unbounded_decoder(compressed_text.iter()) { black_box(sym); };

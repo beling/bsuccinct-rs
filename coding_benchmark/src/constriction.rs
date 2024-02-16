@@ -22,7 +22,8 @@ use crate::{compare_texts, minimum_redundancy::frequencies_u8};
 }
 
 pub fn benchmark(conf: &super::Conf) {
-    println!("Measuring constriction performance:");
+    //println!("Measuring constriction performance:");
+    println!("### constriction ###");
 
     let text = conf.text();
     let frequencies= frequencies_u8(conf, &text);
