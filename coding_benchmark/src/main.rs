@@ -101,7 +101,7 @@ impl Conf {
     #[inline(always)] fn measure<R, F>(&self, mut f: F) -> f64
      where F: FnMut() -> R
     {
-        let mut iters = 1;
+        let mut iters = 1usize;
         if self.time > 0 {
             let time = Instant::now();
             loop {
