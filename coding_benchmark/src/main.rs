@@ -5,7 +5,6 @@ mod constriction;
 
 use std::{hint::black_box, time::Instant};
 
-use butils::UnitPrefix;
 use clap::{Parser, Subcommand};
 
 use rand::prelude::*;
@@ -17,14 +16,19 @@ use rand_pcg::Pcg64Mcg;
 #[derive(Subcommand)]
 pub enum Coding {
     /// Huffman coding implementation from minimum_redundancy (generic)
+    #[clap(visible_alias = "mr")]
     MinimumRedundancy,
     /// Huffman coding implementation from minimum_redundancy with u8 specific improvements
+    #[clap(visible_alias = "mr8")]
     MinimumRedundancyU8,
     /// Huffman coding implementation from huffman-compress
+    #[clap(visible_alias = "hc")]
     HuffmanCompress,
     /// Huffman coding implementation from constriction
-    Constriction
-}
+    Constriction,
+    /// Tests all supported coders
+    All
+}   // see https://github.com/clap-rs/clap_derive/blob/master/examples/subcommand_aliases.rs
 
 /*fn parse_spread(s: &str) -> Result<f64, String> {
     let result: f64 = s
@@ -35,7 +39,7 @@ pub enum Coding {
 }*/
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, infer_subcommands=true)]
 /// Coding benchmark.
 pub struct Conf {
     /// Coder to test
@@ -51,6 +55,7 @@ pub struct Conf {
     pub symbols: u16,
 
     /// The spread of the number of symbols (0 for all about equal).
+    /// Each successive symbol occurs 1+SPREAD/1000 times more often than the previous one.
     #[arg(short = 'r', long, default_value_t = 100)]
     pub spread: u32,
     //#[arg(short = 'r', long, default_value_t = 5.0, value_parser = parse_spread)]
@@ -84,10 +89,7 @@ impl Conf {
         //let r = self.range.get() as u64;
         //let weights: Vec<_> = XorShift64(self.seed).take(self.symbols.get() as usize).map(|v| (v % r) + 1).collect();
         let spread = 1.0 + self.spread as f64*0.001;
-        let weights: Vec<_> = (1..=self.symbols as i32 + 1).map(|v|            
-            spread.powi(v)
-            // alternative: (v as f64).powi(self.spread as i32)
-        ).collect();
+        let weights: Vec<_> = (1..=self.symbols as i32 + 1).map(|v| spread.powi(v)).collect(); // alternative: (v as f64).powi(self.spread as i32)
         let dist = WeightedIndex::new(weights).unwrap();
         let rng = Pcg64Mcg::seed_from_u64(self.seed);
 
@@ -114,16 +116,16 @@ impl Conf {
     }
 
     fn print_speed(&self, label: &str, sec: f64) {
-        print!("{}:   ", label);
+        /*print!("{}:   ", label);
         if self.len >= 512 * 1024 * 1024 {
             print!("{:.0} ms   ", sec.as_milis());
         } else if self.len >= 512 * 1024 {
             print!("{:.0} µs   ", sec.as_micros());
         } else {
             print!("{:.0} ns   ", sec.as_nanos());
-        }
+        }*/
         let mb = self.len as f64 / (1024 * 1024) as f64;
-        println!("{:.0} mb/sec", mb / sec);
+        println!("{}: {:.0} mb/sec", label, mb / sec);
     }
 }
 
@@ -148,5 +150,11 @@ fn main() {
         Coding::MinimumRedundancyU8 => minimum_redundancy::benchmark_u8(&conf),
         Coding::HuffmanCompress => huffman_compress::benchmark(&conf),
         Coding::Constriction => constriction::benchmark(&conf),
+        Coding::All => {
+            minimum_redundancy::benchmark(&conf);
+            minimum_redundancy::benchmark_u8(&conf);
+            huffman_compress::benchmark(&conf);
+            constriction::benchmark(&conf);
+        },
     }
 }

@@ -30,34 +30,36 @@ use crate::{compare_texts, minimum_redundancy::{frequencies, frequencies_u8}};
 }
 
 pub fn benchmark(conf: &super::Conf) {
+    println!("Measuring huffman_compress performance:");
+
     let text = conf.text();
     let frequencies= frequencies(conf, &text);
-    println!("Decoder + encoder construction time (generic method): {:.0} ns", conf.measure(||
+    println!(" Decoder + encoder construction time (generic method): {:.0} ns", conf.measure(||
         CodeBuilder::from_iter(frequencies.iter()).finish()
     ).as_nanos());
     drop(frequencies);
 
     let frequencies= frequencies_u8(conf, &text);
-    println!("Decoder + encoder construction time (u8 specific method): {:.0} ns", conf.measure(|| build_coder_u8(&frequencies)).as_nanos());
+    println!(" Decoder + encoder construction time (u8 specific method): {:.0} ns", conf.measure(|| build_coder_u8(&frequencies)).as_nanos());
     let (book, tree) = build_coder_u8(&frequencies);
 
-    println!("Decoder size (lower estimate): {} bytes",
+    println!(" Decoder size (lower estimate): {} bytes",
         (2*size_of::<usize>() + size_of::<Option<usize>>()) * (2*frequencies.number_of_occurring_values() - 1) + size_of::<Tree<u8>>()
     );  // on heap it allocates: (2 usizes + Option<usize>) per node of Huffman tree + maybe some paddings (uncounted)
 
-    conf.print_speed("Encoding without adding to bit vector", conf.measure(|| {
+    conf.print_speed(" Encoding without adding to bit vector", conf.measure(|| {
         for k in text.iter() { black_box(book.get(k)); }
     }));
     conf.print_speed("Encoding + adding to bit vector", conf.measure(|| encode(&text, &book)));
     let compressed_text = encode(&text, &book);
-    println!("Compressed size: {} bits", compressed_text.len());
+    println!(" Compressed size: {} bits", compressed_text.len());
 
-    conf.print_speed("Decoding (without storing)", conf.measure(|| {
+    conf.print_speed(" Decoding (without storing)", conf.measure(|| {
         for sym in tree.unbounded_decoder(compressed_text.iter()) { black_box(sym); };
     }));
 
     if conf.verify {
-        print!("Verification... ");
+        print!(" Verification... ");
         let mut decoded_text = Vec::with_capacity(text.len());
         for sym in tree.unbounded_decoder(compressed_text.iter()) {
             decoded_text.push(sym);
