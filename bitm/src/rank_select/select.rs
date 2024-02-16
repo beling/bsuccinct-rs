@@ -539,13 +539,11 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             let mut rank = 0; /*ONES_PER_SELECT_ENTRY as u16 - 1;*/    // we scan for 1 with this rank, to find its bit index in content
             for c in content.iter() {
                 let c_ones = if ONE { c.count_ones() } else { c.count_zeros() };
-                if c_ones <= rank {
-                    rank -= c_ones;
-                } else {
-                    let new_rank = D::items_per_sample(density) - c_ones + rank;
+                if c_ones > rank {
                     ones_positions.push((bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11);    // each l2 entry covers 2^11 bits
-                    rank = new_rank;
+                    rank += D::items_per_sample(density);
                 }
+                rank -= c_ones;
                 bit_index = bit_index.wrapping_add(64);
             }
         }
