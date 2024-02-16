@@ -5,6 +5,8 @@ use dyn_size_of::GetSize;
 //#[cfg(target_arch = "x86")] use core::arch::x86 as arch;
 //#[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
 
+use crate::ceiling_div;
+
 use super::utils::partition_point_with_index;
 
 pub const BITS_PER_L1_ENTRY: usize = 1<<32;
@@ -410,9 +412,9 @@ impl Select0ForRank101111 for BinaryRankSearch {
 pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8) -> u8 {
     if 4*n >= 3*len { return max_result; }
     if 2*n > len { n = len - n; }
-    if n == 0 { return 6; }
+    if n == 0 { return 7; }
     let r = max_result.saturating_sub((len/n).ilog2() as u8); // note: len/n >= 2
-    return if r <= 6 { 6 } else { r }   // max is not allowed in const
+    return if r <= 7 { 7 } else { r }   // max is not allowed in const
 }
 
 /// Trait that determines the sampling density of select values by [`CombinedSampling`].
@@ -424,15 +426,21 @@ pub trait CombinedSamplingDensity: Copy {
     /// - `len` -- length of the vector in bits.
     fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity;
 
+    fn items_per_sample_log2(density: Self::SamplingDensity) -> u8;
+
     /// Returns number of bit ones or zeros (in the case of select0) per each sample (entry).
-    fn items_per_sample(density: Self::SamplingDensity) -> u32;
+    #[inline(always)] fn items_per_sample(density: Self::SamplingDensity) -> u32 {
+        1<<Self::items_per_sample_log2(density)
+    }
 
     /// Returns `index` divided by [`Self::items_per_sample(density)`].
-    fn divide_by_density(index: usize, density: Self::SamplingDensity) -> usize;
+    #[inline(always)] fn divide(index: usize, density: Self::SamplingDensity) -> usize {
+        index >> Self::items_per_sample_log2(density)
+    }
 
-    /// Returns `index` divided by [`Self::items_per_sample(density)`].
-    fn ceiling_divide_by_density(index: usize, density: Self::SamplingDensity) -> usize {
-        Self::divide_by_density(index+Self::items_per_sample(density) as usize-1, density)
+    fn is_in_second_half(index: usize, density: Self::SamplingDensity) -> bool {
+        //index & (1 << (Self::items_per_sample_log2(density)-1)) != 0
+        (index >> (Self::items_per_sample_log2(density)-1)) & 1 != 0
     }
 }
 
@@ -450,15 +458,14 @@ pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 13>;
 impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDensity<VALUE_LOG2> {
     type SamplingDensity = ();
     #[inline(always)] fn density_for(_number_of_items: usize, _len: usize) -> Self::SamplingDensity { () }
-    #[inline(always)] fn items_per_sample(_density: Self::SamplingDensity) -> u32 { 1<<VALUE_LOG2 }
-    #[inline(always)] fn divide_by_density(index: usize, _density: Self::SamplingDensity) -> usize { index>>VALUE_LOG2 }
+    #[inline(always)] fn items_per_sample_log2(_density: Self::SamplingDensity) -> u8 { VALUE_LOG2 }
 }
 
 /// Specifies adaptive sampling of select values by [`CombinedSampling`].
 /// 
 /// The sampling density is calculated based on the content of the bit vector
 /// using the [`optimal_combined_sampling`] function, with the given `MAX_RESULT` parameter.
-/// `MAX_RESULT` must be in range [6, 31].
+/// `MAX_RESULT` must be in range [7, 31].
 /// As `MAX_RESULT` decreases, the speed of select queries increases
 /// at the cost of higher space overhead (which doubles with each decrease by 1).
 /// Its value 13 leads to about 0.39% space overhead, and, for n = 50%u, results in sampling
@@ -471,8 +478,7 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
     #[inline(always)] fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity {
         optimal_combined_sampling(number_of_items, len, MAX_RESULT)
     }
-    #[inline(always)] fn items_per_sample(density: Self::SamplingDensity) -> u32 { 1 << density }
-    #[inline(always)] fn divide_by_density(index: usize, density: Self::SamplingDensity) -> usize { index >> density }
+    #[inline(always)] fn items_per_sample_log2(density: Self::SamplingDensity) -> u8 { density }
 }
 
 /// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
@@ -522,29 +528,41 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         let mut ones_positions_len = 0;
         ones_positions_begin.push(0);
         for ones in l1ranks.windows(2) {
-            let chunk_len = D::ceiling_divide_by_density(
-                if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
-                density);
+            let chunk_len = ceiling_div(
+                    if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
+                    D::items_per_sample(density) as usize
+                );
             ones_positions_len += chunk_len;
             ones_positions_begin.push(ones_positions_len);
         }
-        ones_positions_len += D::ceiling_divide_by_density(
+        ones_positions_len += ceiling_div(
             if ONE {(total_rank - l1ranks.last().unwrap()) as usize }
-            else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - (total_rank - l1ranks.last().unwrap()) as usize },
-            density);
+                else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - (total_rank - l1ranks.last().unwrap()) as usize },
+            D::items_per_sample(density) as usize
+        );
         let mut ones_positions = Vec::with_capacity(ones_positions_len);
         for content in content.chunks(U64_PER_L1_ENTRY) {
             //TODO use l2ranks for faster reducing rank
             let mut bit_index = 0;
             let mut rank = 0; /*ONES_PER_SELECT_ENTRY as u16 - 1;*/    // we scan for 1 with this rank, to find its bit index in content
+            let mut second_half = false;
             for c in content.iter() {
                 let c_ones = if ONE { c.count_ones() } else { c.count_zeros() };
                 if c_ones <= rank {
                     rank -= c_ones;
                 } else {
-                    let new_rank = D::items_per_sample(density) - c_ones + rank;
-                    ones_positions.push((bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11);    // each l2 entry covers 2^11 bits
-                    rank = new_rank;
+                    // Each l2 entry covers 2^11 bits, we need 32-11=21 bit to store it.
+                    // Rest 11 bit we use to store relative index of the next one.
+                    let l2index = (bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11;
+                    if second_half {
+                        let prev: &mut u32 = unsafe{ ones_positions.last_mut().unwrap_unchecked() };
+                        *prev |= (l2index - *prev).min((1u32<<11)-1) << 21;
+                        second_half = false;
+                    } else {
+                        ones_positions.push(l2index);    
+                        second_half = true;
+                    }
+                    rank += D::items_per_sample(density)/2 - c_ones;
                 }
                 bit_index = bit_index.wrapping_add(64);
             }
@@ -559,7 +577,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
-        let mut l2_index = l2_begin + *self.select.get(unsafe{self.select_begin.get_unchecked(l1_index)} + D::divide_by_density(rank as usize, self.density))? as usize;
+        let mut l2_index = l2_begin + unsafe{self.get_select(l1_index, rank as u32)}? as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize}
@@ -590,8 +608,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         }
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_begin+l2_index, rank) }*/
 
-        let mut l2_index = l2_begin +
-            *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
+        let mut l2_index = l2_begin + self.get_select_unchecked(l1_index, rank as u32) as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
@@ -601,6 +618,26 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             l2_index += 1;
         }
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_index, rank) }
+    }
+
+    #[inline(always)] unsafe fn get_select_unchecked(&self, l1_index: usize, rank: u32) -> u32 {
+        let begin = self.select_begin.get_unchecked(l1_index);
+        let s = *self.select.get_unchecked(begin + D::divide(rank as usize, self.density));
+        let mut result = s & ((1<<21)-1);
+        if D::is_in_second_half(rank as usize, self.density) {
+            result += s>>21;
+        }
+        result
+    }
+
+    #[inline(always)] unsafe fn get_select(&self, l1_index: usize, rank: u32) -> Option<u32> {
+        let begin = self.select_begin.get_unchecked(l1_index);
+        let s = *self.select.get(begin + D::divide(rank as usize, self.density))?;
+        let mut result = s & ((1<<21)-1);
+        if D::is_in_second_half(rank as usize, self.density) {
+            result += s>>21;
+        }
+        Some(result)
     }
 }
 
@@ -655,8 +692,8 @@ mod tests {
         assert_eq!(optimal_combined_sampling(10, 321, 14), 9);
         assert_eq!(optimal_combined_sampling(9, 319, 14), 9);
         assert_eq!(optimal_combined_sampling(1, 10, 14), 11);
-        assert_eq!(optimal_combined_sampling(1, 100000000, 14), 6);
-        assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 6);
+        assert_eq!(optimal_combined_sampling(1, 100000000, 14), 7);
+        assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 7);
     }
 
     #[test]
