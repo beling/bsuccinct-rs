@@ -550,9 +550,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             let mut second_half = false;
             for c in content.iter() {
                 let c_ones = if ONE { c.count_ones() } else { c.count_zeros() };
-                if c_ones <= rank {
-                    rank -= c_ones;
-                } else {
+                if c_ones > rank {
                     // Each l2 entry covers 2^11 bits, we need 32-11=21 bit to store it.
                     // Rest 11 bit we use to store relative index of the next one
                     // (or 2^11-1 if the relative index is greater than this number).
@@ -565,8 +563,9 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
                         ones_positions.push(l2index);    
                         second_half = true;
                     }
-                    rank += D::items_per_sample(density)/2 - c_ones;
+                    rank += D::items_per_sample(density)/2;
                 }
+                rank -= c_ones;
                 bit_index = bit_index.wrapping_add(64);
             }
         }
