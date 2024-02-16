@@ -400,13 +400,14 @@ impl Select0ForRank101111 for BinaryRankSearch {
 /// - `n` -- numbers of ones (for select) or zeros (for select0) in the vector,
 /// - `len` -- length of the vector in bits,
 /// - `max_result` -- the largest possible result, returned only and always for n >= 75%len
-///                   (must be in range [6, 31]).
+///                   (must be in range [7, 31]).
 /// 
-/// The result is the base 2 logarithm of the recommended sampling, and it is always in range [6, `max_result`].
-/// (The minimum value is 6, as we never sample two bits in the same 64-bit word.)
+/// The result is the base 2 logarithm of the recommended sampling, and it is always in range [7, `max_result`].
+/// The actual sampling is 2 times denser, but every second sample sometimes cannot be recorded accurately.
+/// (The minimum value is 7, as we never sample two bits in the same 64-bit word.)
 /// 
 /// A good value for `max_result` is 13, which leads to about 0.39% space overhead,
-/// and, for n = 50%u, results in sampling positions of every 2^12=4096 ones (or zeros for select0).
+/// and, for n = 50%u, results in sampling positions of every 2^12(/2)=4096(/2) ones (or zeros for select0).
 /// As `max_result` decreases, the speed of select queries increases
 /// at the cost of higher space overhead (which doubles with each decrease by 1).
 pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8) -> u8 {
@@ -446,9 +447,10 @@ pub trait CombinedSamplingDensity: Copy {
 
 /// Specifies a constant sampling of select values by [`CombinedSampling`], given as
 /// the base 2 logarithm (which can be calculated by [`optimal_combined_sampling`] function).
+/// The actual sampling is 2 times denser, but every second sample sometimes cannot be recorded accurately.
 /// 
-/// `VALUE_LOG2` must be in range [6, 31].
-/// Default value 13 means sampling positions of every 2^13=8192 ones (or zeros for select0),
+/// `VALUE_LOG2` must be in range [7, 31].
+/// Default value 13 means sampling positions of every 2^13(/2)=8192(/2) ones (or zeros for select0),
 /// which leads to about 0.20% space overhead in vectors filled with bit ones in about half.
 /// As sampling decreases, the speed of select queries increases at the expense of higher
 /// space overhead (which doubles with each decrease by 1).
@@ -469,7 +471,7 @@ impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDens
 /// As `MAX_RESULT` decreases, the speed of select queries increases
 /// at the cost of higher space overhead (which doubles with each decrease by 1).
 /// Its value 13 leads to about 0.39% space overhead, and, for n = 50%u, results in sampling
-/// positions of every 2^12=4096 ones (or zeros for select0).
+/// positions of every 2^12(/2)=4096(/2) ones (or zeros for select0).
 #[derive(Clone, Copy)]
 pub struct AdaptiveCombinedSamplingDensity<const MAX_RESULT: u8 = 13>;
 
@@ -552,7 +554,8 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
                     rank -= c_ones;
                 } else {
                     // Each l2 entry covers 2^11 bits, we need 32-11=21 bit to store it.
-                    // Rest 11 bit we use to store relative index of the next one.
+                    // Rest 11 bit we use to store relative index of the next one
+                    // (or 2^11-1 if the relative index is greater than this number).
                     let l2index = (bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11;
                     if second_half {
                         let prev: &mut u32 = unsafe{ ones_positions.last_mut().unwrap_unchecked() };
