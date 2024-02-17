@@ -626,29 +626,6 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_index, rank) }
     }
 
-    /*#[inline(always)] unsafe fn get_select_unchecked(&self, l1_index: usize, rank: usize) -> u32 {
-        let mut s = *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide(rank, self.density));
-        //let mut result = s & ((1<<21)-1);
-        if D::is_in_second_half(rank, self.density) {
-            //result += s>>21;
-            s += s >> 21;
-        }
-        //result
-        s & ((1<<21)-1)
-        // if b != 0 { s += (s >> (21+(3-b)*4)) & 0b1111; }
-        // s & ((1<<21)-1)
-    }*/
-
-    /*#[inline(always)] unsafe fn get_select(&self, l1_index: usize, rank: usize) -> Option<u32> {
-        let begin = self.select_begin.get_unchecked(l1_index);
-        let s = *self.select.get(begin + D::divide(rank, self.density))?;
-        let mut result = s & ((1<<21)-1);
-        if D::is_in_second_half(rank, self.density) {
-            result += s>>21;
-        }
-        Some(result)
-    }*/
-
     #[inline(always)] fn decode_shift(&self, mut s: u32, rank: usize) -> u32 {
         if D::is_in_second_half(rank, self.density) { s += s >> 21; }
         s & ((1<<21)-1)
