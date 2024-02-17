@@ -578,8 +578,9 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
-        let mut l2_index = l2_begin + unsafe{self.get_select(l1_index, rank)}? as usize;
+        let mut l2_index = l2_begin + self.decode_shift(
+            *self.select.get(unsafe{self.select_begin.get_unchecked(l1_index)} + D::divide(rank, self.density))?,
+            rank) as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize}
@@ -610,7 +611,10 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         }
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_begin+l2_index, rank) }*/
 
-        let mut l2_index = l2_begin + self.get_select_unchecked(l1_index, rank) as usize;
+        //let mut l2_index = l2_begin + self.get_select_unchecked(l1_index, rank) as usize;
+        let mut l2_index = l2_begin + self.decode_shift(
+            *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide(rank, self.density)),
+            rank) as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
@@ -622,17 +626,20 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_index, rank) }
     }
 
-    #[inline(always)] unsafe fn get_select_unchecked(&self, l1_index: usize, rank: usize) -> u32 {
-        let begin = self.select_begin.get_unchecked(l1_index);
-        let s = *self.select.get_unchecked(begin + D::divide(rank, self.density));
-        let mut result = s & ((1<<21)-1);
+    /*#[inline(always)] unsafe fn get_select_unchecked(&self, l1_index: usize, rank: usize) -> u32 {
+        let mut s = *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide(rank, self.density));
+        //let mut result = s & ((1<<21)-1);
         if D::is_in_second_half(rank, self.density) {
-            result += s>>21;
+            //result += s>>21;
+            s += s >> 21;
         }
-        result
-    }
+        //result
+        s & ((1<<21)-1)
+        // if b != 0 { s += (s >> (21+(3-b)*4)) & 0b1111; }
+        // s & ((1<<21)-1)
+    }*/
 
-    #[inline(always)] unsafe fn get_select(&self, l1_index: usize, rank: usize) -> Option<u32> {
+    /*#[inline(always)] unsafe fn get_select(&self, l1_index: usize, rank: usize) -> Option<u32> {
         let begin = self.select_begin.get_unchecked(l1_index);
         let s = *self.select.get(begin + D::divide(rank, self.density))?;
         let mut result = s & ((1<<21)-1);
@@ -640,6 +647,11 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             result += s>>21;
         }
         Some(result)
+    }*/
+
+    #[inline(always)] fn decode_shift(&self, mut s: u32, rank: usize) -> u32 {
+        if D::is_in_second_half(rank, self.density) { s += s >> 21; }
+        s & ((1<<21)-1)
     }
 }
 
