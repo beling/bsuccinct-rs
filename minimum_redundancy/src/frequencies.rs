@@ -195,7 +195,7 @@ impl<Value: Ord, W: Weight> Frequencies for BTreeMap<Value, W> {
     #[inline(always)] fn without_occurrences() -> Self { Default::default() }
 }
 
-impl<W: Weight> Frequencies for [W; 256] {
+impl<W: Weight> Frequencies for [W; 1<<u8::BITS] {
     type Value = u8;
     type Weight = W;
 
@@ -223,5 +223,5 @@ impl<W: Weight> Frequencies for [W; 256] {
         self.iter().filter_map(|occ| (*occ > Self::Weight::of(0)).then_some(*occ))
     }
 
-    #[inline(always)] fn without_occurrences() -> Self { [Self::Weight::of(0); 256] }
+    #[inline(always)] fn without_occurrences() -> Self { [Self::Weight::of(0); 1<<u8::BITS] }
 }
