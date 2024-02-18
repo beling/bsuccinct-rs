@@ -1,6 +1,6 @@
 `csf_benchmark` is the program (by Piotr Beling) for benchmarking Compressed Static Functions.
 
-It can test the algorithms included in the following creates:
+It can test the algorithms included in the following crates:
 - [csf](https://crates.io/crates/csf).
 
 Please run the program with the `--help` switch to see the available options.

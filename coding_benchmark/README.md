@@ -1,6 +1,6 @@
 `coding_benchmark` is the program (by Piotr Beling) for benchmarking implementations of Huffman coding algorithms.
 
-It can test the implementations included in the following creates:
+It can test the implementations included in the following crates:
 - [minimum_redundancy](https://crates.io/crates/minimum_redudancy),
 - [constriction](https://crates.io/crates/constriction),
 - [huffman-compress](https://crates.io/crates/huffman-compress).
@@ -24,12 +24,11 @@ Once Rust is installed, just execute the following to install `coding_benchmark`
 
 ```RUSTFLAGS="-C target-cpu=native" cargo install coding_benchmark```
 
-Note that the instruction have been tested under GNU/Linux and may require some modifications for other systems.
-
 
 # Reproducing experiments from the papers
 
 ## Rust libraries and programs focused on succinct data structures
+(Piotr Beling *Rust libraries and programs focused on succinct data structures* submitted to SoftwareX)
 
 To see the results for all implementations, 100MB (100\*1024\*1024=104857600)
 text of randomly drawn (with a non-uniform distribution) 1 byte symbols
