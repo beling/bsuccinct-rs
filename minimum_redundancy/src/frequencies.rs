@@ -195,8 +195,9 @@ impl<Value: Ord, W: Weight> Frequencies for BTreeMap<Value, W> {
     #[inline(always)] fn without_occurrences() -> Self { Default::default() }
 }
 
-impl<W: Weight> Frequencies for [W; 1<<u8::BITS] {
-    type Value = u8;
+macro_rules! impl_frequencies_by_array_for {($Value:ty) => {
+impl<W: Weight> Frequencies for [W; 1 << <$Value>::BITS] {
+    type Value = $Value;
     type Weight = W;
 
     #[inline(always)] fn occurrences_of(&mut self, value: &Self::Value) -> Self::Weight {
@@ -216,12 +217,16 @@ impl<W: Weight> Frequencies for [W; 1<<u8::BITS] {
     }
 
     #[inline(always)] fn frequencies(&self) -> impl Iterator<Item=(Self::Value, Self::Weight)> where Self::Value: Clone {
-        self.iter().enumerate().filter_map(|(v, o)| (*o > Self::Weight::of(0)).then(|| (v as u8, *o)))
+        self.iter().enumerate().filter_map(|(v, o)| (*o > Self::Weight::of(0)).then(|| (v as $Value, *o)))
     }
 
     #[inline(always)] fn occurrences(&self) -> impl Iterator<Item = Self::Weight> {
         self.iter().filter_map(|occ| (*occ > Self::Weight::of(0)).then_some(*occ))
     }
 
-    #[inline(always)] fn without_occurrences() -> Self { [Self::Weight::of(0); 1<<u8::BITS] }
+    #[inline(always)] fn without_occurrences() -> Self { [Self::Weight::of(0); 1<< <$Value>::BITS] }
 }
+}}
+
+impl_frequencies_by_array_for!(u8);
+impl_frequencies_by_array_for!(u16);
