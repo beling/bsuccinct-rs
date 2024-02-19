@@ -3,11 +3,10 @@
 It can test the listed algorithms contained in the following crates:
 - [cseq](https://crates.io/crates/cseq): Elias-Fano;
 - [bitm](https://crates.io/crates/bitm): rank and select queries on bit vectors;
-- [vers](https://crates.io/crates/vers-vecs): rank and select queries on bit vectors;
 - [sucds](https://crates.io/crates/sucds): rank and select queries on bit vectors;
 - [succinct](https://crates.io/crates/succinct): rank and select queries on bit vectors;
-- [sux](https://crates.io/crates/sux): select queries on bit vectors.
-
+- [sux](https://crates.io/crates/sux): select queries on bit vectors;
+- [vers](https://crates.io/crates/vers-vecs) (only if compiled with `vers-vecs` feature): rank and select queries on bit vectors.
 
 Please run the program with the `--help` switch to see the available options.
 
@@ -26,7 +25,10 @@ Please follow the instructions at <https://www.rust-lang.org/tools/install>.
 
 Once Rust is installed, just execute the following to install `cseq_benchmark` with native optimizations:
 
-```RUSTFLAGS="-C target-cpu=native" cargo install cseq_benchmark```
+```RUSTFLAGS="-C target-cpu=native" cargo install --features=vers-vecs cseq_benchmark```
+
+The `--features=vers-vecs` flag enables compilation of the non-portable [vers](https://crates.io/crates/vers-vecs) crate.
+It should be omitted in case of compilation problems.
 
 
 # Reproducing experiments from the papers

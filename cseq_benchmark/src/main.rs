@@ -33,7 +33,7 @@ pub enum Structure {
     SuxSelectFixed2,
     /// Rank/Select on uncompressed bit vector using vers crate
     #[cfg(feature = "vers-vecs")] Vers,
-    /// Rank and select on bit vectors using all supported methods and crate
+    /// Rank and select on bit vectors using all supported methods and crates
     BV
 }
 
