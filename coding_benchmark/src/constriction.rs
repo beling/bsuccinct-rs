@@ -80,7 +80,7 @@ pub fn benchmark(conf: &super::Conf) {
     drop(cursor);
 
     let mut encoder = encode_suffix(&text, &encoder_codebook);
-    conf.print_speed("  from a stack (prefix order)", conf.measure(|| {
+    conf.print_speed("  from a stack (suffix order)", conf.measure(|| {
         let mut decoder = encoder.as_decoder();
         for sym in decoder.decode_iid_symbols(text.len(), &decoder_codebook) {
             let _ = black_box(sym);
