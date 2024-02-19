@@ -7,11 +7,11 @@ mod succinct;
 mod sux;
 #[cfg(feature = "vers-vecs")] mod vers;
 
-use std::{fs::{File, OpenOptions}, hint::black_box, num::{NonZeroU32, NonZeroU64}, time::Instant};
+use std::{fs::{File, OpenOptions}, hint::black_box, num::{NonZeroU32, NonZeroU64}, ops::Range, time::Instant};
 use std::io::Write;
 
 use butils::{UnitPrefix, XorShift64};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 //#[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -37,8 +37,31 @@ pub enum Structure {
     BV
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum Distribution {
+    /// Items distributed uniformly across the universe.
+    #[clap(alias = "u")]
+    Uniform,
+    /// 99% of the items on the last num indexes of the universe.
+    #[clap(alias = "a")]
+    Adversarial,
+    /// Item density increases linearly with indexes.
+    #[clap(aliases = ["l", "ld"])]
+    LinearlyDensified,
+}
+
+impl std::fmt::Display for Distribution {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match *self {
+            Distribution::Uniform => "uniform",
+            Distribution::Adversarial => "adversarial",
+            Distribution::LinearlyDensified => "linearly densified",
+        })
+    }
+}
+
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, infer_subcommands=true, infer_long_args=true)]
 /// Compact sequences benchmark.
 pub struct Conf {
     /// Structure to test
@@ -52,6 +75,10 @@ pub struct Conf {
     /// Item universe.
     #[arg(short = 'u', long, default_value_t = 1_000_000_000)]
     pub universe: usize,
+
+    /// Distribution of items across the universe.
+    #[arg(short='d', long, value_enum, default_value_t = Distribution::Uniform)]
+    pub distribution: Distribution,
 
     /// Time (in seconds) of measuring and warming up the CPU cache before measuring
     #[arg(short='t', long, default_value_t = 5)]
@@ -69,12 +96,12 @@ pub struct Conf {
     #[arg(short='q', long, default_value_t = NonZeroU32::new(1_000_000).unwrap())]
     pub queries: NonZeroU32,
 
-    /// Save detailed results to CSV file
-    #[arg(short='d', long, default_value_t = false)]
+    /// Save detailed results to CSV file(s)
+    #[arg(short='f', long, default_value_t = false)]
     pub save_details: bool,
 }
 
-const INPUT_HEADER: &'static str = "universe,num";
+const INPUT_HEADER: &'static str = "universe,num,distribution";
 const RANK_SELECT_HEADER: &'static str = "method,space_overhead,time_per_query";
 
 struct Tester<'c> {
@@ -132,7 +159,7 @@ impl<'c> Tester<'c> {
         }
     }
 
-    #[inline(always)]pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select0: F)
+    #[inline(always)] pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select0: F)
     where F: Fn(usize) -> R
     {
         if self.conf.universe == self.number_of_ones {
@@ -158,35 +185,51 @@ impl<'c> Tester<'c> {
 }
 
 impl Conf {
-    fn data_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F) -> usize {
+    #[inline(always)] fn uniform_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F, gen: &mut XorShift64, total_ones: &mut usize, mut num: usize, universe: Range<usize>) {
+        let mut remain_universe = universe.len();
+        for i in universe {
+            let included = gen.get() as usize % remain_universe < num;
+            f(i, *total_ones, included);
+            if included {
+                *total_ones += 1;
+                num -= 1;
+            }
+            remain_universe -= 1;
+        }
+    }
+
+    #[inline(always)] fn data_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F) -> usize {
         let mut gen = self.rand_gen();
         let mut number_of_ones = 0;
 
-        for i in 0..self.universe {   // uniform
-            let remain_universe = self.universe - i;
-            let remain_num = self.num - number_of_ones;
-            let included = gen.get() as usize % remain_universe < remain_num;
-            f(i, number_of_ones, included);
-            number_of_ones += included as usize;
+        match self.distribution {
+            Distribution::Uniform => self.uniform_foreach(f, &mut gen, &mut number_of_ones, self.num, 0..self.universe),
+            Distribution::Adversarial => {
+                let sparse_threshold = self.universe - self.num;
+                self.uniform_foreach(&mut f, &mut gen, &mut number_of_ones, (self.num+50)/100, 0..sparse_threshold);
+                let num = self.num - number_of_ones;
+                self.uniform_foreach(f, &mut gen, &mut number_of_ones, num, sparse_threshold..self.universe);
+            }
+            Distribution::LinearlyDensified => {    // linear density increase
+                let (reverse, num_dbl) = if self.num * 2 > self.universe {
+                    (true, (self.universe - self.num)*2)
+                } else {
+                    (false, self.num*2)
+                };
+                for i in 0..self.universe {
+                    /*let remain_universe = self.universe - i;
+                    let remain_num = num - number_of_ones;
+                    let included = (gen.get() as usize % remain_universe * (remain_universe-1) < 2 * remain_num * i) ^ reverse;*/
+                    let j = if reverse { self.universe - i } else { i };
+                    let included = (gen.get() as usize % self.universe * (self.universe-1) < num_dbl * j) ^ reverse;
+                    f(i, number_of_ones, included);
+                    number_of_ones += included as usize;
+                }
+            }
         }
 
-        /*let (reverse, num) = if self.num * 2 > self.universe {
-            (true, self.universe - self.num)
-        } else {
-            (false, self.num)
-        };
-        let mut number_of_ones = 0;
-        let mut gen = self.rand_gen();*/
 
-        /*for i in 0..self.universe {   // uniform
-            add(i, (gen.get() as usize % self.universe < num) ^ reverse);
-        }*/
-
-        /*for i in 0..self.universe {   // linear density increase
-            let value = (gen.get() as usize % self.universe * (self.universe-1) < 2 * num * i) ^ reverse;
-            add(i, value);
-            number_of_ones += value as usize;
-        }*/
+        /**/
 
         /*let half_universe = self.universe/2;
         for i in 0..half_universe {
@@ -203,7 +246,8 @@ impl Conf {
 
     fn rand_data<F: FnMut(usize, bool)>(&self, mut add: F) -> Tester {
         let number_of_ones = self.data_foreach(|index, _, v| add(index, v));
-        println!(" input: number of bit ones is {} / {} ({:.2}%)", number_of_ones, self.universe, percent_of(number_of_ones, self.universe));
+        println!(" input: number of bit ones is {} / {} ({:.2}%), {} distribution",
+            number_of_ones, self.universe, percent_of(number_of_ones, self.universe), self.distribution);
         Tester { conf: self, number_of_ones, rank_includes_current: false }
     }
 
@@ -218,7 +262,7 @@ impl Conf {
 
     fn save_rank_or_select(&self, file_name: &str, method_name: &str, space_overhead: f64, time: f64) {
         if let Some(mut file) = self.file(file_name, RANK_SELECT_HEADER) {
-            writeln!(file, "{},{},{},{},{}", self.universe, self.num, method_name, space_overhead, time).unwrap();
+            writeln!(file, "{},{},{},{},{},{}", self.universe, self.num, self.distribution, method_name, space_overhead, time).unwrap();
         }
     }
     
