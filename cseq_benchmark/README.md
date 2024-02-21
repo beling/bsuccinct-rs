@@ -35,3 +35,26 @@ It should be omitted in case of compilation problems.
 
 ## Rust libraries and programs focused on succinct data structures
 (Piotr Beling *Rust libraries and programs focused on succinct data structures* submitted to SoftwareX)
+
+Results for structures that support rank and select queries on bit vectors,
+included in libraries written in Rust, can be obtained by running:
+
+```shell
+cseq_benchmark -f -t 60 -q 10000000 -u 1000000000 -n 500000000 bv
+cseq_benchmark -f -t 60 -q 10000000 -u 1000000000 -n 100000000 bv
+```
+
+Notes:
+- The `-t 60` switch forces a long testing time (60s for warming up + about 60s for performing each test).
+  It can be omitted to get results faster, but averaged over fewer repetitions.
+- The `-f` switch causes the results to be written to files.
+  It also can be skipped, as the results are printed to the screen anyway.
+
+The results for the methods contained in [SDSL2](https://github.com/simongog/sdsl-lite) (which is written in C++)
+can be obtained using the program available at <https://github.com/beling/benchmark-succinct>
+(the page also contains compilation instructions) by running:
+
+```shell
+rank_sel 1000000000 500000000 60 10000000
+rank_sel 1000000000 100000000 60 10000000
+```
