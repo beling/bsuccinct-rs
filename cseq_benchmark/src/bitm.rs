@@ -1,3 +1,4 @@
+use aligned_vec::ABox;
 use bitm::{ArrayWithRankSelect101111, BinaryRankSearch, BitAccess, BitVec, CombinedSampling, Rank, Select, Select0};
 use dyn_size_of::GetSize;
 use crate::{percent_of, percent_of_diff, Conf, Tester};
@@ -20,8 +21,15 @@ use crate::{percent_of, percent_of_diff, Conf, Tester};
     content
 }*/
 
-pub fn build_bit_vec(conf: &Conf) -> (Box<[u64]>, Tester) {
+/*pub fn build_bit_vec(conf: &Conf) -> (Box<[u64]>, Tester) {
     let mut content = Box::with_zeroed_bits(conf.universe);
+    let tester = conf.rand_data(|bit_nr, value| if value {content.init_bit(bit_nr, value)});
+    (content, tester)
+}*/
+
+pub fn build_bit_vec(conf: &Conf) -> (ABox<[u64]>, Tester) {
+    let mut content =  ABox::with_zeroed_bits(conf.universe);
+    //let mut content = AVec::from_iter(64, (0..ceiling_div(conf.universe, 64)).map(|_| 0)).into_boxed_slice();
     let tester = conf.rand_data(|bit_nr, value| if value {content.init_bit(bit_nr, value)});
     (content, tester)
 }
@@ -30,7 +38,7 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
     println!("bitm ArrayWithRankSelect101111:");
     let (content, tester) = build_bit_vec(conf);
 
-    let (rs, _) = ArrayWithRankSelect101111::<BinaryRankSearch, BinaryRankSearch>::build(content);
+    let (rs, _) = ArrayWithRankSelect101111::<BinaryRankSearch, BinaryRankSearch, _>::build(content);
     //assert_eq!(ones, conf.num);
 
     tester.raport_rank("bitm ArrayWithRankSelect101111",
@@ -49,7 +57,7 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
     tester.raport_select0("bitm ArrayWithRankSelect101111 binary search over ranks",
             0.0, |index| unsafe{rs.select0_unchecked(index)});
 
-    let (rs, _) = ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>::build(rs.content);
+    let (rs, _) = ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling, _>::build(rs.content);
 
     /*println!(" checked select by combined sampling:");
     tester.raport_select1("bitm ArrayWithRankSelect101111 combined sampling",

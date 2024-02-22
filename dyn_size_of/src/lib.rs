@@ -3,6 +3,8 @@
 use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize,
     AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize};
 
+#[cfg(feature = "aligned-vec")] use aligned_vec;
+
 /// Provides methods to get dynamic and total size of the variable.
 pub trait GetSize {
     /// Returns approximate number of bytes occupied by dynamic (heap) part of `self`.
@@ -73,6 +75,10 @@ impl <T: GetSize> GetSize for Box<T> {
     impl_getsize_methods_for_pointer!();
 }
 
+#[cfg(feature = "aligned-vec")] impl <T: GetSize> GetSize for aligned_vec::ABox<T> {
+    impl_getsize_methods_for_pointer!();
+}
+
 impl <T: GetSize> GetSize for ::std::rc::Rc<T> {
     fn size_bytes_dyn(&self) -> ::std::primitive::usize {
         // round((size of T + size of strong and weak reference counters) / number of strong references)
@@ -99,24 +105,38 @@ impl<T: GetSize> GetSize for Box<[T]> {
     impl_getsize_methods_for_dyn_arr!(T);
 }
 
+#[cfg(feature = "aligned-vec")] impl <T: GetSize> GetSize for aligned_vec::ABox<[T]> {
+    impl_getsize_methods_for_dyn_arr!(T);
+}
+
+macro_rules! impl_getsize_methods_for_vec {
+    ($T:ty) => (
+        fn size_bytes_dyn(&self) -> usize {
+            let c = ::std::mem::size_of::<$T>() * self.capacity();
+            if <$T>::USES_DYN_MEM {
+                c + self.iter().map(GetSize::size_bytes_dyn).sum::<usize>()
+            } else {
+                c
+            }
+        }
+        fn size_bytes_content_dyn(&self) -> usize {
+            let c = ::std::mem::size_of::<$T>() * self.len();
+            if <$T>::USES_DYN_MEM {
+                c + self.iter().map(GetSize::size_bytes_content_dyn).sum::<usize>()
+            } else {
+                c
+            }
+        }
+        const USES_DYN_MEM: bool = true;
+    );
+}
+
 impl<T: GetSize> GetSize for Vec<T> {
-    fn size_bytes_dyn(&self) -> usize {
-        let c = ::std::mem::size_of::<T>() * self.capacity();
-        if T::USES_DYN_MEM {
-            c + self.iter().map(GetSize::size_bytes_dyn).sum::<usize>()
-        } else {
-            c
-        }
-    }
-    fn size_bytes_content_dyn(&self) -> usize {
-        let c = ::std::mem::size_of::<T>() * self.len();
-        if T::USES_DYN_MEM {
-            c + self.iter().map(GetSize::size_bytes_content_dyn).sum::<usize>()
-        } else {
-            c
-        }
-    }
-    const USES_DYN_MEM: bool = true;
+    impl_getsize_methods_for_vec!(T);
+}
+
+#[cfg(feature = "aligned-vec")] impl <T: GetSize> GetSize for aligned_vec::AVec<T> {
+    impl_getsize_methods_for_vec!(T);
 }
 
 macro_rules! impl_getsize_for_tuple {

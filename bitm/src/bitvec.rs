@@ -485,6 +485,19 @@ impl BitVec for Box<[u64]> {
     }
 }
 
+#[cfg(feature = "aligned-vec")]
+impl BitVec for aligned_vec::ABox<[u64]> {
+    #[inline(always)] fn with_64bit_segments(segments_value: u64, segments_len: usize) -> Self {
+        aligned_vec::avec![segments_value; segments_len].into_boxed_slice()
+    }
+
+    fn with_bitwords(word: u64, word_len_bits: u8, words_count: usize) -> Self {
+        let mut result = Self::with_zeroed_bits(words_count * word_len_bits as usize);
+        for index in 0..words_count { result.init_fragment(index, word, word_len_bits); }
+        result
+    }
+}
+
 /*#[inline(always)] pub fn bitvec_len_for_bits(bits_len: usize) -> usize { ceiling_div(bits_len, 64) }
 
 #[inline(always)] pub fn bitvec_with_segments_len_and_value(segments_len: usize, segments_value: u64) -> Box<[u64]> {
