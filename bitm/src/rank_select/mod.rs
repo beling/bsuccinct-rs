@@ -288,6 +288,7 @@ pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch, Binar
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
 /// Only `content` with less than 2<sup>32</sup> bit ones is supported.
+/// Any type that implements the [`Deref`] trait with `Target = [u64]` can be used as a bit vector.
 /// 
 /// Usually [`ArrayWithRankSelect101111`] should be preferred to [`ArrayWithRankSimple`].
 #[derive(Clone)]
