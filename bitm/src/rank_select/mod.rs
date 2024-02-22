@@ -43,7 +43,7 @@ pub trait Rank {
 }
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
-#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
+#[inline] fn count_bits_in(content: &[u64]) -> usize {
     let mut it = content.iter().map(|v| v.count_ones() as usize);
     let mut result = 0;
     if let Some(v) = it.next() { result += v; } else { return result; }
