@@ -132,6 +132,10 @@ impl<'c> Tester<'c> {
         let time = self.conf.queries_measure(&self.conf.rand_queries(self.conf.universe), &rank).as_nanos();
         println!("  time/query {:.2}ns", time);
         self.conf.save_rank(method_name, space_overhead, time);
+        self.verify_rank(method_name, rank);
+    }
+
+    fn verify_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, rank: F) where F: Fn(usize) -> R {
         if self.conf.verify {
             //print!("   verification of rank answers... ");
             self.conf.data_foreach(|index, mut expected_rank, value| {
@@ -154,6 +158,10 @@ impl<'c> Tester<'c> {
         let time = self.conf.queries_measure(&self.conf.rand_queries(self.number_of_ones), &select).as_nanos();
         println!("  time/query {:.2}ns", time);
         self.conf.save_select1(method_name, space_overhead, time);
+        self.verify_select1(method_name, select);
+    }
+
+    fn verify_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, select: F) where F: Fn(usize) -> R {
         if self.conf.verify {
             //print!("   verification of select1 answers... ");
             self.conf.data_foreach(|index, rank, value| if value {
@@ -177,6 +185,10 @@ impl<'c> Tester<'c> {
             &select0).as_nanos();
         println!("  time/query {:.2}ns", time);
         self.conf.save_select0(method_name, space_overhead, time);
+        self.verify_select0(method_name, select0);
+    }
+
+    fn verify_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, select0: F) where F: Fn(usize) -> R {
         if self.conf.verify {
             //print!("   verification of select0 answers... ");
             self.conf.data_foreach(|index, rank1, value| if !value {

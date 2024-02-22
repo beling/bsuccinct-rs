@@ -42,11 +42,6 @@ pub trait Rank {
     }
 }
 
-/// Returns number of bits set (to one) in `content`.
-/*#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
-    content.iter().map(|v| v.count_ones() as usize).sum()
-}*/
-
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
 #[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
     let mut it = content.iter().map(|v| v.count_ones() as usize);
@@ -127,7 +122,7 @@ pub trait Rank {
 
 
 
-/// The structure that holds array of bits `content` and `ranks` structure that takes no more than 3.125% extra space.
+/// The structure that holds bit vector `content` and `ranks` structure that takes no more than 3.125% extra space.
 /// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
 /// In addition, it supports select queries utilizing binary search over ranks (see [`BinaryRankSearch`])
 /// or (optionally, at the cost of extra space overhead; about 0.39% with default settings)
