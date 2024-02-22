@@ -138,7 +138,7 @@ pub trait Rank {
 /// Such a vector can be constructed, for example, by compiling `bitm` with the `aligned-vec` feature and using implementation
 /// of [`crate::BitVec`] trait for `aligned_vec::ABox<[u64]>`, for example: `ABox::with_zeroed_bits(number_of_bits)`.
 ///
-/// It supports vectors up to 2<sup>64</sup> bits and its design is based on 3-level (compact due to relative addressing)
+/// It supports vectors up to 2<sup>64</sup> bits and its design is based on a 3-level (compact due to relative addressing)
 /// index that samples rank responses every 512 bits and is CPU cache friendly as the first level is small
 /// (each its entry covers 2<sup>32</sup> bits) and the other two are interleaved.
 ///
