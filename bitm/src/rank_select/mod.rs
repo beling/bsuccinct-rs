@@ -57,7 +57,7 @@ pub trait Rank {
     return result;
 }
 
-/*#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {  // almost the same asm as above
+/*#[inline] fn count_bits_in(content: &[u64]) -> usize {  // almost the same asm as above
     let l = content.len();
     let mut result = 0;
     for i in 0..8 {
@@ -67,7 +67,7 @@ pub trait Rank {
 }*/
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
-/*#[inline(always)] fn count_bits_in(mut content: &[u64]) -> usize {
+/*#[inline] fn count_bits_in(mut content: &[u64]) -> usize {
     let mut result = 0;
     if content.len() >= 3 {
         result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
@@ -93,7 +93,7 @@ pub trait Rank {
 }*/
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
-/*#[inline(always)] fn count_bits_in(mut content: &[u64]) -> usize {
+/*#[inline] fn count_bits_in(mut content: &[u64]) -> usize {
     let mut result = 0;
     // up to 8 elements
     if content.len() >= 4 {
@@ -181,21 +181,21 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 }
 
 impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Select for ArrayWithRankSelect101111<S, S0, BV> {
-    #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
+    #[inline] fn try_select(&self, rank: usize) -> Option<usize> {
         self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 
-    #[inline(always)] unsafe fn select_unchecked(&self, rank: usize) -> usize {
+    #[inline] unsafe fn select_unchecked(&self, rank: usize) -> usize {
         self.select.select_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
 impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Select0 for ArrayWithRankSelect101111<S, S0, BV> {
-    #[inline(always)] fn try_select0(&self, rank: usize) -> Option<usize> {
+    #[inline] fn try_select0(&self, rank: usize) -> Option<usize> {
         self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 
-    #[inline(always)] unsafe fn select0_unchecked(&self, rank: usize) -> usize {
+    #[inline] unsafe fn select0_unchecked(&self, rank: usize) -> usize {
         self.select0.select0_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 }
@@ -347,11 +347,11 @@ impl<BV: Deref<Target = [u64]>> AsRef<[u64]> for ArrayWithRankSimple<BV> {
 }
 
 impl<BV: Deref<Target = [u64]>> Rank for ArrayWithRankSimple<BV> {
-    #[inline(always)] fn try_rank(&self, index: usize) -> Option<usize> {
+    #[inline] fn try_rank(&self, index: usize) -> Option<usize> {
         Self::try_rank(self, index).map(|r| r as usize)
     }
 
-    #[inline(always)] fn rank(&self, index: usize) -> usize {
+    #[inline] fn rank(&self, index: usize) -> usize {
         Self::rank(self, index) as usize
     }
 }
