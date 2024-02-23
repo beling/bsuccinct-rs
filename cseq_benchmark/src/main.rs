@@ -1,4 +1,6 @@
 #![doc = include_str!("../README.md")]
+//! # Benchmark results
+#![doc = include_str!("../utils/rank.html")]
 
 mod elias_fano;
 mod bitm;
@@ -243,20 +245,6 @@ impl Conf {
                 }
             }
         }
-
-
-        /**/
-
-        /*let half_universe = self.universe/2;
-        for i in 0..half_universe {
-            f(i, reverse);
-        }
-        for i in half_universe..self.universe {   // linear density increase
-            let value = (gen.get() as usize % self.universe * (half_universe-1) < 4 * num * (i-half_universe)) ^ reverse;
-            f(i, value);
-            number_of_ones += value as usize;
-        }*/
-
         number_of_ones
     }
 
