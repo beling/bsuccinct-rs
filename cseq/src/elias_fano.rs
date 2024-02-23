@@ -3,7 +3,7 @@
 use std::{iter::FusedIterator, io};
 
 use binout::{AsIs, Serializer};
-use bitm::{ceiling_div, n_lowest_bits, ArrayWithRankSelect101111, BitAccess, BitVec, CombinedSampling, ConstCombinedSamplingDensity, Rank, Select, Select0, Select0ForRank101111, SelectForRank101111};
+use bitm::{ceiling_div, n_lowest_bits, RankSelect101111, BitAccess, BitVec, CombinedSampling, ConstCombinedSamplingDensity, Rank, Select, Select0, Select0ForRank101111, SelectForRank101111};
 use dyn_size_of::GetSize;
 
 /// Builds [`Sequence`] of values added by push methods.
@@ -124,7 +124,7 @@ impl Builder {
 /// Elias-Fano representation of a non-decreasing sequence of integers.
 /// 
 /// By default [`bitm::CombinedSampling`] is used used as both a select and select0 strategy
-/// for internal bit vector (see [`bitm::ArrayWithRankSelect101111`]).
+/// for internal bit vector (see [`bitm::RankSelect101111`]).
 /// However, either of these two strategies can be changed to [`bitm::BinaryRankSearch`]
 /// to save a bit of space (maximum about 0.39% per strategy) at the cost of slower:
 /// - (for select) getting an item at the given index,
@@ -144,7 +144,7 @@ impl Builder {
 ///   Proceedings of the Meeting on Algorithm Engineering & Expermiments, January 2007, pages 60–70,
 ///   <https://dl.acm.org/doi/10.5555/2791188.2791194> (Section 6 "SDarrays")
 pub struct Sequence<S = CombinedSampling<ConstCombinedSamplingDensity>, S0 = CombinedSampling<ConstCombinedSamplingDensity>> {
-    hi: ArrayWithRankSelect101111<S, S0>,   // most significant bits of each item, unary coded
+    hi: RankSelect101111<S, S0>,   // most significant bits of each item, unary coded
     lo: Box<[u64]>, // least significant bits of each item, vector of `bits_per_lo` bit items
     bits_per_lo: u8, // bit size of each entry in lo
     len: usize  // number of items
@@ -281,7 +281,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> Sequence<S, S0> {
     /// Custom select strategies do not have to be the same as the ones used by the written sequence.
     pub fn read_s(input: &mut dyn io::Read) -> io::Result<Self> {
         let bits_per_lo: u8 = AsIs::read(input)?;
-        let (hi, len) = ArrayWithRankSelect101111::build(AsIs::read_array(input)?);
+        let (hi, len) = RankSelect101111::build(AsIs::read_array(input)?);
         let lo = if bits_per_lo != 0 && len != 0 {
             AsIs::read_n(input, ceiling_div(len * bits_per_lo as usize, 64))?
         } else {
@@ -425,7 +425,7 @@ impl<S, S0: Select0ForRank101111> Rank for Sequence<S, S0> {
     }
 }
 
-impl<S, S0> GetSize for Sequence<S, S0> where ArrayWithRankSelect101111<S, S0>: GetSize {
+impl<S, S0> GetSize for Sequence<S, S0> where RankSelect101111<S, S0>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.lo.size_bytes_dyn() + self.hi.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }

@@ -3,7 +3,7 @@
 use std::{iter::FusedIterator, io};
 
 use binout::{AsIs, Serializer};
-use bitm::{BitAccess, BitVec, ArrayWithRankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, bits_to_store, ceiling_div};
+use bitm::{BitAccess, BitVec, RankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, bits_to_store, ceiling_div};
 use dyn_size_of::GetSize;
 
 /// Constructs bit vectors for the (current) level of velvet matrix.
@@ -54,18 +54,18 @@ impl LevelBuilder {
 /// Level of the we wavelet matrix.
 struct Level<S = CombinedSampling> {
     /// Level content as bit vector with support for rank and select queries.
-    content: ArrayWithRankSelect101111::<S, S>,
+    content: RankSelect101111::<S, S>,
 
     /// Number of zero bits in content.
     number_of_zeros: usize
 }
 
-impl<S> GetSize for Level<S> where ArrayWithRankSelect101111<S, S>: GetSize {
+impl<S> GetSize for Level<S> where RankSelect101111<S, S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.content.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S> Level<S> where ArrayWithRankSelect101111<S, S>: From<Box<[u64]>> {
+impl<S> Level<S> where RankSelect101111<S, S>: From<Box<[u64]>> {
     /// Constructs level with given `content` that contain given number of zero bits.
     fn new(content: Box::<[u64]>, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
@@ -94,7 +94,7 @@ impl<S> Level<S> where S: Select0ForRank101111 {
 /// - *rank* - see [`Self::rank`].
 /// 
 /// By default [`bitm::CombinedSampling`] is used as a select strategy for internal bit vectors
-/// (see [`bitm::ArrayWithRankSelect101111`]), but this can be changed to [`bitm::BinaryRankSearch`]
+/// (see [`bitm::RankSelect101111`]), but this can be changed to [`bitm::BinaryRankSearch`]
 /// to save a bit of space (about 0.78%) at the cost of slower *select* queries.
 /// 
 /// Our implementation is based on the following paper which proposed the method:
@@ -336,7 +336,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
     }
 }
 
-impl<S> GetSize for Sequence<S> where ArrayWithRankSelect101111<S, S>: GetSize {
+impl<S> GetSize for Sequence<S> where RankSelect101111<S, S>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.levels.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }

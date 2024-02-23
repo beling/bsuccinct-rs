@@ -136,7 +136,7 @@ pub trait Select0ForRank101111 {
     }
 }*/
 
-/// A select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111)
+/// A select strategy for [`RankSelect101111`](crate::RankSelect101111)
 /// that does not introduce any overhead (on space or construction speed)
 /// and is based on a binary search over ranks.
 #[derive(Clone, Copy)]
@@ -483,7 +483,7 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
     #[inline(always)] fn items_per_sample_log2(density: Self::SamplingDensity) -> u8 { density }
 }
 
-/// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
+/// Fast select strategy for [`RankSelect101111`](crate::RankSelect101111) with about 0.39% space overhead.
 /// 
 /// Space/speed trade-off can be adjusted by the template parameter, by giving one of:
 /// - [`AdaptiveCombinedSamplingDensity`] (default) -- works well with a wide range of bit vectors,

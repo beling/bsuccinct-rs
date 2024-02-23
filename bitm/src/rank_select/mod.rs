@@ -153,7 +153,7 @@ pub trait Rank {
 /// 
 /// For in-word selection, the structure uses the [`select64`] function.
 #[derive(Clone)]
-pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch, BV = Box::<[u64]>> {
+pub struct RankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch, BV = Box::<[u64]>> {
     pub content: BV,  // bit vector
     pub l1ranks: Box<[usize]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
@@ -161,7 +161,7 @@ pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = Binary
     select0: Select0,  // support for select (zero)
 }
 
-impl<S, S0, BV> ArrayWithRankSelect101111<S, S0, BV> {
+impl<S, S0, BV> RankSelect101111<S, S0, BV> {
     /// Returns reference to structure that support select (one) operation.
     #[inline] pub fn select_support(&self) -> &S { &self.select }
 
@@ -169,18 +169,18 @@ impl<S, S0, BV> ArrayWithRankSelect101111<S, S0, BV> {
     #[inline] pub fn select0_support(&self) -> &S0 { &self.select0 }
 }
 
-impl<S: GetSize, S0: GetSize, BV: GetSize> GetSize for ArrayWithRankSelect101111<S, S0, BV> {
+impl<S: GetSize, S0: GetSize, BV: GetSize> GetSize for RankSelect101111<S, S0, BV> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> From<BV> for ArrayWithRankSelect101111<S, S0, BV> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> From<BV> for RankSelect101111<S, S0, BV> {
     #[inline] fn from(value: BV) -> Self { Self::build(value).0 }
 }
 
-impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Select for ArrayWithRankSelect101111<S, S0, BV> {
+impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Select for RankSelect101111<S, S0, BV> {
     #[inline] fn try_select(&self, rank: usize) -> Option<usize> {
         self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
@@ -190,7 +190,7 @@ impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Select for ArrayWith
     }
 }
 
-impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Select0 for ArrayWithRankSelect101111<S, S0, BV> {
+impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Select0 for RankSelect101111<S, S0, BV> {
     #[inline] fn try_select0(&self, rank: usize) -> Option<usize> {
         self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
@@ -200,7 +200,7 @@ impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Select0 for ArrayWi
     }
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Rank for ArrayWithRankSelect101111<S, S0, BV> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Rank for RankSelect101111<S, S0, BV> {
     #[inline] fn try_rank(&self, index: usize) -> Option<usize> {
         let block = index / 512;
         let word_idx = index / 64;
@@ -232,7 +232,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
     }
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> ArrayWithRankSelect101111<S, S0, BV> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> RankSelect101111<S, S0, BV> {
     pub fn build(content: BV) -> (Self, usize) {
         let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L2_ENTRY));
@@ -273,37 +273,37 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
     }
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> AsRef<[u64]> for ArrayWithRankSelect101111<S, S0, BV> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> AsRef<[u64]> for RankSelect101111<S, S0, BV> {
     #[inline] fn as_ref(&self) -> &[u64] { &self.content }
 }
 
-/// [`ArrayWithRankSelect101111`] with [`BinaryRankSearch`] (which does not introduce a space overhead) for select queries.
-pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch, BinaryRankSearch>;
+/// Alias for backward compatibility. [`RankSelect101111`] with [`BinaryRankSearch`] (which does not introduce a space overhead) for select queries.
+pub type ArrayWithRank101111 = RankSelect101111<BinaryRankSearch, BinaryRankSearch>;
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
 /// Only `content` with less than 2<sup>32</sup> bit ones is supported.
 /// Any type that implements the [`Deref`] trait with `Target = [u64]` can be used as a bit vector.
 /// 
-/// Usually [`ArrayWithRankSelect101111`] should be preferred to [`ArrayWithRankSimple`].
+/// Usually [`RankSelect101111`] should be preferred to [`ArrayWithRankSimple`].
 #[derive(Clone)]
-pub struct ArrayWithRankSimple<BV = Box<[u64]>> {
+pub struct RankSimple<BV = Box<[u64]>> {
     pub content: BV,
     pub ranks: Box<[u32]>,
 }
 
-impl<BV: GetSize> GetSize for ArrayWithRankSimple<BV> {
+impl<BV: GetSize> GetSize for RankSimple<BV> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.ranks.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<BV: Deref<Target = [u64]>> From<BV> for ArrayWithRankSimple<BV> {
+impl<BV: Deref<Target = [u64]>> From<BV> for RankSimple<BV> {
     #[inline] fn from(value: BV) -> Self { Self::build(value).0 }
 }
 
-impl<BV: Deref<Target = [u64]>> ArrayWithRankSimple<BV> {
+impl<BV: Deref<Target = [u64]>> RankSimple<BV> {
 
     /// Constructs `ArrayWithRankSimple` and count number of bits set in `content`. Returns both.
     pub fn build(content: BV) -> (Self, u32) {
@@ -342,11 +342,11 @@ impl<BV: Deref<Target = [u64]>> ArrayWithRankSimple<BV> {
     //pub fn select(&self, rank: u32) -> usize {}
 }
 
-impl<BV: Deref<Target = [u64]>> AsRef<[u64]> for ArrayWithRankSimple<BV> {
+impl<BV: Deref<Target = [u64]>> AsRef<[u64]> for RankSimple<BV> {
     #[inline] fn as_ref(&self) -> &[u64] { &self.content }
 }
 
-impl<BV: Deref<Target = [u64]>> Rank for ArrayWithRankSimple<BV> {
+impl<BV: Deref<Target = [u64]>> Rank for RankSimple<BV> {
     #[inline] fn try_rank(&self, index: usize) -> Option<usize> {
         Self::try_rank(self, index).map(|r| r as usize)
     }
@@ -355,6 +355,9 @@ impl<BV: Deref<Target = [u64]>> Rank for ArrayWithRankSimple<BV> {
         Self::rank(self, index) as usize
     }
 }
+
+/// Alias for backward compatibility.
+pub type ArrayWithRankSimple = RankSimple;
 
 //impl Select for ArrayWithRankSimple {}
 
@@ -404,7 +407,7 @@ mod tests {
 
     #[test]
     fn test_empty_array_rank_101111_combined() {
-        test_empty_array_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_empty_array_rank::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn test_array_with_rank<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
@@ -439,7 +442,7 @@ mod tests {
 
     #[test]
     fn array_with_rank_101111_combined() {
-        test_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_array_with_rank::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -498,7 +501,7 @@ mod tests {
 
     #[test]
     fn big_array_with_rank_101111_combined() {
-        test_big_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_big_array_with_rank::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -519,7 +522,7 @@ mod tests {
 
     #[test]
     fn content_101111_combined() {
-        test_content::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_content::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -557,7 +560,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_101111_combined() {
-        array_64bit::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_filled<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select>() {
@@ -583,7 +586,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_filled_101111_combined() {
-        array_64bit_filled::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit_filled::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_halffilled<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
@@ -602,7 +605,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_halffilled_101111_combined() {
-        array_64bit_halffilled::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit_halffilled::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_zeroed_first<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select>() {
@@ -629,6 +632,6 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111_combined() {
-        array_64bit_zeroed_first::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit_zeroed_first::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 }
