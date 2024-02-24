@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from sys import stderr
+import subprocess
 
 data_dir = "csf_benchmark_results"
 
@@ -65,10 +66,10 @@ def show_entropy_plot(as_percent=False, dataset='equal', compressed_methods=True
         add_to_entropy_plot(f'cfp_{dataset}', as_percent=as_percent, label='fp::CMap', conf=conf)
         add_to_entropy_plot(f'cls_{dataset}', as_percent=as_percent, label='ls::CMap', conf=conf)
         #add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4, 'bits/group': 16, 'level_size_percent': 80}, label='fp::CMap', conf=conf)
-        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 1}, label='fp::CMap', conf=conf)
-        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 2}, label='fp::CMap', conf=conf)
-        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4}, label='fp::CMap', conf=conf)
-        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 8}, label='fp::CMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 1}, label='fp::GOCMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 2}, label='fp::GOCMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 4}, label='fp::GOCMap', conf=conf)
+        add_to_entropy_plot(f'cfpgo_{dataset}', as_percent=as_percent, params={'bits/seed': 8}, label='fp::GOCMap', conf=conf)
     else:
         add_to_entropy_plot(f'fp_{dataset}', as_percent=as_percent, label='fp::Map', conf=conf)    
         add_to_entropy_plot(f'ls_{dataset}', as_percent=as_percent, label='ls::Map', conf=conf)
@@ -76,10 +77,11 @@ def show_entropy_plot(as_percent=False, dataset='equal', compressed_methods=True
     plt.ylabel('overhead/entropy [%]' if as_percent else 'overhead [bits/key]')
     if as_percent: plt.ylim(0, 300)
     else: plt.ylim(bottom=0)
-    plt.savefig(
-        "{}{}_{}.svg".format(dataset,'_comp' if compressed_methods else '', 'rel' if as_percent else 'abs'),
-        facecolor=(1.0, 1.0, 1.0, 0.8)
-    )
+    svg_name = "{}{}_{}".format(dataset,'_comp' if compressed_methods else '', 'rel' if as_percent else 'abs')
+    plt.savefig(f"uncompressed_{svg_name}.svg", facecolor=(1.0, 1.0, 1.0, 0.8))
+    subprocess.run(["scour", "-i", f"uncompressed_{svg_name}.svg", "-o", f"{svg_name}.svg"])
+    #, "--enable-viewboxing", "--enable-id-stripping", "--enable-comment-stripping", "--shorten-ids", "--indent=none"
+    #subprocess.run(["minify", "-o", f"{svg_name}.svg", f"uncompressed_{svg_name}.svg"])
     plt.show()
 
 def show_uncompressed_plot(as_percent=False):
@@ -90,10 +92,10 @@ def show_uncompressed_plot(as_percent=False):
     plt.ylabel('overhead/input_size [%]' if as_percent else 'overhead [bits]')
     plt.show()
 
-compressed_methods = True
-show_entropy_plot(False, 'equal', compressed_methods, {'uncompressed_plot': True})
-show_entropy_plot(True, 'equal', compressed_methods, {'uncompressed_plot': True})
-show_entropy_plot(False, 'dominated', compressed_methods, {'uncompressed_plot': True})
-show_entropy_plot(True, 'dominated', compressed_methods, {'uncompressed_plot': True})
+for compressed_methods in (False, True):
+    show_entropy_plot(False, 'equal', compressed_methods, {'uncompressed_plot': True})
+    show_entropy_plot(True, 'equal', compressed_methods, {'uncompressed_plot': True})
+    show_entropy_plot(False, 'dominated', compressed_methods, {'uncompressed_plot': True})
+    show_entropy_plot(True, 'dominated', compressed_methods, {'uncompressed_plot': True})
 #show_uncompressed_plot(False)
 #show_uncompressed_plot(True)

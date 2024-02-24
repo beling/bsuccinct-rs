@@ -502,7 +502,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
             let bit_index = self.conf.bits_per_group.bit_index_for_seed(hash, seed, group);
             if self.array.content.get_bit(bit_index) {
                 access_stats.found_on_level(level_nr);
-                return Some(self.array.rank(bit_index) as u64);
+                return Some(unsafe{self.array.rank_unchecked(bit_index)} as u64);
             }
             groups_before += level_size_groups;
             level_nr += 1;

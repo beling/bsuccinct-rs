@@ -1,6 +1,6 @@
 [package]
 name = "coding_benchmark"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -16,10 +16,10 @@ keywords = [ "compression", "decompression", "huffman", "huffman_coding", "bench
 clap = { version="4", features = ["derive"] }
 rand = "0.8"
 rand_pcg = "0.3"
-butils = { version="0.0", path="../butils" }
+butils = { version="0.1", path="../butils" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 minimum_redundancy = { version="0.3", path="../minimum_redundancy" }
 huffman-compress = "0.6.1"
-bitm = { version="0.3", path="../bitm" }
+bitm = { version="0.4", path="../bitm" }
 bit-vec = "0.6"
 constriction = "0.3"

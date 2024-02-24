@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
-//! # Space overhead
+//! # Space overhead (benchmarks)
 //! 
-//! ## Distributions
+//! ## Introduction and description of the distributions used
 //! 
 //! The plots show the space overhead (over entropy of the distribution of function values) of the static functions
 //! included in the `csf`, for two families of functions that differ in the distribution of values:
@@ -13,14 +13,30 @@
 //! - Functions with ***dominated*** (by a single value) distribution map *2<sup>20</sup>* keys to *256* different values.
 //!   One value is assigned to *2<sup>20</sup>-255k* keys and each of the remaining *255* values is assigned to *k* keys,
 //!   where *k=1,...,2<sup>20</sup>/256*. The entropy of the distribution of function values increases with *k*.
+//!
+//! The dashed black line shown in each plot is the size of the uncompressed vector of values,
+//! assuming that each value is stored using the smallest possible (for the number of different values),
+//! constant whole number of bits.
 //! 
-//! The data for the plots are generated with the [csf_benchmark](https://crates.io/crates/csf_benchmark) program.
+//! The data for the plots were generated using the [csf_benchmark](https://crates.io/crates/csf_benchmark) program.
 //! 
-//! ## Static functions
+//! ## (Uncompressed) static functions
 #![doc=include_str!("../plots/equal_abs.svg")]
 #![doc=include_str!("../plots/equal_rel.svg")]
 #![doc=include_str!("../plots/dominated_abs.svg")]
 #![doc=include_str!("../plots/dominated_rel.svg")]
+//!
+//! ## Compressed static functions
+//!
+//! Notes: The functions use Huffman coding to compress the values.
+//! The codewords consist of fragments of a length that minimizes the size of the function
+//! (which is always 1 bit in the case of [`ls::CMap`]).
+//! Level sizes of [`fp::CMap`] and [`fp::GOCMap`] are determined by [`fp::OptimalLevelSize`].
+//! 
+#![doc=include_str!("../plots/equal_comp_abs.svg")]
+#![doc=include_str!("../plots/equal_comp_rel.svg")]
+#![doc=include_str!("../plots/dominated_comp_abs.svg")]
+#![doc=include_str!("../plots/dominated_comp_rel.svg")]
 
 pub mod coding;
 

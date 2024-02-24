@@ -8,12 +8,12 @@ description = "The library of compressed static functions (maps) that use perfec
 documentation = "https://docs.rs/csf"
 repository = "https://github.com/beling/bsuccinct-rs"
 readme = "README.md"
-include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+include = [ "**/*.rs", "Cargo.toml", "README.md", "plots/*.svg" ]
 categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [dependencies]
-bitm = { version="0.3", path="../bitm" }
+bitm = { version="0.4", path="../bitm" }
 ph = { version="0.8", path="../ph", features = ["wyhash"] }
 minimum_redundancy = { version="0.3", path="../minimum_redundancy" }
 binout = { version="0.2", path="../binout" }

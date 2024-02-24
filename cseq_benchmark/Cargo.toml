@@ -13,11 +13,11 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "compression", "sequence", "succinct", "elias-fano", "benchmark" ]
 
 [dependencies]
-butils = { version="0.0", path="../butils" }
+butils = { version="0.1", path="../butils" }
 clap = { version="4", features = ["derive"] }
 dyn_size_of = { version=">=0.4.2", path="../dyn_size_of", features=["aligned-vec"] }
 cseq = { version ="0.1", path = "../cseq" }
-bitm = { version="0.3", path="../bitm", features=["aligned-vec"] }
+bitm = { version="0.4", path="../bitm", features=["aligned-vec"] }
 sucds = "0.8"
 succinct = "0.5"
 vers-vecs = { version="1.1", optional=true }

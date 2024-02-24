@@ -32,7 +32,7 @@ def gen_tab(filename, params={}, filter=None):
     out_filename = filename
     for f, v in params.items():
         d = d[d[f] == v]
-        out_filename += '_' + v
+        out_filename += f'_{v}'
     out_filename += '.html'
     if d.empty:
         print(f"cannot construct {out_filename}, no needed data in {filename}.csv")
@@ -55,10 +55,11 @@ def gen_tab(filename, params={}, filter=None):
     d.sort_index(axis='columns', level=[0,1,2], ascending=[False, False, True], inplace=True)
     #d.sort_index(axis=1, level=[0,2,1], ascending=False, inplace=True)
     d.rename(exp_str, axis='columns', level=0, inplace=True)
-    html = BeautifulSoup(d.to_html(escape=False, border=0, justify='right'), 'html.parser')
+    html = BeautifulSoup(d.to_html(escape=False, border=0), 'html.parser')
     for tr in html.find_all('tr'):        
         if tr.find('th', string='method'):
             tr.decompose()
+    for e in html.find_all(halign=True): del e['halign']
     #for td in html.find_all('td'): td['style'] = 'text-align: center;'
     tab = html.find('table')
     del tab['class']
@@ -70,10 +71,10 @@ def gen_tab(filename, params={}, filter=None):
     #for e in html.find_all('th', string="time / query [ns]"): e['style'] = 'font-size: smaller;'
     #print(d.to_markdown())
     with open(out_filename, "w", encoding = 'utf-8') as file: 
-        file.write(str(html))
+        file.write(str(html).replace('\n\n', '\n').replace('\n<th', '<th').replace('</th>\n', '</th>').replace('</td>\n', '</td>'))
 
 for distribution in ('uniform', 'adversarial'):
-    gen_tab('rank', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution})
-    gen_tab('select1', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution})
-    gen_tab('select0', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution})
+    gen_tab('rank', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution, 'universe':1000000000})
+    gen_tab('select1', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution, 'universe':1000000000})
+    gen_tab('select0', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution, 'universe':1000000000})
 #gen_tab('select0', params={'distribution': 'uniform', 'universe': 1000000000, 'num': 100000000})
