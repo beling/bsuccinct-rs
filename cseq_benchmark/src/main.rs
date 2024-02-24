@@ -88,8 +88,8 @@ pub struct Conf {
     #[arg(short='t', long, default_value_t = 5)]
     pub time: u16,
 
-    /// Time (in seconds) of cooling (sleeeping) before measuring
-    #[arg(short='c', long, default_value_t = 2)]
+    /// Time (in seconds) of cooling (sleeping) before warming up and measuring
+    #[arg(short='c', long, default_value_t = 0)]
     pub cooling_time: u16,
 
     /// Whether to check the validity of built sequence

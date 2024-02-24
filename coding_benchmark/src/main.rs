@@ -65,6 +65,10 @@ pub struct Conf {
     #[arg(short='t', long, default_value_t = 5)]
     pub time: u16,
 
+    /// Time (in seconds) of cooling (sleeping) before warming up and measuring
+    #[arg(short='c', long, default_value_t = 0)]
+    pub cooling_time: u16,
+
     /// Whether to check the validity
     #[arg(long, default_value_t = false)]
     pub verify: bool,
@@ -101,6 +105,9 @@ impl Conf {
     #[inline(always)] fn measure<R, F>(&self, mut f: F) -> f64
      where F: FnMut() -> R
     {
+        if self.cooling_time > 0 {
+            std::thread::sleep(std::time::Duration::from_secs(self.cooling_time as u64));
+        }
         let mut iters = 1usize;
         if self.time > 0 {
             let time = Instant::now();
