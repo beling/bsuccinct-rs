@@ -13,6 +13,6 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "compression", "sequence", "succinct", "elias-fano", "wavelet-matrix" ]
 
 [dependencies]
-bitm = { version="0.3", path="../bitm" }
+bitm = { version="0.4", path="../bitm" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 binout = { version="0.2", path="../binout" }
