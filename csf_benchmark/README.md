@@ -3,6 +3,8 @@
 It can test the algorithms included in the following crates:
 - [csf](https://crates.io/crates/csf).
 
+The [csf documentation](https://docs.rs/csf/) contains plots created using `csf_benchmark`.
+
 Please run the program with the `--help` switch to see the available options.
 
 Below you can find instruction for [installing](#installation) `csf_benchmark`.
