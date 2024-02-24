@@ -129,7 +129,7 @@ pub trait Rank {
 /// combined sampling (which is usually faster; see [`CombinedSampling`]).
 ///
 /// Any type that implements the [`Deref`] trait with `Target = [u64]` can be used as a bit vector.
-/// It is recommended to use this structure with bit vectors allocated with alignment to the CPU cache line.
+/// It is recommended to use this structure with bit vectors allocated with alignment to the CPU cache line or 64 bytes.
 /// Such a vector can be constructed, for example, by compiling `bitm` with the `aligned-vec` feature and using implementation
 /// of [`crate::BitVec`] trait for `aligned_vec::ABox<[u64]>`, for example: `ABox::with_zeroed_bits(number_of_bits)`.
 ///
@@ -217,7 +217,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
         Some(r + count_bits_in(unsafe {self.content.get_unchecked(word_idx&!7..word_idx)}))
     }
 
-    unsafe fn rank_unchecked(&self, index: usize) -> usize {
+    #[inline] unsafe fn rank_unchecked(&self, index: usize) -> usize {
         let block = index / 512;
         let word_idx = index / 64;   
         let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
