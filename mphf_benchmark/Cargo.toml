@@ -15,7 +15,7 @@ keywords = [ "perfect", "hashing", "minimal", "mphf" ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitm = { version="0.3", path="../bitm" }
+bitm = { version="0.4", path="../bitm" }
 butils = { version="0.0", path="../butils" }
 rayon = "1.5"
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
