@@ -1,6 +1,4 @@
 #![doc = include_str!("../README.md")]
-//! # Benchmark results
-#![doc = include_str!("../utils/rank.html")]
 
 mod elias_fano;
 mod bitm;
