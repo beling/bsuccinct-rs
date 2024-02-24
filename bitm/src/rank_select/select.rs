@@ -404,7 +404,7 @@ impl Select0ForRank101111 for BinaryRankSearch {
 /// 
 /// The result is the base 2 logarithm of the recommended sampling, and it is always in range [7, `max_result`].
 /// The actual sampling is 2 times denser, but every second sample sometimes cannot be recorded accurately.
-/// (The minimum value is 7, as we never sample two bits in the same 64-bit word.)
+/// The minimum value is 7, as we never sample two bits in the same 64-bit word.
 /// 
 /// A good value for `max_result` is 13, which leads to about 0.39% space overhead,
 /// and, for n = 50%u, results in sampling positions of every 2^12(/2)=4096(/2) ones (or zeros for select0).
@@ -470,8 +470,8 @@ impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDens
 /// `MAX_RESULT` must be in range [7, 31].
 /// As `MAX_RESULT` decreases, the speed of select queries increases
 /// at the cost of higher space overhead (which doubles with each decrease by 1).
-/// Its value 13 leads to about 0.39% space overhead, and, for n = 50%u, results in sampling
-/// positions of every 2^12(/2)=4096(/2) ones (or zeros for select0).
+/// Its value 13 leads to about 0.39% space overhead, and, for vectors filled with bit ones in about half,
+/// results in sampling positions of every 2^12(/2)=4096(/2) ones (or zeros for select0).
 #[derive(Clone, Copy)]
 pub struct AdaptiveCombinedSamplingDensity<const MAX_RESULT: u8 = 13>;
 
