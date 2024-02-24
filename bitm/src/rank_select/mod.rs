@@ -210,9 +210,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
         let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
         r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
 
-        //r += (((block_content>>32) >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
-        //r += (((block_content >> (33 - 11 * (block & 3))) >> 32) & 0b1_11111_11111) as usize;
-        if block & 3 != 0 { r += ((block_content >> ((32+33) - 11 * (block & 3))) & 0b1_11111_11111) as usize }
+        r += (((block_content >> (11 * (!block & 3))) >> 32) & 0b1_11111_11111) as usize;
 
         //Some(r + count_bits_in(unsafe {self.content.get_unchecked(block * 8/*word_idx&!7*/..word_idx)}))
         Some(r + count_bits_in(unsafe {self.content.get_unchecked(word_idx&!7..word_idx)}))
@@ -227,7 +225,11 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 
         //r += (((block_content>>32) >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
         //r += (((block_content >> (33 - 11 * (block & 3))) >> 32) & 0b1_11111_11111) as usize;
-        if block & 3 != 0 { r += ((block_content >> ((32+33) - 11 * (block & 3))) & 0b1_11111_11111) as usize }
+        //if block & 3 != 0 { r += ((block_content >> ((32+33) - 11 * (block & 3))) & 0b1_11111_11111) as usize }
+        //r += (((block_content >> 32) >> (11 * (3 - (block & 3)))) & 0b1_11111_11111) as usize;
+        
+        r += (((block_content >> (11 * (!block & 3))) >> 32) & 0b1_11111_11111) as usize;
+        //r += (((block_content >> 32) >> (11 * (!block & 3))) & 0b1_11111_11111) as usize;
 
         //r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))
         r + count_bits_in(self.content.get_unchecked(word_idx&!7..word_idx))
