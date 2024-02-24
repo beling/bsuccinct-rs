@@ -1,7 +1,4 @@
 #![doc = include_str!("../README.md")]
-//! # Benchmark results
-#![doc = include_str!("../utils/rank.html")]
-
 mod elias_fano;
 mod bitm;
 mod sucds;
@@ -89,6 +86,10 @@ pub struct Conf {
     /// Time (in seconds) of measuring and warming up the CPU cache before measuring
     #[arg(short='t', long, default_value_t = 5)]
     pub time: u16,
+
+    /// Time (in seconds) of cooling (sleeeping) before measuring
+    #[arg(short='c', long, default_value_t = 2)]
+    pub cooling_time: u16,
 
     /// Whether to check the validity of built sequence
     #[arg(long, default_value_t = false)]
@@ -291,6 +292,9 @@ impl Conf {
     #[inline(always)] fn measure<F>(&self, f: F) -> f64
      where F: Fn()
     {
+        if self.cooling_time > 0 {
+            std::thread::sleep(std::time::Duration::from_secs(self.cooling_time as u64));
+        }
         let mut iters = 1;
         if self.time > 0 {
             let time = Instant::now();
