@@ -16,7 +16,7 @@ keywords = [ "compression", "decompression", "huffman", "huffman_coding", "bench
 clap = { version="4", features = ["derive"] }
 rand = "0.8"
 rand_pcg = "0.3"
-butils = { version="0.0", path="../butils" }
+butils = { version="0.1", path="../butils" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 minimum_redundancy = { version="0.3", path="../minimum_redundancy" }
 huffman-compress = "0.6.1"

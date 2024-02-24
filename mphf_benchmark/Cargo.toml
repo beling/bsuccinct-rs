@@ -16,7 +16,7 @@ keywords = [ "perfect", "hashing", "minimal", "mphf" ]
 
 [dependencies]
 bitm = { version="0.4", path="../bitm" }
-butils = { version="0.0", path="../butils" }
+butils = { version="0.1", path="../butils" }
 rayon = "1.5"
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 cpu-time = "1"
