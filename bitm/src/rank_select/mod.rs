@@ -422,6 +422,8 @@ mod tests {
         assert_eq!(a.try_select(3), Some(65));
         assert_eq!(a.try_select(4), Some(66));
         assert_eq!(a.try_select(5), None);
+        assert_eq!(a.try_select(1+(1<<32)), None);
+        assert_eq!(a.try_select(1+(1<<33)), None);
         assert_eq!(a.rank(0), 0);
         assert_eq!(a.rank(1), 1);
         assert_eq!(a.rank(2), 1);
@@ -435,6 +437,7 @@ mod tests {
         assert_eq!(a.rank(70), 5);
         assert_eq!(a.try_rank(127), Some(5));
         assert_eq!(a.try_rank(128), None);
+        assert_eq!(a.try_rank(1+(1<<32)), None);
         check_all_ones(&a);
         check_all_zeros(&a);
     }
