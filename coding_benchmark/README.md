@@ -38,6 +38,6 @@ text of randomly drawn (with a non-uniform distribution) 1 byte symbols
 ./coding_benchmark -t 100 -c 20 -l 104857600 all
 ```
 
-Note that the `-t 100 -c 20` switch forces a long testing time
+Note that the `-t 100 -c 20` switches force a long testing time
 (100s for warming up + about 100s for performing each test + 20s cooling/sleeping between tests).
-It can be omitted to get results faster, but averaged over fewer repetitions.
+They can be omitted to get results faster, but averaged over fewer repetitions.
