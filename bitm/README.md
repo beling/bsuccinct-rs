@@ -19,5 +19,5 @@ assert_eq!(r.rank(999), 1); // 1 one in the first 999 bits of b
 ```
 
 # Benchmarks
-The performance of some of the structures included in `bitm` can be tested with the [cseq_benchmark](https://crates.io/crates/cseq_benchmark) crate. Its [documentation](https://docs.rs/crate/cseq_benchmark/latest#benchmark-results) contains benchmark results.
+The performance of some of the structures included in `bitm` can be tested with the [cseq_benchmark](https://crates.io/crates/cseq_benchmark) crate. Its documentation contains benchmark results.
 
