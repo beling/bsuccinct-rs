@@ -74,7 +74,9 @@ def gen_tab(filename, params={}, filter=None):
         file.write(str(html).replace('\n\n', '\n').replace('\n<th', '<th').replace('</th>\n', '</th>').replace('</td>\n', '</td>'))
 
 for distribution in ('uniform', 'adversarial'):
-    gen_tab('rank', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution, 'universe':1000000000})
-    gen_tab('select1', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution, 'universe':1000000000})
-    gen_tab('select0', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution, 'universe':1000000000})
-#gen_tab('select0', params={'distribution': 'uniform', 'universe': 1000000000, 'num': 100000000})
+    gen_tab('rank', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution})
+    gen_tab('select1', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution})
+    gen_tab('select0', filter=lambda d: d["percent of ones"] > 5, params={'distribution': distribution})
+gen_tab('rank', filter=lambda d: d["percent of ones"] > 5, params={'distribution': 'uniform', 'universe':1000000000})
+gen_tab('select1', filter=lambda d: d["percent of ones"] > 5, params={'distribution': 'uniform', 'universe':1000000000})
+gen_tab('select0', filter=lambda d: d["percent of ones"] > 5, params={'distribution': 'uniform', 'universe':1000000000})
