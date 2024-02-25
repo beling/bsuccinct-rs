@@ -21,12 +21,6 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
         percent_of_diff(rs.size_bytes(), rs.content.size_bytes()),
         |index| unsafe{rs.rank_unchecked(index)});
 
-    /*println!(" checked select by binary search over ranks (no extra space overhead):");
-    tester.raport_select1("bitm RankSelect101111 binary search over ranks checked",
-            0.0, |index| rs.select(index));
-    tester.raport_select0("bitm RankSelect101111 binary search over ranks checked",
-            0.0, |index| rs.select0(index));*/
-
     println!(" select by binary search over ranks (no extra space overhead):");
     tester.raport_select1("bitm RankSelect101111 binary search over ranks",
             0.0, |index| unsafe{rs.select_unchecked(index)});
@@ -34,14 +28,6 @@ pub fn benchmark_rank_select(conf: &super::Conf) {
             0.0, |index| unsafe{rs.select0_unchecked(index)});
 
     let (rs, _) = RankSelect101111::<CombinedSampling, CombinedSampling, _>::build(rs.content);
-
-    /*println!(" checked select by combined sampling:");
-    tester.raport_select1("bitm RankSelect101111 combined sampling checked",
-            percent_of(rs.select_support().size_bytes(), rs.content.size_bytes()),
-            |index| rs.select(index));
-    tester.raport_select0("bitm RankSelect101111 combined sampling checked",
-            percent_of(rs.select0_support().size_bytes(), rs.content.size_bytes()),
-            |index| rs.select0(index));*/
 
     println!(" select by combined sampling:");
     tester.raport_select1("bitm RankSelect101111 combined sampling",
