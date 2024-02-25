@@ -2,7 +2,7 @@ use sucds::{bit_vectors::{Rank9Sel, BitVector, Rank, Select}, Serializable};
 use crate::{percent_of, percent_of_diff, Conf};
 
 pub fn benchmark_rank9_select(conf: &Conf) {
-    println!("sucds bit vector Rank9Sel:");
+    println!("sucds Rank9Sel:");
 
     let mut content = BitVector::from_bit(false, conf.universe);
     let tester = conf.rand_data(|pos, value|

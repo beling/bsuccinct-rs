@@ -17,7 +17,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand)]
 pub enum Structure {
-    /// Elias-Fano from cseq crate
+    /// Elias-Fano from cseq crate (experimental)
     EliasFano,
     /// Rank/Select on uncompressed bit vector using bitm crate
     BitmBV,
