@@ -1,4 +1,42 @@
 #![doc = include_str!("../README.md")]
+//! # Space overhead (benchmarks)
+//! 
+//! ## Introduction and description of the distributions used
+//! 
+//! The plots show the space overhead (over entropy of the distribution of function values) of the static functions
+//! included in the `csf`, for two families of functions that differ in the distribution of values:
+//! - Functions with ***equal*** distribution map *2<sup>20</sup> = ed+i* keys to *d+1* different values,
+//!   where *d=1,...,255* and *i=1,...,e*.
+//!   One value is assigned to *i* keys, and each of the other *d* values is assigned to *e* keys.
+//!   The entropy of the distribution of function values is in the range *(log<sub>2</sub>(d), log<sub>2</sub>(d+1)]*
+//!   and increases with both *d* and *i*.
+//! - Functions with ***dominated*** (by a single value) distribution map *2<sup>20</sup>* keys to *256* different values.
+//!   One value is assigned to *2<sup>20</sup>-255k* keys and each of the remaining *255* values is assigned to *k* keys,
+//!   where *k=1,...,2<sup>20</sup>/256*. The entropy of the distribution of function values increases with *k*.
+//!
+//! The dashed black line shown in each plot is the size of the uncompressed vector of values,
+//! assuming that each value is stored using the smallest possible (for the number of different values),
+//! constant whole number of bits.
+//! 
+//! The data for the plots were generated using the [csf_benchmark](https://crates.io/crates/csf_benchmark) program.
+//! 
+//! ## (Uncompressed) static functions
+#![doc=include_str!("../plots/equal_abs.svg")]
+#![doc=include_str!("../plots/equal_rel.svg")]
+#![doc=include_str!("../plots/dominated_abs.svg")]
+#![doc=include_str!("../plots/dominated_rel.svg")]
+//!
+//! ## Compressed static functions
+//!
+//! Notes: The functions use Huffman coding to compress the values.
+//! The codewords consist of fragments of a length that minimizes the size of the function
+//! (which is always 1 bit in the case of [`ls::CMap`]).
+//! Level sizes of [`fp::CMap`] and [`fp::GOCMap`] are determined by [`fp::OptimalLevelSize`].
+//! 
+#![doc=include_str!("../plots/equal_comp_abs.svg")]
+#![doc=include_str!("../plots/equal_comp_rel.svg")]
+#![doc=include_str!("../plots/dominated_comp_abs.svg")]
+#![doc=include_str!("../plots/dominated_comp_rel.svg")]
 
 pub mod coding;
 

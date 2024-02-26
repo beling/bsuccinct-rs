@@ -8,12 +8,14 @@ Included libraries:
 - `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
 - `bitm` ([crate](https://crates.io/crates/bitm), [doc](https://docs.rs/bitm)) - bit and bitmap manipulation;
 - `binout` ([crate](https://crates.io/crates/binout), [doc](https://docs.rs/binout)) - binary encoding, decoding, serialization, deserialization;
-- `dyn_size_of` ([crate](https://crates.io/crates/dyn_size_of), [doc](https://docs.rs/dyn_size_of)) - report approximate amount of memory consumed by variables, including the memory allocated on heap.
+- `dyn_size_of` ([crate](https://crates.io/crates/dyn_size_of), [doc](https://docs.rs/dyn_size_of)) - report approximate amount of memory consumed by variables, including the memory allocated on heap,
+- `butils` ([crate](https://crates.io/crates/butils), [doc](https://docs.rs/butils)) - (internal) utilities shared by software included in BSuccinct.
 
 Included programs:
 - `mphf_benchmark` ([crate](https://crates.io/crates/mphf_benchmark), [doc](https://docs.rs/mphf_benchmark)) - benchmarking minimal perfect hash functions,
 - `csf_benchmark` ([crate](https://crates.io/crates/csf_benchmark), [doc](https://docs.rs/csf_benchmark)) - benchmarking compressed static functions,
-- `cseq_benchmark` ([crate](https://crates.io/crates/cseq_benchmark), [doc](https://docs.rs/cseq_benchmark)) - benchmarking compact sequences.
+- `cseq_benchmark` ([crate](https://crates.io/crates/cseq_benchmark), [doc](https://docs.rs/cseq_benchmark)) - benchmarking compact sequences,
+- `coding_benchmark` ([crate](https://crates.io/crates/coding_benchmark), [doc](https://docs.rs/coding_benchmark)) - benchmarking Huffman coding crates.
 
 Everything is dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
 

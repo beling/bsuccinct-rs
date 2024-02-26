@@ -1,0 +1,1 @@
+`butils` is the library (by Piotr Beling) of tiny utilities shared by software included in BSuccinct, especially its programs for benchmarking.

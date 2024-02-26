@@ -1,10 +1,10 @@
 [package]
 name = "cseq_benchmark"
-version = "0.0.1"
+version = "0.1.1"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "The program for benchmarking compact sequences"
+description = "The program for benchmarking compact sequences and bitmaps"
 documentation = "https://docs.rs/cseq_benchmark"
 repository = "https://github.com/beling/bsuccinct-rs"
 readme = "README.md"
@@ -13,8 +13,14 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "compression", "sequence", "succinct", "elias-fano", "benchmark" ]
 
 [dependencies]
-cseq = { version ="0.1", path = "../cseq" }
+butils = { version="0.1", path="../butils" }
 clap = { version="4", features = ["derive"] }
-dyn_size_of = { version="0.4", path="../dyn_size_of" }
-cpu-time = "1"
-bitm = { version="0.3", path="../bitm" }
+dyn_size_of = { version=">=0.4.2", path="../dyn_size_of", features=["aligned-vec"] }
+cseq = { version ="0.1", path = "../cseq" }
+bitm = { version="0.4", path="../bitm", features=["aligned-vec"] }
+sucds = "0.8"
+succinct = "0.5"
+vers-vecs = { version="1.1", optional=true }
+sux="0.2"
+mem_dbg = "0.1" # required by sux MemSize
+aligned-vec = "0.5"

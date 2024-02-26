@@ -1,8 +1,11 @@
 use dyn_size_of::GetSize;
 
+#[cfg(all(target_arch = "x86", target_feature = "bmi2"))] use core::arch::x86 as arch;
+#[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))] use core::arch::x86_64 as arch;
+//#[cfg(target_arch = "x86")] use core::arch::x86 as arch;
+//#[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
+
 use crate::ceiling_div;
-#[cfg(target_arch = "x86")] use core::arch::x86 as arch;
-#[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
 
 use super::utils::partition_point_with_index;
 
@@ -53,13 +56,23 @@ pub trait Select0 {
 /// Trait implemented by strategies for select (ones) operations for `ArrayWithRank101111`.
 pub trait SelectForRank101111 {
     fn new(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
+
     fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
+
+    #[inline(always)] unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        self.select(content, l1ranks, l2ranks, rank).unwrap_unchecked()
+    }
 }
 
 /// Trait implemented by strategies for select zeros operations for `ArrayWithRank101111`.
 pub trait Select0ForRank101111 {
     fn new0(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
+
     fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
+
+    #[inline(always)] unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        self.select0(content, l1ranks, l2ranks, rank).unwrap_unchecked()
+    }
 }
 
 /// Returns the position of the `rank`-th (counting from 0) one in the bit representation of `n`,
@@ -123,7 +136,7 @@ pub trait Select0ForRank101111 {
     }
 }*/
 
-/// A select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111)
+/// A select strategy for [`RankSelect101111`](crate::RankSelect101111)
 /// that does not introduce any overhead (on space or construction speed)
 /// and is based on a binary search over ranks.
 #[derive(Clone, Copy)]
@@ -136,170 +149,490 @@ impl GetSize for BinaryRankSearch {}
 #[inline] fn select_l1<const ONE: bool>(l1ranks: &[usize], rank: &mut usize) -> usize {
     if ONE {    // select 1:
         let i = l1ranks.partition_point(|v| v <= rank) - 1;
-        *rank -= l1ranks[i];
+        *rank -= unsafe{l1ranks.get_unchecked(i)};
         return i;
     } else {    // select 0:
         let i = partition_point_with_index(&l1ranks, |v, i| i * BITS_PER_L1_ENTRY - *v <= *rank) - 1;
-        *rank -= i as usize * BITS_PER_L1_ENTRY - l1ranks[i];
+        *rank -= i as usize * BITS_PER_L1_ENTRY - unsafe{l1ranks.get_unchecked(i)};
         return i;
     }
 }
 
-/// Select from `l2ranks` entry pointed by `l2_index`, without bounds checking.
-#[inline] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
-    let mut l2_entry = *l2ranks.get_unchecked(l2_index);
-    if ONE {
-        rank -= (l2_entry & 0xFFFFFFFF) as usize;
-    } else {
-        rank -= (l2_index % L2_ENTRIES_PER_L1_ENTRY) * BITS_PER_L2_ENTRY - (l2_entry & 0xFFFFFFFF) as usize;
-    }
+/*#[inline(always)] fn consider_l2entry<const ONE: bool>(mut l2_entry: u64, rank: &mut usize) -> usize {
     l2_entry >>= 32;
-    let mut c = l2_index * U64_PER_L2_ENTRY;
     let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (3*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) } as usize;
-    if rank >= to_subtract {
-        rank -= to_subtract;
-        c += 3 * U64_PER_L2_RECORDS;
+    return if *rank >= to_subtract {
+        *rank -= to_subtract;
+         3 * U64_PER_L2_RECORDS
     } else {
         l2_entry >>= 11;
         let to_subtract = if ONE { l2_entry & 0b1_11111_11111 } else { (2*BITS_PER_L2_RECORDS).wrapping_sub(l2_entry & 0b1_11111_11111) } as usize;
-        if rank >= to_subtract {
-            rank -= to_subtract;
-            c += 2 * U64_PER_L2_RECORDS;
+        if *rank >= to_subtract {
+            *rank -= to_subtract;
+            2 * U64_PER_L2_RECORDS
         } else {
             l2_entry >>= 11;
             let to_subtract = if ONE { l2_entry } else { BITS_PER_L2_RECORDS.wrapping_sub(l2_entry) } as usize;
-            if rank >= to_subtract {
-                rank -= to_subtract;
-                c += U64_PER_L2_RECORDS;
-            }
+            if *rank >= to_subtract {
+                *rank -= to_subtract;
+                U64_PER_L2_RECORDS
+            } else { 0 }
         }
     };
-    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
-         arch::_mm_prefetch(content.as_ptr().wrapping_add(c) as *const i8, arch::_MM_HINT_NTA);
-    } }
-    for (i, v) in content.get(c..)?.iter().enumerate() {
-        let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
-        if ones <= rank {
-            rank -= ones;
+}*/
+
+/*#[inline(always)] fn consider_l2entry<const ONE: bool>(l2_index: usize, l2_entry: u64, rank: &mut usize) -> usize {
+    let to_subtract = if ONE {
+        *rank -= (l2_entry & 0xFFFFFFFF) as usize;
+        (l2_entry>>(32+11)) & 0b1_11111_11111
+    } else {
+        *rank -= (l2_index % L2_ENTRIES_PER_L1_ENTRY) * BITS_PER_L2_ENTRY - (l2_entry & 0xFFFFFFFF) as usize;
+        (2*BITS_PER_L2_RECORDS).wrapping_sub((l2_entry>>(32+11)) & 0b1_11111_11111)
+    } as usize;
+    if *rank >= to_subtract {
+        let to_subtract_more = if ONE { (l2_entry>>32) & 0b1_11111_11111 }
+            else { (3*BITS_PER_L2_RECORDS).wrapping_sub((l2_entry>>32) & 0b1_11111_11111) } as usize;        
+        if *rank >= to_subtract_more {
+            *rank -= to_subtract_more;
+            3 * U64_PER_L2_RECORDS
         } else {
-            return Some((i+c) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize);
+            *rank -= to_subtract;
+            2 * U64_PER_L2_RECORDS
+        }
+    } else {
+        let to_subtract = if ONE { l2_entry>>(32+22) }
+            else { BITS_PER_L2_RECORDS.wrapping_sub(l2_entry>>(32+22)) } as usize;
+        if *rank >= to_subtract {
+            *rank -= to_subtract;
+            U64_PER_L2_RECORDS
+        } else { 0 }
+    }
+}*/
+
+#[inline(always)] fn consider_l2entry<const ONE: bool>(l2_index: usize, mut l2_entry: u64, rank: &mut usize) -> usize {
+    if !ONE {
+        const HI: u64 = ((3*BITS_PER_L2_RECORDS) << 32) | ((2*BITS_PER_L2_RECORDS) << (32+11)) | (BITS_PER_L2_RECORDS << (32+22));
+        l2_entry = (((l2_index as u64 % L2_ENTRIES_PER_L1_ENTRY as u64) * BITS_PER_L2_ENTRY as u64) | HI)
+                   .wrapping_sub(l2_entry);
+    }
+    *rank -= (l2_entry & 0xFFFFFFFF) as usize;
+    let to_subtract = ((l2_entry>>(32+11)) & 0b1_11111_11111) as usize;
+    if *rank >= to_subtract {
+        let to_subtract_more = ((l2_entry>>32) & 0b1_11111_11111) as usize;        
+        if *rank >= to_subtract_more {
+            *rank -= to_subtract_more;
+            3 * U64_PER_L2_RECORDS
+        } else {
+            *rank -= to_subtract;
+            2 * U64_PER_L2_RECORDS
+        }
+    } else {
+        let to_subtract = (l2_entry>>(32+22)) as usize;
+        if *rank >= to_subtract {
+            *rank -= to_subtract;
+            U64_PER_L2_RECORDS
+        } else { 0 }
+    }
+}
+
+/// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
+#[inline(always)] unsafe fn select_from_l2_unchecked<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> usize {
+    let l2_entry = *l2ranks.get_unchecked(l2_index);
+    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
+    
+    let v = unsafe{content.get_unchecked(c)};   // 0
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
+
+    let v = unsafe{content.get_unchecked(c)};   // 1
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
+
+    let v = unsafe{content.get_unchecked(c)};   // 2
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
+
+    let v = unsafe{content.get_unchecked(c)};   // 3
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
+
+    let v = unsafe{content.get_unchecked(c)};   // 4
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
+
+    let v = unsafe{content.get_unchecked(c)};   // 5
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
+
+    let v = unsafe{content.get_unchecked(c)};   // 6
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize; }
+    rank -= ones; c += 1;
+
+    let v = unsafe{content.get_unchecked(c)};   // 7
+    c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize
+}
+
+/// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
+#[inline(always)] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
+    let l2_entry = *l2ranks.get_unchecked(l2_index);
+    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
+    /*#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
+         arch::_mm_prefetch(content.as_ptr().wrapping_add(c) as *const i8, arch::_MM_HINT_NTA);
+    } }*/
+    //for (i, v) in content.get(c..)?.iter().enumerate() {    // TODO select512, here we can unroll the loop for upto 7 iterations
+    /*for i in 0..8 {
+        let v = content.get(c+i)?;
+        let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+        if ones <= rank { rank -= ones;
+        } else { return Some((c+i) * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    }
+    None*/
+    let v = content.get(c)?;    // 0
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
+
+    let v = content.get(c)?;    // 1
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
+
+    let v = content.get(c)?;    // 2
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
+
+    let v = content.get(c)?;    // 3
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
+
+    let v = content.get(c)?;    // 4
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
+
+    let v = content.get(c)?;    // 5
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
+
+    let v = content.get(c)?;    // 6
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    rank -= ones; c += 1;
+
+    let v = content.get(c)?;    // 7
+    let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
+    if ones > rank { return Some(c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize); }
+    
+    None
+}
+
+impl BinaryRankSearch {
+    #[inline(always)] fn select_l2index<const ONE: bool>(l1ranks: &[usize], l2ranks: &[u64], rank: &mut usize) -> usize {
+        let l2_begin = select_l1::<ONE>(l1ranks, rank) * L2_ENTRIES_PER_L1_ENTRY;
+        let rank = *rank;
+        l2_begin + if ONE {
+            //partition_index(l2_begin, l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY),
+            //    |index| unsafe{l2ranks.get_unchecked(index)&0xFFFFFFFF} as usize <= rank) - 1
+            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
+                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1
+        } else {
+            super::utils::partition_point_with_index(
+                &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
+                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1
         }
     }
-    None
 }
 
 impl SelectForRank101111 for BinaryRankSearch {
     #[inline] fn new(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    #[inline] fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
-        let l1_index = select_l1::<true>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2_begin +
-            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
-                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1;
-        unsafe { select_from_l2::<true>(content, l2ranks, l2_index, rank) }
+        let l2_index = BinaryRankSearch::select_l2index::<true>(l1ranks, l2ranks, &mut rank);
+        unsafe {
+            if l2_index + 1 == l2ranks.len() {  // unlikely
+                return select_from_l2::<true>(content, l2ranks, l2_index, rank); // this can be used for any l2_index, but is slower than unchecked ver.
+            }
+            Some(select_from_l2_unchecked::<true>(content, l2ranks, l2_index, rank))
+        }
+    }
+
+    unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l2_index = BinaryRankSearch::select_l2index::<true>(l1ranks, l2ranks, &mut rank);
+        select_from_l2_unchecked::<true>(content, l2ranks, l2_index, rank)
     }
 }
 
 impl Select0ForRank101111 for BinaryRankSearch {
     #[inline] fn new0(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    #[inline] fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
-        let l1_index = select_l1::<false>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let l2_index = l2_begin +
-            super::utils::partition_point_with_index(
-                &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
-                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1;
-        unsafe { select_from_l2::<false>(content, l2ranks, l2_index, rank) }
+        let l2_index = BinaryRankSearch::select_l2index::<false>(l1ranks, l2ranks, &mut rank);
+        unsafe {
+            if l2_index + 1 == l2ranks.len() {  // unlikely
+                return select_from_l2::<false>(content, l2ranks, l2_index, rank); // this can be used for any l2_index, but is slower than unchecked ver.
+            }
+            Some(select_from_l2_unchecked::<false>(content, l2ranks, l2_index, rank))
+        }
+    }
+
+    unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l2_index = BinaryRankSearch::select_l2index::<false>(l1ranks, l2ranks, &mut rank);
+        select_from_l2_unchecked::<false>(content, l2ranks, l2_index, rank)
     }
 }
 
-pub const ONES_PER_SELECT_ENTRY: usize = 8192;
-
-/// Fast select strategy for [`ArrayWithRankSelect101111`](crate::ArrayWithRankSelect101111) with about 0.39% space overhead.
+/// Calculates such a sampling density of select values that provides an approximately constant space overhead
+/// (independent of set/unset bits ratio in the vector) of [`CombinedSampling`].
 /// 
-/// It is implemented according to the paper:
+/// The parameters describe the bit vector and the desired result range:
+/// - `n` -- numbers of ones (for select) or zeros (for select0) in the vector,
+/// - `len` -- length of the vector in bits,
+/// - `max_result` -- the largest possible result, returned only and always for n >= 75%len
+///                   (must be in range [7, 31]).
+/// 
+/// The result is the base 2 logarithm of the recommended sampling, and it is always in range [7, `max_result`].
+/// The actual sampling is 2 times denser, but every second sample sometimes cannot be recorded accurately.
+/// The minimum value is 7, as we never sample two bits in the same 64-bit word.
+/// 
+/// A good value for `max_result` is 13, which leads to about 0.39% space overhead,
+/// and, for n = 50%u, results in sampling positions of every 2^12(/2)=4096(/2) ones (or zeros for select0).
+/// As `max_result` decreases, the speed of select queries increases
+/// at the cost of higher space overhead (which doubles with each decrease by 1).
+pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8) -> u8 {
+    if 4*n >= 3*len { return max_result; }
+    if 2*n > len { n = len - n; }
+    if n == 0 { return 7; }
+    let r = max_result.saturating_sub((len/n).ilog2() as u8); // note: len/n >= 2
+    return if r <= 7 { 7 } else { r }   // max is not allowed in const
+}
+
+/// Trait that determines the sampling density of select values by [`CombinedSampling`].
+pub trait CombinedSamplingDensity: Copy {
+    type SamplingDensity: Copy;
+
+    /// Returns density for given parameters of bit vector:
+    /// - `number_of_items` -- numbers of ones (for select) or zeros (for select0) in the vector,
+    /// - `len` -- length of the vector in bits.
+    fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity;
+
+    fn items_per_sample_log2(density: Self::SamplingDensity) -> u8;
+
+    /// Returns number of bit ones or zeros (in the case of select0) per each sample (entry).
+    #[inline(always)] fn items_per_sample(density: Self::SamplingDensity) -> u32 {
+        1<<Self::items_per_sample_log2(density)
+    }
+
+    /// Returns `index` divided by [`Self::items_per_sample(density)`].
+    #[inline(always)] fn divide(index: usize, density: Self::SamplingDensity) -> usize {
+        index >> Self::items_per_sample_log2(density)
+    }
+
+    #[inline(always)] fn is_in_second_half(index: usize, density: Self::SamplingDensity) -> bool {
+        //index & (1 << (Self::items_per_sample_log2(density)-1)) != 0
+        (index >> (Self::items_per_sample_log2(density)-1)) & 1 != 0
+    }
+}
+
+/// Specifies a constant sampling of select values by [`CombinedSampling`], given as
+/// the base 2 logarithm (which can be calculated by [`optimal_combined_sampling`] function).
+/// The actual sampling is 2 times denser, but every second sample sometimes cannot be recorded accurately.
+/// 
+/// `VALUE_LOG2` must be in range [7, 31].
+/// Default value 13 means sampling positions of every 2^13(/2)=8192(/2) ones (or zeros for select0),
+/// which leads to about 0.20% space overhead in vectors filled with bit ones in about half.
+/// As sampling decreases, the speed of select queries increases at the expense of higher
+/// space overhead (which doubles with each decrease by 1).
+#[derive(Clone, Copy)]
+pub struct ConstCombinedSamplingDensity<const VALUE_LOG2: u8 = 13>;
+
+impl<const VALUE_LOG2: u8> CombinedSamplingDensity for ConstCombinedSamplingDensity<VALUE_LOG2> {
+    type SamplingDensity = ();
+    #[inline(always)] fn density_for(_number_of_items: usize, _len: usize) -> Self::SamplingDensity { () }
+    #[inline(always)] fn items_per_sample_log2(_density: Self::SamplingDensity) -> u8 { VALUE_LOG2 }
+}
+
+/// Specifies adaptive sampling of select values by [`CombinedSampling`].
+/// 
+/// The sampling density is calculated based on the content of the bit vector
+/// using the [`optimal_combined_sampling`] function, with the given `MAX_RESULT` parameter.
+/// `MAX_RESULT` must be in range [7, 31].
+/// As `MAX_RESULT` decreases, the speed of select queries increases
+/// at the cost of higher space overhead (which doubles with each decrease by 1).
+/// Its value 13 leads to about 0.39% space overhead, and, for vectors filled with bit ones in about half,
+/// results in sampling positions of every 2^12(/2)=4096(/2) ones (or zeros for select0).
+#[derive(Clone, Copy)]
+pub struct AdaptiveCombinedSamplingDensity<const MAX_RESULT: u8 = 13>;
+
+impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingDensity<MAX_RESULT> {
+    type SamplingDensity = u8;
+    #[inline(always)] fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity {
+        optimal_combined_sampling(number_of_items, len, MAX_RESULT)
+    }
+    #[inline(always)] fn items_per_sample_log2(density: Self::SamplingDensity) -> u8 { density }
+}
+
+/// Fast select strategy for [`RankSelect101111`](crate::RankSelect101111) with about 0.39% space overhead.
+/// 
+/// Space/speed trade-off can be adjusted by the template parameter, by giving one of:
+/// - [`AdaptiveCombinedSamplingDensity`] (default) -- works well with a wide range of bit vectors,
+/// - [`ConstCombinedSamplingDensity`] -- recommended for vectors with a known ratio of set/unset bits;
+///                with default parameters, recommended for vectors filled with bit ones in about half.
+/// 
+/// The implementation generally follows the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
+/// However, our implementation can automatically adjust the sampling density according to the content of the vector
+/// (see [`AdaptiveCombinedSamplingDensity`]).
 /// 
 /// Combined Sampling was proposed in:
 /// - G. Navarro, E. Providel, "Fast, small, simple rank/select on bitmaps",
 ///   in: R. Klasing (Ed.), Experimental Algorithms, Springer Berlin Heidelberg, Berlin, Heidelberg, 2012, pp. 295–306
 #[derive(Clone)]
-pub struct CombinedSampling {
-    /// Bit indices (relative to level 1) of every [`ONES_PER_SELECT_ENTRY`]-th one (or zero in the case of select 0) in content, starting from the first one.
+pub struct CombinedSampling<D: CombinedSamplingDensity = /*ConstCombinedSamplingDensity*/AdaptiveCombinedSamplingDensity> {
+    /// Bit indices (relative to level 1) of every d-th (d depends on D) one (or zero in the case of select 0) in content,
+    /// starting from the first one.
     select: Box<[u32]>,
     /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
     select_begin: Box<[usize]>,
+    /// Sampling density (ZST for const density).
+    density: D::SamplingDensity,
 }
 
-impl GetSize for CombinedSampling {
-    fn size_bytes_dyn(&self) -> usize { self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() }
+impl<D: CombinedSamplingDensity> GetSize for CombinedSampling<D> where D::SamplingDensity: GetSize {
+    fn size_bytes_dyn(&self) -> usize {
+        self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() + self.density.size_bytes_dyn()
+    }
     const USES_DYN_MEM: bool = true;
 }
 
-impl CombinedSampling {
+impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     #[inline]
     fn new<const ONE: bool>(content: &[u64], l1ranks: &[usize], total_rank: usize) -> Self {
-        if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default() } }
+        let density = D::density_for(
+            if ONE { total_rank } else { content.len()*64-total_rank },
+            content.len()*64
+        );
+        if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default(), density } }
         let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
         ones_positions_begin.push(0);
         for ones in l1ranks.windows(2) {
             let chunk_len = ceiling_div(
-                if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
-                ONES_PER_SELECT_ENTRY);
+                    if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
+                    D::items_per_sample(density) as usize
+                );
             ones_positions_len += chunk_len;
             ones_positions_begin.push(ones_positions_len);
         }
         ones_positions_len += ceiling_div(
             if ONE {(total_rank - l1ranks.last().unwrap()) as usize }
-            else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - (total_rank - l1ranks.last().unwrap()) as usize },
-            ONES_PER_SELECT_ENTRY);
+                else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - (total_rank - l1ranks.last().unwrap()) as usize },
+            D::items_per_sample(density) as usize
+        );
         let mut ones_positions = Vec::with_capacity(ones_positions_len);
         for content in content.chunks(U64_PER_L1_ENTRY) {
             //TODO use l2ranks for faster reducing rank
             let mut bit_index = 0;
             let mut rank = 0; /*ONES_PER_SELECT_ENTRY as u16 - 1;*/    // we scan for 1 with this rank, to find its bit index in content
+            let mut second_half = false;
             for c in content.iter() {
-                let c_ones = if ONE { c.count_ones() } else { c.count_zeros() } as u16;
-                if c_ones <= rank {
-                    rank -= c_ones;
-                } else {
-                    let new_rank = ONES_PER_SELECT_ENTRY as u16 - c_ones + rank;
-                    ones_positions.push((bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11);    // each l2 entry covers 2^11 bits
-                    rank = new_rank;
+                let c_ones = if ONE { c.count_ones() } else { c.count_zeros() };
+                if c_ones > rank {
+                    // Each l2 entry covers 2^11 bits, we need 32-11=21 bit to store it.
+                    // Rest 11 bit we use to store relative index of the next one
+                    // (or 2^11-1 if the relative index is greater than this number).
+                    let l2index = (bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11;
+                    if second_half {
+                        let prev: &mut u32 = unsafe{ ones_positions.last_mut().unwrap_unchecked() };
+                        *prev |= (l2index - *prev).min((1u32<<11)-1) << 21;
+                        second_half = false;
+                    } else {
+                        ones_positions.push(l2index);    
+                        second_half = true;
+                    }
+                    rank += D::items_per_sample(density)/2;
                 }
+                rank -= c_ones;
                 bit_index = bit_index.wrapping_add(64);
             }
         }
         debug_assert_eq!(ones_positions.len(), ones_positions_len);
-        Self { select: ones_positions.into_boxed_slice(), select_begin: ones_positions_begin.into_boxed_slice() }
+        Self { select: ones_positions.into_boxed_slice(), select_begin: ones_positions_begin.into_boxed_slice(), density }
     }
 
-    #[inline]
+    #[inline(always)]
     fn select<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
         let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        //let l2ranks = &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)];
-        let mut l2_index = l2_begin + *self.select.get(self.select_begin[l1_index] + rank as usize / ONES_PER_SELECT_ENTRY)? as usize;
+        let mut l2_index = l2_begin + self.decode_shift(
+            *self.select.get(unsafe{self.select_begin.get_unchecked(l1_index)} + D::divide(rank, self.density))?,
+            rank) as usize;
         let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
         while l2_index+1 < l2_chunk_end &&
-             if ONE {(l2ranks[l2_index+1] & 0xFF_FF_FF_FF) as usize}
-             else {(l2_index+1-l2_begin) * BITS_PER_L2_ENTRY - (l2ranks[l2_index+1] & 0xFF_FF_FF_FF) as usize} <= rank
+             if ONE {(unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize}
+             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize} <= rank
         {
             l2_index += 1;
         }
-        unsafe { select_from_l2::<ONE>(content, l2ranks, l2_index, rank) }
+        unsafe {
+            if l2_index + 1 == l2ranks.len() {  // unlikely
+                return select_from_l2::<ONE>(content, l2ranks, l2_index, rank); // this can be used for any l2_index, but is slower than unchecked ver.
+            }
+            Some(select_from_l2_unchecked::<ONE>(content, l2ranks, l2_index, rank))
+        }
+    }
+
+    #[inline(always)]
+    unsafe fn select_unchecked<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
+        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
+
+        /*let l2chunk = l2ranks.get_unchecked(l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY));
+        let mut l2_index = *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
+        while let Some(v) = l2chunk.get(l2_index+1) {
+            let v = if ONE {(*v & 0xFF_FF_FF_FF) as usize}
+                else {(l2_index+1) * BITS_PER_L2_ENTRY - (*v & 0xFF_FF_FF_FF) as usize};
+            if v > rank { break; }
+            l2_index += 1;
+        }
+        unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_begin+l2_index, rank) }*/
+
+        //let mut l2_index = l2_begin + self.get_select_unchecked(l1_index, rank) as usize;
+        let mut l2_index = l2_begin + self.decode_shift(
+            *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide(rank, self.density)),
+            rank) as usize;
+        let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
+        while l2_index+1 < l2_chunk_end &&
+             if ONE {(l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
+             else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
+             <= rank
+        {
+            l2_index += 1;
+        }
+        unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_index, rank) }
+    }
+
+    #[inline(always)] fn decode_shift(&self, mut s: u32, rank: usize) -> u32 {
+        if D::is_in_second_half(rank, self.density) { s += s >> 21; }
+        s & ((1<<21)-1)
     }
 }
 
-impl SelectForRank101111 for CombinedSampling {
+impl<D: CombinedSamplingDensity> SelectForRank101111 for CombinedSampling<D> {
     fn new(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<true>(content, l1ranks, total_rank)
     }
@@ -307,9 +640,13 @@ impl SelectForRank101111 for CombinedSampling {
     fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
         Self::select::<true>(&self, content, l1ranks, l2ranks, rank)
     }
+
+    unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        Self::select_unchecked::<true>(&self, content, l1ranks, l2ranks, rank)
+    }
 }
 
-impl Select0ForRank101111 for CombinedSampling {
+impl<D: CombinedSamplingDensity> Select0ForRank101111 for CombinedSampling<D> {
     fn new0(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
         Self::new::<false>(content, l1ranks, total_rank)
     }
@@ -317,11 +654,51 @@ impl Select0ForRank101111 for CombinedSampling {
     fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
         Self::select::<false>(&self, content, l1ranks, l2ranks, rank)
     }
+
+    unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        Self::select_unchecked::<false>(&self, content, l1ranks, l2ranks, rank)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_optimal_combined_sampling_14() {
+        assert_eq!(optimal_combined_sampling(4, 5, 14), 14);
+        assert_eq!(optimal_combined_sampling(3, 4, 14), 14);
+        assert_eq!(optimal_combined_sampling(299, 400, 14), 13);
+        assert_eq!(optimal_combined_sampling(1, 2, 14), 13);
+        assert_eq!(optimal_combined_sampling(101, 200, 14), 13);
+        assert_eq!(optimal_combined_sampling(99, 200, 14), 13);
+        assert_eq!(optimal_combined_sampling(3, 8, 14), 13);
+        assert_eq!(optimal_combined_sampling(1, 4, 14), 12);
+        assert_eq!(optimal_combined_sampling(10, 41, 14), 12);
+        assert_eq!(optimal_combined_sampling(9, 41, 14), 12);
+        assert_eq!(optimal_combined_sampling(1, 8, 14), 11);
+        assert_eq!(optimal_combined_sampling(10, 81, 14), 11);
+        assert_eq!(optimal_combined_sampling(9, 81, 14), 11);
+        assert_eq!(optimal_combined_sampling(1, 32, 14), 9);
+        assert_eq!(optimal_combined_sampling(10, 321, 14), 9);
+        assert_eq!(optimal_combined_sampling(9, 319, 14), 9);
+        assert_eq!(optimal_combined_sampling(1, 10, 14), 11);
+        assert_eq!(optimal_combined_sampling(1, 100000000, 14), 7);
+        assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 7);
+    }
+
+    #[test]
+    fn test_optimal_combined_sampling_15() {
+        assert_eq!(optimal_combined_sampling(4, 5, 15), 15);
+        assert_eq!(optimal_combined_sampling(3, 4, 15), 15);
+        assert_eq!(optimal_combined_sampling(299, 400, 15), 14);
+        assert_eq!(optimal_combined_sampling(1, 2, 15), 14);
+        assert_eq!(optimal_combined_sampling(101, 200, 15), 14);
+        assert_eq!(optimal_combined_sampling(99, 200, 15), 14);
+        assert_eq!(optimal_combined_sampling(3, 8, 15), 14);
+        assert_eq!(optimal_combined_sampling(1, 4, 15), 13);
+        assert_eq!(optimal_combined_sampling(1, 10, 15), 12);
+    }
 
     #[test]
     fn test_select64() {

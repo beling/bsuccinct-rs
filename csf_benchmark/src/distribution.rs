@@ -1,17 +1,17 @@
-use std::{collections::HashMap, fs::File, io::Write};
+use std::{fs::File, io::Write};
 
 use csf::coding::minimum_redundancy::Frequencies;
 
 pub struct Input {
     pub keys: Box<[u32]>,
     pub values: Box<[u8]>,
-    pub frequencies: HashMap::<u8, u32>,
+    pub frequencies: [u32; 256],
     /// Entropy of values.
     pub entropy: f64
 }
 
 impl Input {
-    pub const HEADER: &'static str = "input_len entropy";
+    pub const HEADER: &'static str = "input_len different_values entropy";
 
     /*pub fn print_params(&self) {
         print!("{} keys with entropy {:.2}", self.keys.len(), self.entropy);
@@ -19,13 +19,13 @@ impl Input {
 
     pub fn print_params_to(&self, file: &mut Option<File>) {
         if let Some(ref mut f) = file {
-            write!(f, "{} {}", self.keys.len(), self.entropy).unwrap();
+            write!(f, "{} {} {}", self.keys.len(), self.frequencies.number_of_occurring_values(), self.entropy).unwrap();
         }
     }
 }
 
-impl From<(Box<[u32]>, Box<[u8]>, HashMap<u8, u32>)> for Input {
-    fn from((keys, values, frequencies): (Box<[u32]>, Box<[u8]>, HashMap<u8, u32>)) -> Self {
+impl From<(Box<[u32]>, Box<[u8]>, [u32; 256])> for Input {
+    fn from((keys, values, frequencies): (Box<[u32]>, Box<[u8]>, [u32; 256])) -> Self {
         let entropy = frequencies.entropy();
         Self { keys, values, frequencies, entropy }
     }
@@ -33,14 +33,14 @@ impl From<(Box<[u32]>, Box<[u8]>, HashMap<u8, u32>)> for Input {
 
 impl From<(Box<[u32]>, Box<[u8]>)> for Input {
     fn from((keys, values): (Box<[u32]>, Box<[u8]>)) -> Self {
-        let frequencies = HashMap::<u8, u32>::with_counted_all(values.iter());
+        let frequencies = <[u32; 256]>::with_occurrences_of(values.iter());
         (keys, values, frequencies).into()
     }
 }
 
 impl From<(Box<[u32]>, Box<[u8]>, f64)> for Input {
     fn from((keys, values, entropy): (Box<[u32]>, Box<[u8]>, f64)) -> Self {
-        let frequencies = HashMap::<u8, u32>::with_counted_all(values.iter());
+        let frequencies = <[u32; 256]>::with_occurrences_of(values.iter());
         Self { keys, values, frequencies, entropy }
     }
 }

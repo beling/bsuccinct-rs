@@ -3,13 +3,14 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use co_sort::{co_sort, Permutation};
+use frequencies::Weight;
 
 use std::borrow::Borrow;
 use binout::{VByte, Serializer};
 use dyn_size_of::GetSize;
 
 mod code;
-pub use code::{Code, CodeIterator};
+pub use code::{Code, CodeIterator, ReversedCodeIterator};
 
 mod frequencies;
 pub use frequencies::Frequencies;
@@ -18,7 +19,7 @@ pub use degree::*;
 mod decoder;
 pub use decoder::Decoder;
 mod iterators;
-pub use iterators::{CodesIterator, LevelIterator};
+pub use iterators::{CodesIterator, ReversedCodesIterator, LevelIterator};
 
 
 /// Succinct representation of minimum-redundancy coding
@@ -57,12 +58,21 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         Self::from_sorted(degree, values, &mut freq)
     }
 
+    /// Constructs coding for given `frequencies` of values and `degree` of the Huffman tree.
+    /// Values are cloned from `frequencies`.
+    pub fn from_frequencies_cloned<F: Frequencies<Value=ValueType>>(degree: D, frequencies: &F) -> Self
+        where F::Value: Clone
+    {
+        let (values, mut freq) = frequencies.sorted();
+        Self::from_sorted(degree, values, &mut freq)
+    }
+
     /// Counts occurrences of all values exposed by `iter` and constructs coding for obtained
     /// frequencies of values and `degree` of the Huffman tree.
     pub fn from_iter<Iter>(degree: D, iter: Iter) -> Self
         where Iter: IntoIterator, Iter::Item: Borrow<ValueType>, ValueType: Hash + Eq + Clone
     {
-        Self::from_frequencies(degree, HashMap::<ValueType, u32>::with_counted_all(iter))
+        Self::from_frequencies(degree, HashMap::<ValueType, usize>::with_occurrences_of(iter))
     }
 
     /// Returns total (summarized) number of code fragments of all values.
@@ -84,10 +94,13 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     ///
     /// The algorithm runs in *O(values.len)* time,
     /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
-    pub fn from_sorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self {
+    pub fn from_sorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
+        where W: Weight
+    {
+        assert!(freq.len() <= (1<<32), "minimum_redundancy::Coding does not support more than 2 to the power of 32 different values");
         let len = freq.len();
         let tree_degree = degree.as_u32();
-        if len <= tree_degree as usize {
+        if len <= tree_degree as usize { // is one-level tree enough?
             values.reverse();
             return Coding {
                 values,
@@ -95,57 +108,59 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
                 degree,
             }
         }
+        // here: len > tree_degree >= 2
 
         let reduction_per_step = tree_degree - 1;
-
-        let mut current_tree_degree = ((len - 1) % reduction_per_step as usize) as u32; // desired reduction in the first step
+        let mut current_tree_degree = (len - 1) as u32 % reduction_per_step; // desired reduction in the first step
         current_tree_degree = if current_tree_degree == 0 { tree_degree } else { current_tree_degree + 1 }; // children of the internal node constructed in the first step
-        let mut internals_begin = 0usize; // first internal node = next parent node to be used
-        let mut leafs_begin = 0usize;     // next leaf to be used
-        let internal_nodes_size = (len + reduction_per_step as usize - 2) / reduction_per_step as usize;    // (len-1) / reduction_per_step rounded up
+        let mut internals_begin = 0; // first internal node = next parent node to be used
+        let mut leafs_begin = 0;     // next leaf to be used
+        let internal_nodes_size = (len - 2) as u32 / reduction_per_step + 1; // safe as len > 2
+        // = floor of (len+reduction_per_step-2) / reduction_per_step = ceil of (len-1) / reduction_per_step
 
-        for next in 0..internal_nodes_size {    // next is next value to be assigned
+        for next in 0u32..internal_nodes_size {    // next is next value to be assigned
             // select first item for a pairing
-            if leafs_begin >= len || freq[internals_begin as usize] < freq[leafs_begin] {
-                freq[next] = freq[internals_begin];
-                freq[internals_begin] = next as u32;
+            if leafs_begin >= len || freq[internals_begin] < freq[leafs_begin] {
+                freq[next as usize] = freq[internals_begin];
+                freq[internals_begin] = Weight::of(next);
                 internals_begin += 1;
             } else {
-                freq[next] = freq[leafs_begin];
+                freq[next as usize] = freq[leafs_begin];
                 leafs_begin += 1;
             }
 
             // add on the second, ... items
             for _ in 1..current_tree_degree {
-                if leafs_begin >= len || (internals_begin < next && freq[internals_begin] < freq[leafs_begin]) {
-                    freq[next] += freq[internals_begin];
-                    freq[internals_begin] = next as u32;
+                if leafs_begin >= len || (internals_begin < next as usize && freq[internals_begin] < freq[leafs_begin]) {
+                    freq[next as usize] += freq[internals_begin];
+                    freq[internals_begin] = Weight::of(next);
                     internals_begin += 1;
                 } else {
-                    freq[next] += freq[leafs_begin];
+                    freq[next as usize] += freq[leafs_begin];
                     leafs_begin += 1;
                 }
             }
             current_tree_degree = tree_degree;    // only in first iteration can be: current_tree_degree != tree_degree
         }
-        //dbg!(&freq);
-        //dbg!(&internal_nodes_size);
+        //const CONVERTIBLE_TO_USIZE: &'static str = "symbol weights must be convertible to usize";
+        //let convertible_to_usize = |_| { panic!("symbol weights must be convertible to usize") };
         // second pass, right to left, setting internal depths, we also find the maximum depth
-        let mut max_depth = 0u8;
-        freq[internal_nodes_size - 1] = 0;    // value for the root
+        let mut max_depth = 0usize;
+        freq[(internal_nodes_size - 1) as usize] = Weight::of(0);    // value for the root
         for next in (0..internal_nodes_size - 1).rev() {
-            freq[next] = freq[freq[next] as usize] + 1;
-            if freq[next] as u8 > max_depth { max_depth = freq[next] as u8; }
+            freq[next as usize] = freq[freq[next as usize].as_usize()] + Weight::of(1);
+            let f = freq[next as usize].as_usize();
+            if f > max_depth { max_depth = f; }
         }
 
         values.reverse();
         let mut result = Self {
             values,
-            internal_nodes_count: vec![0u32; max_depth as usize + 1].into_boxed_slice(),
+            internal_nodes_count: vec![0u32; max_depth + 1].into_boxed_slice(),
             degree
         };
         for i in 0..internal_nodes_size - 1 {
-            result.internal_nodes_count[freq[i] as usize - 1] += 1;  // only root is at the level 0, we skip it
+            result.internal_nodes_count[freq[i as usize].as_usize() - 1] += 1;  // only root is at the level 0, we skip it
         }   // no internal nodes at the last level, result.internal_nodes_count[max_depth] is 0
 
         return result;
@@ -155,7 +170,9 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     /// `freq` has to be of the same length as values and contain number of occurrences of corresponding values.
     ///
     /// The algorithm runs in *O(values.len * log(values.len))* time.
-    pub fn from_unsorted(degree: D, mut values: Box<[ValueType]>, freq: &mut [u32]) -> Self{
+    pub fn from_unsorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
+        where W: Weight
+    {
         co_sort!(freq, values);
         Self::from_sorted(degree, values, freq)
     }
@@ -239,15 +256,34 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         })
     }
 
-    /// Return iterator over the levels of the huffman tree.
+    /// Returns iterator over the levels of the huffman tree.
     #[inline] pub fn levels(&self) -> LevelIterator<'_, ValueType, D> {
         LevelIterator::<'_, ValueType, D>::new(&self)
     }
 
+    /// Reverse the `codeword`.
+    #[inline(always)] pub fn reverse_code(&self, codeword: &mut Code) {
+        codeword.content = self.degree.reverse_code(codeword.content, codeword.len);
+    }
+
+    /// Returns reversed copy of the given `codeword`.
+    #[inline(always)] pub fn reversed_code(&self, codeword: Code) -> Code {
+        Code {
+            content: self.degree.reverse_code(codeword.content, codeword.len),
+            len: codeword.len
+        }
+    }
+
     /// Returns iterator over value-codeword pairs.
-    pub fn codes(&self) -> CodesIterator<'_, ValueType, D> {
+    #[inline] pub fn codes(&self) -> CodesIterator<'_, ValueType, D> {
         CodesIterator::<'_, ValueType, D>::new(&self)
     }
+
+    /// Returns iterator over value-codeword pairs with reversed codewords.
+    #[inline] pub fn reversed_codes(&self) -> ReversedCodesIterator<'_, ValueType, D> {
+        ReversedCodesIterator::<'_, ValueType, D>::new(&self)
+    }
+
     /*pub fn codes(&self) -> impl Iterator<Item=(&ValueType, Code)> {
         self.levels().flat_map(|(values, first_code_bits, fragments)|
             values.iter().enumerate().map(move |(i, v)| {
@@ -261,41 +297,73 @@ impl<ValueType: Hash + Eq, D: TreeDegree> Coding<ValueType, D> {
 
     /// Returns a map from (references to) values to the lengths of their codes.
     pub fn code_lengths_ref(&self) -> HashMap<&ValueType, u32> {
-        let mut result = HashMap::<&ValueType, u32>::with_capacity(self.values.len());
-        for (value, code) in self.codes() {
-            result.insert(value, code.len);
-        }
-        return result;
+        self.codes().map(|(v, c)| (v, c.len)).collect()
     }
 
     /// Returns a map from (references to) values to their codes.
     pub fn codes_for_values_ref(&self) -> HashMap<&ValueType, Code> {
-        // fill map for encoding:
-        let mut result = HashMap::<&ValueType, Code>::with_capacity(self.values.len());
-        for (value, code) in self.codes() {
-            result.insert(value, code);
-        };
-        return result;
+        self.codes().collect()
+    }
+
+    /// Returns a map from (references to) values to their reversed codes.
+    pub fn reversed_codes_for_values_ref(&self) -> HashMap<&ValueType, Code> {
+        self.reversed_codes().collect()
     }
 }
 
 impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
-
     /// Returns a map from (clones of) values to the lengths of their codes.
     pub fn code_lengths(&self) -> HashMap<ValueType, u32> {
         let mut result = HashMap::<ValueType, u32>::with_capacity(self.values.len());
         for (value, code) in self.codes() {
             result.insert(value.clone(), code.len);
         }
-        return result;
+        result
     }
 
     /// Returns a map from (clones of) values to their codes.
     pub fn codes_for_values(&self) -> HashMap<ValueType, Code> {
-        // fill map for encoding:
         let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
         for (value, code) in self.codes() {
             result.insert(value.clone(), code);
+        };
+        result
+    }
+
+    /// Returns a map from (clones of) values to their reversed codes.
+    pub fn reversed_codes_for_values(&self) -> HashMap<ValueType, Code> {
+        let mut result = HashMap::<ValueType, Code>::with_capacity(self.values.len());
+        for (value, code) in self.reversed_codes() {
+            result.insert(value.clone(), code);
+        };
+        result
+    }
+}
+
+impl<D: TreeDegree> Coding<u8, D> {
+    /// Returns array indexed by values that contains the lengths of their codes.
+    pub fn code_lengths_array(&self) -> [u32; 256] {
+        let mut result = [0; 256];
+        for (value, code) in self.codes() {
+            result[*value as usize] = code.len;
+        }
+        result
+    }
+
+    /// Returns array indexed by values that contains their codes.
+    pub fn codes_for_values_array(&self) -> [Code; 256] {
+        let mut result = [Default::default(); 256];
+        for (value, code) in self.codes() {
+            result[*value as usize] = code;
+        };
+        return result;
+    }
+
+    /// Returns array indexed by values that contains their reversed codes.
+    pub fn reversed_codes_for_values_array(&self) -> [Code; 256] {
+        let mut result = [Default::default(); 256];
+        for (value, code) in self.reversed_codes() {
+            result[*value as usize] = code;
         };
         return result;
     }
@@ -356,7 +424,7 @@ mod tests {
         // /\  a
         // bc
         let huffman = Coding::from_frequencies(BitsPerFragment(1),
-                                               hashmap!('a' => 100, 'b' => 50, 'c' => 10));
+                                               hashmap!('a' => 100u32, 'b' => 50, 'c' => 10));
         assert_eq!(huffman.total_fragments_count(), 5);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [1, 0]);
@@ -364,6 +432,11 @@ mod tests {
                 'a' => Code{ content: 0b1, len: 1 },
                 'b' => Code{ content: 0b00, len: 2 },
                 'c' => Code{ content: 0b01, len: 2 }
+               ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{ content: 0b1, len: 1 },
+                'b' => Code{ content: 0b00, len: 2 },
+                'c' => Code{ content: 0b10, len: 2 }
                ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(1), DecodingResult::Value(&'a'));
@@ -384,7 +457,7 @@ mod tests {
         //  /|\
         //  abc
         let huffman = Coding::from_frequencies(BitsPerFragment(2),
-                                               hashmap!('a' => 100, 'b' => 50, 'c' => 10));
+                                               hashmap!('a' => 100u32, 'b' => 50, 'c' => 10));
         assert_eq!(huffman.total_fragments_count(), 3);
         assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
         assert_eq!(huffman.internal_nodes_count.as_ref(), [0]);
@@ -393,6 +466,11 @@ mod tests {
                 'b' => Code{ content: 1, len: 1 },
                 'c' => Code{ content: 2, len: 1 }
                ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{ content: 0, len: 1 },
+                'b' => Code{ content: 1, len: 1 },
+                'c' => Code{ content: 2, len: 1 }
+        ));
         let mut decoder_for_a = huffman.decoder();
         assert_eq!(decoder_for_a.consume(0), DecodingResult::Value(&'a'));
         let mut decoder_for_b = huffman.decoder();
@@ -414,7 +492,7 @@ mod tests {
         //  / \ d  ef
         // /\ a
         // bc
-        let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
+        let frequencies = hashmap!('d' => 12u32, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
         let huffman = Coding::from_frequencies(BitsPerFragment(1), frequencies);
         assert_eq!(huffman.total_fragments_count(), 17);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
@@ -425,6 +503,14 @@ mod tests {
                 'c' => Code{content: 0b0001, len: 4 },
                 'd' => Code{content: 0b01, len: 2 },
                 'e' => Code{content: 0b10, len: 2 },
+                'f' => Code{content: 0b11, len: 2 }
+               ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{content: 0b100, len: 3 },
+                'b' => Code{content: 0b0000, len: 4 },
+                'c' => Code{content: 0b1000, len: 4 },
+                'd' => Code{content: 0b10, len: 2 },
+                'e' => Code{content: 0b01, len: 2 },
                 'f' => Code{content: 0b11, len: 2 }
                ));
         let mut decoder_for_a = huffman.decoder();
@@ -462,7 +548,7 @@ mod tests {
         // /\\  d  e  f
         // abc 12 11 10
         // 321
-        let frequencies = hashmap!('d' => 12, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
+        let frequencies = hashmap!('d' => 12u32, 'e' => 11, 'f' => 10, 'a' => 3, 'b' => 2, 'c' => 1);
         let huffman = Coding::from_frequencies(BitsPerFragment(2), frequencies);
         assert_eq!(huffman.total_fragments_count(), 9);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'f', 'a', 'b', 'c']);
@@ -471,6 +557,14 @@ mod tests {
                 'a' => Code{content: 0b00_00, len: 2 },
                 'b' => Code{content: 0b00_01, len: 2 },
                 'c' => Code{content: 0b00_10, len: 2 },
+                'd' => Code{content: 0b01, len: 1 },
+                'e' => Code{content: 0b10, len: 1 },
+                'f' => Code{content: 0b11, len: 1 }
+               ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{content: 0b00_00, len: 2 },
+                'b' => Code{content: 0b01_00, len: 2 },
+                'c' => Code{content: 0b10_00, len: 2 },
                 'd' => Code{content: 0b01, len: 1 },
                 'e' => Code{content: 0b10, len: 1 },
                 'f' => Code{content: 0b11, len: 1 }
@@ -505,7 +599,7 @@ mod tests {
         // /\\  d  e
         // abc 12 11
         // 321
-        let frequencies = hashmap!('d' => 12, 'e' => 11, 'a' => 3, 'b' => 2, 'c' => 1);
+        let frequencies = hashmap!('d' => 12u32, 'e' => 11, 'a' => 3, 'b' => 2, 'c' => 1);
         let huffman = Coding::from_frequencies(Degree(3), frequencies);
         assert_eq!(huffman.total_fragments_count(), 8);
         assert_eq!(huffman.values.as_ref(), ['d', 'e', 'a', 'b', 'c']);
@@ -514,6 +608,13 @@ mod tests {
                 'a' => Code{content: 0+0, len: 2 },
                 'b' => Code{content: 0+1, len: 2 },
                 'c' => Code{content: 0+2, len: 2 },
+                'd' => Code{content: 1, len: 1 },
+                'e' => Code{content: 2, len: 1 }
+               ));
+        assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
+                'a' => Code{content: 0+0, len: 2 },
+                'b' => Code{content: 0+3*1, len: 2 },
+                'c' => Code{content: 0+3*2, len: 2 },
                 'd' => Code{content: 1, len: 1 },
                 'e' => Code{content: 2, len: 1 }
                ));

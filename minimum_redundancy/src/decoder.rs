@@ -1,10 +1,11 @@
 use crate::{BitsPerFragment, Coding, DecodingResult, TreeDegree};
 
-/// Decoder that decodes a value for given code, consuming one codeword fragment at a time.
+/// Decoder that decodes a value for given code, consuming one codeword fragment
+/// (and going one level down the huffman tree) at a time.
 ///
 /// Time complexity of decoding the whole code is:
 /// - pessimistic: *O(length of the longest code)*
-/// - expected: *O(log(number of values, i.e. length of coding.values))*
+/// - expected: *O(log(number of values, i.e. length of `coding.values`))*
 /// - optimistic: *O(1)*
 ///
 /// Memory complexity: *O(1)*
@@ -14,10 +15,10 @@ pub struct Decoder<'huff, ValueType, D = BitsPerFragment> {
     shift: u32,
     /// Number of leafs at all previous levels.
     first_leaf_nr: u32,
-    /// Current level size = number of: internal nodes + leaves.
-    level_size: u32,
     /// Number of the current level.
-    level: u32
+    level: u32,
+    /// Current level size = number of: internal nodes + leaves.
+    level_size: u32
 }
 
 impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
@@ -27,15 +28,26 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
             coding,
             shift: 0,
             first_leaf_nr: 0,
+            level: 0,
             level_size: coding.degree.as_u32(),
-            level: 0
         }
     }
 
+    /// Resets `self` to initial state and makes it ready to decode next value.
+    pub fn reset(&mut self) {
+        self.shift = 0;
+        self.first_leaf_nr = 0;
+        self.level = 0;
+        self.level_size = self.coding.degree.as_u32();
+    }
+
+    /// Returns the number of fragments consumed since construction or last reset.
+    #[inline(always)] pub fn consumed_fragments(&self) -> u32 { self.level }
+
     /// Consumes a `fragment` of the codeword and returns:
     /// - a value if the given `fragment` finishes the valid codeword;
-    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
-    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for bits per fragment > 1).
+    /// - an [`DecodingResult::Incomplete`] if the codeword is incomplete and the next fragment is needed;
+    /// - or [`DecodingResult::Invalid`] if the codeword is invalid (possible only for bits per fragment > 1).
     ///
     /// Result is undefined if `fragment` exceeds `tree_degree`.
     pub fn consume(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
@@ -55,8 +67,8 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
 
     /// Consumes a `fragment` of the codeword and returns:
     /// - a value if the given `fragment` finishes the valid codeword;
-    /// - an `DecodingResult::Incomplete` if the codeword is incomplete and the next fragment is needed;
-    /// - or `DecodingResult::Invalid` if the codeword is invalid (possible only for `degree` greater than 2)
+    /// - an [`DecodingResult::Incomplete`] if the codeword is incomplete and the next fragment is needed;
+    /// - or [`DecodingResult::Invalid`] if the codeword is invalid (possible only for `degree` greater than 2)
     ///     or `fragment` is not less than `degree`.
     #[inline(always)] pub fn consume_checked(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
         if fragment < self.coding.degree.as_u32() {
@@ -65,6 +77,55 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
             DecodingResult::Invalid
         }
     }
+
+    /// Tries to decode and return a single value from the `fragments` iterator,
+    /// consuming as many fragments as needed.
+    /// 
+    /// To decode the next value, self must be [reset](Self::reset) first
+    /// (see also [Self::decode_next]).
+    /// 
+    /// In case of failure, returns:
+    /// - [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
+    ///   ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
+    /// - [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
+    #[inline] pub fn decode<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        while let Some(fragment) = fragments.next() {
+            match self.consume(fragment.into()) {
+                DecodingResult::Incomplete => {},
+                result => { return result; }
+            }
+        }
+        DecodingResult::Incomplete
+    }
+
+    /// Tries to decode and return a single value from the `fragments` iterator,
+    /// consuming as many fragments as needed.
+    /// 
+    /// If successful, it [resets](Self::reset) `self` to be ready to decode the next value
+    /// (see also [Self::decode]).
+    /// 
+    /// In case of failure, returns:
+    /// - [`DecodingResult::Incomplete`] if the iterator exhausted before the value was decoded
+    ///   ([`Self::consumed_fragments`] enables checking if the iterator yielded any fragment before exhausting).
+    /// - [`DecodingResult::Invalid`] if obtained invalid codeword (possible only for `degree` greater than 2).
+    #[inline] pub fn decode_next<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        let result = self.decode(fragments);
+        if let DecodingResult::Value(_) = result { self.reset(); }
+        result
+    }
+    /*pub fn decode_next<F: Into<u32>, I: Iterator<Item = F>>(&mut self, fragments: &mut I) -> DecodingResult<&'huff ValueType> {
+        while let Some(fragment) = fragments.next() {
+            match self.consume(fragment.into()) {
+                DecodingResult::Incomplete => {},
+                result @ DecodingResult::Value(_) => {
+                    self.reset();
+                    return result;
+                },
+                result @ DecodingResult::Invalid => { return result; }
+            }
+        }
+        DecodingResult::Incomplete
+    }*/
 
     /// Returns number of internal (i.e. non-leafs) nodes at the current level of the tree.
     #[inline(always)] fn internal_nodes_count(&self) -> u32 {

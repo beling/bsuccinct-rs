@@ -1,6 +1,6 @@
 `mphf_benchmark` is the program (by Piotr Beling) for benchmarking Minimal Perfect Hash Functions.
 
-It can test the algorithms included in the following creates:
+It can test the algorithms included in the following crates:
 - [ph](https://crates.io/crates/ph),
 - [boomphf](https://crates.io/crates/boomphf),
 - [cmph-sys](https://crates.io/crates/cmph-sys) (only if compiled with `cmph-sys` feature, and only *CHD* algorithm is supported).

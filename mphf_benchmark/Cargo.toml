@@ -1,6 +1,6 @@
 [package]
 name = "mphf_benchmark"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
 description = "The program for benchmarking Minimal Perfect Hash Functions"
@@ -15,7 +15,8 @@ keywords = [ "perfect", "hashing", "minimal", "mphf" ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitm = { version="0.3", path="../bitm" }
+bitm = { version="0.4", path="../bitm" }
+butils = { version="0.1", path="../butils" }
 rayon = "1.5"
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 cpu-time = "1"
@@ -24,6 +25,6 @@ cmph-sys = { version=">=0.1", git = "https://github.com/beling/cmph-sys", option
 boomphf = { package = "boomphf-patched", version="0.5.9-0", git = "https://github.com/beling/rust-boomphf" }
 clap = { version="4.0", features = ["derive"] }
 
-[profile.release]
-lto = true
-codegen-units = 1
+#[profile.release]
+#lto = true
+#codegen-units = 1

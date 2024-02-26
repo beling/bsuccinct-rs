@@ -1,7 +1,11 @@
 mod utils;
 mod select;
+use std::ops::Deref;
+
 use self::select::{U64_PER_L1_ENTRY, U64_PER_L2_ENTRY, U64_PER_L2_RECORDS};
-pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling, SelectForRank101111, Select0ForRank101111, select64};
+pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling,
+     ConstCombinedSamplingDensity, AdaptiveCombinedSamplingDensity, SelectForRank101111, Select0ForRank101111,
+     select64, optimal_combined_sampling};
 
 use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
@@ -38,15 +42,100 @@ pub trait Rank {
     }
 }
 
-/// Returns number of bits set (to one) in `content`.
-#[inline(always)] fn count_bits_in(content: &[u64]) -> usize {
-    content.iter().map(|v| v.count_ones() as usize).sum()
+/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+#[inline] fn count_bits_in(content: &[u64]) -> usize {
+    let mut it = content.iter().map(|v| v.count_ones() as usize);
+    let mut result = 0;
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; } else { return result; }
+    if let Some(v) = it.next() { result += v; }
+    return result;
 }
 
-/// The structure that holds array of bits `content` and `ranks` structure that takes no more than 3.125% extra space.
+/*#[inline] fn count_bits_in(content: &[u64]) -> usize {  // almost the same asm as above
+    let l = content.len();
+    let mut result = 0;
+    for i in 0..8 {
+        if i < l { result += unsafe{ content.get_unchecked(i) }.count_ones() as usize; }
+    }
+    return result;
+}*/
+
+/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+/*#[inline] fn count_bits_in(mut content: &[u64]) -> usize {
+    let mut result = 0;
+    if content.len() >= 3 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(1) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(2) }.count_ones() as usize;
+        content = &content[3..];
+        if content.len() >= 3 {
+            result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+                unsafe{ content.get_unchecked(1) }.count_ones() as usize +
+                unsafe{ content.get_unchecked(2) }.count_ones() as usize;
+            content = &content[3..];
+        }
+    }
+    // up to 2 elements
+    let l = content.len();
+    if l > 0 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize;
+        if l > 1 {
+            result += unsafe{ content.get_unchecked(1) }.count_ones() as usize;
+        }
+    }
+    result
+}*/
+
+/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+/*#[inline] fn count_bits_in(mut content: &[u64]) -> usize {
+    let mut result = 0;
+    // up to 8 elements
+    if content.len() >= 4 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(1) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(2) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(3) }.count_ones() as usize;
+        content = &content[4..];
+    }
+    // up to 4 elements
+    if content.len() >= 2 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize +
+            unsafe{ content.get_unchecked(1) }.count_ones() as usize;
+        content = &content[2..];
+    }
+    // up to 2 elements
+    let l = content.len();
+    if l > 0 {
+        result += unsafe{ content.get_unchecked(0) }.count_ones() as usize;
+        if l > 1 {
+            result += unsafe{ content.get_unchecked(1) }.count_ones() as usize;
+        }
+    }
+    result
+}*/
+
+
+
+/// The structure that holds bit vector `content` and `ranks` structure that takes no more than 3.125% extra space.
 /// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
 /// In addition, it supports select queries utilizing binary search over ranks (see [`BinaryRankSearch`])
-/// or (optionally, at the cost of about 0.39% extra space overhead) combined sampling (which is usually faster; see [`CombinedSampling`]).
+/// or (optionally, at the cost of extra space overhead; about 0.39% with default settings)
+/// combined sampling (which is usually faster; see [`CombinedSampling`]).
+///
+/// Any type that implements the [`Deref`] trait with `Target = [u64]` can be used as a bit vector.
+/// It is recommended to use this structure with bit vectors allocated with alignment to the CPU cache line or 64 bytes.
+/// Such a vector can be constructed, for example, by compiling `bitm` with the `aligned-vec` feature and using implementation
+/// of [`crate::BitVec`] trait for `aligned_vec::ABox<[u64]>`, for example: `ABox::with_zeroed_bits(number_of_bits)`.
+///
+/// The structure supports vectors up to 2<sup>64</sup> bits and its design is based on a 3-level (compact due to relative addressing)
+/// index that samples rank responses every 512 bits and is CPU cache friendly as the first level is small
+/// (each its entry covers 2<sup>32</sup> bits) and the other two are interleaved.
 ///
 /// It uses modified version of the structure described in the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
@@ -56,75 +145,99 @@ pub trait Rank {
 /// The modification consists of different level 2 entries that hold 4 rank values (r0 <= r1 <= r2 <= r3) relative to level 1 entry.
 /// The content of level 2 entry, listing from the least significant bits, is:
 /// - original: r0 stored on 32 bits, r1-r0 on 10 bits, r2-r1 on 10 bits, r3-r2 on 10 bits;
-/// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits
-///        (and unused fields in the last entries, for out-of-bound content bits, are filled with bit ones).
-/// With this layout, we can read the corresponding value in the rank query without branching
-/// and avoid some bound checks in the select query.
+/// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits.
+/// With this layout, we can read the corresponding value in the rank query without branching.
 /// 
-/// For in-word selection, it uses the [`select64`] function.
+/// Another modification that makes our implementation unique is the ability of the select support structure to adapt
+/// the sampling density to the content of the bit vector (see [`CombinedSampling`] and [`AdaptiveCombinedSamplingDensity`]).
+/// 
+/// For in-word selection, the structure uses the [`select64`] function.
 #[derive(Clone)]
-pub struct ArrayWithRankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch> {
-    pub content: Box<[u64]>,  // bit vector
+pub struct RankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch, BV = Box::<[u64]>> {
+    pub content: BV,  // bit vector
     pub l1ranks: Box<[usize]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
     select: Select,  // support for select (one)
     select0: Select0,  // support for select (zero)
 }
 
-impl<S: GetSize, S0: GetSize> GetSize for ArrayWithRankSelect101111<S, S0> {
+impl<S, S0, BV> RankSelect101111<S, S0, BV> {
+    /// Returns reference to structure that support select (one) operation.
+    #[inline] pub fn select_support(&self) -> &S { &self.select }
+
+    /// Returns reference to structure that support select zero operation.
+    #[inline] pub fn select0_support(&self) -> &S0 { &self.select0 }
+}
+
+impl<S: GetSize, S0: GetSize, BV: GetSize> GetSize for RankSelect101111<S, S0, BV> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111> From<Box<[u64]>> for ArrayWithRankSelect101111<S, S0> {
-    #[inline] fn from(value: Box<[u64]>) -> Self { Self::build(value).0 }
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> From<BV> for RankSelect101111<S, S0, BV> {
+    #[inline] fn from(value: BV) -> Self { Self::build(value).0 }
 }
 
-impl<S: SelectForRank101111, S0> Select for ArrayWithRankSelect101111<S, S0> {
-    fn try_select(&self, rank: usize) -> Option<usize> {
+impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Select for RankSelect101111<S, S0, BV> {
+    #[inline] fn try_select(&self, rank: usize) -> Option<usize> {
         self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
-}
 
-impl<S, S0: Select0ForRank101111> Select0 for ArrayWithRankSelect101111<S, S0> {
-    fn try_select0(&self, rank: usize) -> Option<usize> {
-        self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
+    #[inline] unsafe fn select_unchecked(&self, rank: usize) -> usize {
+        self.select.select_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111> Rank for ArrayWithRankSelect101111<S, S0> {
-    fn try_rank(&self, index: usize) -> Option<usize> {
+impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Select0 for RankSelect101111<S, S0, BV> {
+    #[inline] fn try_select0(&self, rank: usize) -> Option<usize> {
+        self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
+    }
+
+    #[inline] unsafe fn select0_unchecked(&self, rank: usize) -> usize {
+        self.select0.select0_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
+    }
+}
+
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Rank for RankSelect101111<S, S0, BV> {
+    #[inline] fn try_rank(&self, index: usize) -> Option<usize> {
         let block = index / 512;
         let word_idx = index / 64;
         // we start from access to content, as if given index of content is not out of bounds,
         // then corresponding indices l1ranks and l2ranks are also not out of bound
         let mut r = (self.content.get(word_idx)? & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
-        let mut block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };//self.ranks[block/4];
+        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
         r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
-        block_content >>= 32;   // remove the lowest 32 bits
-        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;        
-        Some(r + count_bits_in(unsafe {self.content.get_unchecked(block * 8..word_idx)}))
+
+        r += (((block_content >> (11 * (!block & 3))) >> 32) & 0b1_11111_11111) as usize;
+
+        //Some(r + count_bits_in(unsafe {self.content.get_unchecked(block * 8/*word_idx&!7*/..word_idx)}))
+        Some(r + count_bits_in(unsafe {self.content.get_unchecked(word_idx&!7..word_idx)}))
     }
 
-    fn rank(&self, index: usize) -> usize {
+    #[inline] unsafe fn rank_unchecked(&self, index: usize) -> usize {
         let block = index / 512;
-        let mut block_content =  self.l2ranks[index/2048];//self.ranks[block/4];
-        let mut r = unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
-        block_content >>= 32;   // remove the lowest 32 bits
-        r += ((block_content >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
-        let word_idx = index / 64;
-        r += count_bits_in(&self.content[block * 8..word_idx]);
-        /*for w in block * (512 / 64)..word_idx {
-            r += self.content[w].count_ones() as u64;
-        }*/
-        r + (self.content[word_idx] & n_lowest_bits(index as u8 % 64)).count_ones() as usize
+        let word_idx = index / 64;   
+        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
+        let mut r = *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        r += (self.content.get_unchecked(word_idx) & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
+
+        //r += (((block_content>>32) >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
+        //r += (((block_content >> (33 - 11 * (block & 3))) >> 32) & 0b1_11111_11111) as usize;
+        //if block & 3 != 0 { r += ((block_content >> ((32+33) - 11 * (block & 3))) & 0b1_11111_11111) as usize }
+        //r += (((block_content >> 32) >> (11 * (3 - (block & 3)))) & 0b1_11111_11111) as usize;
+        
+        r += (((block_content >> (11 * (!block & 3))) >> 32) & 0b1_11111_11111) as usize;
+        //r += (((block_content >> 32) >> (11 * (!block & 3))) & 0b1_11111_11111) as usize;
+
+        //r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))
+        r + count_bits_in(self.content.get_unchecked(word_idx&!7..word_idx))
     }
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111<S, S0> {
-    pub fn build(content: Box<[u64]>) -> (Self, usize) {
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> RankSelect101111<S, S0, BV> {
+    pub fn build(content: BV) -> (Self, usize) {
         let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L2_ENTRY));
         let mut current_total_rank: usize = 0;
@@ -145,15 +258,13 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111
                             to_append |= chunk_sum << 32;
                             if let Some(v) = vals.next() { chunk_sum += v as u64; }
                         } else {
-                            to_append |= ((1<<11)-1) << 32; // TODO powielic chunk_sum??
+                            to_append |= chunk_sum << 32;   // replication of the last chunk_sum in the last l2rank
                         }
                     } else {
-                        to_append |= ((1<<22)-1) << 32; // TODO powielic chunk_sum??
+                        to_append |= (chunk_sum << 32) | (chunk_sum << (32+11));    // replication of the last chunk_sum in the last l2rank
                     }
                     current_rank += chunk_sum;
-                } else {
-                    to_append |= 0xFF_FF_FF_FF << 32;   // TODO powielic chunk_sum??
-                }
+                } //else { to_append |= (0 << 32) | (0 << (32+11)) | (0 << (32+22)); }
                 l2ranks.push(to_append);
             }
             current_total_rank += current_rank as usize;
@@ -166,39 +277,40 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111> ArrayWithRankSelect101111
     }
 }
 
-impl<S: SelectForRank101111, S0: Select0ForRank101111> AsRef<[u64]> for ArrayWithRankSelect101111<S, S0> {
+impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> AsRef<[u64]> for RankSelect101111<S, S0, BV> {
     #[inline] fn as_ref(&self) -> &[u64] { &self.content }
 }
 
-/// [`ArrayWithRankSelect101111`] with [`BinaryRankSearch`] (which does not introduce a space overhead) for select queries.
-pub type ArrayWithRank101111 = ArrayWithRankSelect101111<BinaryRankSearch>;
+/// Alias for backward compatibility. [`RankSelect101111`] with [`BinaryRankSearch`] (which does not introduce a space overhead) for select queries.
+pub type ArrayWithRank101111 = RankSelect101111<BinaryRankSearch, BinaryRankSearch>;
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
 /// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
-/// Only `content` with less than 2^32 bit ones is supported.
+/// Only `content` with less than 2<sup>32</sup> bit ones is supported.
+/// Any type that implements the [`Deref`] trait with `Target = [u64]` can be used as a bit vector.
 /// 
-/// Usually [`ArrayWithRankSelect101111`] should be preferred to [`ArrayWithRankSimple`].
+/// Usually [`RankSelect101111`] should be preferred to [`ArrayWithRankSimple`].
 #[derive(Clone)]
-pub struct ArrayWithRankSimple {
-    pub content: Box<[u64]>,  // BitVec
+pub struct RankSimple<BV = Box<[u64]>> {
+    pub content: BV,
     pub ranks: Box<[u32]>,
 }
 
-impl GetSize for ArrayWithRankSimple {
+impl<BV: GetSize> GetSize for RankSimple<BV> {
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.ranks.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
-impl From<Box<[u64]>> for ArrayWithRankSimple {
-    #[inline] fn from(value: Box<[u64]>) -> Self { Self::build(value).0 }
+impl<BV: Deref<Target = [u64]>> From<BV> for RankSimple<BV> {
+    #[inline] fn from(value: BV) -> Self { Self::build(value).0 }
 }
 
-impl ArrayWithRankSimple {
+impl<BV: Deref<Target = [u64]>> RankSimple<BV> {
 
     /// Constructs `ArrayWithRankSimple` and count number of bits set in `content`. Returns both.
-    pub fn build(content: Box<[u64]>) -> (Self, u32) {
+    pub fn build(content: BV) -> (Self, u32) {
         let mut result = Vec::with_capacity(ceiling_div(content.len(), 8usize));
         let mut current_rank: u32 = 0;
         for seg_nr in 0..content.len() {
@@ -234,19 +346,22 @@ impl ArrayWithRankSimple {
     //pub fn select(&self, rank: u32) -> usize {}
 }
 
-impl AsRef<[u64]> for ArrayWithRankSimple {
+impl<BV: Deref<Target = [u64]>> AsRef<[u64]> for RankSimple<BV> {
     #[inline] fn as_ref(&self) -> &[u64] { &self.content }
 }
 
-impl Rank for ArrayWithRankSimple {
-    #[inline(always)] fn try_rank(&self, index: usize) -> Option<usize> {
+impl<BV: Deref<Target = [u64]>> Rank for RankSimple<BV> {
+    #[inline] fn try_rank(&self, index: usize) -> Option<usize> {
         Self::try_rank(self, index).map(|r| r as usize)
     }
 
-    #[inline(always)] fn rank(&self, index: usize) -> usize {
+    #[inline] fn rank(&self, index: usize) -> usize {
         Self::rank(self, index) as usize
     }
 }
+
+/// Alias for backward compatibility.
+pub type ArrayWithRankSimple = RankSimple;
 
 //impl Select for ArrayWithRankSimple {}
 
@@ -256,21 +371,31 @@ mod tests {
     use super::*;
 
     fn check_all_ones<ArrayWithRank: AsRef<[u64]> + Rank + Select>(a: &ArrayWithRank) {
-        for (rank, index) in a.as_ref().bit_ones().enumerate() {
+        let mut rank = 0;
+        for index in a.as_ref().bit_ones() {
             assert_eq!(a.rank(index), rank, "rank({}) should be {}", index, rank);
             assert_eq!(a.select(rank), index, "select({}) should be {}", rank, index);
+            assert_eq!(unsafe{a.rank_unchecked(index)}, rank, "rank({}) should be {}", index, rank);
+            assert_eq!(unsafe{a.select_unchecked(rank)}, index, "select({}) should be {}", rank, index);
             //assert_eq!(a.try_rank(index), Some(rank), "rank({}) should be {}", index, rank);
             //assert_eq!(a.try_select(rank), Some(index), "select({}) should be {}", rank, index);
+            rank += 1;
         }
+        assert_eq!(a.try_select(rank), None, "select({}) should be None", rank);
     }
 
     fn check_all_zeros<ArrayWithRank: AsRef<[u64]> + Rank + Select0>(a: &ArrayWithRank) {
-        for (rank, index) in a.as_ref().bit_zeros().enumerate() {
+        let mut rank = 0;
+        for index in a.as_ref().bit_zeros() {
             assert_eq!(a.rank0(index), rank, "rank0({}) should be {}", index, rank);
             assert_eq!(a.select0(rank), index, "select0({}) should be {}", rank, index);
+            assert_eq!(unsafe{a.rank0_unchecked(index)}, rank, "rank0({}) should be {}", index, rank);
+            assert_eq!(unsafe{a.select0_unchecked(rank)}, index, "select0({}) should be {}", rank, index);
             //assert_eq!(a.try_rank0(index), Some(rank), "rank0({}) should be {}", index, rank);
             //assert_eq!(a.try_select0(rank), Some(index), "select0({}) should be {}", rank, index);
+            rank += 1;
         }
+        assert_eq!(a.try_select0(rank), None, "select0({}) should be None", rank);
     }
 
     fn test_empty_array_rank<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
@@ -286,7 +411,7 @@ mod tests {
 
     #[test]
     fn test_empty_array_rank_101111_combined() {
-        test_empty_array_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_empty_array_rank::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn test_array_with_rank<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
@@ -297,6 +422,8 @@ mod tests {
         assert_eq!(a.try_select(3), Some(65));
         assert_eq!(a.try_select(4), Some(66));
         assert_eq!(a.try_select(5), None);
+        assert_eq!(a.try_select(1+(1<<32)), None);
+        assert_eq!(a.try_select(1+(1<<33)), None);
         assert_eq!(a.rank(0), 0);
         assert_eq!(a.rank(1), 1);
         assert_eq!(a.rank(2), 1);
@@ -310,6 +437,7 @@ mod tests {
         assert_eq!(a.rank(70), 5);
         assert_eq!(a.try_rank(127), Some(5));
         assert_eq!(a.try_rank(128), None);
+        assert_eq!(a.try_rank(1+(1<<32)), None);
         check_all_ones(&a);
         check_all_zeros(&a);
     }
@@ -321,7 +449,7 @@ mod tests {
 
     #[test]
     fn array_with_rank_101111_combined() {
-        test_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_array_with_rank::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -380,7 +508,7 @@ mod tests {
 
     #[test]
     fn big_array_with_rank_101111_combined() {
-        test_big_array_with_rank::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_big_array_with_rank::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -401,7 +529,7 @@ mod tests {
 
     #[test]
     fn content_101111_combined() {
-        test_content::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        test_content::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     /*#[test]
@@ -439,7 +567,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_101111_combined() {
-        array_64bit::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_filled<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select>() {
@@ -465,7 +593,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_filled_101111_combined() {
-        array_64bit_filled::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit_filled::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_halffilled<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
@@ -484,7 +612,7 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_halffilled_101111_combined() {
-        array_64bit_halffilled::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit_halffilled::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
     fn array_64bit_zeroed_first<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select>() {
@@ -511,6 +639,6 @@ mod tests {
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111_combined() {
-        array_64bit_zeroed_first::<ArrayWithRankSelect101111::<CombinedSampling, CombinedSampling>>();
+        array_64bit_zeroed_first::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 }

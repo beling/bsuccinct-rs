@@ -1,7 +1,6 @@
 use csf::coding::{BuildMinimumRedundancy, minimum_redundancy};
 use csf::fp::{OptimalLevelSize, ProportionalLevelSize, ResizedLevel};
 use ph::BuildSeededHasher;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use csf::coding::minimum_redundancy::BitsPerFragment;
@@ -10,7 +9,7 @@ use csf::{fp, ls, GetSize};
 pub trait CSFBuilder {
     const CAN_DETECT_ABSENCE: bool = true;
     type CSF: GetSize;
-    fn new(self, keys: &[u32], values: &[u8], frequencies: HashMap::<u8, u32>) -> Self::CSF;
+    fn new(self, keys: &[u32], values: &[u8], frequencies: &[u32; 256]) -> Self::CSF;
     fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8>;
 }
 
@@ -50,7 +49,7 @@ where LSC: fp::LevelSizeChooser+fp::SimpleLevelSizeChooser, CSB: fp::CollisionSo
  {
     type CSF = fp::Map<S>;
 
-    fn new(self, keys: &[u32], values: &[u8], _frequencies: HashMap::<u8, u32>) -> Self::CSF {
+    fn new(self, keys: &[u32], values: &[u8], _frequencies: &[u32; 256]) -> Self::CSF {
         Self::CSF::with_slices_conf(
             keys.to_owned().as_mut(), values.to_owned().as_mut(),
             self)
@@ -77,10 +76,10 @@ where LSC: fp::LevelSizeChooser, CSB: fp::CollisionSolverBuilder+fp::IsLossless,
  {
     type CSF = fp::CMap<minimum_redundancy::Coding<u8>, S>;
 
-    fn new(self, keys: &[u32], values: &[u8], frequencies: HashMap::<u8, u32>) -> Self::CSF {
+    fn new(self, keys: &[u32], values: &[u8], frequencies: &[u32; 256]) -> Self::CSF {
         Self::CSF::from_slices_with_coding_conf(
             keys.to_owned().as_mut(), values,
-            minimum_redundancy::Coding::<u8, _>::from_frequencies(BitsPerFragment(self.coding.bits_per_fragment), frequencies),
+            minimum_redundancy::Coding::<u8, _>::from_frequencies_cloned(BitsPerFragment(self.coding.bits_per_fragment), frequencies),
             self,
             &mut ())
     }
@@ -109,10 +108,10 @@ where LSC: fp::LevelSizeChooser, GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSe
 {
     type CSF = fp::GOCMap<minimum_redundancy::Coding<u8>, GS, SS, S>;
 
-    fn new(self, keys: &[u32], values: &[u8], frequencies: HashMap::<u8, u32>) -> Self::CSF {
+    fn new(self, keys: &[u32], values: &[u8], frequencies: &[u32; 256]) -> Self::CSF {
         Self::CSF::from_slices_with_coding_conf(
             keys.to_owned().as_mut(), values,
-            minimum_redundancy::Coding::<u8, _>::from_frequencies(BitsPerFragment(self.coding.bits_per_fragment), frequencies),
+            minimum_redundancy::Coding::<u8, _>::from_frequencies_cloned(BitsPerFragment(self.coding.bits_per_fragment), frequencies),
             self,
             &mut ())
     }
@@ -144,9 +143,9 @@ impl CSFBuilder for BuildLSCMap
 {
     type CSF = ls::CMap<minimum_redundancy::Coding<u8>>;
 
-    fn new(self, keys: &[u32], values: &[u8], frequencies: HashMap::<u8, u32>) -> Self::CSF {
+    fn new(self, keys: &[u32], values: &[u8], frequencies: &[u32; 256]) -> Self::CSF {
         Self::CSF::try_from_kv_with_coding_conf(keys, values,
-             minimum_redundancy::Coding::<u8, _>::from_frequencies(BitsPerFragment(self.0), frequencies),
+             minimum_redundancy::Coding::<u8, _>::from_frequencies_cloned(BitsPerFragment(self.0), frequencies),
              ls::MapConf::new(),
              0).unwrap()
     }
@@ -174,7 +173,7 @@ impl CSFBuilder for BuildLSMap
     const CAN_DETECT_ABSENCE: bool = false;
     type CSF = ls::Map;
 
-    fn new(self, keys: &[u32], values: &[u8], _frequencies: HashMap::<u8, u32>) -> Self::CSF {
+    fn new(self, keys: &[u32], values: &[u8], _frequencies: &[u32; 256]) -> Self::CSF {
         Self::CSF::try_with_conf_kv(keys, values, ls::MapConf::new()).unwrap()
     }
 

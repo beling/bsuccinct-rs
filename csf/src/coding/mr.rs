@@ -100,7 +100,7 @@ impl<Value: Hash + Eq + Clone> BuildCoding<Value> for BuildMinimumRedundancy {
         where Iter: IntoIterator, Iter::Item: Borrow<<Self::Coding as Coding>::Value>
     {
         if bits_per_fragment == 0 { bits_per_fragment = self.bits_per_fragment; }
-        let freq = HashMap::<Value, u32>::with_counted_all(iter);
+        let freq = HashMap::<Value, u32>::with_occurrences_of(iter);
         if bits_per_fragment == 0 { bits_per_fragment = entropy_to_bpf(freq.entropy()-0.2) }
         Self::Coding::from_frequencies(BitsPerFragment(bits_per_fragment), freq)
     }

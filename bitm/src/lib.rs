@@ -2,9 +2,9 @@
 
 mod rank_select;
 
-pub use rank_select::{ArrayWithRankSimple, ArrayWithRankSelect101111, ArrayWithRank101111,
-     Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, select64,
-     BinaryRankSearch, CombinedSampling};
+pub use rank_select::{RankSimple, ArrayWithRankSimple, RankSelect101111, ArrayWithRank101111,
+     Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, select64, optimal_combined_sampling,
+     BinaryRankSearch, CombinedSampling, ConstCombinedSamplingDensity, AdaptiveCombinedSamplingDensity, };
 
 mod bitvec;
 pub use bitvec::*;

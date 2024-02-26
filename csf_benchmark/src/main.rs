@@ -143,7 +143,7 @@ fn benchmark<CSF: CSFBuilder+PrintParams>(input: Input, csf: CSF, file: &mut Opt
     let map = csf.new(
         input.keys.as_ref(),
         input.values.as_ref(),
-        input.frequencies,
+        &input.frequencies,
     );
     let mut levels_searched = 0u64;
     for (k, expected_v) in input.keys.iter().copied().zip(input.values.iter().copied()) {
@@ -207,7 +207,7 @@ where GetFunctions: Fn() -> CSFIter, CSFIter: IntoIterator<Item = CSF>, CSF: CSF
                 if entropy < conf.from { continue; }
                 if entropy >= conf.to { return; }
                 if lo_count == conf.keys_num / different_values || entropy - prev_entropy >= conf.resolution {
-                    println!("{}\t{}", lo_count, entropy);
+                    print!("{} {}: ", lo_count, entropy);
                     if has_multiple_functions { println!(); }
                     prev_entropy = entropy;
                     for csf in functions() {
@@ -229,7 +229,13 @@ fn file(conf: &Conf, function_name: &str, function_header: &str) -> Option<File>
         let file_name = format!("csf_benchmark_results/{}_{}.csv", function_name, conf.distribution.name());
         let file_already_existed = std::path::Path::new(&file_name).exists();
         let mut file = fs::OpenOptions::new().append(true).create(true).open(&file_name).unwrap();
-        if !file_already_existed { writeln!(file, "{} {} {}", Input::HEADER, function_header, BENCHMARK_HEADER).unwrap(); }
+        if !file_already_existed {
+            if function_header.is_empty() {
+                writeln!(file, "{} {}", Input::HEADER, BENCHMARK_HEADER).unwrap();
+            } else {
+                writeln!(file, "{} {} {}", Input::HEADER, function_header, BENCHMARK_HEADER).unwrap();
+            }
+        }
         file
     })
 }

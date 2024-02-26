@@ -425,7 +425,7 @@ impl<S: BuildSeededHasher> Function<S> {
             let i = array_begin_index + self.index(key, level_nr, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level_nr);
-                return Some(self.array.rank(i) as u64);
+                return Some(unsafe{self.array.rank_unchecked(i)} as u64);
             }
             array_begin_index += level_size;
             level_nr += 1;

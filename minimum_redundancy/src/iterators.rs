@@ -72,7 +72,7 @@ pub struct CodesIterator<'coding, ValueType, D> {
 }
 
 impl<'coding, ValueType, D: TreeDegree> CodesIterator<'coding, ValueType, D> {
-    pub fn new(coding: &'coding Coding<ValueType, D>) -> Self {
+    #[inline] pub fn new(coding: &'coding Coding<ValueType, D>) -> Self {
         Self {
             level_iterator: LevelIterator::new(coding),
             value_index: 0,
@@ -84,7 +84,7 @@ impl<'coding, ValueType, D: TreeDegree> CodesIterator<'coding, ValueType, D> {
 impl<'coding, ValueType, D: TreeDegree> FusedIterator for CodesIterator<'coding, ValueType, D> {}
 
 impl<'coding, ValueType, D: TreeDegree> ExactSizeIterator for CodesIterator<'coding, ValueType, D> {
-    fn len(&self) -> usize {
+    #[inline] fn len(&self) -> usize {
         self.level_iterator.coding.values.len() - self.value_index
     }
 }
@@ -104,7 +104,36 @@ impl<'coding, ValueType, D: TreeDegree> Iterator for CodesIterator<'coding, Valu
         Some(result)
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
+    #[inline] fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+/// Iterator over value / reversed codeword pairs.
+#[derive(Copy, Clone)]
+pub struct ReversedCodesIterator<'coding, ValueType, D>(CodesIterator<'coding, ValueType, D>);
+
+impl<'coding, ValueType, D: TreeDegree> ReversedCodesIterator<'coding, ValueType, D> {
+    #[inline] pub fn new(coding: &'coding Coding<ValueType, D>) -> Self { Self(CodesIterator::new(coding)) }
+}
+
+impl<'coding, ValueType, D: TreeDegree> FusedIterator for ReversedCodesIterator<'coding, ValueType, D> {}
+
+impl<'coding, ValueType, D: TreeDegree> ExactSizeIterator for ReversedCodesIterator<'coding, ValueType, D> {
+    #[inline] fn len(&self) -> usize { self.0.len() }
+}
+
+impl<'coding, ValueType, D: TreeDegree> Iterator for ReversedCodesIterator<'coding, ValueType, D> {
+    type Item = (&'coding ValueType, Code);
+
+    #[inline] fn next(&mut self) -> Option<Self::Item> {
+        let mut result = self.0.next()?;
+        self.0.level_iterator.coding.reverse_code(&mut result.1);
+        Some(result)
+    }
+
+    #[inline] fn size_hint(&self) -> (usize, Option<usize>) {
         let len = self.len();
         (len, Some(len))
     }

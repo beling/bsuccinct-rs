@@ -1,6 +1,6 @@
 [package]
 name = "bitm"
-version = "0.3.1"
+version = "0.4.1"
 edition = "2021"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
@@ -14,10 +14,11 @@ keywords = [ "bit", "bitmap", "rank", "bitvector", "bitset" ]
 
 [dependencies]
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
+aligned-vec = { version="0.5", optional=true }  # for construcing cache-aligment bit vectors, which usually speeds up rank and select
 
 [dev-dependencies]
-criterion = "0.4"
-iai-callgrind = "0.9"
+criterion = "0.5"
+iai-callgrind = "0.10"
 
 
 [[bench]]
@@ -32,5 +33,5 @@ harness = false
 name = "bitvec-iai"
 harness = false
 
-[profile.bench]
-debug = true
+#[profile.bench]
+#debug = true
