@@ -1,5 +1,28 @@
 #![doc = include_str!("../README.md")]
 
+/// Iterator whose each `next` call uses deserializer `S` to deserialize the value of type `T` from the `input`.
+pub struct ReadIter<'r, T: ?Sized, S, R: ?Sized> {
+    pub input: &'r mut R,
+    serializer_type: std::marker::PhantomData<S>,
+    value_type: std::marker::PhantomData<T>
+}
+
+impl<'r, T: Copy, S: Serializer::<T>, R: std::io::Read + ?Sized> Iterator for ReadIter<'r, T, S, R> {
+    type Item = Result<T, std::io::Error>;
+
+    #[inline] fn next(&mut self) -> Option<Self::Item> {
+        Some(S::read(self.input))
+    }
+
+    #[inline] fn size_hint(&self) -> (usize, Option<usize>) {
+        (usize::MAX, None)
+    }
+}
+
+impl<'r, T: Copy, S: Serializer::<T>, R: std::io::Read + ?Sized> std::iter::FusedIterator for ReadIter<'r, T, S, R> {}
+
+pub type ReadNIter<'r, T, S, R> = std::iter::Take<ReadIter<'r, T, S, R>>;
+
 /// Trait implemented by each serializer for the following types:
 /// `u8`, `u16`, `u32`, `u64`, `usize` (which, for portability, is always serialized the same as `u64`).
 pub trait Serializer<T: Copy>: Copy {
@@ -7,7 +30,7 @@ pub trait Serializer<T: Copy>: Copy {
     /// Either size of each value in bytes (if each value occupies constant size) or [`None`].
     const CONST_SIZE: Option<usize> = None;
 
-    /// Returns number of bytes which [`write`](Serializer::write) needs to serialize `val`.
+    /// Returns the number of bytes which [`write`](Serializer::write) needs to serialize `val`.
     fn size(val: T) -> usize;
 
     /// Serialize `val` to the given `output`.
@@ -30,7 +53,7 @@ pub trait Serializer<T: Copy>: Copy {
         Self::write_all_values(output, values.into_iter().cloned())
     }
 
-    /// Returns number of bytes occupied by serialized content of the array.
+    /// Returns the number of bytes occupied by serialized content of the array.
     fn array_content_size(array: &[T]) -> usize {
         if let Some(each_element_size) = Self::CONST_SIZE {
             each_element_size * array.len()
@@ -39,7 +62,7 @@ pub trait Serializer<T: Copy>: Copy {
         }
     }
 
-    /// Returns number of bytes which [`write_array`](Serializer::write_array) needs to serialize `array`.
+    /// Returns the number of bytes which [`write_array`](Serializer::write_array) needs to serialize `array`.
     #[inline] fn array_size(array: &[T]) -> usize {
         VByte::size(array.len()) + Self::array_content_size(array)
     }
@@ -52,15 +75,35 @@ pub trait Serializer<T: Copy>: Copy {
 
     /// Deserialize `n` values from the given `input`.
     fn read_n<R: std::io::Read + ?Sized>(input: &mut R, n: usize) -> std::io::Result<Box<[T]>> {
+        //Self::read_n_iter(input, n).collect()
         let mut result = Vec::with_capacity(n);
         for _ in 0..n { result.push(Self::read(input)?); }
         Ok(result.into_boxed_slice())
     }
 
-    /// Deserialize array from the given `input`. Size of the array is serialized in [`VByte`] format.
+    /// Deserialize array from the given `input`. Size of the array is deserialized from [`VByte`] format.
     fn read_array<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<Box<[T]>> {
         let n = VByte::read(input)?;
         Self::read_n(input, n)
+    }
+
+    /// Returns an iterator whose each `next` call deserializes the value from the `input`.
+    #[inline] fn read_iter<R: ?Sized>(input: &mut R) -> ReadIter<'_, T, Self, R> {
+        ReadIter { input, serializer_type: Default::default(), value_type: Default::default() }
+    }
+
+    /// Returns an iterator whose `n` `next` calls deserialize values from the `input`,
+    /// while further calls yield [`None`].
+    #[inline] fn read_n_iter<R: std::io::Read + ?Sized>(input: &mut R, n: usize) -> ReadNIter<'_, T, Self, R> {
+        Self::read_iter(input).take(n)
+    }
+
+    /// First try to read from the `input` and deserialize from [`VByte`] format, a number of values *n*.
+    /// If successful, returns the iterator whose *n* `next` calls deserialize values from the `input`,
+    /// while further calls yield [`None`].
+    #[inline] fn read_array_iter<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<ReadNIter<'_, T, Self, R>> {
+        let n = VByte::read(input)?;
+        Ok(Self::read_n_iter(input, n))
     }
 }
 

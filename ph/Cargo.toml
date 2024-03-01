@@ -19,7 +19,7 @@ sip13 = []  # if enabled, makes available BuildSip13 that uses Sip13 from compil
 [dependencies]
 bitm = { version="0.4", path="../bitm" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
-binout = { version="0.2", path="../binout" }
+binout = { version=">=0.2", path="../binout" }
 rayon = "1.5"
 wyhash = { version="0.5", optional=true }
 #wyhash_git = { git = "https://github.com/eldruin/wyhash-rs", package = "wyhash", optional=true }    # does not work

@@ -1,6 +1,6 @@
 //! Wavelet Matrix representation of symbol sequence.
 
-use std::{iter::FusedIterator, io};
+use std::{io, iter::FusedIterator, ops::{Deref, DerefMut}};
 
 use binout::{AsIs, Serializer};
 use bitm::{BitAccess, BitVec, RankSelect101111, CombinedSampling, Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, bits_to_store, ceiling_div};
@@ -16,24 +16,24 @@ use dyn_size_of::GetSize;
 /// - `upper_index` is index of `upper_bit`,
 /// - `lower_zero_index` is index of `lower_bits` to insert next item with 0 msb,
 /// - `lower_one_index` is index of `lower_bits` to insert next item with 1 msb,
-struct LevelBuilder {
-    upper_bit: Box<[u64]>,
+struct LevelBuilder<BV> {
+    upper_bit: BV,
     upper_index: usize,
-    lower_bits: Box<[u64]>,
+    lower_bits: BV,
     lower_zero_index: usize,
     lower_one_index: usize,
     upper_bit_mask: u64,
     bits_per_item: u8
 }
 
-impl LevelBuilder {
+impl<BV: DerefMut<Target = [u64]> + BitVec> LevelBuilder<BV> {
     /// Construct level builder for given level `total_len` in bits, `number_of_zeros` among the most significant bits
     /// and index of most significant bit (`index_of_bit_to_extract`).
     fn new(number_of_zeros: usize, total_len: usize, index_of_bit_to_extract: u8) -> Self {
         Self {
-            upper_bit: Box::with_zeroed_bits(total_len + 1),    // we add one bit to ensure that rank(len) will work
+            upper_bit: BV::with_zeroed_bits(total_len + 1),    // we add one bit to ensure that rank(len) will work
             upper_index: 0,
-            lower_bits: Box::with_zeroed_bits(total_len * index_of_bit_to_extract as usize + 1), // we add one bit to ensure that rank(len) will work
+            lower_bits: BV::with_zeroed_bits(total_len * index_of_bit_to_extract as usize + 1), // we add one bit to ensure that rank(len) will work
             lower_zero_index: 0,
             lower_one_index: number_of_zeros * index_of_bit_to_extract as usize,
             upper_bit_mask: 1<<index_of_bit_to_extract,
@@ -52,36 +52,36 @@ impl LevelBuilder {
 }
 
 /// Level of the we wavelet matrix.
-struct Level<S = CombinedSampling> {
+struct Level<S = CombinedSampling, BV = Box<[u64]>> {
     /// Level content as bit vector with support for rank and select queries.
-    content: RankSelect101111::<S, S>,
+    content: RankSelect101111::<S, S, BV>,
 
     /// Number of zero bits in content.
     number_of_zeros: usize
 }
 
-impl<S> GetSize for Level<S> where RankSelect101111<S, S>: GetSize {
+impl<S, BV> GetSize for Level<S, BV> where RankSelect101111<S, S, BV>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.content.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S> Level<S> where RankSelect101111<S, S>: From<Box<[u64]>> {
+impl<S, BV> Level<S, BV> where RankSelect101111<S, S, BV>: From<BV> {
     /// Constructs level with given `content` that contain given number of zero bits.
-    fn new(content: Box::<[u64]>, number_of_zeros: usize) -> Self {
+    #[inline] fn new(content: BV, number_of_zeros: usize) -> Self {
         //let (bits, number_of_ones) = ArrayWithRank::build(level);
         //Self { bits, zeros: level_len - number_of_ones }
         Self { content: content.into(), number_of_zeros }
     }
 }
 
-impl<S> Level<S> where S: SelectForRank101111 {
-    fn try_select(&self, rank: usize, len: usize) -> Option<usize> {
+impl<S, BV> Level<S, BV> where S: SelectForRank101111, BV: Deref<Target = [u64]> {
+    #[inline] fn try_select(&self, rank: usize, len: usize) -> Option<usize> {
         self.content.try_select(rank).filter(|i| *i < len)
     }
 }
 
-impl<S> Level<S> where S: Select0ForRank101111 {
-    fn try_select0(&self, rank: usize, len: usize) -> Option<usize> {
+impl<S, BV> Level<S, BV> where S: Select0ForRank101111, BV: Deref<Target = [u64]> {
+    #[inline] fn try_select0(&self, rank: usize, len: usize) -> Option<usize> {
         self.content.try_select0(rank).filter(|i| *i < len)
     }
 }
@@ -93,7 +93,7 @@ impl<S> Level<S> where S: Select0ForRank101111 {
 /// - *select* - see [`Self::select`],
 /// - *rank* - see [`Self::rank`].
 /// 
-/// By default [`bitm::CombinedSampling`] is used as a select strategy for internal bit vectors
+/// By default [`bitm::CombinedSampling`] is used as a select strategy `S` for internal bit vectors
 /// (see [`bitm::RankSelect101111`]), but this can be changed to [`bitm::BinaryRankSearch`]
 /// to save a bit of space (about 0.78%) at the cost of slower *select* queries.
 /// 
@@ -107,12 +107,12 @@ impl<S> Level<S> where S: Select0ForRank101111 {
 /// Additionally, our implementation draws some ideas (like elimination of recursion)
 /// from the Go implementation by Daisuke Okanohara,
 /// available at <https://github.com/hillbig/waveletTree/>.
-pub struct Sequence<S = CombinedSampling> {
-    levels: Box<[Level<S>]>,
+pub struct Sequence<S = CombinedSampling, BV = Box<[u64]>> {
+    levels: Box<[Level<S, BV>]>,
     len: usize
 }
 
-impl<S> Sequence<S> {
+impl<S, BV> Sequence<S, BV> {
     /// Returns number of stored items.
     #[inline] pub fn len(&self) -> usize { self.len }
 
@@ -151,7 +151,7 @@ impl Sequence<CombinedSampling> {
     }
 }
 
-impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
+impl<S, BV> Sequence<S, BV> where S: SelectForRank101111+Select0ForRank101111, BV: BitVec+DerefMut<Target = [u64]> {
 
     /// Constructs [`Sequence`] with `content_len` `bits_per_item`-bit
     /// items exposed by iterator returned by `content` function,
@@ -162,7 +162,7 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         assert!(bits_per_item > 0 && bits_per_item <= 63);
         let mut levels = Vec::with_capacity(bits_per_item as usize);
         if bits_per_item == 1 {
-            let mut level = Box::with_zeroed_bits(content_len+1);
+            let mut level = BV::with_zeroed_bits(content_len+1);
             for (i, e) in content().into_iter().enumerate() {
                 level.init_bit(i, e != 0);
             }
@@ -223,6 +223,9 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
             || { (0..content_len).map(|index| content.get_fragment(index, bits_per_item)) },
              content_len, bits_per_item)
     }
+}
+
+impl<S, BV> Sequence<S, BV> where S: SelectForRank101111+Select0ForRank101111, BV: BitVec+Deref<Target = [u64]> {
 
     /// Returns an item with given `index`. The result is undefined if `index` is out of bounds.
     pub unsafe fn get_unchecked(&self, mut index: usize) -> u64 {
@@ -319,6 +322,9 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
     pub fn iter(&self) -> impl Iterator<Item = u64> + DoubleEndedIterator + FusedIterator + '_ {
         (0..self.len()).map(|i| unsafe { self.get_unchecked(i) })
     }
+}
+
+impl<S, BV> Sequence<S, BV> where S: SelectForRank101111+Select0ForRank101111, BV: BitVec+Deref<Target = [u64]>+FromIterator<u64> {
 
     /// Reads `self` from the `input`.
     /// 
@@ -329,19 +335,20 @@ impl<S> Sequence<S> where S: SelectForRank101111+Select0ForRank101111 {
         let mut levels = Vec::with_capacity(bits_per_item as usize);
         for _ in 0..bits_per_item {
             let number_of_zeros = AsIs::read(input)?;
-            let content = AsIs::read_n(input, ceiling_div(len+1, 64))?;
-            levels.push(Level::<S>::new(content, number_of_zeros))
+            //let content = AsIs::read_n(input, ceiling_div(len+1, 64))?;
+            let content = <AsIs as Serializer<u64>>::read_n_iter(input, ceiling_div(len+1, 64)).collect::<io::Result::<BV>>()?;
+            levels.push(Level::<S, BV>::new(content, number_of_zeros))
         }
         Ok(Self { levels: levels.into_boxed_slice(), len })
     }
 }
 
-impl<S> GetSize for Sequence<S> where RankSelect101111<S, S>: GetSize {
+impl<S, BV> GetSize for Sequence<S, BV> where RankSelect101111<S, S, BV>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.levels.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S> Sequence<S> {
+impl<S, BV> Sequence<S, BV> where BV: Deref<Target = [u64]> {
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         AsIs::size(self.len) +
