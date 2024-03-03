@@ -1,5 +1,8 @@
 Succinct data structures and other Rust libraries and programs by Piotr Beling.
 
+![GitHub CI](https://github.com/beling/bsuccinct-rs/actions/workflows/rust.yml/badge.svg)
+![license](https://img.shields.io/crates/l/sux)
+
 Included libraries:
 - `ph` ([crate](https://crates.io/crates/ph), [doc](https://docs.rs/ph)) - minimal perfect hash functions (FMPH and FMPHGO);
 - `csf` ([crate](https://crates.io/crates/csf), [doc](https://docs.rs/csf)) - compressed static functions (maps);
