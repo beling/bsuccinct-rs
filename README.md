@@ -1,8 +1,9 @@
 Succinct data structures and other Rust libraries and programs by Piotr Beling.
 
-[![GitHub CI](https://github.com/beling/bsuccinct-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/beling/bsuccinct-rs/actions/)
-[![](https://tokei.rs/b1/github/beling/bsuccinct-rs?type=Rust,Python)](https://github.com/beling/bsuccinct-rs)
-[![license](https://img.shields.io/crates/l/ph)](https://github.com/beling/bsuccinct-rs)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/beling/bsuccinct-rs/rust.yml?style=flat-square)](https://github.com/beling/bsuccinct-rs/actions/)
+[![](https://tokei.rs/b1/github/beling/bsuccinct-rs?type=Rust,Python&style=flat-square)](https://github.com/beling/bsuccinct-rs)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE-APACHE)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE-MIT)
 
 Included libraries:
 - `ph` ([crate](https://crates.io/crates/ph), [doc](https://docs.rs/ph)) - minimal perfect hash functions (FMPH and FMPHGO);
