@@ -1,6 +1,6 @@
 Succinct data structures and other Rust libraries and programs by Piotr Beling.
 
-![GitHub CI](https://github.com/beling/bsuccinct-rs/actions/workflows/rust.yml/badge.svg)
+[![GitHub CI](https://github.com/beling/bsuccinct-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/beling/bsuccinct-rs/actions/)
 [![](https://tokei.rs/b1/github/beling/bsuccinct-rs?type=Rust,Python)](https://github.com/beling/bsuccinct-rs)
 [![license](https://img.shields.io/crates/l/ph)](https://github.com/beling/bsuccinct-rs)
 
