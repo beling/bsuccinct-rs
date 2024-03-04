@@ -72,11 +72,11 @@ pub struct Conf {
     #[command(subcommand)]
     pub structure: Structure,
 
-    /// The number of items to use
+    /// The number of items (ones in bit vector) to use
     #[arg(short = 'n', long, default_value_t = 500_000_000)]
     pub num: usize,
 
-    /// Item universe.
+    /// Item universe (length of the bit vector).
     #[arg(short = 'u', long, default_value_t = 1_000_000_000)]
     pub universe: usize,
 
@@ -112,23 +112,29 @@ pub struct Conf {
 const INPUT_HEADER: &'static str = "universe,num,distribution";
 const RANK_SELECT_HEADER: &'static str = "method,space_overhead,time_per_query";
 
+/// Tester that knows configuration and real number of items.
 struct Tester<'c> {
+    /// Configuration.
     conf: &'c Conf,
+    /// Real number of ones/items.
     number_of_ones: usize,
+    /// Needed for validation of `rank` operation; 'false' by default, but can be changed after construction.
     rank_includes_current: bool
 }
 
+/// Prints a message if `expected` differs from `got` and puts `structure_name`, `operation_name` and `argument` in the message,
 fn check<R: Into<Option<usize>>>(structure_name: &str, operation_name: &str, argument: usize, expected: usize, got: R) {
     if let Some(got) = got.into() {
         if got != expected {
             eprintln!("{structure_name}: {operation_name}({argument}) returned {got}, but should {expected}");
         }
     } else {
-        eprintln!("{structure_name}: select({argument}) returned None, but should {expected}")
+        eprintln!("{structure_name}: {operation_name}({argument}) returned None, but should {expected}")
     }
 }
 
 impl<'c> Tester<'c> {
+    /// Tests function answering `rank` queries. Reports its speed and potentially validates.
     #[inline(always)] pub fn raport_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, rank: F)
     where F: Fn(usize) -> R
     {
@@ -139,6 +145,7 @@ impl<'c> Tester<'c> {
         self.verify_rank(method_name, rank);
     }
 
+    /// If verification flag is set, validates function answering `rank` queries using all points of the universe.
     fn verify_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, rank: F) where F: Fn(usize) -> R {
         if self.conf.verify {
             //print!("   verification of rank answers... ");
@@ -150,6 +157,7 @@ impl<'c> Tester<'c> {
         }
     }
 
+    /// Tests function answering `select` (one) queries. Reports its speed and potentially validates.
     #[inline(always)] pub fn raport_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select: F)
     where F: Fn(usize) -> R
     {
@@ -165,6 +173,7 @@ impl<'c> Tester<'c> {
         self.verify_select1(method_name, select);
     }
 
+    /// If verification flag is set, validates function answering `select` (one) queries using all ones in the universe.
     fn verify_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, select: F) where F: Fn(usize) -> R {
         if self.conf.verify {
             //print!("   verification of select1 answers... ");
@@ -175,6 +184,7 @@ impl<'c> Tester<'c> {
         }
     }
 
+    /// Tests function answering `select0` queries. Reports its speed and potentially validates.
     #[inline(always)] pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select0: F)
     where F: Fn(usize) -> R
     {
@@ -192,6 +202,7 @@ impl<'c> Tester<'c> {
         self.verify_select0(method_name, select0);
     }
 
+    /// If verification flag is set, validates function answering `select0` queries using all zeros in the universe.
     fn verify_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, select0: F) where F: Fn(usize) -> R {
         if self.conf.verify {
             //print!("   verification of select0 answers... ");
@@ -218,6 +229,19 @@ impl Conf {
         }
     }
 
+    /// Returns real number of items, usually close to `self.num`.
+    fn num(&self) -> usize {
+        match self.distribution {
+            Distribution::Uniform|Distribution::Adversarial => self.num,
+            Distribution::LinearlyDensified => { self.data_foreach(|_, _, _| {}) }
+        }
+    }
+
+    /// Iterates over universe and for each its point calls `f` with the following arguments (in order):
+    /// - index in universe in range [0..`self.universe`),
+    /// - number of items (ones) before the current position,
+    /// - whether there is an item (one) at the current position.
+    /// Returns number of items (ones) in the whole universe.
     #[inline(always)] fn data_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F) -> usize {
         let mut gen = self.rand_gen();
         let mut number_of_ones = 0;
@@ -250,6 +274,10 @@ impl Conf {
         number_of_ones
     }
 
+    /// Iterates over universe and for each its point calls `f` with the following arguments (in order):
+    /// - index in universe in range [0..`self.universe`),
+    /// - whether there is an item (one) at the current position.
+    /// Print statistics about data. Returns tester.
     fn rand_data<F: FnMut(usize, bool)>(&self, mut add: F) -> Tester {
         let number_of_ones = self.data_foreach(|index, _, v| add(index, v));
         println!(" input: number of bit ones is {} / {} ({:.2}%), {} distribution",
@@ -257,6 +285,7 @@ impl Conf {
         Tester { conf: self, number_of_ones, rank_includes_current: false }
     }
 
+    /// Either opens or crates (and than put headers inside) and returns the file with given `file_name` (+`csv` extension).
     fn file(&self, file_name: &str, extra_header: &str) -> Option<File> {
         if !self.save_details { return None; }
         let file_name = format!("{}.csv", file_name);
@@ -266,30 +295,38 @@ impl Conf {
         Some(file)
     }
 
+    /// Saves `space_overhead` and `time` per *rank* or *select* query (in ns) of method with given `method_name`
+    /// to file with given `file_name` (+`csv` extension).
     fn save_rank_or_select(&self, file_name: &str, method_name: &str, space_overhead: f64, time: f64) {
         if let Some(mut file) = self.file(file_name, RANK_SELECT_HEADER) {
             writeln!(file, "{},{},{},{},{},{}", self.universe, self.num, self.distribution, method_name, space_overhead, time).unwrap();
         }
     }
     
+    /// Saves `space_overhead` and `time` per *rank* query (in ns) of method with given `method_name` to `rank.csv`.
     pub fn save_rank(&self, method_name: &str, space_overhead: f64, time: f64) {
         self.save_rank_or_select("rank", method_name, space_overhead, time)
     }
 
+    /// Saves `space_overhead` and `time` per *select1* query (in ns) of method with given `method_name` to `select1.csv`.
     pub fn save_select1(&self, method_name: &str, space_overhead: f64, time: f64) {
         self.save_rank_or_select("select1", method_name, space_overhead, time)
     }
 
+    /// Saves `space_overhead` and `time` per *select0* query (in ns) of method with given `method_name` to `select0.csv`.
     pub fn save_select0(&self, method_name: &str, space_overhead: f64, time: f64) {
         self.save_rank_or_select("select0", method_name, space_overhead, time)
     }
 
+    /// Returns random number generator.
     fn rand_gen(&self) -> XorShift64 { XorShift64(self.seed.get()) }
 
+    /// Returns query points drawn uniformly at random from the range [0, `query_universe`).
     fn rand_queries(&self, query_universe: usize) -> Box<[usize]> {
         self.rand_gen().take(self.queries.get() as usize).map(|v| v as usize % query_universe).collect()
     }
 
+    /// Measures and returns average time (in seconds) per `f` call. Cools down and warms up before measurements.
     #[inline(always)] fn measure<F>(&self, f: F) -> f64
      where F: Fn()
     {
@@ -310,6 +347,8 @@ impl Conf {
         return start_moment.elapsed().as_secs_f64() / iters as f64
     }
 
+    /// Measures and returns average time (in seconds) per `f` call, when `f` is called for each argument from `queries`.
+    /// Cools down and warms up before measurements.
     #[inline(always)] fn queries_measure<R, F>(&self, queries: &[usize], f: F) -> f64
     where F: Fn(usize) -> R
     {
