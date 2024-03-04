@@ -6,7 +6,7 @@ use crate::{percent_of, percent_of_diff, Conf, Tester};
 pub fn build_bit_vec(conf: &Conf) -> (ABox<[u64]>, Tester) {
     let mut content =  ABox::with_zeroed_bits(conf.universe);
     //let mut content = AVec::from_iter(64, (0..ceiling_div(conf.universe, 64)).map(|_| 0)).into_boxed_slice();
-    let tester = conf.rand_data(|bit_nr, value| if value {content.init_bit(bit_nr, value)});
+    let tester = conf.fill_data(|bit_nr, value| if value {content.init_bit(bit_nr, value)});
     (content, tester)
 }
 

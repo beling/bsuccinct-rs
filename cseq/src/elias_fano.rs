@@ -34,10 +34,11 @@ impl<BV> Builder<BV> {
 }
 
 impl<BV: BitVec> Builder<BV> {
-    /// Constructs [`Builder`] to build [`Sequence`] with `final_len` values in range [`0`, `universe`).
+    /// Constructs [`Builder`] to build [`Sequence`] with custom bit vector type and
+    /// `final_len` values in range [`0`, `universe`).
     /// After adding values in non-decreasing order by [`Self::push`] method,
     /// [`Self::finish`] can be called to construct [`Sequence`].
-    pub fn new(final_len: usize, universe: u64) -> Self {
+    pub fn new_b(final_len: usize, universe: u64) -> Self {
         if final_len == 0 || universe == 0 {
             return Self { hi: BV::with_64bit_segments(0, 0), lo: Default::default(), bits_per_lo: 0, current_len: 0, target_len: 0, last_added: 0, universe };
         }
@@ -52,6 +53,15 @@ impl<BV: BitVec> Builder<BV> {
             last_added: 0,
             universe,
         }
+    }
+}
+
+impl Builder {
+    /// Constructs [`Builder`] to build [`Sequence`] with `final_len` values in range [`0`, `universe`).
+    /// After adding values in non-decreasing order by [`Self::push`] method,
+    /// [`Self::finish`] can be called to construct [`Sequence`].
+    #[inline] pub fn new(final_len: usize, universe: u64) -> Self {
+        Self::new_b(final_len, universe)
     }
 }
 
@@ -165,6 +175,8 @@ impl<S, S0, BV> Sequence<S, S0, BV> {
 
     /// Returns whether the sequence is empty.
     #[inline] pub fn is_empty(&self) -> bool { self.len == 0 }
+
+    #[inline] pub fn bits_per_lo(&self) -> u8 { self.bits_per_lo }
 }
 
 impl<S, S0, BV: Deref<Target = [u64]>> Sequence<S, S0, BV> {
@@ -307,7 +319,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: BitVec+DerefMut<Targe
     /// Constructs [`Sequence`] with custom select strategy and
     /// filled with elements from the `items` slice, which must be in non-decreasing order.
     pub fn with_items_from_slice_s<I: Into<u64> + Clone>(items: &[I]) -> Self {
-        let mut b = Builder::<BV>::new(items.len(), items.last().map_or(0, |v| v.clone().into()+1));
+        let mut b = Builder::<BV>::new_b(items.len(), items.last().map_or(0, |v| v.clone().into()+1));
         b.push_all(items.iter().map(|v| v.clone().into()));
         b.finish_unchecked_s()
     }
@@ -426,13 +438,22 @@ impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Sequence<S, S0, BV>
     }
 }
 
-impl<S: SelectForRank101111, S0> Select for Sequence<S, S0> {
-    #[inline(always)] fn try_select(&self, rank: usize) -> Option<usize> {
+impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Select for Sequence<S, S0, BV> {
+    #[inline] unsafe fn select_unchecked(&self, rank: usize) -> usize {
+        self.get_unchecked(rank) as usize
+    }
+
+    #[inline] fn try_select(&self, rank: usize) -> Option<usize> {
         self.get(rank).map(|v| v as usize)
     }
 }
 
-impl<S, S0: Select0ForRank101111> Rank for Sequence<S, S0> {
+impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Rank for Sequence<S, S0, BV> {
+    /// Returns the number of `self` items with values less than given `value`.
+    #[inline] unsafe fn rank_unchecked(&self, value: usize) -> usize {
+        self.geq_index(value as u64)
+    }
+    
     /// Returns the number of `self` items with values less than given `value`.
     #[inline] fn try_rank(&self, value: usize) -> Option<usize> {
         Some(self.geq_index(value as u64))

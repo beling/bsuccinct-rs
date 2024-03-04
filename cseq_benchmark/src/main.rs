@@ -278,11 +278,15 @@ impl Conf {
     /// - index in universe in range [0..`self.universe`),
     /// - whether there is an item (one) at the current position.
     /// Print statistics about data. Returns tester.
-    fn rand_data<F: FnMut(usize, bool)>(&self, mut add: F) -> Tester {
+    fn fill_data<F: FnMut(usize, bool)>(&self, mut add: F) -> Tester {
         let number_of_ones = self.data_foreach(|index, _, v| add(index, v));
         println!(" input: number of bit ones is {} / {} ({:.2}%), {} distribution",
             number_of_ones, self.universe, percent_of(number_of_ones, self.universe), self.distribution);
         Tester { conf: self, number_of_ones, rank_includes_current: false }
+    }
+
+    #[inline] fn add_data<F: FnMut(usize)>(&self, mut add: F) -> Tester {
+        self.fill_data(|i, v| if v { add(i) })
     }
 
     /// Either opens or crates (and than put headers inside) and returns the file with given `file_name` (+`csv` extension).

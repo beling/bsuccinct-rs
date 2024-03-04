@@ -4,7 +4,7 @@ use crate::percent_of_diff;
 pub fn benchmark_rank_select(conf: &super::Conf) {
     println!("vers:");
     let mut content = BitVec::from_zeros(conf.universe);
-    let tester = conf.rand_data(|pos, value| if value { content.flip_bit(pos); });
+    let tester = conf.fill_data(|pos, value| if value { content.flip_bit(pos); });
 
     let raw_size = content.heap_size();
     let rs = RsVec::from_bit_vec(content);

@@ -3,7 +3,7 @@ use crate::{percent_of_diff, Conf, Tester};
 
 pub fn build_bit_vec(conf: &Conf) -> (BitVector::<u64>, Tester) {
     let mut content = BitVector::with_fill(conf.universe as u64, false);
-    let tester = conf.rand_data(|bit_nr, value| {content.set_bit(bit_nr as u64, value)});
+    let tester = conf.fill_data(|bit_nr, value| {content.set_bit(bit_nr as u64, value)});
     (content, tester)
 }
 

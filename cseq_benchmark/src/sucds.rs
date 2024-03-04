@@ -5,7 +5,7 @@ pub fn benchmark_rank9_select(conf: &Conf) {
     println!("sucds Rank9Sel:");
 
     let mut content = BitVector::from_bit(false, conf.universe);
-    let tester = conf.rand_data(|pos, value|
+    let tester = conf.fill_data(|pos, value|
         if value { content.set_bit(pos, value).unwrap(); }
     );
 

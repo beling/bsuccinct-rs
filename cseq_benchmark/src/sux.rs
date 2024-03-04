@@ -4,7 +4,7 @@ use crate::{percent_of_diff, Conf, Tester};
 
 pub fn build_bit_vec(conf: &Conf) -> (BitVec, Tester) {
     let mut content = BitVec::new(conf.universe);
-    let tester = conf.rand_data(|bit_nr, value| content.set(bit_nr, value));
+    let tester = conf.fill_data(|bit_nr, value| content.set(bit_nr, value));
     (content, tester)
 }
 
