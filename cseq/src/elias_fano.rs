@@ -439,7 +439,7 @@ impl<S, S0: Select0ForRank101111> Rank for Sequence<S, S0> {
     }
 }
 
-impl<S, S0> GetSize for Sequence<S, S0> where RankSelect101111<S, S0>: GetSize {
+impl<S, S0, BV> GetSize for Sequence<S, S0, BV> where RankSelect101111<S, S0, BV>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.lo.size_bytes_dyn() + self.hi.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
 }

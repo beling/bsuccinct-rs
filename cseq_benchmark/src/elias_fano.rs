@@ -1,14 +1,15 @@
 use cseq::elias_fano;
 use dyn_size_of::GetSize;
 use std::{hint::black_box, time::Instant};
+use aligned_vec::ABox;
+use elias_fano::{Sequence, DefaultSelectStrategy as S};
 
 pub fn benchmark(conf: &super::Conf) {
     let data: Vec<u64> = (1..=conf.num).map(|i| (i*conf.universe/conf.num) as u64).collect();
     println!("data contains {} items in the range [0, {})", data.len(), data.last().unwrap()+1);
 
     let start_moment = Instant::now();
-    //let ef: elias_fano::Sequence<bitm::BinaryRankSearch, bitm::BinaryRankSearch> = elias_fano::Sequence::with_items_from_slice_s(&data);
-    let ef = elias_fano::Sequence::with_items_from_slice(&data);
+    let ef = Sequence::<S, S, ABox<[u64], _>>::with_items_from_slice_s(&data);
     let build_time_seconds = start_moment.elapsed().as_secs_f64();
     println!("size [bits/item]: {:.2}, construction time [μs]: {:.0}", 8.0*ef.size_bytes_dyn() as f64/data.len() as f64, build_time_seconds*1_000_000.0);
 
