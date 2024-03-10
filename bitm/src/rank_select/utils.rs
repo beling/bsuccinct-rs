@@ -18,7 +18,7 @@ pub(super) fn partition_point<T, P>(tab: &[T], mut pred: P) -> usize
 }*/
 
 #[inline]
-pub(super) fn partition_point_with_index<T, F>(tab: &[T], mut f: F) -> usize
+pub fn partition_point_with_index<T, F>(tab: &[T], mut f: F) -> usize
 where F: FnMut(&T, usize) -> bool,
 {
     // INVARIANTS:

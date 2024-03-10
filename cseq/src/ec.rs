@@ -1,6 +1,6 @@
 //! Enumerative coding/compressed bitmap.
 
-use bitm::{BitAccess, ceiling_div, BitVec, Rank};
+use bitm::{BitAccess, ceiling_div, BitVec, Rank, Select, Select0};
 use dyn_size_of::GetSize;
 
 /// L1 block covering 2^20=1048576 L2 blocks, which means 2^32 bits of universe.
@@ -8,12 +8,14 @@ struct L1Block {
     /// Index of the first bit of this block in the universe.
     begin_index: usize,
     /// The number of bit ones preceding this block in the universe.
-    rank: u64,
+    rank: usize,
 }
 
 impl L1Block {
     /// Number of universe bits per L1 block; 2^32.
     const COVERED_UNIVERSE_BITS: usize = 1<<32;
+
+    const COVERED_L2_BLOCKS: usize = Self::COVERED_L3_BLOCKS / L2Block::COVERED_L3_BLOCKS;
 
     /// Number of L3 block covered by one L1 block.
     const COVERED_L3_BLOCKS: usize = Self::COVERED_UNIVERSE_BITS / 64;
@@ -24,13 +26,14 @@ impl GetSize for L1Block {}
 /// L2 block covering 64 L3 blocks, which means 64*64=4096 bits of the universe.
 /// 
 /// Each L3 block covers 64 bits of the universe and uses 7 bits to store the number of one bits it contains.
+#[repr(align(64))]
 struct L2Block {
     /// Relative (to the beginning of the enclosing L1 block) index of the first universe bit of this block
-    begin_index: u32,
+    begin_index: u32,   // 4 bytes +
     /// Number of bit ones preceding this block in the enclosing L1 block.
-    rank: u32,
+    rank: u32,  // + 4 bytes +
     /// 64 number of ones in consecutive L3 blocks contained in this block, each stored on 7 bits
-    l3_ones: [u64; 7],
+    l3_ones: [u64; 7],  // + 8*7 bytes = 64 bytes
 }
 
 impl GetSize for L2Block {}
@@ -50,10 +53,10 @@ impl GetSize for L2Block {}
 
 /// Increases `l3_begin` by the size of the first L3 block in `blocks` and removes the block from `blocks`.
 /// Increases `rank` by the number og ones in removed block.
-#[inline(always)] fn move7_rank(blocks: &mut u64, rank: &mut u64, l3_begin: &mut usize) {
+#[inline(always)] fn move7_rank(blocks: &mut u64, rank: &mut usize, l3_begin: &mut usize) {
     let number_of_ones = lo7(*blocks);  // for CHOOSE64 same as lo7(*blocks), as (64 0) = (64 64) = 1
     *blocks >>= 7;
-    *rank += number_of_ones as u64;
+    *rank += number_of_ones as usize;
     *l3_begin += CHOOSE64_BIT_LEN[number_of_ones as usize] as usize;
 }
 
@@ -76,7 +79,7 @@ fn get7(mut blocks: u64, index: &mut usize, l3_begin: &mut usize) -> Option<u8> 
 }
 
 /// Works like [`get7`] but additionally increases `rank` by the number of ones in skipped L3 blocks.
-fn get7_rank(mut blocks: u64, index: &mut usize, rank: &mut u64, l3_begin: &mut usize) -> Option<u8> {
+fn get7_rank(mut blocks: u64, index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> Option<u8> {
     if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
     if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
     if *index < 64 { return Some(lo7(blocks)); } else { move7_rank(&mut blocks, rank, l3_begin); *index -= 64; }
@@ -139,7 +142,7 @@ impl L2Block {
         (self.l3_ones[6] >> (64-7)) as u8
     }
 
-    fn number_of_ones_and_rank(&self, index: &mut usize, rank: &mut u64, l3_begin: &mut usize) -> u8 {
+    fn number_of_ones_and_rank(&self, index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> u8 {
         if let Some(s) = get7_rank(self.l3_ones[0], index, rank, l3_begin) { return s; }
         if let Some(s) = get7_rank(self.numbers_of_ones(1), index, rank, l3_begin) { return s; }
         if let Some(s) = get7_rank(self.numbers_of_ones(2), index, rank, l3_begin) { return s; }
@@ -218,7 +221,7 @@ impl BitMap {
                     l2_rank += bit_ones as u32;
                 }
                 l2.push(l2_block);
-                l1_rank += l2_rank as u64;
+                l1_rank += l2_rank as usize;
             }    
         }
         Self {
@@ -236,7 +239,7 @@ impl Rank for BitMap {
         // let l1 = //unsafe {self.l1.get_unchecked(index / L1Block::COVERED_UNIVERSE_BITS)};
         let mut l3_begin = l1.begin_index + l2.begin_index as usize;
         index %= L2Block::COVERED_UNIVERSE_BITS;
-        let mut rank = l1.rank + l2.rank as u64;
+        let mut rank = l1.rank + l2.rank as usize;
         let number_of_ones = l2.number_of_ones_and_rank(&mut index, &mut rank, &mut l3_begin);
         if number_of_ones == 0 { return Some(rank as usize); } // l3 block contains only zeros
         if number_of_ones == 64 { return Some(rank as usize + index); } // l3 block contains only ones
@@ -244,6 +247,43 @@ impl Rank for BitMap {
             self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]),
             number_of_ones, index as u8) as usize)
         //Some(bit_from_enumerative_code(unsafe{self.content.get_bits_unchecked(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize])}, number_of_ones, index as u8))
+    }
+}
+
+/// Find index of L1 chunk that contains `rank`-th one (or zero if `ONE` is `false`)
+/// and decrease `rank` by number of ones (or zeros) in previous chunks.
+#[inline] fn select_l1<'l, const ONE: bool>(l1: &[L1Block], rank: &mut usize) -> usize {
+    let b;
+    if ONE {    // select 1:
+        let i = l1.partition_point(|v| v.rank <= *rank) - 1;
+        b = unsafe{l1.get_unchecked(i)};
+        *rank -= b.rank;
+    } else {    // select 0:
+        let i = bitm::partition_point_with_index(&l1, |v, i| i * L1Block::COVERED_UNIVERSE_BITS - v.rank <= *rank) - 1;
+        b = unsafe{l1.get_unchecked(i)};
+        *rank -= i * L1Block::COVERED_UNIVERSE_BITS - b.rank;
+    }
+    return b.begin_index;
+}
+
+impl Select for BitMap {
+    fn try_select(&self, mut rank: usize) -> Option<usize> {
+        let l2_begin = select_l1::<true>(&self.l1, &mut rank);
+        let l2_index = self.l2[l2_begin..self.l2.len().min(l2_begin+L1Block::COVERED_L2_BLOCKS)]
+                .partition_point(|l2| l2.rank as usize <= rank) - 1;
+        let l2_block = unsafe{self.l2.get_unchecked(l2_index)};
+        rank -= l2_block.rank as usize;
+        let mut l3_begin = l2_block.begin_index as usize;
+        l2_block.select(&mut rank, &mut l3_begin);
+
+        /*l2_begin + if ONE {
+            l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
+                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1
+        } else {
+            super::utils::partition_point_with_index(
+                &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
+                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1
+        }*/
     }
 }
 

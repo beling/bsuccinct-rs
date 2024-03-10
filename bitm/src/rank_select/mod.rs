@@ -1,4 +1,4 @@
-mod utils;
+pub mod utils;
 mod select;
 use std::ops::Deref;
 
