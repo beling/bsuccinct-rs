@@ -110,7 +110,8 @@ pub struct Conf {
 }
 
 const INPUT_HEADER: &'static str = "universe,num,distribution";
-const RANK_SELECT_HEADER: &'static str = "method,space_overhead,time_per_query";
+const RANK_HEADER: &'static str = "method,size,time_per_query";
+const SELECT_HEADER: &'static str = "method,extra_size,time_per_query";
 
 /// Tester that knows configuration and real number of items.
 struct Tester<'c> {
@@ -141,7 +142,7 @@ impl<'c> Tester<'c> {
         print!("  rank:  space overhead {:.2}%", self.conf.space_overhead(size_bytes));
         let time = self.conf.queries_measure(&self.conf.rand_queries(self.conf.universe), &rank).as_nanos();
         println!("  time/query {:.2}ns", time);
-        self.conf.save_rank(method_name, self.conf.space_overhead(size_bytes), time);
+        self.conf.save_rank(method_name, size_bytes, time);
         self.verify_rank(method_name, rank);
     }
 
@@ -166,11 +167,10 @@ impl<'c> Tester<'c> {
             return;
         }
         print!("  select1:");
-        let space_overhead = self.conf.extra_space_overhead(extra_size_bytes);
-        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", space_overhead); }
+        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", self.conf.extra_space_overhead(extra_size_bytes)); }
         let time = self.conf.queries_measure(&self.conf.rand_queries(self.number_of_ones), &select).as_nanos();
         println!("  time/query {:.2}ns", time);
-        self.conf.save_select1(method_name, space_overhead, time);
+        self.conf.save_select1(method_name, extra_size_bytes, time);
         self.verify_select1(method_name, select);
     }
 
@@ -194,13 +194,12 @@ impl<'c> Tester<'c> {
             return;
         }
         print!("  select0:");
-        let space_overhead = self.conf.extra_space_overhead(extra_size_bytes);
-        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", space_overhead); }
+        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", self.conf.extra_space_overhead(extra_size_bytes)); }
         let time = self.conf.queries_measure(
             &self.conf.rand_queries(self.conf.universe-self.number_of_ones),
             &select0).as_nanos();
         println!("  time/query {:.2}ns", time);
-        self.conf.save_select0(method_name, space_overhead, time);
+        self.conf.save_select0(method_name, extra_size_bytes, time);
         self.verify_select0(method_name, select0);
     }
 
@@ -315,25 +314,25 @@ impl Conf {
 
     /// Saves `space_overhead` and `time` per *rank* or *select* query (in ns) of method with given `method_name`
     /// to file with given `file_name` (+`csv` extension).
-    fn save_rank_or_select(&self, file_name: &str, method_name: &str, space_overhead: f64, time: f64) {
-        if let Some(mut file) = self.file(file_name, RANK_SELECT_HEADER) {
-            writeln!(file, "{},{},{},{},{},{}", self.universe, self.num, self.distribution, method_name, space_overhead, time).unwrap();
+    fn save_rank_or_select(&self, header: &str, file_name: &str, method_name: &str, space: usize, time: f64) {
+        if let Some(mut file) = self.file(file_name, header) {
+            writeln!(file, "{},{},{},{},{},{}", self.universe, self.num, self.distribution, method_name, space, time).unwrap();
         }
     }
     
     /// Saves `space_overhead` and `time` per *rank* query (in ns) of method with given `method_name` to `rank.csv`.
-    pub fn save_rank(&self, method_name: &str, space_overhead: f64, time: f64) {
-        self.save_rank_or_select("rank", method_name, space_overhead, time)
+    pub fn save_rank(&self, method_name: &str, space_bytes: usize, time: f64) {
+        self.save_rank_or_select(RANK_HEADER, "rank", method_name, space_bytes, time)
     }
 
     /// Saves `space_overhead` and `time` per *select1* query (in ns) of method with given `method_name` to `select1.csv`.
-    pub fn save_select1(&self, method_name: &str, space_overhead: f64, time: f64) {
-        self.save_rank_or_select("select1", method_name, space_overhead, time)
+    pub fn save_select1(&self, method_name: &str, extra_size_bytes: usize, time: f64) {
+        self.save_rank_or_select(SELECT_HEADER, "select1", method_name, extra_size_bytes, time)
     }
 
     /// Saves `space_overhead` and `time` per *select0* query (in ns) of method with given `method_name` to `select0.csv`.
-    pub fn save_select0(&self, method_name: &str, space_overhead: f64, time: f64) {
-        self.save_rank_or_select("select0", method_name, space_overhead, time)
+    pub fn save_select0(&self, method_name: &str, extra_size_bytes: usize, time: f64) {
+        self.save_rank_or_select(SELECT_HEADER, "select0", method_name, extra_size_bytes, time)
     }
 
     /// Returns random number generator.
