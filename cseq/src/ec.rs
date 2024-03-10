@@ -1,6 +1,6 @@
 //! Enumerative coding/compressed bitmap.
 
-use bitm::{BitAccess, ceiling_div, BitVec, Rank, Select, Select0};
+use bitm::{ceiling_div, BitAccess, BitVec, Rank, Select, Select0};
 use dyn_size_of::GetSize;
 
 /// L1 block covering 2^20=1048576 L2 blocks, which means 2^32 bits of universe.
@@ -95,15 +95,21 @@ fn get7_rank(mut blocks: u64, index: &mut usize, rank: &mut usize, l3_begin: &mu
 /// Returns number of ones in L3 block with given `rank` (relative to beginning of the block)
 /// and is contained in the `block`.
 /// Decreases `rank` by number of ones in the skipped L3 blocks.
+/// Increases `universe_index`.
 /// Increases `l3_begin` by the sizes of the skipped L3 blocks.
 /// Returns [`None`] if `blocks` does not contain L3 block with given `rank`.
-fn select7(mut blocks: u64, rank: &mut usize, l3_begin: &mut usize) -> Option<u8> {
-    for _ in 0..9 {
+fn select7(mut blocks: u64, universe_index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> Option<u8> {
+    for i in 0..9 {
         let number_of_ones = lo7(blocks);
-        if *rank < number_of_ones as usize { return Some(number_of_ones); }
+        if *rank < number_of_ones as usize {
+            *universe_index += i * L2Block::BITS_PER_L3;
+            return Some(number_of_ones);
+        }
+        *rank -= number_of_ones as usize;
         blocks >>= 7;
         *l3_begin += CHOOSE64_BIT_LEN[number_of_ones as usize] as usize;
     }
+    *universe_index += 9 * L2Block::BITS_PER_L3;
     None
 }
 
@@ -157,14 +163,14 @@ impl L2Block {
     /// Gets number of ones in L3 block with given `rank` (relative to beginning of the block)
     /// and decreases `rank` not to exceed the number of ones in the mentioned L3 block.
     /// Increases `l3_begin` to show the first bit of encoded L3 block in the `content`.
-    fn select(&self, rank: &mut usize, l3_begin: &mut usize) -> u8 {
-        if let Some(s) = select7(self.l3_ones[0], rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(1), rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(2), rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(3), rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(4), rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(5), rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(6), rank, l3_begin) { return s; }
+    fn select(&self, universe_index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> u8 {
+        if let Some(s) = select7(self.l3_ones[0], universe_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(1), universe_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(2), universe_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(3), universe_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(4), universe_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(5), universe_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(6), universe_index, rank, l3_begin) { return s; }
         (self.l3_ones[6] >> (64-7)) as u8
     }
 }
@@ -252,29 +258,36 @@ impl Rank for BitMap {
 
 /// Find index of L1 chunk that contains `rank`-th one (or zero if `ONE` is `false`)
 /// and decrease `rank` by number of ones (or zeros) in previous chunks.
-#[inline] fn select_l1<'l, const ONE: bool>(l1: &[L1Block], rank: &mut usize) -> usize {
-    let b;
+#[inline] fn select_l1<const ONE: bool>(l1: &[L1Block], rank: &mut usize) -> usize {
+    let i;
     if ONE {    // select 1:
-        let i = l1.partition_point(|v| v.rank <= *rank) - 1;
-        b = unsafe{l1.get_unchecked(i)};
-        *rank -= b.rank;
+        i = l1.partition_point(|v| v.rank <= *rank) - 1;
+        *rank -= unsafe{l1.get_unchecked(i)}.rank;
     } else {    // select 0:
-        let i = bitm::partition_point_with_index(&l1, |v, i| i * L1Block::COVERED_UNIVERSE_BITS - v.rank <= *rank) - 1;
-        b = unsafe{l1.get_unchecked(i)};
-        *rank -= i * L1Block::COVERED_UNIVERSE_BITS - b.rank;
+        i = bitm::partition_point_with_index(&l1, |v, i| i * L1Block::COVERED_UNIVERSE_BITS - v.rank <= *rank) - 1;
+        *rank -= i * L1Block::COVERED_UNIVERSE_BITS - unsafe{l1.get_unchecked(i)}.rank;
     }
-    return b.begin_index;
+    return i;
 }
 
 impl Select for BitMap {
     fn try_select(&self, mut rank: usize) -> Option<usize> {
-        let l2_begin = select_l1::<true>(&self.l1, &mut rank);
+        let l1_index = select_l1::<true>(&self.l1, &mut rank);
+        let l2_begin = l1_index * L1Block::COVERED_L2_BLOCKS;
         let l2_index = self.l2[l2_begin..self.l2.len().min(l2_begin+L1Block::COVERED_L2_BLOCKS)]
                 .partition_point(|l2| l2.rank as usize <= rank) - 1;
         let l2_block = unsafe{self.l2.get_unchecked(l2_index)};
         rank -= l2_block.rank as usize;
-        let mut l3_begin = l2_block.begin_index as usize;
-        l2_block.select(&mut rank, &mut l3_begin);
+        let mut l3_begin = unsafe{self.l1.get_unchecked(l1_index)}.begin_index + l2_block.begin_index as usize;
+        let mut universe_index = l2_index * L2Block::COVERED_UNIVERSE_BITS;
+        let number_of_ones = l2_block.select(&mut universe_index, &mut rank, &mut l3_begin);
+        //if number_of_ones == 0 { ??? } // l3 block contains only zeros
+        if number_of_ones == 64 {
+            return Some(universe_index + rank as usize);
+        } // l3 block contains only ones
+        Some(universe_index + select_in_enumerative_code(
+            self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]),
+            number_of_ones, rank as u8, true) as usize)
 
         /*l2_begin + if ONE {
             l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)]
@@ -314,7 +327,7 @@ fn enumerative_encode(mut bits: u64) -> (u64, u8) {
 }
 
 /// Decodes enumerative `code` and returns number with given number of bit ones.
-fn enumerative_decode(mut code: u64, mut number_of_ones: u8) -> u64 {
+fn enumerative_decode(mut code: u64, mut number_of_ones: u8) -> u64 {   // use by iterators
 	let mut bits = if number_of_ones > 32 {
         number_of_ones = 64 - number_of_ones;   u64::MAX
     } else { 0 };
@@ -430,7 +443,10 @@ mod tests {
         for (index, expected_value) in bitmap.bit_iter().enumerate() {
             assert_eq!(ecbitmap.try_get_bit(index), Some(expected_value));
             assert_eq!(ecbitmap.try_rank(index), Some(expected_rank));
-            if expected_value { expected_rank += 1; }
+            if expected_value {
+                assert_eq!(ecbitmap.try_select(expected_rank), Some(index), "select({expected_rank}) should be {index}");
+                expected_rank += 1; 
+            }
         }
     }
 
@@ -445,6 +461,8 @@ mod tests {
         assert_eq!(ecbitmap.try_get_bit(77), Some(true), "wrong value for index 77");
         assert_eq!(ecbitmap.try_get_bit(127), Some(true), "wrong value for index 127");
         //assert_eq!(ecbitmap.get(128), None, "wrong value for index 128");
+        assert_eq!(ecbitmap.try_select(0), Some(64));
+        assert_eq!(ecbitmap.try_select(63), Some(127));
     }
 
     #[test]
