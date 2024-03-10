@@ -16,10 +16,8 @@ pub fn benchmark(conf: &super::Conf) {
     let ef = builder.finish();
     println!("  size: {:.2} bits/item   {} bits/lo entry", 8.0*ef.size_bytes() as f64/tester.number_of_ones as f64, ef.bits_per_lo());
 
-    let space_overhead = 100.0 * (8.0*ef.size_bytes() as f64 - conf.universe as f64) / conf.universe as f64;
-
-    tester.raport_rank("cseq Elias-Fano", space_overhead, |i| ef.rank(i));
-    tester.raport_select1("cseq Elias-Fano", space_overhead, |i| ef.select(i));
+    tester.raport_rank("cseq Elias-Fano", ef.size_bytes(), |i| ef.rank(i));
+    tester.raport_select1("cseq Elias-Fano", 0, |i| ef.select(i));
 
     /*let start_moment = Instant::now();
     for index in 0..data.len() {

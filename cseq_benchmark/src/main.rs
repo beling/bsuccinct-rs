@@ -135,13 +135,13 @@ fn check<R: Into<Option<usize>>>(structure_name: &str, operation_name: &str, arg
 
 impl<'c> Tester<'c> {
     /// Tests function answering `rank` queries. Reports its speed and potentially validates.
-    #[inline(always)] pub fn raport_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, rank: F)
+    #[inline(always)] pub fn raport_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, size_bytes: usize, rank: F)
     where F: Fn(usize) -> R
     {
-        print!("  rank:  space overhead {:.2}%", space_overhead);
+        print!("  rank:  space overhead {:.2}%", self.conf.space_overhead(size_bytes));
         let time = self.conf.queries_measure(&self.conf.rand_queries(self.conf.universe), &rank).as_nanos();
         println!("  time/query {:.2}ns", time);
-        self.conf.save_rank(method_name, space_overhead, time);
+        self.conf.save_rank(method_name, self.conf.space_overhead(size_bytes), time);
         self.verify_rank(method_name, rank);
     }
 
@@ -158,7 +158,7 @@ impl<'c> Tester<'c> {
     }
 
     /// Tests function answering `select` (one) queries. Reports its speed and potentially validates.
-    #[inline(always)] pub fn raport_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select: F)
+    #[inline(always)] pub fn raport_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, extra_size_bytes: usize, select: F)
     where F: Fn(usize) -> R
     {
         if self.number_of_ones == 0 {
@@ -166,7 +166,8 @@ impl<'c> Tester<'c> {
             return;
         }
         print!("  select1:");
-        if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
+        let space_overhead = self.conf.extra_space_overhead(extra_size_bytes);
+        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", space_overhead); }
         let time = self.conf.queries_measure(&self.conf.rand_queries(self.number_of_ones), &select).as_nanos();
         println!("  time/query {:.2}ns", time);
         self.conf.save_select1(method_name, space_overhead, time);
@@ -185,7 +186,7 @@ impl<'c> Tester<'c> {
     }
 
     /// Tests function answering `select0` queries. Reports its speed and potentially validates.
-    #[inline(always)] pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, space_overhead: f64, select0: F)
+    #[inline(always)] pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, extra_size_bytes: usize, select0: F)
     where F: Fn(usize) -> R
     {
         if self.conf.universe == self.number_of_ones {
@@ -193,7 +194,8 @@ impl<'c> Tester<'c> {
             return;
         }
         print!("  select0:");
-        if space_overhead != 0.0 { print!("  space overhead {:.2}%", space_overhead); }
+        let space_overhead = self.conf.extra_space_overhead(extra_size_bytes);
+        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", space_overhead); }
         let time = self.conf.queries_measure(
             &self.conf.rand_queries(self.conf.universe-self.number_of_ones),
             &select0).as_nanos();
@@ -235,6 +237,18 @@ impl Conf {
             Distribution::Uniform|Distribution::Adversarial => self.num,
             Distribution::LinearlyDensified => { self.data_foreach(|_, _, _| {}) }
         }
+    }
+
+    /// Returns space overhead [%] over raw bitmap introduced by given size (in bytes).
+    fn extra_space_overhead(&self, extra_size_bytes: usize) -> f64 {
+        let raw_space = (self.universe + 7) / 8;
+        (100 * extra_size_bytes) as f64 / raw_space as f64
+    }
+
+    /// Returns space overhead [%] over raw bitmap of structure of given size (in bytes).
+    fn space_overhead(&self, size_bytes: usize) -> f64 {
+        let raw_space = (self.universe + 7) / 8;
+        (100 * (size_bytes as isize - raw_space as isize)) as f64 / raw_space as f64
     }
 
     /// Iterates over universe and for each its point calls `f` with the following arguments (in order):
@@ -415,7 +429,7 @@ impl Conf {
 }
 
 fn percent_of(overhead: usize, whole: usize) -> f64 { (overhead*100) as f64 / whole as f64 }
-fn percent_of_diff(with_overhead: usize, whole: usize) -> f64 { percent_of(with_overhead-whole, whole) }
+//fn percent_of_diff(with_overhead: usize, whole: usize) -> f64 { percent_of(with_overhead-whole, whole) }
 
 fn main() {
     let conf: Conf = Conf::parse();
