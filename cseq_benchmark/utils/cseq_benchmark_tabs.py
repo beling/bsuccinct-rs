@@ -39,7 +39,8 @@ def gen_tab(filename, params={}, filter=None):
         return    
     if filename.startswith('select'): d["method"] = d["method"].apply(process_alg_name)
     d["percent of ones"] = (d["num"]*100/d["universe"]).round(0).astype(int)
-    d["space overhead [%]"] = d["space_overhead"].round(1)
+    d["raw_size"] = (d["universe"] + 7) // 8
+    d["space overhead [%]"] = ((d["size"] - d["raw_size"] if 'size' in d else d["extra_size"]) * 100 / d["raw_size"]).round(1)
     d["time / query [ns]"] = d["time_per_query"].round(0).astype(int)
     if filter is not None: d = d[filter(d)]
     #d["universe"] = d["universe"].apply(exp_str)
