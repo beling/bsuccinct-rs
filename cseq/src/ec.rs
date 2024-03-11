@@ -98,18 +98,18 @@ fn get7_rank(mut blocks: u64, index: &mut usize, rank: &mut usize, l3_begin: &mu
 /// Increases `universe_index`.
 /// Increases `l3_begin` by the sizes of the skipped L3 blocks.
 /// Returns [`None`] if `blocks` does not contain L3 block with given `rank`.
-fn select7(mut blocks: u64, universe_index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> Option<u8> {
+fn select7(mut blocks: u64, universe_block_index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> Option<u8> {
     for i in 0..9 {
         let number_of_ones = lo7(blocks);
         if *rank < number_of_ones as usize {
-            *universe_index += i * L2Block::BITS_PER_L3;
+            *universe_block_index += i;
             return Some(number_of_ones);
         }
         *rank -= number_of_ones as usize;
         blocks >>= 7;
         *l3_begin += CHOOSE64_BIT_LEN[number_of_ones as usize] as usize;
     }
-    *universe_index += 9 * L2Block::BITS_PER_L3;
+    *universe_block_index += 9;
     None
 }
 
@@ -163,14 +163,14 @@ impl L2Block {
     /// Gets number of ones in L3 block with given `rank` (relative to beginning of the block)
     /// and decreases `rank` not to exceed the number of ones in the mentioned L3 block.
     /// Increases `l3_begin` to show the first bit of encoded L3 block in the `content`.
-    fn select(&self, universe_index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> u8 {
-        if let Some(s) = select7(self.l3_ones[0], universe_index, rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(1), universe_index, rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(2), universe_index, rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(3), universe_index, rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(4), universe_index, rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(5), universe_index, rank, l3_begin) { return s; }
-        if let Some(s) = select7(self.numbers_of_ones(6), universe_index, rank, l3_begin) { return s; }
+    fn select(&self, universe_block_index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> u8 {
+        if let Some(s) = select7(self.l3_ones[0], universe_block_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(1), universe_block_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(2), universe_block_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(3), universe_block_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(4), universe_block_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(5), universe_block_index, rank, l3_begin) { return s; }
+        if let Some(s) = select7(self.numbers_of_ones(6), universe_block_index, rank, l3_begin) { return s; }
         (self.l3_ones[6] >> (64-7)) as u8
     }
 }
@@ -279,13 +279,13 @@ impl Select for BitMap {
         let l2_block = unsafe{self.l2.get_unchecked(l2_index)};
         rank -= l2_block.rank as usize;
         let mut l3_begin = unsafe{self.l1.get_unchecked(l1_index)}.begin_index + l2_block.begin_index as usize;
-        let mut universe_index = l2_index * L2Block::COVERED_UNIVERSE_BITS;
-        let number_of_ones = l2_block.select(&mut universe_index, &mut rank, &mut l3_begin);
+        let mut universe_block_index = l2_index * L2Block::COVERED_L3_BLOCKS;
+        let number_of_ones = l2_block.select(&mut universe_block_index, &mut rank, &mut l3_begin);
         //if number_of_ones == 0 { ??? } // l3 block contains only zeros
         if number_of_ones == 64 {
-            return Some(universe_index + rank as usize);
+            return Some(universe_block_index * L2Block::BITS_PER_L3 + rank as usize);
         } // l3 block contains only ones
-        Some(universe_index + select_in_enumerative_code(
+        Some(universe_block_index * L2Block::BITS_PER_L3 + select_in_enumerative_code(
             self.content.get_bits(l3_begin, CHOOSE64_BIT_LEN[number_of_ones as usize]),
             number_of_ones, rank as u8, true) as usize)
 
