@@ -163,6 +163,7 @@ impl L2Block {
     /// Gets number of ones in L3 block with given `rank` (relative to beginning of the block)
     /// and decreases `rank` not to exceed the number of ones in the mentioned L3 block.
     /// Increases `l3_begin` to show the first bit of encoded L3 block in the `content`.
+    /// Increases `universe_block_index` to show index of block in uncompressed bitmap.
     fn select(&self, universe_block_index: &mut usize, rank: &mut usize, l3_begin: &mut usize) -> u8 {
         if let Some(s) = select7(self.l3_ones[0], universe_block_index, rank, l3_begin) { return s; }
         if let Some(s) = select7(self.numbers_of_ones(1), universe_block_index, rank, l3_begin) { return s; }
