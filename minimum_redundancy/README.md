@@ -27,7 +27,7 @@ assert_eq!(huffman.codes_for_values(), hashmap!(
                 'b' => Code{ content: 0b00, len: 2 },
                 'c' => Code{ content: 0b01, len: 2 }
                ));
-// reverse codes encode the first levels of the tree on the least significant bits (e.g., c -> 01):
+// reverse codes encode the first levels of the tree on the least significant bits (e.g., c -> 10):
 assert_eq!(huffman.reversed_codes_for_values(), hashmap!(
                 'a' => Code{ content: 0b1, len: 1 },
                 'b' => Code{ content: 0b00, len: 2 },
