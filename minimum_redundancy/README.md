@@ -41,6 +41,6 @@ assert_eq!(decoder_for_b.consume(0), DecodingResult::Value(&'b'));
 let mut decoder_for_c = huffman.decoder();
 assert_eq!(decoder_for_c.consume(0), DecodingResult::Incomplete);
 assert_eq!(decoder_for_c.consume(1), DecodingResult::Value(&'c'));
-assert_eq!(huffman.total_fragments_count(), 5);
-assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']);
+assert_eq!(huffman.total_fragments_count(), 5); // 1+2+2
+assert_eq!(huffman.values.as_ref(), ['a', 'b', 'c']); // sorted by frequencies
 ```
