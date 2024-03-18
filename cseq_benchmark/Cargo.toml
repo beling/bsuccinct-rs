@@ -21,6 +21,6 @@ bitm = { version="0.4", path="../bitm", features=["aligned-vec"] }
 sucds = "0.8"
 succinct = "0.5"
 vers-vecs = { version="1.1", optional=true }
-sux="0.2"
+sux="0.3"
 mem_dbg = "0.1" # required by sux MemSize
 aligned-vec = "0.5"

@@ -28,7 +28,8 @@ Once Rust is installed, just execute the following to install `coding_benchmark`
 # Reproducing experiments from the papers
 
 ## Rust libraries and programs focused on succinct data structures
-(Piotr Beling *Rust libraries and programs focused on succinct data structures* submitted to SoftwareX)
+(Piotr Beling, *BSuccinct: Rust libraries and programs focused on succinct data structures*, SoftwareX, Volume 26, 2024, 101681, ISSN 2352-7110,
+<https://doi.org/10.1016/j.softx.2024.101681>)
 
 To see the results for all implementations, 100MB (100\*1024\*1024=104857600)
 text of randomly drawn (with a non-uniform distribution) 1 byte symbols
