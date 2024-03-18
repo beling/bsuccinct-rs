@@ -24,6 +24,12 @@ Included programs:
 
 Everything is dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT).
 
+# Bibliography
+When using `bsuccinct` for research purposes, please cite the following paper:
+
+* Piotr Beling, *BSuccinct: Rust libraries and programs focused on succinct data structures*, SoftwareX, Volume 26, 2024, 101681, ISSN 2352-7110,
+<https://doi.org/10.1016/j.softx.2024.101681>
+
 # Installation
 Programs can be compiled and installed from sources. To do this, a Rust compiler is needed.
 The easiest way to obtain the compiler along with other necessary tools (like `cargo`) is
