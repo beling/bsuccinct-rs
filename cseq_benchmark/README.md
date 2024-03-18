@@ -34,7 +34,8 @@ It should be omitted in case of compilation problems.
 # Reproducing experiments from the papers
 
 ## Rust libraries and programs focused on succinct data structures
-(Piotr Beling *Rust libraries and programs focused on succinct data structures* submitted to SoftwareX)
+(Piotr Beling, *BSuccinct: Rust libraries and programs focused on succinct data structures*, SoftwareX, Volume 26, 2024, 101681, ISSN 2352-7110,
+<https://doi.org/10.1016/j.softx.2024.101681>)
 
 Results for structures that support rank and select queries on bit vectors,
 included in libraries written in Rust (we used rustc 1.75.0 to compile), can be obtained by running:
