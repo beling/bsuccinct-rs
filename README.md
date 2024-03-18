@@ -26,8 +26,7 @@ Everything is dual-licensed under [Apache 2.0](LICENSE-APACHE) or [MIT](LICENSE-
 
 # Bibliography
 When using `bsuccinct` for research purposes, please cite the following paper:
-
-* Piotr Beling, *BSuccinct: Rust libraries and programs focused on succinct data structures*, SoftwareX, Volume 26, 2024, 101681, ISSN 2352-7110,
+- Piotr Beling, *BSuccinct: Rust libraries and programs focused on succinct data structures*, SoftwareX, Volume 26, 2024, 101681, ISSN 2352-7110,
 <https://doi.org/10.1016/j.softx.2024.101681>
 
 # Installation
