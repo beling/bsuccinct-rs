@@ -25,3 +25,6 @@ c.advance();
 assert_eq!(c.index(), 5);
 assert_eq!(c.value(), None);
 ```
+
+# Benchmarks
+The performance of some of the structures included in `cseq` can be tested with the [cseq_benchmark](https://crates.io/crates/cseq_benchmark) crate.
