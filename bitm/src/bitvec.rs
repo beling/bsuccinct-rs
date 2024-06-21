@@ -85,9 +85,9 @@ impl<'bv> BitIterator<'bv> {
     }
 
     /// Constructs iterator over given bit range of `bit_vec`.
-    #[inline] pub fn with_range(bit_vec: &'bv [u64], bit_index: Range<usize>) -> Self {
-        assert!(bit_index.end <= bit_vec.len()*64, "BitIterator bit range out of bounds.");
-        Self { bit_vec, bit_range: bit_index }
+    #[inline] pub fn with_range(bit_vec: &'bv [u64], bit_range: Range<usize>) -> Self {
+        assert!(bit_range.end <= bit_vec.len()*64, "BitIterator bit range out of bounds.");
+        Self { bit_vec, bit_range }
     }
 
     /// Returns the remaining range of bits to be yielded by `self`.
@@ -138,6 +138,9 @@ pub trait BitAccess {
 
     /// Gets bit with given index `bit_nr`, without bounds checking.
     unsafe fn get_bit_unchecked(&self, bit_nr: usize) -> bool;
+
+    /// Gets bit with given index `bit_nr`. Returns `None` if `bit_nr` is out of bounds.
+    fn try_get_bit(&self, bit_nr: usize) -> Option<bool>;
 
     /// Gets bit with given index `bit_nr` and increase `bit_nr` by 1. Panics if `bit_nr` is out of bounds.
     #[inline] fn get_successive_bit(&self, bit_nr: &mut usize) -> bool {
@@ -558,6 +561,10 @@ impl BitAccess for [u64] {
         self.get_unchecked(bit_nr / 64) & (1u64 << (bit_nr % 64) as u64) != 0
     }
 
+    #[inline(always)] fn try_get_bit(&self, bit_nr: usize) -> Option<bool> {
+        Some(self.get(bit_nr / 64)? & (1u64 << (bit_nr % 64) as u64) != 0)
+    }
+
     #[inline(always)] fn init_bit(&mut self, bit_nr: usize, value: bool) {
         self[bit_nr / 64] |= (value as u64) << (bit_nr % 64);
     }
@@ -848,11 +855,16 @@ mod tests {
         assert_eq!(b.count_bit_ones(), 128);
         assert_eq!(b.count_bit_zeros(), 0);
         assert!(b.get_bit(3));
+        assert_eq!(b.try_get_bit(3), Some(true));
         assert!(b.get_bit(73));
+        assert_eq!(b.try_get_bit(73), Some(true));
+        assert_eq!(b.try_get_bit(127), Some(true));
+        assert_eq!(b.try_get_bit(128), None);
         b.clear_bit(73);
         assert_eq!(b.count_bit_ones(), 127);
         assert_eq!(b.count_bit_zeros(), 1);
         assert!(!b.get_bit(73));
+        assert_eq!(b.try_get_bit(73), Some(false));
         assert!(b.get_bit(72));
         assert!(b.get_bit(74));
         b.set_bit(73);
