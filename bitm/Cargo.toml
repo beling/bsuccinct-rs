@@ -1,6 +1,6 @@
 [package]
 name = "bitm"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
