@@ -208,7 +208,8 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
         // then corresponding indices l1ranks and l2ranks are also not out of bound
         let mut r = (self.content.get(word_idx)? & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
         let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
-        r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        #[cfg(target_pointer_width = "64")] { r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; } // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        #[cfg(target_pointer_width = "32")] { r += (block_content & 0xFFFFFFFFu64) as usize; }
 
         r += (((block_content >> (11 * (!block & 3))) >> 32) & 0b1_11111_11111) as usize;
 
@@ -220,7 +221,8 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
         let block = index / 512;
         let word_idx = index / 64;   
         let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
-        let mut r = *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        #[cfg(target_pointer_width = "64")] let mut r = *self.l1ranks.get_unchecked(index >> 32) + (block_content & 0xFFFFFFFFu64) as usize; // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
+        #[cfg(target_pointer_width = "32")] let mut r = (block_content & 0xFFFFFFFFu64) as usize;
         r += (self.content.get_unchecked(word_idx) & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
 
         //r += (((block_content>>32) >> (33 - 11 * (block & 3))) & 0b1_11111_11111) as usize;
@@ -422,8 +424,8 @@ mod tests {
         assert_eq!(a.try_select(3), Some(65));
         assert_eq!(a.try_select(4), Some(66));
         assert_eq!(a.try_select(5), None);
-        assert_eq!(a.try_select(1+(1<<32)), None);
-        assert_eq!(a.try_select(1+(1<<33)), None);
+        #[cfg(target_pointer_width = "64")] assert_eq!(a.try_select(1+(1<<32)), None);
+        #[cfg(target_pointer_width = "64")] assert_eq!(a.try_select(1+(1<<33)), None);
         assert_eq!(a.rank(0), 0);
         assert_eq!(a.rank(1), 1);
         assert_eq!(a.rank(2), 1);
@@ -437,7 +439,7 @@ mod tests {
         assert_eq!(a.rank(70), 5);
         assert_eq!(a.try_rank(127), Some(5));
         assert_eq!(a.try_rank(128), None);
-        assert_eq!(a.try_rank(1+(1<<32)), None);
+        #[cfg(target_pointer_width = "64")] assert_eq!(a.try_rank(1+(1<<32)), None);
         check_all_ones(&a);
         check_all_zeros(&a);
     }
@@ -537,6 +539,7 @@ mod tests {
         test_content::<ArrayWithRankSimple>();
     }*/
 
+    #[cfg(target_pointer_width = "64")] 
     fn array_64bit<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
         const SEGMENTS: usize = (1<<32)/64 * 2;
         let a: ArrayWithRank = vec![0b01_01_01_01; SEGMENTS].into_boxed_slice().into();
@@ -558,18 +561,21 @@ mod tests {
         check_all_zeros(&a);
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_101111_binary() {
         array_64bit::<ArrayWithRank101111>();
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_101111_combined() {
         array_64bit::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
+    #[cfg(target_pointer_width = "64")] 
     fn array_64bit_filled<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select>() {
         const SEGMENTS: usize = (1<<32)/64 * 2;
         let a: ArrayWithRank = vec![u64::MAX; SEGMENTS].into_boxed_slice().into();
@@ -584,18 +590,21 @@ mod tests {
         //check_all_ones(a);
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_filled_101111() {
         array_64bit_filled::<ArrayWithRank101111>();
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_filled_101111_combined() {
         array_64bit_filled::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
+    #[cfg(target_pointer_width = "64")] 
     fn array_64bit_halffilled<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
         const SEGMENTS: usize = (1<<32)/64 * 2;
         let a: ArrayWithRank = vec![0x5555_5555_5555_5555; SEGMENTS].into_boxed_slice().into();
@@ -603,18 +612,21 @@ mod tests {
         check_all_zeros(&a);
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_halffilled_101111_binary() {
         array_64bit_halffilled::<ArrayWithRank101111>();
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_halffilled_101111_combined() {
         array_64bit_halffilled::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
     }
 
+    #[cfg(target_pointer_width = "64")] 
     fn array_64bit_zeroed_first<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select>() {
         const SEGMENTS: usize = (1<<32)/64 + 1;
         let mut content = vec![0; SEGMENTS].into_boxed_slice();
@@ -630,12 +642,14 @@ mod tests {
         assert_eq!(a.try_select(2), None);
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111() {
         array_64bit_zeroed_first::<ArrayWithRank101111>();
     }
 
+    #[cfg(target_pointer_width = "64")] 
     #[test]
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111_combined() {

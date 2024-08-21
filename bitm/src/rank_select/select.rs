@@ -7,9 +7,9 @@ use dyn_size_of::GetSize;
 
 use crate::ceiling_div;
 
-use super::utils::partition_point_with_index;
+#[cfg(target_pointer_width = "64")] use super::utils::partition_point_with_index;
 
-pub const BITS_PER_L1_ENTRY: usize = 1<<32;
+#[cfg(target_pointer_width = "64")] pub const BITS_PER_L1_ENTRY: usize = 1<<32;
 pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);    // each l1 chunk has 1<<32 bits = (1<<32)/64 content (u64) elements
 pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
 pub const BITS_PER_L2_ENTRY: usize = U64_PER_L2_ENTRY*64;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
@@ -146,6 +146,7 @@ impl GetSize for BinaryRankSearch {}
 
 /// Find index of L1 chunk that contains `rank`-th one (or zero if `ONE` is `false`)
 /// and decrease `rank` by number of ones (or zeros) in previous chunks.
+#[cfg(target_pointer_width = "64")]
 #[inline] fn select_l1<const ONE: bool>(l1ranks: &[usize], rank: &mut usize) -> usize {
     if ONE {    // select 1:
         let i = l1ranks.partition_point(|v| v <= rank) - 1;
@@ -212,8 +213,11 @@ impl GetSize for BinaryRankSearch {}
 #[inline(always)] fn consider_l2entry<const ONE: bool>(l2_index: usize, mut l2_entry: u64, rank: &mut usize) -> usize {
     if !ONE {
         const HI: u64 = ((3*BITS_PER_L2_RECORDS) << 32) | ((2*BITS_PER_L2_RECORDS) << (32+11)) | (BITS_PER_L2_RECORDS << (32+22));
+        #[cfg(target_pointer_width = "64")] {
         l2_entry = (((l2_index as u64 % L2_ENTRIES_PER_L1_ENTRY as u64) * BITS_PER_L2_ENTRY as u64) | HI)
                    .wrapping_sub(l2_entry);
+        }
+        #[cfg(target_pointer_width = "32")] { l2_entry = HI; }
     }
     *rank -= (l2_entry & 0xFFFFFFFF) as usize;
     let to_subtract = ((l2_entry>>(32+11)) & 0b1_11111_11111) as usize;
@@ -337,8 +341,9 @@ impl GetSize for BinaryRankSearch {}
 }
 
 impl BinaryRankSearch {
+    #[cfg(target_pointer_width = "64")]
     #[inline(always)] fn select_l2index<const ONE: bool>(l1ranks: &[usize], l2ranks: &[u64], rank: &mut usize) -> usize {
-        let l2_begin = select_l1::<ONE>(l1ranks, rank) * L2_ENTRIES_PER_L1_ENTRY;
+        #[cfg(target_pointer_width = "64")] let l2_begin = select_l1::<ONE>(l1ranks, rank) * L2_ENTRIES_PER_L1_ENTRY;
         let rank = *rank;
         l2_begin + if ONE {
             //partition_index(l2_begin, l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY),
@@ -348,6 +353,19 @@ impl BinaryRankSearch {
         } else {
             super::utils::partition_point_with_index(
                 &l2ranks[l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY)],
+                |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1
+        }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    #[inline(always)] fn select_l2index<const ONE: bool>(l1ranks: &[usize], l2ranks: &[u64], rank: &mut usize) -> usize {
+        let rank = *rank;
+        if ONE {
+            l2ranks
+                .partition_point(|v| (v&0xFFFFFFFF) as usize <= rank) - 1
+        } else {
+            super::utils::partition_point_with_index(
+                &l2ranks,
                 |v, i| i * BITS_PER_L2_ENTRY - (v&0xFFFFFFFF) as usize <= rank) - 1
         }
     }
@@ -506,14 +524,17 @@ pub struct CombinedSampling<D: CombinedSamplingDensity = /*ConstCombinedSampling
     /// starting from the first one.
     select: Box<[u32]>,
     /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
-    select_begin: Box<[usize]>,
+    #[cfg(target_pointer_width = "64")] select_begin: Box<[usize]>,
     /// Sampling density (ZST for const density).
     density: D::SamplingDensity,
 }
 
 impl<D: CombinedSamplingDensity> GetSize for CombinedSampling<D> where D::SamplingDensity: GetSize {
-    fn size_bytes_dyn(&self) -> usize {
+    #[cfg(target_pointer_width = "64")] fn size_bytes_dyn(&self) -> usize {
         self.select.size_bytes_dyn() + self.select_begin.size_bytes_dyn() + self.density.size_bytes_dyn()
+    }
+    #[cfg(target_pointer_width = "32")] fn size_bytes_dyn(&self) -> usize {
+        self.select.size_bytes_dyn() + self.density.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
@@ -525,11 +546,11 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             if ONE { total_rank } else { content.len()*64-total_rank },
             content.len()*64
         );
-        if content.is_empty() { return Self{ select: Default::default(), select_begin: Default::default(), density } }
-        let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
+        if content.is_empty() { return Self{ select: Default::default(), #[cfg(target_pointer_width = "64")] select_begin: Default::default(), density } }
+        #[cfg(target_pointer_width = "64")] let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
         let mut ones_positions_len = 0;
-        ones_positions_begin.push(0);
-        for ones in l1ranks.windows(2) {
+        #[cfg(target_pointer_width = "64")] ones_positions_begin.push(0);
+        #[cfg(target_pointer_width = "64")] for ones in l1ranks.windows(2) {
             let chunk_len = ceiling_div(
                     if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
                     D::items_per_sample(density) as usize
@@ -570,18 +591,25 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             }
         }
         debug_assert_eq!(ones_positions.len(), ones_positions_len);
-        Self { select: ones_positions.into_boxed_slice(), select_begin: ones_positions_begin.into_boxed_slice(), density }
+        Self { select: ones_positions.into_boxed_slice(), #[cfg(target_pointer_width = "64")] select_begin: ones_positions_begin.into_boxed_slice(), density }
     }
 
     #[inline(always)]
     fn select<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         if l1ranks.is_empty() { return None; }
-        let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
-        let mut l2_index = l2_begin + self.decode_shift(
+
+        #[cfg(target_pointer_width = "64")] let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
+        #[cfg(target_pointer_width = "64")] let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
+        #[cfg(target_pointer_width = "64")] let mut l2_index = l2_begin + self.decode_shift(
             *self.select.get(unsafe{self.select_begin.get_unchecked(l1_index)} + D::divide(rank, self.density))?,
             rank) as usize;
-        let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
+        #[cfg(target_pointer_width = "64")] let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
+
+        #[cfg(target_pointer_width = "32")] let l2_begin = 0;
+        #[cfg(target_pointer_width = "32")] let mut l2_index = self.decode_shift(
+            *self.select.get(D::divide(rank, self.density))?, rank) as usize;
+        #[cfg(target_pointer_width = "32")] let l2_chunk_end = l2ranks.len();
+
         while l2_index+1 < l2_chunk_end &&
              if ONE {(unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize}
              else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (unsafe{l2ranks.get_unchecked(l2_index+1)} & 0xFF_FF_FF_FF) as usize} <= rank
@@ -598,8 +626,8 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
 
     #[inline(always)]
     unsafe fn select_unchecked<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
-        let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
-        let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
+        #[cfg(target_pointer_width = "64")] let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
+        #[cfg(target_pointer_width = "64")] let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
 
         /*let l2chunk = l2ranks.get_unchecked(l2_begin..l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY));
         let mut l2_index = *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide_by_density(rank as usize, self.density)) as usize;
@@ -612,10 +640,16 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
         unsafe { select_from_l2_unchecked::<ONE>(content, l2ranks, l2_begin+l2_index, rank) }*/
 
         //let mut l2_index = l2_begin + self.get_select_unchecked(l1_index, rank) as usize;
-        let mut l2_index = l2_begin + self.decode_shift(
+        #[cfg(target_pointer_width = "64")] let mut l2_index = l2_begin + self.decode_shift(
             *self.select.get_unchecked(self.select_begin.get_unchecked(l1_index) + D::divide(rank, self.density)),
             rank) as usize;
-        let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
+        #[cfg(target_pointer_width = "64")] let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
+
+        #[cfg(target_pointer_width = "32")] let l2_begin = 0;
+        #[cfg(target_pointer_width = "32")] let mut l2_index = self.decode_shift(
+            *self.select.get_unchecked(D::divide(rank, self.density)), rank) as usize;
+        #[cfg(target_pointer_width = "32")] let l2_chunk_end = l2ranks.len();
+
         while l2_index+1 < l2_chunk_end &&
              if ONE {(l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
              else {(l2_index+1-l2_begin) /*% L2_ENTRIES_PER_L1_ENTRY*/ * BITS_PER_L2_ENTRY - (l2ranks.get_unchecked(l2_index+1) & 0xFF_FF_FF_FF) as usize}
@@ -684,7 +718,7 @@ mod tests {
         assert_eq!(optimal_combined_sampling(9, 319, 14), 9);
         assert_eq!(optimal_combined_sampling(1, 10, 14), 11);
         assert_eq!(optimal_combined_sampling(1, 100000000, 14), 7);
-        assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 7);
+        #[cfg(target_pointer_width = "64")] assert_eq!(optimal_combined_sampling(1, 1000000000000000000, 14), 7);
     }
 
     #[test]
