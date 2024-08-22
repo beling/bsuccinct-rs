@@ -97,7 +97,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     pub fn from_sorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
         where W: Weight
     {
-        assert!(freq.len() <= (1<<32), "minimum_redundancy::Coding does not support more than 2 to the power of 32 different values");
+        #[cfg(target_pointer_width = "64")] assert!(freq.len() <= (1<<32), "minimum_redundancy::Coding does not support more than 2 to the power of 32 different values");
         let len = freq.len();
         let tree_degree = degree.as_u32();
         if len <= tree_degree as usize { // is one-level tree enough?
