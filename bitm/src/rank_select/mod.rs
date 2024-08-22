@@ -155,7 +155,7 @@ pub trait Rank {
 #[derive(Clone)]
 pub struct RankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch, BV = Box::<[u64]>> {
     pub content: BV,  // bit vector
-    pub l1ranks: Box<[usize]>,  // Each cell holds one rank using 64 bits
+    #[cfg(target_pointer_width = "64")] pub l1ranks: Box<[usize]>,  // Each cell holds one rank using 64 bits
     pub l2ranks: Box<[u64]>,  // Each cell holds 4 ranks using [bits]: 32 (absolute), and, in reverse order (deltas): 10, 11, 11.
     select: Select,  // support for select (one)
     select0: Select0,  // support for select (zero)
@@ -170,8 +170,13 @@ impl<S, S0, BV> RankSelect101111<S, S0, BV> {
 }
 
 impl<S: GetSize, S0: GetSize, BV: GetSize> GetSize for RankSelect101111<S, S0, BV> {
+    #[cfg(target_pointer_width = "64")]
     fn size_bytes_dyn(&self) -> usize {
         self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.l1ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
+    }
+    #[cfg(target_pointer_width = "32")]
+    fn size_bytes_dyn(&self) -> usize {
+        self.content.size_bytes_dyn() + self.l2ranks.size_bytes_dyn() + self.select.size_bytes_dyn() + self.select0.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
@@ -182,21 +187,21 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 
 impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Select for RankSelect101111<S, S0, BV> {
     #[inline] fn try_select(&self, rank: usize) -> Option<usize> {
-        self.select.select(&self.content, &self.l1ranks, &self.l2ranks, rank)
+        self.select.select(&self.content, #[cfg(target_pointer_width = "64")] &self.l1ranks, &self.l2ranks, rank)
     }
 
     #[inline] unsafe fn select_unchecked(&self, rank: usize) -> usize {
-        self.select.select_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
+        self.select.select_unchecked(&self.content, #[cfg(target_pointer_width = "64")] &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
 impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Select0 for RankSelect101111<S, S0, BV> {
     #[inline] fn try_select0(&self, rank: usize) -> Option<usize> {
-        self.select0.select0(&self.content, &self.l1ranks, &self.l2ranks, rank)
+        self.select0.select0(&self.content, #[cfg(target_pointer_width = "64")] &self.l1ranks, &self.l2ranks, rank)
     }
 
     #[inline] unsafe fn select0_unchecked(&self, rank: usize) -> usize {
-        self.select0.select0_unchecked(&self.content, &self.l1ranks, &self.l2ranks, rank)
+        self.select0.select0_unchecked(&self.content, #[cfg(target_pointer_width = "64")] &self.l1ranks, &self.l2ranks, rank)
     }
 }
 
@@ -240,11 +245,11 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 
 impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> RankSelect101111<S, S0, BV> {
     pub fn build(content: BV) -> (Self, usize) {
-        let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
+        #[cfg(target_pointer_width = "64")] let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L2_ENTRY));
         let mut current_total_rank: usize = 0;
         for content in content.chunks(U64_PER_L1_ENTRY) {  // each l1 chunk has 1<<32 bits = (1<<32)/64 content elements
-            l1ranks.push(current_total_rank);
+            #[cfg(target_pointer_width = "64")] l1ranks.push(current_total_rank);
             let mut current_rank: u64 = 0;
             for chunk in content.chunks(U64_PER_L2_ENTRY) {   // each chunk has 32*64 = 2048 bits
                 let mut to_append = current_rank;
@@ -271,11 +276,11 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
             }
             current_total_rank += current_rank as usize;
         }
-        let l1ranks = l1ranks.into_boxed_slice();
+        #[cfg(target_pointer_width = "64")] let l1ranks = l1ranks.into_boxed_slice();
         let l2ranks = l2ranks.into_boxed_slice();
-        let select = S::new(&content, &l1ranks, &l2ranks, current_total_rank);
-        let select0 = S0::new0(&content, &l1ranks, &l2ranks, current_total_rank);
-        (Self{content, l1ranks, l2ranks, select, select0}, current_total_rank)
+        let select = S::new(&content, #[cfg(target_pointer_width = "64")] &l1ranks, &l2ranks, current_total_rank);
+        let select0 = S0::new0(&content, #[cfg(target_pointer_width = "64")] &l1ranks, &l2ranks, current_total_rank);
+        (Self{content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, select, select0}, current_total_rank)
     }
 }
 

@@ -15,7 +15,7 @@ pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) 
 pub const BITS_PER_L2_ENTRY: usize = U64_PER_L2_ENTRY*64;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
 pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64=512 bits records
 pub const BITS_PER_L2_RECORDS: u64 = U64_PER_L2_RECORDS as u64 * 64; // each l2 entry is splitted to 4, 8*64=512 bits records
-pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
+#[cfg(target_pointer_width = "64")] pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 
 /// Trait implemented by the types that support select (one) queries,
 /// i.e. can (quickly) find the position of the n-th one in the bitmap.
@@ -55,23 +55,23 @@ pub trait Select0 {
 
 /// Trait implemented by strategies for select (ones) operations for `ArrayWithRank101111`.
 pub trait SelectForRank101111 {
-    fn new(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
+    fn new(content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
 
-    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
+    fn select(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
 
-    #[inline(always)] unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
-        self.select(content, l1ranks, l2ranks, rank).unwrap_unchecked()
+    #[inline(always)] unsafe fn select_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        self.select(content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank).unwrap_unchecked()
     }
 }
 
 /// Trait implemented by strategies for select zeros operations for `ArrayWithRank101111`.
 pub trait Select0ForRank101111 {
-    fn new0(content: &[u64], l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
+    fn new0(content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
 
-    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
+    fn select0(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
 
-    #[inline(always)] unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
-        self.select0(content, l1ranks, l2ranks, rank).unwrap_unchecked()
+    #[inline(always)] unsafe fn select0_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        self.select0(content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank).unwrap_unchecked()
     }
 }
 
@@ -210,7 +210,7 @@ impl GetSize for BinaryRankSearch {}
     }
 }*/
 
-#[inline(always)] fn consider_l2entry<const ONE: bool>(l2_index: usize, mut l2_entry: u64, rank: &mut usize) -> usize {
+#[inline(always)] fn consider_l2entry<const ONE: bool>(#[cfg(target_pointer_width = "64")] l2_index: usize, mut l2_entry: u64, rank: &mut usize) -> usize {
     if !ONE {
         const HI: u64 = ((3*BITS_PER_L2_RECORDS) << 32) | ((2*BITS_PER_L2_RECORDS) << (32+11)) | (BITS_PER_L2_RECORDS << (32+22));
         #[cfg(target_pointer_width = "64")] {
@@ -242,7 +242,7 @@ impl GetSize for BinaryRankSearch {}
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
 #[inline(always)] unsafe fn select_from_l2_unchecked<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> usize {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
-    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
+    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(#[cfg(target_pointer_width = "64")] l2_index, l2_entry, &mut rank);
     
     let v = unsafe{content.get_unchecked(c)};   // 0
     let ones = if ONE { v.count_ones() } else { v.count_zeros() } as usize;
@@ -286,7 +286,7 @@ impl GetSize for BinaryRankSearch {}
 /// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
 #[inline(always)] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
-    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
+    let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(#[cfg(target_pointer_width = "64")] l2_index, l2_entry, &mut rank);
     /*#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "sse"))] { unsafe {
          arch::_mm_prefetch(content.as_ptr().wrapping_add(c) as *const i8, arch::_MM_HINT_NTA);
     } }*/
@@ -358,7 +358,7 @@ impl BinaryRankSearch {
     }
 
     #[cfg(target_pointer_width = "32")]
-    #[inline(always)] fn select_l2index<const ONE: bool>(l1ranks: &[usize], l2ranks: &[u64], rank: &mut usize) -> usize {
+    #[inline(always)] fn select_l2index<const ONE: bool>(l2ranks: &[u64], rank: &mut usize) -> usize {
         let rank = *rank;
         if ONE {
             l2ranks
@@ -372,11 +372,11 @@ impl BinaryRankSearch {
 }
 
 impl SelectForRank101111 for BinaryRankSearch {
-    #[inline] fn new(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
+    #[inline] fn new(_content: &[u64], #[cfg(target_pointer_width = "64")] _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
-        if l1ranks.is_empty() { return None; }
-        let l2_index = BinaryRankSearch::select_l2index::<true>(l1ranks, l2ranks, &mut rank);
+    fn select(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; } // TODO do we need this in 32 bits?
+        let l2_index = BinaryRankSearch::select_l2index::<true>(#[cfg(target_pointer_width = "64")] l1ranks, l2ranks, &mut rank);
         unsafe {
             if l2_index + 1 == l2ranks.len() {  // unlikely
                 return select_from_l2::<true>(content, l2ranks, l2_index, rank); // this can be used for any l2_index, but is slower than unchecked ver.
@@ -385,18 +385,18 @@ impl SelectForRank101111 for BinaryRankSearch {
         }
     }
 
-    unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
-        let l2_index = BinaryRankSearch::select_l2index::<true>(l1ranks, l2ranks, &mut rank);
+    unsafe fn select_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l2_index = BinaryRankSearch::select_l2index::<true>(#[cfg(target_pointer_width = "64")] l1ranks, l2ranks, &mut rank);
         select_from_l2_unchecked::<true>(content, l2ranks, l2_index, rank)
     }
 }
 
 impl Select0ForRank101111 for BinaryRankSearch {
-    #[inline] fn new0(_content: &[u64], _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
+    #[inline] fn new0(_content: &[u64], #[cfg(target_pointer_width = "64")] _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
-    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
-        if l1ranks.is_empty() { return None; }
-        let l2_index = BinaryRankSearch::select_l2index::<false>(l1ranks, l2ranks, &mut rank);
+    fn select0(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; } // TODO do we need this in 32 bits?
+        let l2_index = BinaryRankSearch::select_l2index::<false>(#[cfg(target_pointer_width = "64")] l1ranks, l2ranks, &mut rank);
         unsafe {
             if l2_index + 1 == l2ranks.len() {  // unlikely
                 return select_from_l2::<false>(content, l2ranks, l2_index, rank); // this can be used for any l2_index, but is slower than unchecked ver.
@@ -405,8 +405,8 @@ impl Select0ForRank101111 for BinaryRankSearch {
         }
     }
 
-    unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
-        let l2_index = BinaryRankSearch::select_l2index::<false>(l1ranks, l2ranks, &mut rank);
+    unsafe fn select0_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+        let l2_index = BinaryRankSearch::select_l2index::<false>(#[cfg(target_pointer_width = "64")] l1ranks, l2ranks, &mut rank);
         select_from_l2_unchecked::<false>(content, l2ranks, l2_index, rank)
     }
 }
@@ -541,26 +541,33 @@ impl<D: CombinedSamplingDensity> GetSize for CombinedSampling<D> where D::Sampli
 
 impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     #[inline]
-    fn new<const ONE: bool>(content: &[u64], l1ranks: &[usize], total_rank: usize) -> Self {
+    fn new<const ONE: bool>(content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], total_rank: usize) -> Self {
         let density = D::density_for(
             if ONE { total_rank } else { content.len()*64-total_rank },
             content.len()*64
         );
         if content.is_empty() { return Self{ select: Default::default(), #[cfg(target_pointer_width = "64")] select_begin: Default::default(), density } }
         #[cfg(target_pointer_width = "64")] let mut ones_positions_begin = Vec::with_capacity(l1ranks.len());
-        let mut ones_positions_len = 0;
-        #[cfg(target_pointer_width = "64")] ones_positions_begin.push(0);
-        #[cfg(target_pointer_width = "64")] for ones in l1ranks.windows(2) {
-            let chunk_len = ceiling_div(
-                    if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
-                    D::items_per_sample(density) as usize
-                );
-            ones_positions_len += chunk_len;
-            ones_positions_begin.push(ones_positions_len);
+        #[cfg(target_pointer_width = "64")] let mut ones_positions_len = 0;
+        #[cfg(target_pointer_width = "64")] {
+            ones_positions_begin.push(0);
+            for ones in l1ranks.windows(2) {
+                let chunk_len = ceiling_div(
+                        if ONE {ones[1] - ones[0]} else {BITS_PER_L1_ENTRY-(ones[1] - ones[0])},
+                        D::items_per_sample(density) as usize
+                    );
+                ones_positions_len += chunk_len;
+                ones_positions_begin.push(ones_positions_len);
+            }
+            ones_positions_len += ceiling_div(
+                if ONE { total_rank - l1ranks.last().unwrap() }
+                    else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - (total_rank - l1ranks.last().unwrap()) },
+                D::items_per_sample(density) as usize
+            );
         }
-        ones_positions_len += ceiling_div(
-            if ONE {(total_rank - l1ranks.last().unwrap()) as usize }
-                else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - (total_rank - l1ranks.last().unwrap()) as usize },
+        #[cfg(target_pointer_width = "32")] let ones_positions_len = ceiling_div(
+            if ONE { total_rank }
+                else { ((content.len()-1)%U64_PER_L1_ENTRY+1)*64 - total_rank },
             D::items_per_sample(density) as usize
         );
         let mut ones_positions = Vec::with_capacity(ones_positions_len);
@@ -595,9 +602,8 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     }
 
     #[inline(always)]
-    fn select<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
-        if l1ranks.is_empty() { return None; }
-
+    fn select<const ONE: bool>(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
+        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; } // TODO do we need this in 32 bits?
         #[cfg(target_pointer_width = "64")] let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         #[cfg(target_pointer_width = "64")] let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         #[cfg(target_pointer_width = "64")] let mut l2_index = l2_begin + self.decode_shift(
@@ -625,7 +631,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     }
 
     #[inline(always)]
-    unsafe fn select_unchecked<const ONE: bool>(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
+    unsafe fn select_unchecked<const ONE: bool>(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
         #[cfg(target_pointer_width = "64")] let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         #[cfg(target_pointer_width = "64")] let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
 
@@ -667,30 +673,30 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
 }
 
 impl<D: CombinedSamplingDensity> SelectForRank101111 for CombinedSampling<D> {
-    fn new(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
-        Self::new::<true>(content, l1ranks, total_rank)
+    fn new(content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
+        Self::new::<true>(content, #[cfg(target_pointer_width = "64")] l1ranks, total_rank)
     }
 
-    fn select(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
-        Self::select::<true>(&self, content, l1ranks, l2ranks, rank)
+    fn select(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
+        Self::select::<true>(&self, content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank)
     }
 
-    unsafe fn select_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
-        Self::select_unchecked::<true>(&self, content, l1ranks, l2ranks, rank)
+    unsafe fn select_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        Self::select_unchecked::<true>(&self, content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank)
     }
 }
 
 impl<D: CombinedSamplingDensity> Select0ForRank101111 for CombinedSampling<D> {
-    fn new0(content: &[u64], l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
-        Self::new::<false>(content, l1ranks, total_rank)
+    fn new0(content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], _l2ranks: &[u64], total_rank: usize) -> Self {
+        Self::new::<false>(content, #[cfg(target_pointer_width = "64")] l1ranks, total_rank)
     }
 
-    fn select0(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
-        Self::select::<false>(&self, content, l1ranks, l2ranks, rank)
+    fn select0(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize> {
+        Self::select::<false>(&self, content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank)
     }
 
-    unsafe fn select0_unchecked(&self, content: &[u64], l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
-        Self::select_unchecked::<false>(&self, content, l1ranks, l2ranks, rank)
+    unsafe fn select0_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
+        Self::select_unchecked::<false>(&self, content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank)
     }
 }
 
