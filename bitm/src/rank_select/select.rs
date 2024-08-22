@@ -375,7 +375,8 @@ impl SelectForRank101111 for BinaryRankSearch {
     #[inline] fn new(_content: &[u64], #[cfg(target_pointer_width = "64")] _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
     fn select(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
-        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; } // TODO do we need this in 32 bits?
+        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; }
+        #[cfg(target_pointer_width = "32")] if l2ranks.is_empty() { return None; }
         let l2_index = BinaryRankSearch::select_l2index::<true>(#[cfg(target_pointer_width = "64")] l1ranks, l2ranks, &mut rank);
         unsafe {
             if l2_index + 1 == l2ranks.len() {  // unlikely
@@ -395,7 +396,8 @@ impl Select0ForRank101111 for BinaryRankSearch {
     #[inline] fn new0(_content: &[u64], #[cfg(target_pointer_width = "64")] _l1ranks: &[usize], _l2ranks: &[u64], _total_rank: usize) -> Self { Self }
 
     fn select0(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
-        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; } // TODO do we need this in 32 bits?
+        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; }
+        #[cfg(target_pointer_width = "32")] if l2ranks.is_empty() { return None; }
         let l2_index = BinaryRankSearch::select_l2index::<false>(#[cfg(target_pointer_width = "64")] l1ranks, l2ranks, &mut rank);
         unsafe {
             if l2_index + 1 == l2ranks.len() {  // unlikely
@@ -603,7 +605,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
 
     #[inline(always)]
     fn select<const ONE: bool>(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
-        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; } // TODO do we need this in 32 bits?
+        #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; }
         #[cfg(target_pointer_width = "64")] let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         #[cfg(target_pointer_width = "64")] let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
         #[cfg(target_pointer_width = "64")] let mut l2_index = l2_begin + self.decode_shift(
@@ -611,6 +613,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
             rank) as usize;
         #[cfg(target_pointer_width = "64")] let l2_chunk_end = l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY);
 
+        #[cfg(target_pointer_width = "32")] if l2ranks.is_empty() { return None; }
         #[cfg(target_pointer_width = "32")] let l2_begin = 0;
         #[cfg(target_pointer_width = "32")] let mut l2_index = self.decode_shift(
             *self.select.get(D::divide(rank, self.density))?, rank) as usize;
