@@ -343,7 +343,7 @@ impl GetSize for BinaryRankSearch {}
 impl BinaryRankSearch {
     #[cfg(target_pointer_width = "64")]
     #[inline(always)] fn select_l2index<const ONE: bool>(l1ranks: &[usize], l2ranks: &[u64], rank: &mut usize) -> usize {
-        #[cfg(target_pointer_width = "64")] let l2_begin = select_l1::<ONE>(l1ranks, rank) * L2_ENTRIES_PER_L1_ENTRY;
+        let l2_begin = select_l1::<ONE>(l1ranks, rank) * L2_ENTRIES_PER_L1_ENTRY;
         let rank = *rank;
         l2_begin + if ONE {
             //partition_index(l2_begin, l2ranks.len().min(l2_begin+L2_ENTRIES_PER_L1_ENTRY),
