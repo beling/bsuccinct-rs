@@ -466,6 +466,7 @@ mod tests {
 
     fn test_big_array_with_rank<ArrayWithRank: From<Box<[u64]>> + AsRef<[u64]> + Rank + Select + Select0>() {
         let a: ArrayWithRank = vec![0b1101; 60].into_boxed_slice().into();
+        assert_eq!(a.try_select0(488), Some(513));
         assert_eq!(a.try_select(0), Some(0));
         assert_eq!(a.try_select(1), Some(2));
         assert_eq!(a.try_select(2), Some(3));
