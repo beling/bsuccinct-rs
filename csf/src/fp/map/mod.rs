@@ -63,7 +63,7 @@ impl<S: BuildSeededHasher> Map<S> {
         self.get_stats(k, &mut ())
     }
 
-    /// Build BBMap for given keys -> values map, where:
+    /// Build `Map` for given keys -> values map, where:
     /// - keys are given directly,
     /// - TODO values are given as bit vector with bit_per_value.
     /// These arrays must be of the same length.
@@ -237,30 +237,30 @@ mod tests {
     use bitm::ceiling_div;
     use maplit::hashmap;
 
-    fn test_read_write(bbmap: &Map) {
+    fn test_read_write(fpmap: &Map) {
         let mut buff = Vec::new();
-        bbmap.write(&mut buff).unwrap();
-        assert_eq!(buff.len(), bbmap.write_bytes());
+        fpmap.write(&mut buff).unwrap();
+        assert_eq!(buff.len(), fpmap.write_bytes());
         let read = Map::read(&mut &buff[..]).unwrap();
-        assert_eq!(bbmap.level_sizes, read.level_sizes);
+        assert_eq!(fpmap.level_sizes, read.level_sizes);
     }
 
-    fn test_bbmap_invariants(bbmap: &Map) {
-        assert_eq!(bbmap.level_sizes.iter().map(|v| *v as usize).sum::<usize>(), bbmap.array.content.len());
+    fn test_fpmap_invariants(fpmap: &Map) {
+        assert_eq!(fpmap.level_sizes.iter().map(|v| *v as usize).sum::<usize>(), fpmap.array.content.len());
         assert_eq!(
-            ceiling_div(bbmap.array.content.iter().map(|v|v.count_ones()).sum::<u32>() as usize * bbmap.bits_per_value as usize, 64),
-            bbmap.values.len()
+            ceiling_div(fpmap.array.content.iter().map(|v|v.count_ones()).sum::<u32>() as usize * fpmap.bits_per_value as usize, 64),
+            fpmap.values.len()
         );
     }
 
     fn test_4pairs(conf: MapConf) {
-        let bbmap = Map::with_map_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
-        assert_eq!(bbmap.get(&'a'), Some(1));
-        assert_eq!(bbmap.get(&'b'), Some(2));
-        assert_eq!(bbmap.get(&'c'), Some(1));
-        assert_eq!(bbmap.get(&'d'), Some(3));
-        test_bbmap_invariants(&bbmap);
-        test_read_write(&bbmap);
+        let fpmap = Map::with_map_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
+        assert_eq!(fpmap.get(&'a'), Some(1));
+        assert_eq!(fpmap.get(&'b'), Some(2));
+        assert_eq!(fpmap.get(&'c'), Some(1));
+        assert_eq!(fpmap.get(&'d'), Some(3));
+        test_fpmap_invariants(&fpmap);
+        test_read_write(&fpmap);
     }
 
     #[test]
@@ -269,19 +269,19 @@ mod tests {
     }
 
     fn test_8pairs<LSC: SimpleLevelSizeChooser>(conf: MapConf<LSC>) {
-        let bbmap = Map::with_map_conf(&hashmap!(
+        let fpmap = Map::with_map_conf(&hashmap!(
             'a' => 1, 'b' => 2, 'c' => 1, 'd' => 3,
             'e' => 4, 'f' => 1, 'g' => 5, 'h' => 6), conf, &mut ());
-        assert_eq!(bbmap.get(&'a'), Some(1));
-        assert_eq!(bbmap.get(&'b'), Some(2));
-        assert_eq!(bbmap.get(&'c'), Some(1));
-        assert_eq!(bbmap.get(&'d'), Some(3));
-        assert_eq!(bbmap.get(&'e'), Some(4));
-        assert_eq!(bbmap.get(&'f'), Some(1));
-        assert_eq!(bbmap.get(&'g'), Some(5));
-        assert_eq!(bbmap.get(&'h'), Some(6));
-        test_bbmap_invariants(&bbmap);
-        test_read_write(&bbmap);
+        assert_eq!(fpmap.get(&'a'), Some(1));
+        assert_eq!(fpmap.get(&'b'), Some(2));
+        assert_eq!(fpmap.get(&'c'), Some(1));
+        assert_eq!(fpmap.get(&'d'), Some(3));
+        assert_eq!(fpmap.get(&'e'), Some(4));
+        assert_eq!(fpmap.get(&'f'), Some(1));
+        assert_eq!(fpmap.get(&'g'), Some(5));
+        assert_eq!(fpmap.get(&'h'), Some(6));
+        test_fpmap_invariants(&fpmap);
+        test_read_write(&fpmap);
     }
 
     #[test]

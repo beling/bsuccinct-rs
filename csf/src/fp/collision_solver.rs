@@ -1,6 +1,6 @@
 use bitm::{BitAccess, BitVec, n_lowest_bits};
 
-/// Solves value collisions during construction of BBMap.
+/// Solves value collisions during construction of fingerprinting based maps.
 pub trait CollisionSolver {
     /// Returns true if `index` is under collision and should not be farther processed.
     fn is_under_collision(&self, index: usize) -> bool;
@@ -34,11 +34,11 @@ pub trait CollisionSolverBuilder {
     fn is_lossless(&self) -> bool;
 }
 
-/// Shows that the builder always produces the collision solver that is lossless and thus can be used with compressed BBmap.
+/// Shows that the builder always produces the collision solver that is lossless and thus can be used with compressed maps.
 pub trait IsLossless: CollisionSolverBuilder {} // TODO: maybe check only in runtime by is_lossless method
 
 
-/// BBMap collision solver that permits assigning only one value (few equal values) to each index.
+/// Collision solver that permits assigning only one value (few equal values) to each index.
 pub struct LoMemAcceptEqualsSolver {
     /// Which indices are under collision.
     collided: Box<[u64]>,
@@ -94,7 +94,7 @@ impl CollisionSolverBuilder for LoMemAcceptEquals {
 impl IsLossless for LoMemAcceptEquals {}
 
 
-/// BBMap collision solver that permits assigning only one value (few equal values) to each index.
+/// Collision solver that permits assigning only one value (few equal values) to each index.
 pub struct AcceptEqualsSolver {
     /// Which indices are under collision.
     collided: Box<[u64]>,

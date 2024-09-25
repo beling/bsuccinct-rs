@@ -8,8 +8,11 @@ use crate::coding::BuildMinimumRedundancy;
 pub struct GOCMapConf<
     BC = BuildMinimumRedundancy,
     LSC = OptimalLevelSize,
-    GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher
+    GS: GroupSize = TwoToPowerBitsStatic::<4>,
+    SS: SeedSize = TwoToPowerBitsStatic<2>,
+    S = BuildDefaultSeededHasher
 > {
+    /// Coding used to map the values to codewords that are sequences of code fragments.
     pub coding: BC,
     /// Configuration of family of (group-optimized) hash functions (default: [`GOConf::default`]).
     pub goconf: GOConf<GS, SS, S>,

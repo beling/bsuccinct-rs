@@ -83,7 +83,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         self.get_stats(k, &mut ())
     }
 
-    /// Build BBMap for given keys -> values map, where:
+    /// Build `CMap` for given keys -> values map, where:
     /// - keys are given directly
     /// - values are encoded by `value_coding` and given in as values_fragments and corresponding values_fragments_sizes
     /// All three arrays must be of the same length.
@@ -199,7 +199,7 @@ impl<C: SerializableCoding, S: BuildSeededHasher> CMap<C, S> {
         AsIs::write_all(output, self.value_fragments.iter())
     }
 
-    /// Read self from the input, using read_value to read values (hasher must be the same as used by written `BBMap`).
+    /// Read self from the input, using read_value to read values (hasher must be the same as used by written `CMap`).
     pub fn read_with_hasher<F>(input: &mut dyn io::Read, read_value: F, hasher: S) -> io::Result<Self>
         where F: FnMut(&mut dyn io::Read) -> io::Result<C::Value>
     {
@@ -220,7 +220,7 @@ impl<C: SerializableCoding, S: BuildSeededHasher> CMap<C, S> {
 
 impl<C: SerializableCoding> CMap<C> {
     /// Reads `Self` from the `input`, using `read_value` to read values.
-    /// Only `BBMap`s that use default hasher can be read by this method.
+    /// Only `CMap`s that use default hasher can be read by this method.
     pub fn read<F>(input: &mut dyn io::Read, read_value: F) -> io::Result<Self>
         where F: FnMut(&mut dyn io::Read) -> io::Result<C::Value>
     {
@@ -317,31 +317,31 @@ mod tests {
     use bitm::ceiling_div;
     use crate::coding::BuildMinimumRedundancy;
 
-    fn test_read_write<C: SerializableCoding<Value=u8>>(bbmap: &CMap<C>) {
+    fn test_read_write<C: SerializableCoding<Value=u8>>(fpmap: &CMap<C>) {
         let mut buff = Vec::new();
-        bbmap.write(&mut buff, |b, v| AsIs::write(b, *v)).unwrap();
-        assert_eq!(buff.len(), bbmap.write_bytes(1));
+        fpmap.write(&mut buff, |b, v| AsIs::write(b, *v)).unwrap();
+        assert_eq!(buff.len(), fpmap.write_bytes(1));
         let read = CMap::<C>::read(&mut &buff[..], |b| AsIs::read(b)).unwrap();
-        assert_eq!(bbmap.array.content, read.array.content);
-        assert_eq!(bbmap.level_sizes, read.level_sizes);
+        assert_eq!(fpmap.array.content, read.array.content);
+        assert_eq!(fpmap.level_sizes, read.level_sizes);
     }
 
-    fn test_bbmap_invariants<C: Coding>(bbmap: &CMap<C>) {
-        assert_eq!(bbmap.level_sizes.iter().map(|v|*v as usize).sum::<usize>(), bbmap.array.content.len());
+    fn test_fpmap_invariants<C: Coding>(fpmap: &CMap<C>) {
+        assert_eq!(fpmap.level_sizes.iter().map(|v|*v as usize).sum::<usize>(), fpmap.array.content.len());
         assert_eq!(
-            ceiling_div(bbmap.array.content.iter().map(|v|v.count_ones()).sum::<u32>() as usize * bbmap.value_coding.bits_per_fragment() as usize, 64),
-            bbmap.value_fragments.len()
+            ceiling_div(fpmap.array.content.iter().map(|v|v.count_ones()).sum::<u32>() as usize * fpmap.value_coding.bits_per_fragment() as usize, 64),
+            fpmap.value_fragments.len()
         );
     }
 
     fn test_4pairs<LSC: LevelSizeChooser>(conf: CMapConf<BuildMinimumRedundancy, LSC>) {
-        let bbmap = CMap::from_map_with_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
-        assert_eq!(bbmap.get(&'a'), Some(&1));
-        assert_eq!(bbmap.get(&'b'), Some(&2));
-        assert_eq!(bbmap.get(&'c'), Some(&1));
-        assert_eq!(bbmap.get(&'d'), Some(&3));
-        test_bbmap_invariants(&bbmap);
-        test_read_write(&bbmap);
+        let fpmap = CMap::from_map_with_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
+        assert_eq!(fpmap.get(&'a'), Some(&1));
+        assert_eq!(fpmap.get(&'b'), Some(&2));
+        assert_eq!(fpmap.get(&'c'), Some(&1));
+        assert_eq!(fpmap.get(&'d'), Some(&3));
+        test_fpmap_invariants(&fpmap);
+        test_read_write(&fpmap);
     }
 
     #[test]
@@ -350,19 +350,19 @@ mod tests {
     }
 
     fn test_8pairs<LSC: LevelSizeChooser>(conf: CMapConf<BuildMinimumRedundancy, LSC>) {
-        let bbmap = CMap::from_map_with_conf(&hashmap!(
+        let fpmap = CMap::from_map_with_conf(&hashmap!(
             'a' => 1, 'b' => 2, 'c' => 1, 'd' => 3,
             'e' => 4, 'f' => 1, 'g' => 5, 'h' => 6), conf, &mut ());
-        assert_eq!(bbmap.get(&'a'), Some(&1));
-        assert_eq!(bbmap.get(&'b'), Some(&2));
-        assert_eq!(bbmap.get(&'c'), Some(&1));
-        assert_eq!(bbmap.get(&'d'), Some(&3));
-        assert_eq!(bbmap.get(&'e'), Some(&4));
-        assert_eq!(bbmap.get(&'f'), Some(&1));
-        assert_eq!(bbmap.get(&'g'), Some(&5));
-        assert_eq!(bbmap.get(&'h'), Some(&6));
-        test_bbmap_invariants(&bbmap);
-        test_read_write(&bbmap);
+        assert_eq!(fpmap.get(&'a'), Some(&1));
+        assert_eq!(fpmap.get(&'b'), Some(&2));
+        assert_eq!(fpmap.get(&'c'), Some(&1));
+        assert_eq!(fpmap.get(&'d'), Some(&3));
+        assert_eq!(fpmap.get(&'e'), Some(&4));
+        assert_eq!(fpmap.get(&'f'), Some(&1));
+        assert_eq!(fpmap.get(&'g'), Some(&5));
+        assert_eq!(fpmap.get(&'h'), Some(&6));
+        test_fpmap_invariants(&fpmap);
+        test_read_write(&fpmap);
     }
 
     #[test]
