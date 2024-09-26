@@ -1,6 +1,7 @@
 use bitm::{BitAccess, BitVec, n_lowest_bits};
 
 /// Solves value collisions during construction of fingerprinting based maps.
+/// Remembers which indices are under collision and decides which collisions are positive and which are negative ones.
 pub trait CollisionSolver {
     /// Returns true if `index` is under collision and should not be farther processed.
     fn is_under_collision(&self, index: usize) -> bool;
@@ -30,7 +31,7 @@ pub trait CollisionSolverBuilder {
     /// The solver supports indices in range [0, 64*`level_size_segments`) and values of the size of `bits_per_fragment` bits.
     fn new(&self, level_size_segments: usize, bits_per_fragment: u8) -> Self::CollisionSolver;
 
-    /// Gets whether the `new` method, with the current parameters, returns the collision solver that is lossless.
+    /// Gets whether the `new` method returns the collision solver that is lossless.
     fn is_lossless(&self) -> bool;
 }
 

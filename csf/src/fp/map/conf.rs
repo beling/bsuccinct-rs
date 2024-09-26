@@ -11,8 +11,11 @@ pub struct MapConf<
     S: BuildSeededHasher = BuildDefaultSeededHasher
     /*, BS: stats::BuildStatsCollector = ()*/
 > {
+    /// Bits per each value, 0 for autodetect.
     pub bits_per_value: u8,
+    /// Choose the size of each level.
     pub level_size_chooser: LSC,
+    /// Constructs collision solver that decides which collisions are positive, and which are negative.
     pub collision_solver: CSB,
     /// The family of hash functions used by the constructed [`fp::Map`](crate::fp::Map). (default: [`BuildDefaultSeededHasher`])
     pub hash: S,

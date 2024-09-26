@@ -6,6 +6,9 @@ pub use map::{Map, MapConf};
 mod cmap;
 pub use cmap::{CMap, CMapConf};
 
+mod gomap;
+pub use gomap::{GOMap, GOMapConf};
+
 mod gocmap;
 pub use gocmap::{GOCMap, GOCMapConf};
 pub use ph::fmph::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic, Bits, Bits8, GOConf};
