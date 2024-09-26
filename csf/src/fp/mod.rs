@@ -1,5 +1,7 @@
 //! Compressed static maps based on fingerprinting.
 
+pub mod kvset;
+
 mod map;
 pub use map::{Map, MapConf};
 

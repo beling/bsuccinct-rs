@@ -209,8 +209,10 @@ impl<K: Sync + Send> KeySet<K> for Vec<K> {
 ///
 /// Retain operations reorder the slice, putting retained keys at the beginning of the slice.
 pub struct SliceMutSource<'k, K> {
-    slice: &'k mut [K],
-    len: usize  // how many first elements are in use
+    /// All keys (retained ones occupy `len` beginning indices).
+    pub slice: &'k mut [K],
+    /// How many first keys are retained.
+    pub len: usize
 }
 
 impl<'k, K> SliceMutSource<'k, K> {

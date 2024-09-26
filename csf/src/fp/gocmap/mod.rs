@@ -47,6 +47,7 @@ impl<C: GetSize, GS: GroupSize, SS: SeedSize, S> GetSize for GOCMap<C, GS, SS, S
 }
 
 impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS, SS, S> {
+    /// Maps value of each key to code fragment, and adds the fragment to collision solver.
     fn consider_all<K, LSC, GetGroupSeed, CS, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                                   keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
                                                   level_size_groups: u64, level_nr: u32,
@@ -65,6 +66,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
         }
     }
 
+    /// Counts number of positive collisions in each group.
     fn count_collisions_in_groups<K, LSC, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                               keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
                                               level_size_groups: u64, level_nr: u32, group_seed: u16) -> Box<[u8]>
