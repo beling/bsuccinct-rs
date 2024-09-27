@@ -1,5 +1,30 @@
 use bitm::{BitAccess, BitVec, n_lowest_bits};
 
+/// Returns a pair of:
+/// - an array consisting of `bits_per_value` fragments of values returned by `value_at`
+///   at indices contained bit ones in `to_select`;
+/// - number of fragments in the array (number of bit ones in `to_select`).
+#[inline] pub fn select_values_f<V: FnMut(usize) -> u64>(to_select: &[u64], mut value_at: V, bits_per_value: u8) -> (Box<[u64]>, usize) {
+    let len = to_select.count_bit_ones();
+    let mut result = Box::with_zeroed_bits(len * bits_per_value as usize);
+    let mut dst_index = 0;
+    for src_index in to_select.bit_ones() {
+        result.init_successive_fragment(&mut dst_index, value_at(src_index), bits_per_value);
+    }
+    (result, len)
+}
+
+/// Returns a pair of:
+/// - an array consisting of `bits_per_value` fragments of `values`
+///   pointed by indices of bit ones in `to_select`;
+/// - number of fragments in the array (number of bit ones in `to_select`).
+pub fn select_values(to_select: &[u64], values: Box<[u64]>, bits_per_value: u8) -> (Box<[u64]>, usize) {
+    let mask = n_lowest_bits(bits_per_value);
+    select_values_f(to_select, 
+        |index| values.get_fragment_unmasked(index, bits_per_value) & mask,
+        bits_per_value)
+}
+
 /// Solves value collisions during construction of fingerprinting based maps.
 /// Remembers which indices are under collision and decides which collisions are positive and which are negative ones.
 pub trait CollisionSolver {
@@ -11,6 +36,12 @@ pub trait CollisionSolver {
 
     /// Array that shows indices which have assigned values and are not under collision.
     fn to_collision_array(self) -> Box<[u64]>;
+
+    /// Returns triple consisted of:
+    /// - an array that shows indices which have assigned values and are not under collision,
+    /// - values (each stored at bits_per_fragment bits) assigned to successive bit ones in the array,
+    /// - number of bit ones in the array.
+    fn to_collision_and_values(self, bits_per_fragment: u8) -> (Box<[u64]>, Box<[u64]>, usize);
 
     /// Constructs array for values to fill with `set_value` method.
     fn construct_value_array(number_of_values: usize, bits_per_fragment: u8) -> Box<[u64]> {
@@ -78,6 +109,11 @@ impl CollisionSolver for LoMemAcceptEqualsSolver {
     fn to_collision_array(self) -> Box<[u64]> {
         self.current_array
     }
+    
+    fn to_collision_and_values(self, bits_per_fragment: u8) -> (Box<[u64]>, Box<[u64]>, usize) {
+        let (values, len) = select_values(&self.current_array, self.fragments, bits_per_fragment);
+        (self.current_array, values, len)
+    }
 }
 
 #[derive(Default, Copy, Clone)]
@@ -133,6 +169,11 @@ impl CollisionSolver for AcceptEqualsSolver {
 
     fn to_collision_array(self) -> Box<[u64]> {
         self.current_array
+    }
+
+    fn to_collision_and_values(self, bits_per_fragment: u8) -> (Box<[u64]>, Box<[u64]>, usize) {
+        let (values, len) = select_values_f(&self.current_array, |i| self.fragments[i] as u64, bits_per_fragment);
+        (self.current_array, values, len)
     }
 }
 
@@ -236,6 +277,19 @@ impl CollisionSolver for AcceptLimitedAverageDifferenceSolver {
         let fragment = fragment as u64;
         output.conditionally_change_fragment(| old| if fragment < old { Some(fragment) } else {None}, index, bits_per_fragment);
     }
+    
+    fn to_collision_and_values(self, bits_per_fragment: u8) -> (Box<[u64]>, Box<[u64]>, usize) {
+        let mut to_select = Box::<[u64]>::with_zeroed_64bit_segments(self.cells.len() / 64);
+        for (index, cell) in self.cells.into_iter().enumerate() {
+            let d = cell.get_count(self.bits_per_value);
+            if d != 0 && cell.total_difference as u32 <= d as u32 * self.max_difference_per_value as u32 {
+                to_select.set_bit(index);
+            }
+        }
+        let value_mask = n_lowest_bits(bits_per_fragment) as u16;
+        let (values, len) = select_values_f(&to_select, |i| self.cells[i].minimum(value_mask) as u64, bits_per_fragment);
+        (to_select, values, len)
+    }
 }
 
 /// Collision solver that uses minimal value in the set and accepts limited average difference
@@ -324,6 +378,10 @@ impl CollisionSolver for CountPositiveCollisions {
     }
 
     fn to_collision_array(self) -> Box<[u64]> {
+        todo!()
+    }
+
+    fn to_collision_and_values(self, _bits_per_fragment: u8) -> (Box<[u64]>, Box<[u64]>, usize) {
         todo!()
     }
 }
