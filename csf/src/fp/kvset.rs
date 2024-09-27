@@ -49,7 +49,7 @@ pub trait KVSet<K> {
     /// Convert `self` into the vector of retained key-value pairs.
     /// 
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
-    #[inline] fn into_vec<P>(self, retained_hint: P) -> Vec<(K, u8)>
+    #[inline] fn into_vec<P>(self, retained_hint: P) -> Vec<(K, u8)>    // TODO maybe return a pair of vectors
         where P: FnMut(&K) -> bool, K: Clone, Self: Sized
     {
         self.map_each_key_value(|k, v| ((*k).clone(), v), retained_hint)

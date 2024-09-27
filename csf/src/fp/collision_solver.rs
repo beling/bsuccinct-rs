@@ -12,6 +12,7 @@ pub trait CollisionSolver {
     /// Array that shows indices which have assigned values and are not under collision.
     fn to_collision_array(self) -> Box<[u64]>;
 
+    /// Constructs array for values to fill with `set_value` method.
     fn construct_value_array(number_of_values: usize, bits_per_fragment: u8) -> Box<[u64]> {
         Box::<[u64]>::with_zeroed_bits(number_of_values*bits_per_fragment as usize)
     }
