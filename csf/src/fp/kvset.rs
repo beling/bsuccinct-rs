@@ -108,13 +108,13 @@ impl<'k, K> SlicesMutSource<'k, K> {
 impl<'k, K: Sync> KVSet<K> for SlicesMutSource<'k, K> {
     #[inline(always)] fn kv_len(&self) -> usize { self.len }
 
-    #[inline(always)] fn for_each_key_value<F, P>(&self, mut f: F, retained_hint: P) where F: FnMut(&K, u8), P: FnMut(&K) -> bool {
+    #[inline(always)] fn for_each_key_value<F, P>(&self, mut f: F, _retained_hint: P) where F: FnMut(&K, u8), P: FnMut(&K) -> bool {
         for (k, v) in self.keys[0..self.len].iter().zip(self.values[0..self.len].iter()) {
             f(k, *v); 
         }
     }
 
-    #[inline(always)] fn map_each_key_value<R, M, P>(&self, mut map: M, retained_hint: P) -> Vec<R>
+    #[inline(always)] fn map_each_key_value<R, M, P>(&self, mut map: M, _retained_hint: P) -> Vec<R>
     where M: FnMut(&K, u8) -> R, P: FnMut(&K) -> bool
     {
         self.keys[0..self.len].into_iter().zip(self.values[0..self.len].into_iter()).map(|(k, v)| map(k, *v)).collect()
