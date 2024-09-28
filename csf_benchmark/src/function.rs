@@ -45,7 +45,7 @@ impl PrintParams for ProportionalLevelSize {
 }
 
 impl<LSC, CSB, S> CSFBuilder for fp::MapConf<LSC, CSB, S>
-where LSC: fp::LevelSizeChooser+fp::SimpleLevelSizeChooser, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
+where LSC: fp::LevelSizeChooser, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
  {
     type CSF = fp::Map<S>;
 

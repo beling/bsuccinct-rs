@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
+use crate::{bits_to_store_any_of, bits_to_store_any_of_ref};
+
 /// A trait for accessing and managing sets of key (of the type `K`) and value pairs
 /// during construction of [`fp::Map`](super::Map) or [`fp::GOMap`](super::GOMap).
 pub trait KVSet<K> {
@@ -10,6 +12,9 @@ pub trait KVSet<K> {
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     fn for_each_key_value<F, P>(&self, f: F, retained_hint: P) where F: FnMut(&K, u8), P: FnMut(&K) -> bool;
+
+    /// Returns minimal number of bits that can store any value.
+    fn bits_per_value(&self) -> u8;
 
     /// Calls `map` for each key-value pair in the set, and returns outputs of these calls. Uses single thread.
     ///
@@ -63,6 +68,10 @@ impl<K, S> KVSet<K> for HashMap<K, u8, S> {
         for (k, v) in self { f(k, *v) }
     }
 
+    fn bits_per_value(&self) -> u8 {
+        bits_to_store_any_of_ref(self.values())
+    }
+
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_earlier: P, _remove_count: R)
         where F: FnMut(&K) -> bool, P: FnMut(&K) -> bool, R: FnMut() -> usize
     {
@@ -75,6 +84,10 @@ impl<K: Ord> KVSet<K> for BTreeMap<K, u8> {
 
     fn for_each_key_value<F, P>(&self, mut f: F, _retained_hint: P) where F: FnMut(&K, u8), P: FnMut(&K) -> bool {
         for (k, v) in self { f(k, *v) }
+    }
+
+    fn bits_per_value(&self) -> u8 {
+        bits_to_store_any_of_ref(self.values())
     }
 
     fn retain_keys<F, P, R>(&mut self, mut filter: F, _retained_earlier: P, _remove_count: R)
@@ -112,6 +125,10 @@ impl<'k, K: Sync> KVSet<K> for SlicesMutSource<'k, K> {
         for (k, v) in self.keys[0..self.len].iter().zip(self.values[0..self.len].iter()) {
             f(k, *v); 
         }
+    }
+
+    fn bits_per_value(&self) -> u8 {
+        bits_to_store_any_of_ref(self.values.iter())
     }
 
     #[inline(always)] fn map_each_key_value<R, M, P>(&self, mut map: M, _retained_hint: P) -> Vec<R>

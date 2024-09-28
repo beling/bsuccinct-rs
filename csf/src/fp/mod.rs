@@ -16,7 +16,7 @@ pub use gocmap::{GOCMap, GOCMapConf};
 pub use ph::fmph::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic, Bits, Bits8, GOConf};
 
 pub mod level_size_chooser;
-pub use level_size_chooser::{LevelSizeChooser, SimpleLevelSizeChooser, ProportionalLevelSize, OptimalLevelSize, ResizedLevel};
+pub use level_size_chooser::{LevelSizeChooser, ProportionalLevelSize, OptimalLevelSize, ResizedLevel};
 
 pub mod collision_solver;
 pub use collision_solver::{CollisionSolver, CollisionSolverBuilder, IsLossless, LoMemAcceptEquals};

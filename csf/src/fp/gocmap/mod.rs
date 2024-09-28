@@ -135,8 +135,11 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             let in_keys = &keys[0..input_size];
             let in_values = &values[0..input_size];
             let in_value_rev_indices = &value_rev_indices[0..input_size];
-
-            let suggested_level_size_segments = conf.level_size_chooser.size_segments(&value_coding, in_values, in_value_rev_indices);
+            let suggested_level_size_segments = conf.level_size_chooser.size_segments(
+                || in_values.iter().zip(in_value_rev_indices.iter()).map(|(c, ri)| value_coding.rev_fragment_of(*c, *ri) as u64),
+                input_size,
+                value_coding.bits_per_fragment());
+            
             let (level_size_groups, level_size_segments) = conf.goconf.bits_per_group.level_size_groups_segments(suggested_level_size_segments * 64);
             //let seed = level_nr;
             stats.level(input_size, level_size_segments * 64);

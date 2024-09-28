@@ -106,8 +106,9 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         let mut level_nr = 0u32;
         while input_size != 0 {
             let level_size_segments = conf.level_size_chooser.size_segments(
-                &value_coding,
-                &values[0..input_size], &value_rev_indices[0..input_size]);
+                || values[0..input_size].iter().zip(value_rev_indices[0..input_size].iter()).map(|(c, ri)| value_coding.rev_fragment_of(*c, *ri) as u64),
+                input_size,
+                value_coding.bits_per_fragment());
             let level_size = level_size_segments * 64;
             stats.level(input_size, level_size);
             let mut collision_solver = conf.collision_solver.new(level_size_segments, value_coding.bits_per_fragment());
