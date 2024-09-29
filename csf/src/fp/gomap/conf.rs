@@ -12,8 +12,6 @@ pub struct GOMapConf<
     SS: SeedSize = TwoToPowerBitsStatic<2>,
     S = BuildDefaultSeededHasher
 > {
-    /// Bits per each value, 0 for autodetect.
-    pub bits_per_value: u8,
     /// Configuration of family of (group-optimized) hash functions (default: [`GOConf::default`]).
     pub goconf: GOConf<GS, SS, S>,
     /// Choose the size of each level.
@@ -24,27 +22,15 @@ pub struct GOMapConf<
 
 impl Default for GOMapConf {
     fn default() -> Self { Self {
-        bits_per_value: Default::default(),
         goconf: Default::default(),
         level_size_chooser: Default::default(),
         collision_solver: Default::default(),
     } }
 }
 
-impl GOMapConf {
-    pub fn bpv(bits_per_value: u8) -> Self {
-        Self { bits_per_value, ..Default::default() }
-    }
-}
-
 impl<CSB: CollisionSolverBuilder> GOMapConf<OptimalLevelSize, CSB, TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic<2>, BuildDefaultSeededHasher> {
-    #[inline] pub fn cs(collision_solver: CSB) -> Self {
-        Self::cs_bpv(collision_solver, Default::default())
-    }
-
-    pub fn cs_bpv(collision_solver: CSB, bits_per_value: u8) -> Self {
+    pub fn cs(collision_solver: CSB) -> Self {
         Self {
-            bits_per_value,
             goconf: Default::default(),
             level_size_chooser: Default::default(),
             collision_solver,
@@ -53,13 +39,8 @@ impl<CSB: CollisionSolverBuilder> GOMapConf<OptimalLevelSize, CSB, TwoToPowerBit
 }
 
 impl<GS: GroupSize, SS: SeedSize, S> GOMapConf<OptimalLevelSize, LoMemAcceptEquals, GS, SS, S> {
-    #[inline] pub fn groups(goconf: GOConf<GS, SS, S>) -> Self {
-        Self::groups_bpv(goconf, Default::default())
-    }
-
-    pub fn groups_bpv(goconf: GOConf<GS, SS, S>, bits_per_value: u8) -> Self {
+    pub fn groups(goconf: GOConf<GS, SS, S>) -> Self {
         Self {
-            bits_per_value,
             goconf,
             level_size_chooser: Default::default(),
             collision_solver: Default::default(),
@@ -68,13 +49,8 @@ impl<GS: GroupSize, SS: SeedSize, S> GOMapConf<OptimalLevelSize, LoMemAcceptEqua
 }
 
 impl<CSB: CollisionSolverBuilder, GS: GroupSize, SS: SeedSize, S> GOMapConf<OptimalLevelSize, CSB, GS, SS, S> {
-    #[inline] pub fn groups_cs(goconf: GOConf<GS, SS, S>, collision_solver: CSB) -> Self {
-        Self::groups_cs_bpv(goconf, collision_solver, Default::default())
-    }
-
-    pub fn groups_cs_bpv(goconf: GOConf<GS, SS, S>, collision_solver: CSB, bits_per_value: u8) -> Self {
+    pub fn groups_cs(goconf: GOConf<GS, SS, S>, collision_solver: CSB) -> Self {
         Self {
-            bits_per_value,
             goconf,
             level_size_chooser: Default::default(),
             collision_solver,
@@ -90,12 +66,7 @@ impl<GS: GroupSize, SS: SeedSize, S> From<GOConf<GS, SS, S>> for GOMapConf<Optim
 
 impl<LSC> GOMapConf<LSC, LoMemAcceptEquals, TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic<2>, BuildDefaultSeededHasher> {
     pub fn lsize(level_size_chooser: LSC) -> Self {
-        Self::lsize_bpv(level_size_chooser, Default::default())
-    }
-
-    pub fn lsize_bpv(level_size_chooser: LSC, bits_per_value: u8) -> Self {
         Self {
-            bits_per_value,
             goconf: Default::default(),
             level_size_chooser,
             collision_solver: Default::default(),
@@ -105,12 +76,7 @@ impl<LSC> GOMapConf<LSC, LoMemAcceptEquals, TwoToPowerBitsStatic::<4>, TwoToPowe
 
 impl<LSC, CSB: CollisionSolverBuilder> GOMapConf<LSC, CSB, TwoToPowerBitsStatic::<4>, TwoToPowerBitsStatic<2>, BuildDefaultSeededHasher> {
     pub fn lsize_cs(level_size_chooser: LSC, collision_solver: CSB) -> Self {
-        Self::lsize_cs_bpv(level_size_chooser, collision_solver, Default::default())
-    }
-
-    pub fn lsize_cs_bpv(level_size_chooser: LSC, collision_solver: CSB, bits_per_value: u8) -> Self {
         Self {
-            bits_per_value,
             goconf: Default::default(),
             level_size_chooser,
             collision_solver,
@@ -119,13 +85,13 @@ impl<LSC, CSB: CollisionSolverBuilder> GOMapConf<LSC, CSB, TwoToPowerBitsStatic:
 }
 
 impl<LSC, GS: GroupSize, SS: SeedSize, S> GOMapConf<LSC, LoMemAcceptEquals, GS, SS, S> {
-    pub fn groups_lsize_bpv(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC, bits_per_value: u8) -> Self {
-        Self { bits_per_value, goconf, level_size_chooser, collision_solver: Default::default() }
+    pub fn groups_lsize(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC) -> Self {
+        Self { goconf, level_size_chooser, collision_solver: Default::default() }
     }
 }
 
 impl<LSC, CSB: CollisionSolverBuilder, GS: GroupSize, SS: SeedSize, S> GOMapConf<LSC, CSB, GS, SS, S> {
-    pub fn groups_lsize_cs_bpv(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC, collision_solver: CSB, bits_per_value: u8) -> Self {
-        Self { bits_per_value, goconf, level_size_chooser, collision_solver }
+    pub fn groups_lsize_cs(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC, collision_solver: CSB) -> Self {
+        Self { goconf, level_size_chooser, collision_solver }
     }
 }

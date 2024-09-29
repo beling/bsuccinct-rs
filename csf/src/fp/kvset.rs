@@ -68,7 +68,7 @@ impl<K, S> KVSet<K> for HashMap<K, u8, S> {
         for (k, v) in self { f(k, *v) }
     }
 
-    fn bits_per_value(&self) -> u8 {
+    fn bits_per_value(&self) -> u8 {    // TODO wrong, should always returns the same
         bits_to_store_any_of_ref(self.values())
     }
 
@@ -86,7 +86,7 @@ impl<K: Ord> KVSet<K> for BTreeMap<K, u8> {
         for (k, v) in self { f(k, *v) }
     }
 
-    fn bits_per_value(&self) -> u8 {
+    fn bits_per_value(&self) -> u8 {    // TODO wrong, should always returns the same
         bits_to_store_any_of_ref(self.values())
     }
 
