@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::{bits_to_store_any_of, bits_to_store_any_of_ref};
+use crate::bits_to_store_any_of_ref;
 
 /// A trait for accessing and managing sets of key (of the type `K`) and value pairs
 /// during construction of [`fp::Map`](super::Map) or [`fp::GOMap`](super::GOMap).
@@ -106,15 +106,19 @@ pub struct SlicesMutSource<'k, K> {
     /// All values (retained ones occupy `len` beginning indices).
     pub values: &'k mut [u8],
     /// How many first keys and values are retained.
-    pub len: usize
+    pub len: usize,
+    /// Number of bits per each value.
+    bits_per_value: u8
 }
 
 impl<'k, K> SlicesMutSource<'k, K> {
-    pub fn new(keys: &'k mut [K], values: &'k mut [u8]) -> Self {
+    /// Constructs [`SlicesMutSource`] with given `keys`, `values` and `bits_per_value` (which can be `0` for auto-detection)
+    pub fn new(keys: &'k mut [K], values: &'k mut [u8], mut bits_per_value: u8) -> Self {
         let len = keys.len();
         let vlen = values.len();
         assert_eq!(len, vlen, "key and value slices must be of the same length, but are {len} and {vlen} respectively");
-        Self { keys, values, len }
+        if bits_per_value == 0 { bits_per_value = bits_to_store_any_of_ref(values.iter()); }
+        Self { keys, values, len, bits_per_value }
     }
 }
 
@@ -128,7 +132,7 @@ impl<'k, K: Sync> KVSet<K> for SlicesMutSource<'k, K> {
     }
 
     fn bits_per_value(&self) -> u8 {
-        bits_to_store_any_of_ref(self.values.iter())
+        self.bits_per_value
     }
 
     #[inline(always)] fn map_each_key_value<R, M, P>(&self, mut map: M, _retained_hint: P) -> Vec<R>

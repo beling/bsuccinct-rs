@@ -45,7 +45,7 @@ impl PrintParams for ProportionalLevelSize {
 }
 
 impl<LSC, CSB, S> CSFBuilder for fp::MapConf<LSC, CSB, S>
-where LSC: fp::LevelSizeChooser, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
+where LSC: fp::LevelSizer, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
  {
     type CSF = fp::Map<S>;
 
@@ -66,13 +66,13 @@ impl<LSC, CSB, S> PrintParams for fp::MapConf<LSC, CSB, S>
 where LSC: PrintParams, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher {
     fn print_params(&self, file: &mut Option<File>) {
         print!("fp");
-        self.level_size_chooser.print_params(file);
+        self.level_sizer.print_params(file);
         print!(": ");
     }
 }
 
 impl<LSC, CSB, S> CSFBuilder for fp::CMapConf<BuildMinimumRedundancy, LSC, CSB, S>
-where LSC: fp::LevelSizeChooser, CSB: fp::CollisionSolverBuilder+fp::IsLossless, S: BuildSeededHasher
+where LSC: fp::LevelSizer, CSB: fp::CollisionSolverBuilder+fp::IsLossless, S: BuildSeededHasher
  {
     type CSF = fp::CMap<minimum_redundancy::Coding<u8>, S>;
 
@@ -98,13 +98,13 @@ where LSC: PrintParams, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher {
             write!(f, " {}", self.coding.bits_per_fragment).unwrap();
         }
         print!("cfp");
-        self.level_size_chooser.print_params(file);
+        self.level_sizer.print_params(file);
         print!(" {} b/frag: ", self.coding.bits_per_fragment);
     }
 }
 
 impl<LSC, GS, SS, S> CSFBuilder for fp::GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS, S>
-where LSC: fp::LevelSizeChooser, GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSeededHasher
+where LSC: fp::LevelSizer, GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSeededHasher
 {
     type CSF = fp::GOCMap<minimum_redundancy::Coding<u8>, GS, SS, S>;
 
@@ -131,7 +131,7 @@ where LSC: PrintParams, GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSeededHashe
             write!(f, " {} {} {}", self.coding.bits_per_fragment, bits_per_seed, bits_per_group).unwrap();
         }
         print!("cfpgo");
-        self.level_size_chooser.print_params(file);
+        self.level_sizer.print_params(file);
         print!(" {} b/seed {} b/group {} b/frag: ", bits_per_seed, bits_per_group, self.coding.bits_per_fragment);
     }
 }

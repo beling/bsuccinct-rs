@@ -2,7 +2,7 @@ use std::hash::Hash;
 use binout::{VByte, AsIs, Serializer};
 use minimum_redundancy::DecodingResult;
 use bitm::{BitAccess, BitVec, Rank};
-use crate::fp::level_size_chooser::LevelSizeChooser;
+use crate::fp::level_size_chooser::LevelSizer;
 
 use ph::utils::{ArrayWithRank, read_bits};
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils};
@@ -95,7 +95,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         stats: &mut BS)
         -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               CSB: CollisionSolverBuilder + IsLossless,
               BS: stats::BuildStatsCollector
     {
@@ -105,7 +105,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         let mut value_rev_indices: Box<[u8]> = values.iter().map(|c| value_coding.len_of(*c)-1).collect();
         let mut level_nr = 0u32;
         while input_size != 0 {
-            let level_size_segments = conf.level_size_chooser.size_segments(
+            let level_size_segments = conf.level_sizer.size_segments(
                 || values[0..input_size].iter().zip(value_rev_indices[0..input_size].iter()).map(|(c, ri)| value_coding.rev_fragment_of(*c, *ri) as u64),
                 input_size,
                 value_coding.bits_per_fragment());
@@ -236,7 +236,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         stats: &mut BS
     ) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               CSB: CollisionSolverBuilder + IsLossless,
               BS: stats::BuildStatsCollector
     {
@@ -247,7 +247,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         keys: &mut [K], values: &[C::Value], conf: CMapConf<BC, LSC, CSB, S>, stats: &mut BS
     ) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               CSB: CollisionSolverBuilder + IsLossless,
               BS: stats::BuildStatsCollector,
             BC: BuildCoding<C::Value, Coding=C>
@@ -259,7 +259,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         map: &HashMap<K, C::Value, H>, value_coding: C, conf: CMapConf<BC, LSC, CSB, S>, stats: &mut BS
     ) -> Self
         where K: Hash + Clone,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               CSB: CollisionSolverBuilder+IsLossless,
               BS: stats::BuildStatsCollector
     {
@@ -271,7 +271,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         map: &HashMap<K, C::Value, H>, conf: CMapConf<BC, LSC, CSB, S>, stats: &mut BS
     ) -> Self
         where K: Hash + Clone,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               CSB: CollisionSolverBuilder+IsLossless,
               BS: stats::BuildStatsCollector,
               BC: BuildCoding<C::Value, Coding=C>
@@ -335,7 +335,7 @@ mod tests {
         );
     }
 
-    fn test_4pairs<LSC: LevelSizeChooser>(conf: CMapConf<BuildMinimumRedundancy, LSC>) {
+    fn test_4pairs<LSC: LevelSizer>(conf: CMapConf<BuildMinimumRedundancy, LSC>) {
         let fpmap = CMap::from_map_with_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
         assert_eq!(fpmap.get(&'a'), Some(&1));
         assert_eq!(fpmap.get(&'b'), Some(&2));
@@ -350,7 +350,7 @@ mod tests {
         test_4pairs(CMapConf::bpf(1));
     }
 
-    fn test_8pairs<LSC: LevelSizeChooser>(conf: CMapConf<BuildMinimumRedundancy, LSC>) {
+    fn test_8pairs<LSC: LevelSizer>(conf: CMapConf<BuildMinimumRedundancy, LSC>) {
         let fpmap = CMap::from_map_with_conf(&hashmap!(
             'a' => 1, 'b' => 2, 'c' => 1, 'd' => 3,
             'e' => 4, 'f' => 1, 'g' => 5, 'h' => 6), conf, &mut ());

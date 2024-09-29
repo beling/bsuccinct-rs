@@ -5,7 +5,7 @@ use std::fmt;
 use std::fmt::Formatter;
 
 /// Chooses the size of level for the given sequence of retained values.
-pub trait LevelSizeChooser {
+pub trait LevelSizer {
 
     /// Returns number of 64-bit segments to use for given sequence of retained `values`.
     fn size_segments<VIt, F>(&self, _values: F, values_len: usize, _bits_per_value: u8) -> usize
@@ -32,7 +32,7 @@ impl Default for ProportionalLevelSize {
     fn default() -> Self { Self::with_percent(90) } // 80 is a bit better than 90 but slower
 }
 
-impl LevelSizeChooser for ProportionalLevelSize {
+impl LevelSizer for ProportionalLevelSize {
     fn max_size_segments(&self, max_level_size: usize) -> usize {
         ceiling_div(max_level_size*self.percent as usize, 64*100)
     }
@@ -143,7 +143,7 @@ impl OptimalLevelSize {
     }
 }*/
 
-impl LevelSizeChooser for OptimalLevelSize {
+impl LevelSizer for OptimalLevelSize {
     fn size_segments<VIt, F>(&self, mut values: F, values_len: usize, bits_per_value: u8) -> usize
         where VIt: IntoIterator<Item = u64>, F: FnMut() -> VIt
     {
@@ -185,7 +185,7 @@ impl OptimalGroupedLevelSize {
     }
 }
 
-impl LevelSizeChooser for OptimalGroupedLevelSize {
+impl LevelSizer for OptimalGroupedLevelSize {
     fn size_segments<VIt, F>(&self, mut values: F, values_len: usize, bits_per_value: u8) -> usize
     where VIt: IntoIterator<Item = u64>, F: FnMut() -> VIt
     {
@@ -230,7 +230,7 @@ impl<LSC> ResizedLevel<LSC> {
     }
 }
 
-impl<LSC: LevelSizeChooser> LevelSizeChooser for ResizedLevel<LSC> {
+impl<LSC: LevelSizer> LevelSizer for ResizedLevel<LSC> {
     #[inline] fn size_segments<VIt, F>(&self, values: F, values_len: usize, bits_per_value: u8) -> usize
     where VIt: IntoIterator<Item = u64>, F: FnMut() -> VIt
     {

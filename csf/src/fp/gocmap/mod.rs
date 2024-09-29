@@ -4,7 +4,7 @@ use ph::utils::read_bits;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils::ArrayWithRank};
 use bitm::{BitAccess, BitVec, Rank};
 use minimum_redundancy::DecodingResult;
-use super::{LevelSizeChooser, CollisionSolver};
+use super::{LevelSizer, CollisionSolver};
 use super::collision_solver::{CountPositiveCollisions, LoMemAcceptEqualsSolver};
 use super::common::{encode_all, encode_all_from_map};
 use std::collections::HashMap;
@@ -121,7 +121,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
         keys: &mut [K], values: &mut [C::Codeword],
         value_coding: C, conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector
     {
         conf.goconf.validate();
@@ -135,7 +135,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             let in_keys = &keys[0..input_size];
             let in_values = &values[0..input_size];
             let in_value_rev_indices = &value_rev_indices[0..input_size];
-            let suggested_level_size_segments = conf.level_size_chooser.size_segments(
+            let suggested_level_size_segments = conf.level_sizer.size_segments(
                 || in_values.iter().zip(in_value_rev_indices.iter()).map(|(c, ri)| value_coding.rev_fragment_of(*c, *ri) as u64),
                 input_size,
                 value_coding.bits_per_fragment());
@@ -301,7 +301,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         stats: &mut BS
     ) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector
     {
         Self::with_fragments(keys, &mut encode_all(&value_coding, values), value_coding, conf, stats)
@@ -311,7 +311,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         keys: &mut [K], values: &[C::Value], conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS
     ) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector,
               BC: BuildCoding<C::Value, Coding=C>
     {
@@ -322,7 +322,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         map: &HashMap<K, C::Value, H>, value_coding: C, conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS
     ) -> Self
         where K: Hash + Clone,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector,
               BC: BuildCoding<C::Value, Coding=C>
     {
@@ -334,7 +334,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         map: &HashMap<K, C::Value, H>, conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS
     ) -> Self
         where K: Hash + Clone,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector,
               BC: BuildCoding<C::Value, Coding=C>
     {
@@ -404,7 +404,7 @@ mod tests {
         );
     }
 
-    fn test_4pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizeChooser>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
+    fn test_4pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizer>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
         let fpmap = GOCMap::from_map_with_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
         assert_eq!(fpmap.get(&'a'), Some(&1));
         assert_eq!(fpmap.get(&'b'), Some(&2));
@@ -419,7 +419,7 @@ mod tests {
         test_4pairs(GOCMapConf::bpf(1));
     }
 
-    fn test_8pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizeChooser>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
+    fn test_8pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizer>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
         let fpmap = GOCMap::from_map_with_conf(&hashmap!(
             'a' => 1, 'b' => 2, 'c' => 1, 'd' => 3,
             'e' => 4, 'f' => 1, 'g' => 5, 'h' => 6), conf, &mut ());
