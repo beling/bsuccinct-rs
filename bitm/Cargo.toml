@@ -13,12 +13,15 @@ categories = [ "algorithms", "data-structures", "science", "encoding" ]
 keywords = [ "bit", "bitmap", "rank", "bitvector", "bitset" ]
 
 [dependencies]
-dyn_size_of = { version="0.4", path="../dyn_size_of" }
+dyn_size_of = { version=">=0.4.3", path="../dyn_size_of" }
 aligned-vec = { version="0.6", optional=true }  # for construcing cache-aligment bit vectors, which usually speeds up rank and select
 
 [dev-dependencies]
 criterion = "0.5"
 iai-callgrind = "0.10"
+
+[features]
+aligned-vec = ["dep:aligned-vec", "dyn_size_of/aligned-vec"]
 
 
 [[bench]]

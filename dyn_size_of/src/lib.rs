@@ -105,7 +105,7 @@ impl<T: GetSize> GetSize for Box<[T]> {
     impl_getsize_methods_for_dyn_arr!(T);
 }
 
-#[cfg(feature = "aligned-vec")] impl <A: aligned_vec::Alignment, T: GetSize> GetSize for aligned_vec::ABox<[T], A> {
+#[cfg(feature = "aligned-vec")] impl <T: GetSize, A: aligned_vec::Alignment> GetSize for aligned_vec::ABox<[T], A> {
     impl_getsize_methods_for_dyn_arr!(T);
 }
 
@@ -135,7 +135,7 @@ impl<T: GetSize> GetSize for Vec<T> {
     impl_getsize_methods_for_vec!(T);
 }
 
-#[cfg(feature = "aligned-vec")] impl <A: aligned_vec::Alignment, T: GetSize> GetSize for aligned_vec::AVec<T, A> {
+#[cfg(feature = "aligned-vec")] impl <T: GetSize, A: aligned_vec::Alignment> GetSize for aligned_vec::AVec<T, A> {
     impl_getsize_methods_for_vec!(T);
 }
 
