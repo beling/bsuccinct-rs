@@ -3,16 +3,24 @@ use std::mem::MaybeUninit;
 use fsum::FSum;
 use std::fmt;
 use std::fmt::Formatter;
+use super::kvset::KVSet;
 
 /// Chooses the size of level for the given sequence of retained values.
 pub trait LevelSizer {
 
     /// Returns number of 64-bit segments to use for given sequence of retained `values`.
-    fn size_segments<VIt, F>(&self, _values: F, values_len: usize, _bits_per_value: u8) -> usize
+    fn size_segments_for_values<VIt, F>(&self, _values: F, values_len: usize, _bits_per_value: u8) -> usize
         where VIt: IntoIterator<Item = u64>, F: FnMut() -> VIt
     {
         self.max_size_segments(values_len)
     }
+
+    /// Returns number of 64-bit segments to use for given sequence of retained `values`.
+    fn size_segments<K, KV: KVSet<K>>(&self, kv: &KV) -> usize
+    {
+        self.max_size_segments(kv.kv_len())
+    }
+
 
     /// Returns maximal number of segment that can be returned by `size_segments` for level of size `max_level_size` or less.
     fn max_size_segments(&self, max_level_size: usize) -> usize;
@@ -144,7 +152,7 @@ impl OptimalLevelSize {
 }*/
 
 impl LevelSizer for OptimalLevelSize {
-    fn size_segments<VIt, F>(&self, mut values: F, values_len: usize, bits_per_value: u8) -> usize
+    fn size_segments_for_values<VIt, F>(&self, mut values: F, values_len: usize, bits_per_value: u8) -> usize
         where VIt: IntoIterator<Item = u64>, F: FnMut() -> VIt
     {
         let mut counts = [0u32; 256];   // TODO support bits_per_value > 8
@@ -152,6 +160,18 @@ impl LevelSizer for OptimalLevelSize {
         Self::size_segments_for_dist(
             &mut counts[0..(1usize<<bits_per_value)],
             values_len,
+            bits_per_value
+        )
+    }
+
+    fn size_segments<K, KV: KVSet<K>>(&self, kv: &KV) -> usize
+    {
+        let mut counts = [0u32; 256];   // TODO support bits_per_value > 8
+        kv.for_each_key_value(|_, v| counts[v as usize] += 1);
+        let bits_per_value = kv.bits_per_value();
+        Self::size_segments_for_dist(
+            &mut counts[0..(1usize<<bits_per_value)],
+            kv.kv_len(),
             bits_per_value
         )
     }
@@ -186,7 +206,7 @@ impl OptimalGroupedLevelSize {
 }
 
 impl LevelSizer for OptimalGroupedLevelSize {
-    fn size_segments<VIt, F>(&self, mut values: F, values_len: usize, bits_per_value: u8) -> usize
+    fn size_segments_for_values<VIt, F>(&self, mut values: F, values_len: usize, bits_per_value: u8) -> usize
     where VIt: IntoIterator<Item = u64>, F: FnMut() -> VIt
     {
         let divider = self.divider as usize;
@@ -197,6 +217,22 @@ impl LevelSizer for OptimalGroupedLevelSize {
             OptimalLevelSize::size_segments_for_dist(
                 &mut counts[0 ..= (max_value + delta) / divider],
                 values_len,
+                bits_per_value  // this must be unchanged as it is used to calculate memory used by a value
+            )
+        }).min().unwrap()
+    }
+
+    fn size_segments<K, KV: KVSet<K>>(&self, kv: &KV) -> usize
+    {
+        let bits_per_value = kv.bits_per_value();
+        let divider = self.divider as usize;
+        let max_value = (1usize<<bits_per_value) - 1;
+        (0..divider).map(|delta| {
+            let mut counts = [0u32; 256];   // TODO support for bits_per_value > 8
+            kv.for_each_key_value(|_, v| counts[(v as usize + delta) / divider] += 1);
+            OptimalLevelSize::size_segments_for_dist(
+                &mut counts[0 ..= (max_value + delta) / divider],
+                kv.kv_len(),
                 bits_per_value  // this must be unchanged as it is used to calculate memory used by a value
             )
         }).min().unwrap()
@@ -231,10 +267,15 @@ impl<LSC> ResizedLevel<LSC> {
 }
 
 impl<LSC: LevelSizer> LevelSizer for ResizedLevel<LSC> {
-    #[inline] fn size_segments<VIt, F>(&self, values: F, values_len: usize, bits_per_value: u8) -> usize
+    #[inline] fn size_segments_for_values<VIt, F>(&self, values: F, values_len: usize, bits_per_value: u8) -> usize
     where VIt: IntoIterator<Item = u64>, F: FnMut() -> VIt
     {
-        self.resized(self.level_size_chooser.size_segments(values, values_len, bits_per_value))
+        self.resized(self.level_size_chooser.size_segments_for_values(values, values_len, bits_per_value))
+    }
+
+    fn size_segments<K, KV: KVSet<K>>(&self, kv: &KV) -> usize
+    {
+        self.resized(self.level_size_chooser.size_segments(kv))
     }
 
     #[inline] fn max_size_segments(&self, max_level_size: usize) -> usize {

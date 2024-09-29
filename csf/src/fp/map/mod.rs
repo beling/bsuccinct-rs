@@ -5,13 +5,13 @@ pub use conf::MapConf;
 use std::hash::Hash;
 use bitm::{BitAccess, Rank};
 
-use super::kvset::KVSet;
+use super::{common::concatenate_values, kvset::{KVSet, SlicesMutSource}};
 pub use super::level_sizer::LevelSizer;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, utils, stats, utils::{ArrayWithRank, read_bits}};
 use std::collections::HashMap;
 use std::io;
 
-use crate::{fp::collision_solver::{CollisionSolver, CollisionSolverBuilder}, bits_to_store_any_of};
+use crate::fp::collision_solver::{CollisionSolver, CollisionSolverBuilder};
 use dyn_size_of::GetSize;
 
 /// Finger-printing based static function (immutable map) that maps hashable keys to unsigned integer values of given bit-size.
@@ -69,79 +69,57 @@ impl<S: BuildSeededHasher> Map<S> {
     /// TODO Panics if the construction fails.
     /// Then it is almost certain that the input contains either duplicate keys
     /// or keys indistinguishable by any hash function from the family used.
-    /*fn with_conf_stats<K, LSC, CSB, BS>(
-        kv: impl KVSet<K>,
-        mut conf: MapConf<LSC, CSB, S>,
+    fn with_conf_stats<K, LSC, CSB, BS>(
+        mut kv: impl KVSet<K>,
+        conf: MapConf<LSC, CSB, S>,
         stats: &mut BS
     ) -> Self
         where K: Hash,
-              LSC: SimpleLevelSizeChooser,
+              LSC: LevelSizer,
               CSB: CollisionSolverBuilder,
               BS: stats::BuildStatsCollector
     {
         let bits_per_value = kv.bits_per_value();
         let mut level_sizes = Vec::<u64>::new();
         let mut arrays = Vec::<Box<[u64]>>::new();
-        let mut input_size = keys.len();
+        let mut values_lens = Vec::<usize>::new();
+        let mut values = Vec::<Box<[u64]>>::new();
+        let mut input_size = kv.kv_len();
         let mut level_nr = 0u32;
         while input_size != 0 {
-            let level_size_segments = conf.level_sizer.size_segments(
-                || values[0..input_size].iter().map(|v| *v as u64), input_size, bits_per_value);
+            let level_size_segments = conf.level_sizer.size_segments(&kv);
             let level_size = level_size_segments * 64;
             stats.level(input_size, level_size);
             let mut collision_solver = conf.collision_solver.new(level_size_segments, bits_per_value);
-            for i in 0..input_size {
-                let a_index = utils::map64_to_64(conf.hash.hash_one(&keys[i], level_nr), level_size as u64) as usize;
-                if collision_solver.is_under_collision(a_index) { continue }
-                collision_solver.process_fragment(a_index, values[i], bits_per_value);
-            }
-
-            let current_array = collision_solver.to_collision_array();
-            let mut i = 0usize;
-            while i < input_size {
-                let a_index = utils::map64_to_64(conf.hash.hash_one(&keys[i], level_nr), level_size as u64) as usize;
-                if current_array.get_bit(a_index) { // no collision
-                    // remove i-th element by replacing it with the last one
-                    input_size -= 1;
-                    keys.swap(i, input_size);
-                    //values.swap_fragments(i, input_size, bits_per_value);
-                    values.swap(i, input_size);
-                } else {    // collision, has to be processed again, at the next level
-                    i += 1;
+            kv.for_each_key_value(|k, v| {  // TODO ?? move this code to kv method
+                let a_index = utils::map64_to_64(conf.hash.hash_one(k, level_nr), level_size as u64) as usize;
+                if !collision_solver.is_under_collision(a_index) {
+                    collision_solver.process_fragment(a_index, v, bits_per_value);
                 }
-            }
-            arrays.push(current_array);
+            });
+            let (current_array, current_values, current_values_len) = collision_solver.to_collision_and_values(bits_per_value);
+            kv.retain_keys(|k| {
+                !current_array.get_bit(
+                    utils::map64_to_64(conf.hash.hash_one(k, level_nr), level_size as u64) as usize
+                )
+            });
+            arrays.push(current_array);            
             level_sizes.push(level_size_segments as u64);
+            values.push(current_values);
+            values_lens.push(current_values_len);
             level_nr += 1;
+            input_size = kv.kv_len();
         }
-
-        let (array, out_fragments_num)  = ArrayWithRank::build(arrays.concat().into_boxed_slice());
-        let mut output_value_fragments = CSB::CollisionSolver::construct_value_array(out_fragments_num as usize, bits_per_value);
-        for input_index in 0..keys.len() {
-            //let mut result_decoder = self.value_coding.decoder();
-            let mut array_begin_index = 0usize;
-            let mut level = 0u32;
-            loop {
-                let level_size = (level_sizes[level as usize] as usize) << 6usize;
-                let i = array_begin_index + utils::map64_to_64(conf.hash.hash_one(&keys[input_index], level), level_size as u64) as usize;
-                if array.content.get_bit(i) {
-                    CSB::CollisionSolver::set_value(&mut output_value_fragments, array.rank(i), values[input_index], bits_per_value);
-                    // stats.value_on_level(level); // TODO do we need this? we can get average levels from lookups
-                    break;
-                }
-                array_begin_index += level_size;
-                level += 1;
-            }
-        }
+        let (array, _)  = ArrayWithRank::build(arrays.concat().into_boxed_slice());
         stats.end(0);
         Self {
             array,
-            values: output_value_fragments,
+            values: concatenate_values(&values, &values_lens, bits_per_value),
             bits_per_value,
             level_sizes: level_sizes.into_boxed_slice(),
             hash_builder: conf.hash
         }
-    }*/
+    }
 
 
     /// Build `Map` for given keys -> values map, where:
@@ -150,7 +128,7 @@ impl<S: BuildSeededHasher> Map<S> {
     /// These arrays must be of the same length.
     fn with_slices_conf_stats<K, LSC, CSB, BS>(
         keys: &mut [K], values: &mut [u8],
-        /*&mut [u64],*/ mut conf: MapConf<LSC, CSB, S>,
+        /*&mut [u64],*/ conf: MapConf<LSC, CSB, S>,
         stats: &mut BS
     ) -> Self
         where K: Hash,
@@ -159,13 +137,15 @@ impl<S: BuildSeededHasher> Map<S> {
               BS: stats::BuildStatsCollector
 
     {
-        let bits_per_value = bits_to_store_any_of(values.iter().cloned());
+        Self::with_conf_stats(SlicesMutSource::new(keys, values, 0), conf, stats)
+
+        /*let bits_per_value = bits_to_store_any_of(values.iter().cloned());
         let mut level_sizes = Vec::<u64>::new();
         let mut arrays = Vec::<Box<[u64]>>::new();
         let mut input_size = keys.len();
         let mut level_nr = 0u32;
         while input_size != 0 {
-            let level_size_segments = conf.level_sizer.size_segments(
+            let level_size_segments = conf.level_sizer.size_segments_for_values(
                 || values[0..input_size].iter().map(|v| *v as u64), input_size, bits_per_value);
             let level_size = level_size_segments * 64;
             stats.level(input_size, level_size);
@@ -220,7 +200,7 @@ impl<S: BuildSeededHasher> Map<S> {
             bits_per_value,
             level_sizes: level_sizes.into_boxed_slice(),
             hash_builder: conf.hash
-        }
+        }*/
     }
 
     #[inline]

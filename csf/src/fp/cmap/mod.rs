@@ -105,7 +105,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         let mut value_rev_indices: Box<[u8]> = values.iter().map(|c| value_coding.len_of(*c)-1).collect();
         let mut level_nr = 0u32;
         while input_size != 0 {
-            let level_size_segments = conf.level_sizer.size_segments(
+            let level_size_segments = conf.level_sizer.size_segments_for_values(
                 || values[0..input_size].iter().zip(value_rev_indices[0..input_size].iter()).map(|(c, ri)| value_coding.rev_fragment_of(*c, *ri) as u64),
                 input_size,
                 value_coding.bits_per_fragment());

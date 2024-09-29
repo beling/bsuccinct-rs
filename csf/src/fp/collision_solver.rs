@@ -40,8 +40,8 @@ pub trait CollisionSolver {
     /// Returns triple consisted of:
     /// - an array that shows indices which have assigned values and are not under collision,
     /// - values (each stored at bits_per_fragment bits) assigned to successive bit ones in the array,
-    /// - number of bit ones in the array.
-    fn to_collision_and_values(self, bits_per_fragment: u8) -> (Box<[u64]>, Box<[u64]>, usize);
+    /// - number of bit ones in the array (number of values).
+    fn to_collision_and_values(self, bits_per_value: u8) -> (Box<[u64]>, Box<[u64]>, usize);
 
     /// Constructs array for values to fill with `set_value` method.
     fn construct_value_array(number_of_values: usize, bits_per_fragment: u8) -> Box<[u64]> {

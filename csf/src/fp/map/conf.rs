@@ -76,8 +76,5 @@ impl<LSC, CS: CollisionSolverBuilder, S: BuildSeededHasher> MapConf<LSC, CS, S> 
     pub fn lsize_cs_hash(level_size_chooser: LSC, collision_solver: CS, hash: S) -> Self {
         Self { level_sizer: level_size_chooser, collision_solver, hash }
     }
-    pub fn lsize_cs_hash_bpv(level_size_chooser: LSC, collision_solver: CS, hash: S, bits_per_value: u8) -> Self {
-        Self { level_sizer: level_size_chooser, collision_solver, hash }
-    }
 }
 
