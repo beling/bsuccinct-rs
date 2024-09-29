@@ -2,7 +2,7 @@ use std::hash::Hash;
 use binout::{VByte, AsIs, Serializer};
 use minimum_redundancy::DecodingResult;
 use bitm::{BitAccess, BitVec, Rank};
-use crate::fp::level_size_chooser::LevelSizer;
+use crate::fp::level_sizer::LevelSizer;
 
 use ph::utils::{ArrayWithRank, read_bits};
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils};

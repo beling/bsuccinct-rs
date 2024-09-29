@@ -6,7 +6,7 @@ use std::hash::Hash;
 use bitm::{BitAccess, Rank};
 
 use super::kvset::KVSet;
-pub use super::level_size_chooser::LevelSizer;
+pub use super::level_sizer::LevelSizer;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, utils, stats, utils::{ArrayWithRank, read_bits}};
 use std::collections::HashMap;
 use std::io;

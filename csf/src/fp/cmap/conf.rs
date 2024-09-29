@@ -1,4 +1,4 @@
-use crate::fp::level_size_chooser::OptimalLevelSize;
+use crate::fp::level_sizer::OptimalLevelSize;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher};
 use crate::fp::collision_solver::{CollisionSolverBuilder, LoMemAcceptEquals};
 use crate::coding::BuildMinimumRedundancy;
