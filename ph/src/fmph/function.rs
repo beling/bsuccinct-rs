@@ -174,19 +174,27 @@ pub(crate) fn fphash_remove_collided(result: &mut Box<[u64]>, collision: &[u64])
     }
 }
 
+pub(crate) fn concat(arrays: &mut [Box<[AtomicU64]>]) -> Vec<u64> {
+    let result_len = arrays.iter().map(|a| a.len()).sum();
+    let mut result = Vec::with_capacity(result_len);
+    for a in arrays { result.extend_from_slice(get_mut_slice(a)) }
+    result
+}
+
 /// Cast `v` to slice of `AtomicU64`.
 #[inline]
 pub(crate) fn from_mut_slice(v: &mut [u64]) -> &mut [AtomicU64] {
     use core::mem::align_of;
     let [] = [(); align_of::<AtomicU64>() - align_of::<u64>()];
     unsafe { &mut *(v as *mut [u64] as *mut [AtomicU64]) }
-}   // copied from unstable rust, from_mut_slice #94384
+}   // copied from unstable rust, from_mut_slice, commit #94816, issue #76314
 
 /// Cast `v` to slice of `u64`.
 #[inline]
 pub(crate) fn get_mut_slice(v: &mut [AtomicU64]) -> &mut [u64] {
+    // SAFETY: the mutable reference guarantees unique ownership.
     unsafe { &mut *(v as *mut [AtomicU64] as *mut [u64]) }
-}   // copied from unstable rust, get_mut_slice #94816
+}   // copied from unstable rust, get_mut_slice, commit #94816, issue #76314
 
 // Remove from bit-array `result` all bits that are set in `collision`. Uses multiple threads.
 /*pub(crate) fn fphash_par_remove_collided(result: &mut Box<[u64]>, collision: &[u64]) {
