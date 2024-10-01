@@ -3,8 +3,8 @@
 mod elias_fano;
 mod bitm;
 #[cfg(target_pointer_width = "64")] mod sucds;
-mod succinct;
-mod sux;
+#[cfg(target_pointer_width = "64")] mod succinct;
+#[cfg(target_pointer_width = "64")] mod sux;
 #[cfg(feature = "vers-vecs")] mod vers;
 
 use std::{fs::{File, OpenOptions}, hint::black_box, num::{NonZeroU32, NonZeroU64}, ops::Range, time::Instant};
@@ -24,15 +24,19 @@ pub enum Structure {
     /// Rank/Select on uncompressed bit vector using sucds crate
     #[cfg(target_pointer_width = "64")] SucdsBV,
     /// Rank/Select on uncompressed bit vector using Jacobson from succinct crate
+    #[cfg(target_pointer_width = "64")]
     #[clap(visible_alias = "succ-jacobson")]
     SuccinctJacobson,
     /// Rank/Select on uncompressed bit vector using Rank9 from succinct crate
+    #[cfg(target_pointer_width = "64")]
     #[clap(visible_aliases = ["succ-rank9", "succ-r9"])]
     SuccinctRank9,
     /// SelectFixed1 on uncompressed bit vector using sux crate
+    #[cfg(target_pointer_width = "64")]
     #[clap(visible_aliases = ["sux-sf1", "sux-sel1"])]
     SuxSelectFixed1,
     /// SelectFixed2 on uncompressed bit vector using sux crate
+    #[cfg(target_pointer_width = "64")]
     #[clap(visible_aliases = ["sux-sf2", "sux-sel2"])]
     SuxSelectFixed2,
     /// Rank/Select on uncompressed bit vector using vers crate
@@ -436,19 +440,23 @@ fn main() {
         Structure::EliasFano => elias_fano::benchmark(&conf),
         Structure::BitmBV => bitm::benchmark_rank_select(&conf),
         #[cfg(target_pointer_width = "64")] Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
-        Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
-        Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
-        Structure::SuxSelectFixed1 => sux::benchmark_select_fixed1(&conf),
-        Structure::SuxSelectFixed2 => sux::benchmark_select_fixed2(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuxSelectFixed1 => sux::benchmark_select_fixed1(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuxSelectFixed2 => sux::benchmark_select_fixed2(&conf),
         #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf),
         Structure::BV => {
             bitm::benchmark_rank_select(&conf);
+            #[cfg(target_pointer_width = "64")] {
             sucds::benchmark_rank9_select(&conf);
             succinct::benchmark_rank9(&conf);
             succinct::benchmark_jacobson(&conf);
+            }
             #[cfg(feature = "vers-vecs")] vers::benchmark_rank_select(&conf);
+            #[cfg(target_pointer_width = "64")] {
             sux::benchmark_select_fixed2(&conf);
             sux::benchmark_select_fixed1(&conf);
+            }
         },
     }
 }

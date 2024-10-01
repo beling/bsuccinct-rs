@@ -509,6 +509,7 @@ mod tests {
         test_read_write(wm);
     }
 
+    #[cfg(target_pointer_width = "64")]
     #[test]
     #[ignore = "uses much memory and time"]
     fn test_huge_11_levels() {
@@ -522,6 +523,7 @@ mod tests {
         test_read_write(wm);
     }
 
+    #[cfg(target_pointer_width = "64")]
     #[test]
     #[ignore = "uses much memory and time"]
     fn test_huge_9_levels() {

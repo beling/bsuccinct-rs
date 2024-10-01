@@ -771,6 +771,7 @@ mod tests {
         test_read_write(ef);
     }
 
+    #[cfg(target_pointer_width = "64")]
     #[test]
     #[ignore = "uses much memory and time"]
     fn test_huge() {
