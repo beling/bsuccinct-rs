@@ -2,7 +2,7 @@
 
 mod elias_fano;
 mod bitm;
-mod sucds;
+#[cfg(target_pointer_width = "64")] mod sucds;
 mod succinct;
 mod sux;
 #[cfg(feature = "vers-vecs")] mod vers;
@@ -22,7 +22,7 @@ pub enum Structure {
     /// Rank/Select on uncompressed bit vector using bitm crate
     BitmBV,
     /// Rank/Select on uncompressed bit vector using sucds crate
-    SucdsBV,
+    #[cfg(target_pointer_width = "64")] SucdsBV,
     /// Rank/Select on uncompressed bit vector using Jacobson from succinct crate
     #[clap(visible_alias = "succ-jacobson")]
     SuccinctJacobson,
@@ -435,7 +435,7 @@ fn main() {
     match conf.structure {
         Structure::EliasFano => elias_fano::benchmark(&conf),
         Structure::BitmBV => bitm::benchmark_rank_select(&conf),
-        Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
         Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
         Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
         Structure::SuxSelectFixed1 => sux::benchmark_select_fixed1(&conf),

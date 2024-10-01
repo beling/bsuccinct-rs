@@ -168,25 +168,31 @@ pub(crate) fn fphash_sync_add_bit(result: &[AtomicU64], collision: &[AtomicU64],
 }
 
 /// Remove from bit-array `result` all bits that are set in `collision`.
-pub(crate) fn fphash_remove_collided(result: &mut Box<[u64]>, collision: &[u64]) {
+pub(crate) fn fphash_remove_collided(result: &mut LevelArray, collision: &[u64]) {
     for (r, c) in result.iter_mut().zip(collision.iter()) {
         *r &= !c;
     }
 }
 
-pub(crate) fn concat(arrays: &mut [Box<[AtomicU64]>]) -> Vec<u64> {
-    let result_len = arrays.iter().map(|a| a.len()).sum();
+#[cfg(not(feature = "aligned-vec"))] pub (crate) type LevelArray = Box<[u64]>;
+#[cfg(feature = "aligned-vec")] pub (crate) type LevelArray = aligned_vec::ABox<[u64], aligned_vec::ConstAlign<{std::mem::align_of::<AtomicU64>()}>>;
+pub(crate) fn level_array_for(size_segments: usize) -> LevelArray {
+    #[cfg(not(feature = "aligned-vec"))] { vec![0u64; size_segments].into_boxed_slice() }
+    #[cfg(feature = "aligned-vec")] { aligned_vec::avec![[{std::mem::align_of::<AtomicU64>()}] | 0u64; size_segments].into_boxed_slice() }
+}
+
+pub(crate) fn concat_level_arrays(levels: Vec<LevelArray>) -> Box<[u64]> {
+    let result_len = levels.iter().map(|l| l.len()).sum();
     let mut result = Vec::with_capacity(result_len);
-    for a in arrays { result.extend_from_slice(get_mut_slice(a)) }
-    result
+    for a in levels { result.extend_from_slice(&a) }
+    result.into_boxed_slice()
 }
 
 /// Cast `v` to slice of `AtomicU64`.
 #[inline]
-pub(crate) fn from_mut_slice(v: &mut [u64]) -> &mut [AtomicU64] {
-    use core::mem::align_of;
-    let [] = [(); align_of::<AtomicU64>() - align_of::<u64>()];
-    unsafe { &mut *(v as *mut [u64] as *mut [AtomicU64]) }
+pub(crate) fn from_mut_slice(v: &mut LevelArray) -> &mut [AtomicU64] {
+    #[cfg(not(feature = "aligned-vec"))] let [] = [(); core::mem::align_of::<AtomicU64>() - core::mem::align_of::<u64>()];
+    unsafe { &mut *(v.as_mut() as *mut [u64] as *mut [AtomicU64]) }
 }   // copied from unstable rust, from_mut_slice, commit #94816, issue #76314
 
 /// Cast `v` to slice of `u64`.
@@ -210,7 +216,7 @@ pub(crate) fn get_mut_slice(v: &mut [AtomicU64]) -> &mut [u64] {
 
 /// Helper structure for building fingerprinting-based minimal perfect hash function (FMPH).
 struct Builder<S> {
-    arrays: Vec::<Box<[u64]>>,
+    arrays: Vec::<LevelArray>,
     input_size: usize,
     conf: BuildConf<S>
 }
@@ -219,7 +225,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     pub fn new<K>(mut conf: BuildConf<S>, keys: &impl KeySet<K>) -> Self {
         if conf.use_multiple_threads { conf.use_multiple_threads = rayon::current_num_threads() > 1; }
         Self {
-            arrays: Vec::<Box<[u64]>>::new(),
+            arrays: Vec::<LevelArray>::new(),
             input_size: keys.keys_len(),
             conf
         }
@@ -232,9 +238,9 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Build level for given sequence of key indices using a single thread
-    fn build_array_for_indices_st(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
+    fn build_array_for_indices_st(&self, bit_indices: &[usize], level_size_segments: usize) -> LevelArray
     {
-        let mut result = vec![0u64; level_size_segments].into_boxed_slice();
+        let mut result = level_array_for(level_size_segments);
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         for bit_index in bit_indices {
             fphash_add_bit(&mut result, &mut collision, *bit_index);
@@ -244,12 +250,12 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Build level for given sequence of key indices possibly using multiple threads.
-    fn build_array_for_indices(&self, bit_indices: &[usize], level_size_segments: usize) -> Box<[u64]>
+    fn build_array_for_indices(&self, bit_indices: &[usize], level_size_segments: usize) -> LevelArray
     {
         if !self.conf.use_multiple_threads {
             return self.build_array_for_indices_st(bit_indices, level_size_segments)
         }
-        let mut result = vec![0u64; level_size_segments].into_boxed_slice();
+        let mut result = level_array_for(level_size_segments);
         let result_atom = from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         bit_indices.par_iter().for_each(
@@ -260,10 +266,10 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Builds level using a single thread.
-    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
+    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> LevelArray
         where K: Hash
     {
-        let mut result = vec![0u64; level_size_segments].into_boxed_slice();
+        let mut result = level_array_for(level_size_segments);
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
         let level_size = level_size_segments * 64;
         keys.for_each_key(
@@ -275,13 +281,13 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Builds level possibly (if `keys` can be iterated in parallel) using multiple threads
-    fn build_level<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> Box<[u64]>
+    fn build_level<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> LevelArray
         where K: Hash + Sync
     {
         if !(self.conf.use_multiple_threads && keys.has_par_for_each_key()) {
             return self.build_level_st(keys, level_size_segments, seed);
         }
-        let mut result = vec![0u64; level_size_segments].into_boxed_slice();
+        let mut result = level_array_for(level_size_segments);
         let result_atom = from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
         let level_size = level_size_segments * 64;
@@ -351,7 +357,8 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
 
     pub fn finish(self) -> Function<S> {
         let level_sizes = self.arrays.iter().map(|l| l.len() as u64).collect();
-        let (array, _)  = ArrayWithRank::build(self.arrays.concat().into_boxed_slice());
+        //let (array, _)  = ArrayWithRank::build(self.arrays.concat().into_boxed_slice());
+        let (array, _)  = ArrayWithRank::build(concat_level_arrays(self.arrays));
         Function::<S> {
             array,
             level_sizes,

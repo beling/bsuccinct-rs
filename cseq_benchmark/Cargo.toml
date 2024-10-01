@@ -18,9 +18,11 @@ clap = { version="4", features = ["derive"] }
 dyn_size_of = { version=">=0.4.3", path="../dyn_size_of", features=["aligned-vec"] }
 cseq = { version ="0.1", path = "../cseq" }
 bitm = { version="0.4", path="../bitm", features=["aligned-vec"] }
-sucds = "0.8"
 succinct = "0.5"
 vers-vecs = { version="1.1", optional=true }
 sux="0.3"
 mem_dbg = "0.1" # required by sux MemSize
 aligned-vec = "0.6"
+
+[target.'cfg(target_pointer_width = "64")'.dependencies]
+sucds = "0.8"

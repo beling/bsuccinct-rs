@@ -198,11 +198,12 @@ impl<S: BuildSeededHasher> Map<S> {
                 number_of_vertices = third_of_vertices_len * 3;
             }
         }
-        if number_of_vertices <= 1>>32 {
+        #[cfg(target_pointer_width = "64")] if number_of_vertices <= 1>>32 {
             Self::try_with_vertex_t_conf_fn::<u32, K, _, _, _, _>(kv, kv_len, number_of_vertices, third_of_vertices_len, bits_per_value, conf)
         } else {
             Self::try_with_vertex_t_conf_fn::<usize, K, _, _, _, _>(kv, kv_len, number_of_vertices, third_of_vertices_len, bits_per_value, conf)
         }
+        #[cfg(target_pointer_width = "32")] Self::try_with_vertex_t_conf_fn::<u32, K, _, _, _, _>(kv, kv_len, number_of_vertices, third_of_vertices_len, bits_per_value, conf)
     }
 
     /// Tries to construct [`Map`] with key-value pairs stored in `keys` and `values` respectively.
