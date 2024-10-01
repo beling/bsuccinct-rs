@@ -174,11 +174,11 @@ pub(crate) fn fphash_remove_collided(result: &mut LevelArray, collision: &[u64])
     }
 }
 
-#[cfg(not(feature = "aligned-vec"))] pub (crate) type LevelArray = Box<[u64]>;
-#[cfg(feature = "aligned-vec")] pub (crate) type LevelArray = aligned_vec::ABox<[u64], aligned_vec::ConstAlign<{std::mem::align_of::<AtomicU64>()}>>;
+#[cfg(not(all(feature = "aligned-vec", target_pointer_width = "32")))] pub (crate) type LevelArray = Box<[u64]>;
+#[cfg(all(feature = "aligned-vec", target_pointer_width = "32"))] pub (crate) type LevelArray = aligned_vec::ABox<[u64], aligned_vec::ConstAlign<{std::mem::align_of::<AtomicU64>()}>>;
 pub(crate) fn level_array_for(size_segments: usize) -> LevelArray {
-    #[cfg(not(feature = "aligned-vec"))] { vec![0u64; size_segments].into_boxed_slice() }
-    #[cfg(feature = "aligned-vec")] { aligned_vec::avec![[{std::mem::align_of::<AtomicU64>()}] | 0u64; size_segments].into_boxed_slice() }
+    #[cfg(not(all(feature = "aligned-vec", target_pointer_width = "32")))] { vec![0u64; size_segments].into_boxed_slice() }
+    #[cfg(all(feature = "aligned-vec", target_pointer_width = "32"))] { aligned_vec::avec![[{std::mem::align_of::<AtomicU64>()}] | 0u64; size_segments].into_boxed_slice() }
 }
 
 pub(crate) fn concat_level_arrays(levels: Vec<LevelArray>) -> Box<[u64]> {
