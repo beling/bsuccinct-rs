@@ -8,20 +8,23 @@ use crate::coding::BuildMinimumRedundancy;
 pub struct GOCMapConf<
     BC = BuildMinimumRedundancy,
     LSC = OptimalLevelSize,
-    GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher
+    GS: GroupSize = TwoToPowerBitsStatic::<4>,
+    SS: SeedSize = TwoToPowerBitsStatic<2>,
+    S = BuildDefaultSeededHasher
 > {
+    /// Coding used to map the values to codewords that are sequences of code fragments.
     pub coding: BC,
     /// Configuration of family of (group-optimized) hash functions (default: [`GOConf::default`]).
     pub goconf: GOConf<GS, SS, S>,
     /// Chooses the size of level for the given level input.
-    pub level_size_chooser: LSC,
+    pub level_sizer: LSC,
 }
 
 impl Default for GOCMapConf {
     fn default() -> Self { Self {
         coding: Default::default(),
         goconf: Default::default(),
-        level_size_chooser: Default::default(),
+        level_sizer: Default::default(),
     } }
 }
 
@@ -36,7 +39,7 @@ impl<BC> GOCMapConf<BC, OptimalLevelSize, TwoToPowerBitsStatic::<4>, TwoToPowerB
         Self {
             coding,
             goconf: Default::default(),
-            level_size_chooser: Default::default(),
+            level_sizer: Default::default(),
         }
     }
 }
@@ -46,7 +49,7 @@ impl<GS: GroupSize, SS: SeedSize, S> GOCMapConf<BuildMinimumRedundancy, OptimalL
         Self {
             coding: Default::default(),
             goconf,
-            level_size_chooser: Default::default(),
+            level_sizer: Default::default(),
         }
     }
 }
@@ -62,7 +65,7 @@ impl<BC, GS: GroupSize, SS: SeedSize, S> GOCMapConf<BC, OptimalLevelSize, GS, SS
         Self {
             coding,
             goconf,
-            level_size_chooser: Default::default(),
+            level_sizer: Default::default(),
         }
     }
 }
@@ -72,7 +75,7 @@ impl<BC, LSC> GOCMapConf<BC, LSC, TwoToPowerBitsStatic::<4>, TwoToPowerBitsStati
         Self {
             coding,
             goconf: Default::default(),
-            level_size_chooser,
+            level_sizer: level_size_chooser,
         }
     }
 }
@@ -85,6 +88,6 @@ impl<LSC> GOCMapConf<BuildMinimumRedundancy, LSC, TwoToPowerBitsStatic::<4>, Two
 
 impl<BC, LSC, GS: GroupSize, SS: SeedSize, S> GOCMapConf<BC, LSC, GS, SS, S> {
     pub fn groups_lsize_coding(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC, coding: BC) -> Self {
-        Self { coding, goconf, level_size_chooser }
+        Self { coding, goconf, level_sizer: level_size_chooser }
     }
 }

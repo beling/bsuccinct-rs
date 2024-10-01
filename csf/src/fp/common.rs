@@ -1,6 +1,22 @@
 use std::hash::Hash;
 use std::collections::HashMap;
+use bitm::{n_lowest_bits, BitAccess, BitVec};
+
 use crate::coding::Coding;
+
+pub (crate) fn concatenate_values(values: &[Box<[u64]>], values_lens: &[usize], bits_per_value: u8) -> Box<[u64]> {
+    let mut result: Box<[u64]> = BitVec::with_zeroed_bits(values_lens.iter().sum::<usize>() * bits_per_value as usize);
+    let mut result_index = 0;
+    let mask = n_lowest_bits(bits_per_value);
+    for (src, src_len) in values.iter().zip(values_lens.iter()) {  // TODO faster implementation that copies 64-bits at ones
+        for src_index in 0..*src_len {
+            result.init_successive_fragment(&mut result_index,
+                src.get_fragment_unmasked(src_index, bits_per_value) & mask,
+                bits_per_value);
+        }
+    }
+    result
+}
 
 // Returns `conf` if it is greater than `0`, or `max(1, available parallelism + conf)` otherwise.
 /*pub fn threads_count(conf: isize) -> NonZeroUsize {

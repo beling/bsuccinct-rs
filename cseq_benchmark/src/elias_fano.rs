@@ -7,7 +7,7 @@ use bitm::{Rank, Select};
 pub fn benchmark(conf: &super::Conf) {
     println!("cseq Elias-Fano");
 
-    let mut builder = Builder::<ABox<[u64], _>>::new_b(conf.num(), conf.universe as u64);
+    let mut builder = Builder::<ABox<[u64]>>::new_b(conf.num(), conf.universe as u64);
     let tester = conf.add_data(|v| builder.push(v as u64));
 
     //let start_moment = Instant::now();

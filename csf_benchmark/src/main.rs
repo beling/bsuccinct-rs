@@ -547,7 +547,7 @@ fn fpgo(file: &mut Option<File>, conf: &Conf, bits_per_seed: u8, bits_per_group:
     }
 }
 
-fn fpgo_all<L: fp::LevelSizeChooser+Copy>(conf: &Conf, level_size: L) 
+fn fpgo_all<L: fp::LevelSizer+Copy>(conf: &Conf, level_size: L) 
 where fp::GOCMapConf<BuildMinimumRedundancy, L, Bits, Bits>: PrintParams
 {
     let mut file = file(&conf, "fpgo_all", FPGO_HEADER);

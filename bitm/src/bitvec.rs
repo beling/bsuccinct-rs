@@ -489,9 +489,9 @@ impl BitVec for Box<[u64]> {
 }
 
 #[cfg(feature = "aligned-vec")]
-impl BitVec for aligned_vec::ABox<[u64]> {
+impl<const ALIGN: usize> BitVec for aligned_vec::ABox<[u64], aligned_vec::ConstAlign<ALIGN>> {
     #[inline(always)] fn with_64bit_segments(segments_value: u64, segments_len: usize) -> Self {
-        aligned_vec::avec![segments_value; segments_len].into_boxed_slice()
+        aligned_vec::avec![[ALIGN] | segments_value; segments_len].into_boxed_slice()
     }
 
     fn with_bitwords(word: u64, word_len_bits: u8, words_count: usize) -> Self {

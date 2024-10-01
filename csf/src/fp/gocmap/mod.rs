@@ -4,7 +4,7 @@ use ph::utils::read_bits;
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils::ArrayWithRank};
 use bitm::{BitAccess, BitVec, Rank};
 use minimum_redundancy::DecodingResult;
-use super::{LevelSizeChooser, CollisionSolver};
+use super::{LevelSizer, CollisionSolver};
 use super::collision_solver::{CountPositiveCollisions, LoMemAcceptEqualsSolver};
 use super::common::{encode_all, encode_all_from_map};
 use std::collections::HashMap;
@@ -47,6 +47,7 @@ impl<C: GetSize, GS: GroupSize, SS: SeedSize, S> GetSize for GOCMap<C, GS, SS, S
 }
 
 impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS, SS, S> {
+    /// Maps value of each key to code fragment, and adds the fragment to collision solver.
     fn consider_all<K, LSC, GetGroupSeed, CS, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                                   keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
                                                   level_size_groups: u64, level_nr: u32,
@@ -65,6 +66,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
         }
     }
 
+    /// Counts number of positive collisions in each group.
     fn count_collisions_in_groups<K, LSC, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                               keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
                                               level_size_groups: u64, level_nr: u32, group_seed: u16) -> Box<[u8]>
@@ -110,7 +112,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
         self.get_stats(k, &mut ())
     }
 
-    /// Build BBMap2 for given keys -> values map, where:
+    /// Build `GOCMap` for given keys -> values map, where:
     /// - keys are given directly
     /// - values are encoded by Minimum-Redundancy (value_coding) and given in as values_fragments and corresponding values_fragments_sizes
     /// All three arrays must be of the same length.
@@ -119,7 +121,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
         keys: &mut [K], values: &mut [C::Codeword],
         value_coding: C, conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector
     {
         conf.goconf.validate();
@@ -133,8 +135,11 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             let in_keys = &keys[0..input_size];
             let in_values = &values[0..input_size];
             let in_value_rev_indices = &value_rev_indices[0..input_size];
-
-            let suggested_level_size_segments = conf.level_size_chooser.size_segments(&value_coding, in_values, in_value_rev_indices);
+            let suggested_level_size_segments = conf.level_sizer.size_segments_for_values(
+                || in_values.iter().zip(in_value_rev_indices.iter()).map(|(c, ri)| value_coding.rev_fragment_of(*c, *ri) as u64),
+                input_size,
+                value_coding.bits_per_fragment());
+            
             let (level_size_groups, level_size_segments) = conf.goconf.bits_per_group.level_size_groups_segments(suggested_level_size_segments * 64);
             //let seed = level_nr;
             stats.level(input_size, level_size_segments * 64);
@@ -280,7 +285,7 @@ impl<C: SerializableCoding, S: BuildSeededHasher, GS: GroupSize, SS: SeedSize> G
 
 impl<GS: GroupSize, SS: SeedSize, C: SerializableCoding> GOCMap<C, GS, SS> {
     /// Reads `Self` from the `input`, using `read_value` to read values.
-    /// Only `BBMap2`s that use default hasher can be read by this method.
+    /// Only `GOCMap`s that use default hasher can be read by this method.
     pub fn read<F>(input: &mut dyn io::Read, read_value: F) -> io::Result<Self>
         where F: FnMut(&mut dyn io::Read) -> io::Result<C::Value>
     {
@@ -296,7 +301,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         stats: &mut BS
     ) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector
     {
         Self::with_fragments(keys, &mut encode_all(&value_coding, values), value_coding, conf, stats)
@@ -306,7 +311,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         keys: &mut [K], values: &[C::Value], conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS
     ) -> Self
         where K: Hash,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector,
               BC: BuildCoding<C::Value, Coding=C>
     {
@@ -317,7 +322,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         map: &HashMap<K, C::Value, H>, value_coding: C, conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS
     ) -> Self
         where K: Hash + Clone,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector,
               BC: BuildCoding<C::Value, Coding=C>
     {
@@ -329,7 +334,7 @@ impl<GS: GroupSize, SS: SeedSize, C: Coding, S: BuildSeededHasher> GOCMap<C, GS,
         map: &HashMap<K, C::Value, H>, conf: GOCMapConf<BC, LSC, GS, SS, S>, stats: &mut BS
     ) -> Self
         where K: Hash + Clone,
-              LSC: LevelSizeChooser,
+              LSC: LevelSizer,
               BS: stats::BuildStatsCollector,
               BC: BuildCoding<C::Value, Coding=C>
     {
@@ -376,37 +381,37 @@ mod tests {
     use crate::coding::BuildMinimumRedundancy;
     //use minimum_redundancy::{write_int, read_int};
 
-    fn test_read_write<GS: GroupSize, SS: SeedSize, C: SerializableCoding<Value=u8>>(bbmap: &GOCMap<C, GS, SS>) where SS::VecElement: PartialEq + Debug {
+    fn test_read_write<GS: GroupSize, SS: SeedSize, C: SerializableCoding<Value=u8>>(fpmap: &GOCMap<C, GS, SS>) where SS::VecElement: PartialEq + Debug {
         let mut buff = Vec::new();
-        bbmap.write(&mut buff, |b, v| AsIs::write(b, *v)).unwrap();
-        assert_eq!(buff.len(), bbmap.write_bytes(1));
+        fpmap.write(&mut buff, |b, v| AsIs::write(b, *v)).unwrap();
+        assert_eq!(buff.len(), fpmap.write_bytes(1));
         let read = GOCMap::<C, GS, SS>::read(&mut &buff[..], |b| AsIs::read(b)).unwrap();
-        assert_eq!(bbmap.level_size, read.level_size);
-        assert_eq!(bbmap.array.content, read.array.content);
-        assert_eq!(bbmap.group_seeds, read.group_seeds);
-        assert_eq!(bbmap.value_fragments, read.value_fragments);
-        assert_eq!(bbmap.goconf.bits_per_group.into(), read.goconf.bits_per_group.into());
-        assert_eq!(bbmap.goconf.bits_per_seed.into(), read.goconf.bits_per_seed.into());
+        assert_eq!(fpmap.level_size, read.level_size);
+        assert_eq!(fpmap.array.content, read.array.content);
+        assert_eq!(fpmap.group_seeds, read.group_seeds);
+        assert_eq!(fpmap.value_fragments, read.value_fragments);
+        assert_eq!(fpmap.goconf.bits_per_group.into(), read.goconf.bits_per_group.into());
+        assert_eq!(fpmap.goconf.bits_per_seed.into(), read.goconf.bits_per_seed.into());
     }
 
-    fn test_bbmap2_invariants<GS: GroupSize, SS: SeedSize, C: Coding>(bbmap: &GOCMap<C, GS, SS>) {
-        let number_of_groups = bbmap.level_size.iter().map(|v| *v as usize).sum::<usize>();
-        assert_eq!(bbmap.goconf.bits_per_group * number_of_groups, bbmap.array.content.len() * 64);
-        assert_eq!(ceiling_div(bbmap.goconf.bits_per_seed.into() as usize * number_of_groups, 64), bbmap.group_seeds.len());
+    fn test_fpcmap_invariants<GS: GroupSize, SS: SeedSize, C: Coding>(fpmap: &GOCMap<C, GS, SS>) {
+        let number_of_groups = fpmap.level_size.iter().map(|v| *v as usize).sum::<usize>();
+        assert_eq!(fpmap.goconf.bits_per_group * number_of_groups, fpmap.array.content.len() * 64);
+        assert_eq!(ceiling_div(fpmap.goconf.bits_per_seed.into() as usize * number_of_groups, 64), fpmap.group_seeds.len());
         assert_eq!(
-            ceiling_div(bbmap.array.content.iter().map(|v|v.count_ones()).sum::<u32>() as usize * bbmap.value_coding.bits_per_fragment() as usize, 64),
-            bbmap.value_fragments.len()
+            ceiling_div(fpmap.array.content.iter().map(|v|v.count_ones()).sum::<u32>() as usize * fpmap.value_coding.bits_per_fragment() as usize, 64),
+            fpmap.value_fragments.len()
         );
     }
 
-    fn test_4pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizeChooser>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
-        let bbmap = GOCMap::from_map_with_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
-        assert_eq!(bbmap.get(&'a'), Some(&1));
-        assert_eq!(bbmap.get(&'b'), Some(&2));
-        assert_eq!(bbmap.get(&'c'), Some(&1));
-        assert_eq!(bbmap.get(&'d'), Some(&3));
-        test_bbmap2_invariants(&bbmap);
-        test_read_write(&bbmap);
+    fn test_4pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizer>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
+        let fpmap = GOCMap::from_map_with_conf(&hashmap!('a'=>1u8, 'b'=>2u8, 'c'=>1u8, 'd'=>3u8), conf, &mut ());
+        assert_eq!(fpmap.get(&'a'), Some(&1));
+        assert_eq!(fpmap.get(&'b'), Some(&2));
+        assert_eq!(fpmap.get(&'c'), Some(&1));
+        assert_eq!(fpmap.get(&'d'), Some(&3));
+        test_fpcmap_invariants(&fpmap);
+        test_read_write(&fpmap);
     }
 
     #[test]
@@ -414,20 +419,20 @@ mod tests {
         test_4pairs(GOCMapConf::bpf(1));
     }
 
-    fn test_8pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizeChooser>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
-        let bbmap = GOCMap::from_map_with_conf(&hashmap!(
+    fn test_8pairs<GS: GroupSize, SS: SeedSize, LSC: LevelSizer>(conf: GOCMapConf<BuildMinimumRedundancy, LSC, GS, SS>) where SS::VecElement: PartialEq + Debug {
+        let fpmap = GOCMap::from_map_with_conf(&hashmap!(
             'a' => 1, 'b' => 2, 'c' => 1, 'd' => 3,
             'e' => 4, 'f' => 1, 'g' => 5, 'h' => 6), conf, &mut ());
-        assert_eq!(bbmap.get(&'a'), Some(&1));
-        assert_eq!(bbmap.get(&'b'), Some(&2));
-        assert_eq!(bbmap.get(&'c'), Some(&1));
-        assert_eq!(bbmap.get(&'d'), Some(&3));
-        assert_eq!(bbmap.get(&'e'), Some(&4));
-        assert_eq!(bbmap.get(&'f'), Some(&1));
-        assert_eq!(bbmap.get(&'g'), Some(&5));
-        assert_eq!(bbmap.get(&'h'), Some(&6));
-        test_bbmap2_invariants(&bbmap);
-        test_read_write(&bbmap);
+        assert_eq!(fpmap.get(&'a'), Some(&1));
+        assert_eq!(fpmap.get(&'b'), Some(&2));
+        assert_eq!(fpmap.get(&'c'), Some(&1));
+        assert_eq!(fpmap.get(&'d'), Some(&3));
+        assert_eq!(fpmap.get(&'e'), Some(&4));
+        assert_eq!(fpmap.get(&'f'), Some(&1));
+        assert_eq!(fpmap.get(&'g'), Some(&5));
+        assert_eq!(fpmap.get(&'h'), Some(&6));
+        test_fpcmap_invariants(&fpmap);
+        test_read_write(&fpmap);
     }
 
     #[test]

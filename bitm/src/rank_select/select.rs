@@ -517,6 +517,7 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
 ///   In: Bonifaci V., Demetrescu C., Marchetti-Spaccamela A. (eds) Experimental Algorithms. SEA 2013.
 ///   Lecture Notes in Computer Science, vol 7933. Springer, Berlin, Heidelberg. <https://doi.org/10.1007/978-3-642-38527-8_15>
+/// 
 /// However, our implementation can automatically adjust the sampling density according to the content of the vector
 /// (see [`AdaptiveCombinedSamplingDensity`]).
 /// 

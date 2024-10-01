@@ -1,6 +1,6 @@
 [package]
 name = "dyn_size_of"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
@@ -13,4 +13,4 @@ categories = [ "data-structures", "science" ]
 keywords = [ "memory", "complexity", "heap" ]
 
 [dependencies]
-aligned-vec = { version="0.5", optional=true }
+aligned-vec = { version=">=0.5", optional=true }
