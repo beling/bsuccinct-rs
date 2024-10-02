@@ -94,7 +94,7 @@ impl<S: BuildSeededHasher> Map<S> {
             kv.for_each_key_value(|k, v| {  // TODO ?? move this code to kv method
                 let a_index = utils::map64_to_64(conf.hash.hash_one(k, level_nr), level_size as u64) as usize;
                 if !collision_solver.is_under_collision(a_index) {
-                    collision_solver.process_fragment(a_index, v, bits_per_value);
+                    collision_solver.add_value(a_index, v, bits_per_value);
                 }
             });
             let (current_array, current_values, current_values_len) = collision_solver.to_collision_and_values(bits_per_value);
@@ -124,7 +124,7 @@ impl<S: BuildSeededHasher> Map<S> {
 
     /// Build `Map` for given keys -> values map, where:
     /// - keys are given directly,
-    /// - TODO values are given as bit vector with bit_per_value.
+    /// - values are given as bit vector with bit_per_value.
     /// These arrays must be of the same length.
     fn with_slices_conf_stats<K, LSC, CSB, BS>(
         keys: &mut [K], values: &mut [u8],

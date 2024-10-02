@@ -115,7 +115,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
             for i in 0..input_size {
                 let a_index = utils::map64_to_64(conf.hash.hash_one(&keys[i], level_nr), level_size as u64) as usize;
                 if collision_solver.is_under_collision(a_index) { continue }
-                collision_solver.process_fragment(a_index,
+                collision_solver.add_value(a_index,
                                                   value_coding.rev_fragment_of(values[i], value_rev_indices[i]),
                                                   value_coding.bits_per_fragment());
             }
