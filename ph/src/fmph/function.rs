@@ -191,7 +191,8 @@ pub(crate) fn concat_level_arrays(levels: Vec<LevelArray>) -> Box<[u64]> {
 /// Cast `v` to slice of `AtomicU64`.
 #[inline]
 pub(crate) fn from_mut_slice(v: &mut LevelArray) -> &mut [AtomicU64] {
-    #[cfg(not(feature = "aligned-vec"))] let [] = [(); core::mem::align_of::<AtomicU64>() - core::mem::align_of::<u64>()];
+    #[cfg(not(all(feature = "aligned-vec", target_pointer_width = "32")))]
+    let [] = [(); core::mem::align_of::<AtomicU64>() - core::mem::align_of::<u64>()];
     unsafe { &mut *(v.as_mut() as *mut [u64] as *mut [AtomicU64]) }
 }   // copied from unstable rust, from_mut_slice, commit #94816, issue #76314
 
