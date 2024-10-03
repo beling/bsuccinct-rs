@@ -34,6 +34,11 @@ pub trait CollisionSolver {
     /// Try to assign `value` (of size `bits_per_value`) to the given `index` which is not under collision.
     fn add_value(&mut self, index: usize, value: u8, bits_per_value: u8);
 
+    /// If the index is not under collision then try to assign `value` (of size `bits_per_value`) to them.
+    #[inline] fn process_value(&mut self, index: usize, value: u8, bits_per_value: u8) {
+        if !self.is_under_collision(index) { self.add_value(index, value, bits_per_value); }
+    }
+
     /// Array that shows indices which have assigned values and are not under collision.
     fn to_collision_array(self) -> Box<[u64]>;
 

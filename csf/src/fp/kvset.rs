@@ -1,5 +1,7 @@
 use crate::bits_to_store_any_of_ref;
 
+use super::CollisionSolver;
+
 /// Moves all non-zeros to the begging of `values` and returns their number.
 pub fn remove_zeros(values: &mut [usize]) -> usize {
     let mut new_len: usize = 0usize;
@@ -22,6 +24,17 @@ pub trait KVSet<K> {
     ///
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     fn for_each_key_value<F>(&self, f: F/*, retained_hint: P*/) where F: FnMut(&K, u8)/*, P: FnMut(&K) -> bool*/;
+
+    /// Call `collision_solver.process_value(key_to_index(key), value, self.bits_per_value())` for each `key`-`value` pair.
+    #[inline]
+    fn process_all_values<I, CS>(&self, mut key_to_index: I, collision_solver: &mut CS)
+        where I: FnMut(&K) -> usize, CS: CollisionSolver
+    {
+        let bits_per_value = self.bits_per_value();
+        self.for_each_key_value(|key, value| {
+            collision_solver.process_value(key_to_index(key), value, bits_per_value);
+        });
+    }
 
     /// Returns minimal number of bits that can store any value.
     fn bits_per_value(&self) -> u8;

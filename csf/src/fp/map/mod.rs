@@ -24,7 +24,7 @@ pub struct Map<S = BuildDefaultSeededHasher> {
     values: Box<[u64]>,    // BitVec
     bits_per_value: u8,
     level_sizes: Box<[u64]>,
-    hash_builder: S
+    hash: S
 }
 
 impl<S: BuildSeededHasher> GetSize for Map<S> {
@@ -37,11 +37,12 @@ impl<S: BuildSeededHasher> GetSize for Map<S> {
     const USES_DYN_MEM: bool = true;
 }
 
-impl<S: BuildSeededHasher> Map<S> {
+#[inline]
+fn index<H: BuildSeededHasher, K: Hash>(hash: &H, k: &K, level_nr: u32, level_size: usize) -> usize {
+    ph::utils::map64_to_64(hash.hash_one(k, level_nr), level_size as u64) as usize
+}
 
-    #[inline(always)] fn index<K: Hash>(&self, k: &K, level_nr: u32, size: usize) -> usize {
-        utils::map64_to_64(self.hash_builder.hash_one(k, level_nr), size as u64) as usize
-    }
+impl<S: BuildSeededHasher> Map<S> {
 
     /// Gets the value associated with the given key k and reports statistics to access_stats.
     pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<u8> {
@@ -49,7 +50,7 @@ impl<S: BuildSeededHasher> Map<S> {
         let mut level = 0u32;
         loop {
             let level_size = (*self.level_sizes.get(level as usize)? as usize) << 6usize;
-            let i = array_begin_index + self.index(k, level, level_size);
+            let i = array_begin_index + index(&self.hash, k, level, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level);
                 return Some(self.values.get_fragment(self.array.rank(i), self.bits_per_value) as u8);
@@ -90,19 +91,10 @@ impl<S: BuildSeededHasher> Map<S> {
             let level_size_segments = conf.level_sizer.size_segments(&kv);
             let level_size = level_size_segments * 64;
             stats.level(input_size, level_size);
-            let mut collision_solver = conf.collision_solver.new(level_size_segments, bits_per_value);
-            kv.for_each_key_value(|k, v| {  // TODO ?? move this code to kv method
-                let a_index = utils::map64_to_64(conf.hash.hash_one(k, level_nr), level_size as u64) as usize;
-                if !collision_solver.is_under_collision(a_index) {
-                    collision_solver.add_value(a_index, v, bits_per_value);
-                }
-            });
+            let mut collision_solver: <CSB as CollisionSolverBuilder>::CollisionSolver = conf.collision_solver.new(level_size_segments, bits_per_value);
+            kv.process_all_values(|k| index(&conf.hash, k, level_nr, level_size), &mut collision_solver);
             let (current_array, current_values, current_values_len) = collision_solver.to_collision_and_values(bits_per_value);
-            kv.retain_keys(|k| {
-                !current_array.get_bit(
-                    utils::map64_to_64(conf.hash.hash_one(k, level_nr), level_size as u64) as usize
-                )
-            });
+            kv.retain_keys(|k| !current_array.get_bit(index(&conf.hash, k, level_nr, level_size)));
             arrays.push(current_array);            
             level_sizes.push(level_size_segments as u64);
             values.push(current_values);
@@ -117,7 +109,7 @@ impl<S: BuildSeededHasher> Map<S> {
             values: concatenate_values(&values, &values_lens, bits_per_value),
             bits_per_value,
             level_sizes: level_sizes.into_boxed_slice(),
-            hash_builder: conf.hash
+            hash: conf.hash
         }
     }
 
@@ -240,7 +232,7 @@ impl<S: BuildSeededHasher> Map<S> {
             values,
             bits_per_value,
             level_sizes,
-            hash_builder: hasher
+            hash: hasher
         })
     }
 }

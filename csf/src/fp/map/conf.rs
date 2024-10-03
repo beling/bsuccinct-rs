@@ -9,7 +9,6 @@ pub struct MapConf<
     LSC = OptimalLevelSize,
     CSB: CollisionSolverBuilder = LoMemAcceptEquals,
     S: BuildSeededHasher = BuildDefaultSeededHasher
-    /*, BS: stats::BuildStatsCollector = ()*/
 > {
     /// Choose the size of each level.
     pub level_sizer: LSC,
