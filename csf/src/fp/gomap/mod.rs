@@ -39,7 +39,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// either [`None`] or a value assigned to other key is returned.
-    pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u8> {
+    pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u8> {
         let mut groups_before = 0u64;
         let mut level_nr = 0u32;
         loop {
@@ -62,9 +62,24 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// either [`None`] or a value assigned to other key is returned.
-    #[inline] pub fn get<K: Hash>(&self, key: &K) -> Option<u8> {
+    #[inline] pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u8> {
         self.get_stats(key, &mut ())
     }
 
-    
+    /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
+    /// 
+    /// If the `key` was not in the input key-value collection given during construction,
+    /// it either panics or returns a value assigned to other key is returned.
+    #[inline] pub fn get_stats_or_panic<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> u8 {
+        self.get_stats(key, access_stats).expect("Invalid access to a key outside the set given during construction.")
+    }
+
+    /// Gets the value associated with the given `key`.
+    /// 
+    /// If the `key` was not in the input key-value collection given during construction,
+    /// it either panics or returns a value assigned to other key is returned.
+    #[inline] pub fn get_or_panic<K: Hash + ?Sized>(&self, key: &K) -> u8 {
+        self.get_stats_or_panic(key, &mut ())
+    }
+
 }

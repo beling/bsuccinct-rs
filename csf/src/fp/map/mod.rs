@@ -38,7 +38,7 @@ impl<S: BuildSeededHasher> GetSize for Map<S> {
 }
 
 #[inline]
-fn index<H: BuildSeededHasher, K: Hash>(hash: &H, k: &K, level_nr: u32, level_size: usize) -> usize {
+fn index<H: BuildSeededHasher, K: Hash + ?Sized>(hash: &H, k: &K, level_nr: u32, level_size: usize) -> usize {
     ph::utils::map64_to_64(hash.hash_one(k, level_nr), level_size as u64) as usize
 }
 
@@ -76,7 +76,7 @@ impl<S: BuildSeededHasher> Map<S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// either [`None`] or a value assigned to other key is returned.
-    pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u8> {
+    pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u8> {
         let mut array_begin_index = 0usize;
         let mut level = 0u32;
         loop {
@@ -95,8 +95,24 @@ impl<S: BuildSeededHasher> Map<S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// either [`None`] or a value assigned to other key is returned.
-    pub fn get<K: Hash>(&self, key: &K) -> Option<u8> {
+    pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u8> {
         self.get_stats(key, &mut ())
+    }
+
+    /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
+    /// 
+    /// If the `key` was not in the input key-value collection given during construction,
+    /// it either panics or returns a value assigned to other key is returned.
+    #[inline] pub fn get_stats_or_panic<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> u8 {
+        self.get_stats(key, access_stats).expect("Invalid access to a key outside the set given during construction.")
+    }
+
+    /// Gets the value associated with the given `key`.
+    /// 
+    /// If the `key` was not in the input key-value collection given during construction,
+    /// it either panics or returns a value assigned to other key is returned.
+    #[inline] pub fn get_or_panic<K: Hash + ?Sized>(&self, key: &K) -> u8 {
+        self.get_stats_or_panic(key, &mut ())
     }
 
     /// Pre-builds [`Map`] for given key-value pairs `kv`, using the build configuration `conf` and reporting statistics with `stats`.
