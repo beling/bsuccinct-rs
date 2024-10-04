@@ -34,7 +34,11 @@ impl<GS: GroupSize, SS: SeedSize, S> GetSize for GOMap<GS, SS, S> {
 }
 
 impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
+
     /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
+    /// 
+    /// If the `key` was not in the input key-value collection given during construction,
+    /// either [`None`] or a value assigned to other key is returned.
     pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u8> {
         let mut groups_before = 0u64;
         let mut level_nr = 0u32;
@@ -54,8 +58,13 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
         }
     }
 
-    /// Gets the value associated with the given key k.
-    pub fn get<K: Hash>(&self, k: &K) -> Option<u8> {
-        self.get_stats(k, &mut ())
+    /// Gets the value associated with the given `key`.
+    /// 
+    /// If the `key` was not in the input key-value collection given during construction,
+    /// either [`None`] or a value assigned to other key is returned.
+    #[inline] pub fn get<K: Hash>(&self, key: &K) -> Option<u8> {
+        self.get_stats(key, &mut ())
     }
+
+    
 }
