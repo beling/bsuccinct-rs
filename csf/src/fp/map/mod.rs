@@ -23,7 +23,7 @@ pub struct Map<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     values: Box<[u64]>,    // BitVec
     bits_per_value: u8,
-    level_sizes: Box<[u64]>,
+    level_sizes: Box<[usize]>,  // in 64-bit segments
     hash: S
 }
 
@@ -44,7 +44,7 @@ fn index<H: BuildSeededHasher, K: Hash>(hash: &H, k: &K, level_nr: u32, level_si
 
 #[derive(Default)]
 struct Arrays {
-    level_sizes: Vec::<u64>,
+    level_sizes: Vec::<usize>,
     arrays: Vec::<Box<[u64]>>,
     values_lens: Vec::<usize>,
     values: Vec::<Box<[u64]>>
@@ -77,7 +77,7 @@ impl<S: BuildSeededHasher> Map<S> {
         let mut array_begin_index = 0usize;
         let mut level = 0u32;
         loop {
-            let level_size = (*self.level_sizes.get(level as usize)? as usize) << 6usize;
+            let level_size = *self.level_sizes.get(level as usize)? << 6usize;
             let i = array_begin_index + index(&self.hash, k, level, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level);
@@ -140,8 +140,8 @@ impl<S: BuildSeededHasher> Map<S> {
                 levels_without_reduction = 0;
             }
 
-            res.arrays.push(current_array);            
-            res.level_sizes.push(level_size_segments as u64);
+            res.arrays.push(current_array);
+            res.level_sizes.push(level_size_segments);
             res.values.push(current_values);
             res.values_lens.push(current_values_len);
             level_nr += 1;

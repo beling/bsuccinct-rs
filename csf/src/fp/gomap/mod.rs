@@ -1,7 +1,9 @@
+use bitm::{BitAccess, Rank};
 use ph::{BuildDefaultSeededHasher, BuildSeededHasher, stats, utils::ArrayWithRank};
 use ph::fmph::{goindexing::group_nr, GroupSize, SeedSize, TwoToPowerBitsStatic};
 pub use ph::fmph::GOConf;
 use dyn_size_of::GetSize;
+use std::hash::Hash;
 
 mod conf;
 pub use conf::GOMapConf;
@@ -17,7 +19,7 @@ pub struct GOMap<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoTo
     values: Box<[u64]>,    // BitVec
     bits_per_value: u8,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
-    level_size: Box<[u64]>, // number of groups
+    level_sizes: Box<[u64]>, // number of groups
     goconf: GOConf<GS, SS, S>,
 }
 
@@ -26,8 +28,34 @@ impl<GS: GroupSize, SS: SeedSize, S> GetSize for GOMap<GS, SS, S> {
         self.array.size_bytes_dyn()
             + self.values.size_bytes_dyn()
             + self.group_seeds.size_bytes_dyn()
-            + self.level_size.size_bytes_dyn()
+            + self.level_sizes.size_bytes_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
 
+impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
+    /// Gets the value associated with the given `key` and reports statistics to `access_stats`.
+    pub fn get_stats<K: Hash, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u8> {
+        let mut groups_before = 0u64;
+        let mut level_nr = 0u32;
+        loop {
+            let level_size_groups = *self.level_sizes.get(level_nr as usize)?;
+            let hash = self.goconf.hash_builder.hash_one(key, level_nr);
+            let group = groups_before + group_nr(hash, level_size_groups);
+            let seed = self.goconf.bits_per_seed.get_seed(&self.group_seeds, group as usize);
+            let bit_index = self.goconf.bits_per_group.bit_index_for_seed(hash, seed, group);
+            if self.array.content.get_bit(bit_index) {
+                access_stats.found_on_level(level_nr);
+                //return Some(unsafe{self.array.rank_unchecked(bit_index)} as u64);
+                return Some(self.values.get_fragment(self.array.rank(bit_index), self.bits_per_value) as u8);
+            }
+            groups_before += level_size_groups;
+            level_nr += 1;
+        }
+    }
+
+    /// Gets the value associated with the given key k.
+    pub fn get<K: Hash>(&self, k: &K) -> Option<u8> {
+        self.get_stats(k, &mut ())
+    }
+}
