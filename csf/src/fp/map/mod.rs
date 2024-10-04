@@ -7,7 +7,7 @@ use bitm::{BitAccess, Rank};
 
 use super::{common::concatenate_values, kvset::{KVSet, SlicesMutSource}};
 pub use super::level_sizer::LevelSizer;
-use ph::{BuildDefaultSeededHasher, BuildSeededHasher, utils, stats, utils::{ArrayWithRank, read_bits}};
+use ph::{stats, utils::{read_bits, ArrayWithRank}, BuildDefaultSeededHasher, BuildSeededHasher};
 use std::collections::HashMap;
 use std::io;
 
@@ -42,6 +42,34 @@ fn index<H: BuildSeededHasher, K: Hash>(hash: &H, k: &K, level_nr: u32, level_si
     ph::utils::map64_to_64(hash.hash_one(k, level_nr), level_size as u64) as usize
 }
 
+#[derive(Default)]
+struct Arrays {
+    level_sizes: Vec::<u64>,
+    arrays: Vec::<Box<[u64]>>,
+    values_lens: Vec::<usize>,
+    values: Vec::<Box<[u64]>>
+}
+
+impl Arrays {
+    fn into_map<S>(self, hash: S, bits_per_value: u8) -> Map<S> {
+        let (array, _)  = ArrayWithRank::build(self.arrays.concat().into_boxed_slice());
+        Map::<S> {
+            array,
+            values: concatenate_values(&self.values, &self.values_lens, bits_per_value),
+            bits_per_value,
+            level_sizes: self.level_sizes.into_boxed_slice(),
+            hash
+        }
+    }
+
+    fn truncate(&mut self, len: usize) {
+        self.arrays.truncate(len);
+        self.level_sizes.truncate(len);
+        self.values.truncate(len);
+        self.values_lens.truncate(len);
+    }
+}
+
 impl<S: BuildSeededHasher> Map<S> {
 
     /// Gets the value associated with the given key k and reports statistics to access_stats.
@@ -65,54 +93,112 @@ impl<S: BuildSeededHasher> Map<S> {
         self.get_stats(k, &mut ())
     }
 
-    /// Constructs [`Map`] for given key-value pairs `kv`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// Pre-builds [`Map`] for given key-value pairs `kv`, using the build configuration `conf` and reporting statistics with `stats`.
+    /// After return `kv` contains the pairs which could not be added to the map.
+    /// It is empty when construction is completed successfully.
+    /// If the construction fails, the result is ready to transform into [`Map`] only if `construct_partial` is `true`.
     /// 
-    /// TODO Panics if the construction fails.
-    /// Then it is almost certain that the input contains either duplicate keys
+    /// `kv.kv_len()` must be passed as `input_size` and `kv.bits_per_value()` as `bits_per_value`.
+    /// 
+    /// When the construction fails, it is almost certain that the input contains either duplicate keys
     /// or keys indistinguishable by any hash function from the family used.
-    fn with_conf_stats<K, LSC, CSB, BS>(
-        mut kv: impl KVSet<K>,
-        conf: MapConf<LSC, CSB, S>,
-        stats: &mut BS
-    ) -> Self
+    fn _with_conf_stats<K, KV, LSC, CSB, BS>(
+        kv: &mut KV,
+        conf: &MapConf<LSC, CSB, S>,
+        stats: &mut BS,
+        bits_per_value: u8,
+        construct_partial: bool
+    ) -> Arrays
         where K: Hash,
+              KV: KVSet<K>,
               LSC: LevelSizer,
               CSB: CollisionSolverBuilder,
               BS: stats::BuildStatsCollector
     {
-        let bits_per_value = kv.bits_per_value();
-        let mut level_sizes = Vec::<u64>::new();
-        let mut arrays = Vec::<Box<[u64]>>::new();
-        let mut values_lens = Vec::<usize>::new();
-        let mut values = Vec::<Box<[u64]>>::new();
+        let mut res = Arrays::default();
         let mut input_size = kv.kv_len();
         let mut level_nr = 0u32;
+        let mut levels_without_reduction = 0;   // number of levels without any reduction in number of the keys
         while input_size != 0 {
-            let level_size_segments = conf.level_sizer.size_segments(&kv);
+            let level_size_segments = conf.level_sizer.size_segments(kv);
             let level_size = level_size_segments * 64;
             stats.level(input_size, level_size);
             let mut collision_solver: <CSB as CollisionSolverBuilder>::CollisionSolver = conf.collision_solver.new(level_size_segments, bits_per_value);
             kv.process_all_values(|k| index(&conf.hash, k, level_nr, level_size), &mut collision_solver);
             let (current_array, current_values, current_values_len) = collision_solver.to_collision_and_values(bits_per_value);
             kv.retain_keys(|k| !current_array.get_bit(index(&conf.hash, k, level_nr, level_size)));
-            arrays.push(current_array);            
-            level_sizes.push(level_size_segments as u64);
-            values.push(current_values);
-            values_lens.push(current_values_len);
-            level_nr += 1;
+
+            let prev_input_size = input_size;
             input_size = kv.kv_len();
+            if input_size == prev_input_size {
+                if levels_without_reduction == 9 /*+1*/ {
+                    if construct_partial { res.truncate(res.arrays.len()-levels_without_reduction); }
+                    break;
+                }
+                levels_without_reduction += 1;
+            } else {
+                levels_without_reduction = 0;
+            }
+
+            res.arrays.push(current_array);            
+            res.level_sizes.push(level_size_segments as u64);
+            res.values.push(current_values);
+            res.values_lens.push(current_values_len);
+            level_nr += 1;
         }
-        let (array, _)  = ArrayWithRank::build(arrays.concat().into_boxed_slice());
-        stats.end(0);
-        Self {
-            array,
-            values: concatenate_values(&values, &values_lens, bits_per_value),
-            bits_per_value,
-            level_sizes: level_sizes.into_boxed_slice(),
-            hash: conf.hash
-        }
+        stats.end(input_size);
+        res
     }
 
+    /// Constructs [`Map`] for given key-value pairs `kv`,
+    /// using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// Panics if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    #[inline]
+    pub fn with_conf_stats<K, KV, LSC, CSB, BS>(kv: KV, conf: MapConf<LSC, CSB, S>, stats: &mut BS) -> Self
+        where K: Hash, KV: KVSet<K>, LSC: LevelSizer, CSB: CollisionSolverBuilder, BS: stats::BuildStatsCollector
+    {
+        Self::try_with_conf_stats(kv, conf, stats).expect("Constructing fp::Map failed. Probably the input contains duplicate keys.")
+    }
+
+    /// Constructs [`Map`] for given key-value pairs `kv`,
+    /// using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// [`None`] is returned if the construction fails.
+    /// Then it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    pub fn try_with_conf_stats<K, KV, LSC, CSB, BS>(mut kv: KV, conf: MapConf<LSC, CSB, S>, stats: &mut BS) -> Option<Self>
+        where K: Hash, KV: KVSet<K>, LSC: LevelSizer, CSB: CollisionSolverBuilder, BS: stats::BuildStatsCollector
+    {
+        let bits_per_value = kv.bits_per_value();
+        let res = Self::_with_conf_stats(&mut kv, &conf, stats, bits_per_value, false);
+        if kv.kv_len() != 0 { return None; }
+        drop(kv);
+        Some(res.into_map(conf.hash, bits_per_value))
+    }
+
+    /// Constructs [`Map`] for given key-value pairs `kv`,
+    /// using the build configuration `conf` and reporting statistics with `stats`.
+    /// 
+    /// If the construction fails, it returns `Err` with a triple *(f, k)*, where:
+    /// - *m* is a [`Map`] handling only part of the key-value pairs,
+    /// - *k* is a set of the remaining key-value pairs.
+    /// If needed, the pairs from *k* can be placed in another data structure to handle all the keys.
+    /// 
+    /// If the construction fails, it is almost certain that the input contains either duplicate keys
+    /// or keys indistinguishable by any hash function from the family used.
+    /// The pairs with duplicate keys will be included in the *k* set.
+    pub fn try_with_conf_stats_or_partial<K, KV, LSC, CSB, BS>(mut kv: KV, conf: MapConf<LSC, CSB, S>, stats: &mut BS) -> Result<Self, (Self, KV)>
+        where K: Hash, KV: KVSet<K>, LSC: LevelSizer, CSB: CollisionSolverBuilder, BS: stats::BuildStatsCollector
+    {
+        let bits_per_value = kv.bits_per_value();
+        let res = Self::_with_conf_stats(&mut kv, &conf, stats, bits_per_value, true);
+        if kv.kv_len() != 0 { return Err((res.into_map(conf.hash, kv.bits_per_value()), kv)); }
+        drop(kv);
+        Ok(res.into_map(conf.hash, bits_per_value))
+    }
 
     /// Build `Map` for given keys -> values map, where:
     /// - keys are given directly,
@@ -123,76 +209,9 @@ impl<S: BuildSeededHasher> Map<S> {
         /*&mut [u64],*/ conf: MapConf<LSC, CSB, S>,
         stats: &mut BS
     ) -> Self
-        where K: Hash,
-              LSC: LevelSizer,
-              CSB: CollisionSolverBuilder,
-              BS: stats::BuildStatsCollector
-
+        where K: Hash, LSC: LevelSizer, CSB: CollisionSolverBuilder, BS: stats::BuildStatsCollector
     {
         Self::with_conf_stats(SlicesMutSource::new(keys, values, 0), conf, stats)
-
-        /*let bits_per_value = bits_to_store_any_of(values.iter().cloned());
-        let mut level_sizes = Vec::<u64>::new();
-        let mut arrays = Vec::<Box<[u64]>>::new();
-        let mut input_size = keys.len();
-        let mut level_nr = 0u32;
-        while input_size != 0 {
-            let level_size_segments = conf.level_sizer.size_segments_for_values(
-                || values[0..input_size].iter().map(|v| *v as u64), input_size, bits_per_value);
-            let level_size = level_size_segments * 64;
-            stats.level(input_size, level_size);
-            let mut collision_solver = conf.collision_solver.new(level_size_segments, bits_per_value);
-            for i in 0..input_size {
-                let a_index = utils::map64_to_64(conf.hash.hash_one(&keys[i], level_nr), level_size as u64) as usize;
-                if collision_solver.is_under_collision(a_index) { continue }
-                collision_solver.process_fragment(a_index, values[i], bits_per_value);
-            }
-
-            let current_array = collision_solver.to_collision_array();
-            let mut i = 0usize;
-            while i < input_size {
-                let a_index = utils::map64_to_64(conf.hash.hash_one(&keys[i], level_nr), level_size as u64) as usize;
-                if current_array.get_bit(a_index) { // no collision
-                    // remove i-th element by replacing it with the last one
-                    input_size -= 1;
-                    keys.swap(i, input_size);
-                    //values.swap_fragments(i, input_size, bits_per_value);
-                    values.swap(i, input_size);
-                } else {    // collision, has to be processed again, at the next level
-                    i += 1;
-                }
-            }
-            arrays.push(current_array);
-            level_sizes.push(level_size_segments as u64);
-            level_nr += 1;
-        }
-
-        let (array, out_fragments_num)  = ArrayWithRank::build(arrays.concat().into_boxed_slice());
-        let mut output_value_fragments = CSB::CollisionSolver::construct_value_array(out_fragments_num as usize, bits_per_value);
-        for input_index in 0..keys.len() {
-            //let mut result_decoder = self.value_coding.decoder();
-            let mut array_begin_index = 0usize;
-            let mut level = 0u32;
-            loop {
-                let level_size = (level_sizes[level as usize] as usize) << 6usize;
-                let i = array_begin_index + utils::map64_to_64(conf.hash.hash_one(&keys[input_index], level), level_size as u64) as usize;
-                if array.content.get_bit(i) {
-                    CSB::CollisionSolver::set_value(&mut output_value_fragments, array.rank(i), values[input_index], bits_per_value);
-                    // stats.value_on_level(level); // TODO do we need this? we can get average levels from lookups
-                    break;
-                }
-                array_begin_index += level_size;
-                level += 1;
-            }
-        }
-        stats.end(0);
-        Self {
-            array,
-            values: output_value_fragments,
-            bits_per_value,
-            level_sizes: level_sizes.into_boxed_slice(),
-            hash_builder: conf.hash
-        }*/
     }
 
     #[inline]
@@ -338,5 +357,22 @@ mod tests {
     #[test]
     fn with_hashmap_8pairs() {
         test_8pairs(MapConf::default());
+    }
+
+    #[test]
+    fn test_fail_partial() {
+        let mut k = ['a', 'b', 'a', 'c'];
+        let mut v = [1, 2, 2, 3];
+        let r = Map::try_with_conf_stats_or_partial(
+            SlicesMutSource::new(&mut k, &mut v, 0), MapConf::default(), &mut ());
+        assert!(r.is_err());
+        if let Err((fpmap, kv)) = r {
+            assert_eq!(kv.kv_len(), 2);
+            assert_eq!(fpmap.get(&'b'), Some(2));
+            assert_eq!(fpmap.get(&'c'), Some(3));
+            test_fpmap_invariants(&fpmap);
+            test_read_write(&fpmap);
+        }
+        assert!(Map::try_with_conf_stats(SlicesMutSource::new(&mut k, &mut v, 0), MapConf::default(), &mut ()).is_none());
     }
 }
