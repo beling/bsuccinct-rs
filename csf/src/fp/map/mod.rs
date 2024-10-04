@@ -76,7 +76,7 @@ impl<S: BuildSeededHasher> Map<S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// either [`None`] or a value assigned to other key is returned.
-    pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u8> {
+    pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut array_begin_index = 0usize;
         let mut level = 0u32;
         loop {
@@ -84,7 +84,7 @@ impl<S: BuildSeededHasher> Map<S> {
             let i = array_begin_index + index(&self.hash, key, level, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level);
-                return Some(self.values.get_fragment(self.array.rank(i), self.bits_per_value) as u8);
+                return Some(self.values.get_fragment(self.array.rank(i), self.bits_per_value));
             }
             array_begin_index += level_size;
             level += 1;
@@ -95,7 +95,7 @@ impl<S: BuildSeededHasher> Map<S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// either [`None`] or a value assigned to other key is returned.
-    pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u8> {
+    pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u64> {
         self.get_stats(key, &mut ())
     }
 
@@ -103,7 +103,7 @@ impl<S: BuildSeededHasher> Map<S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// it either panics or returns a value assigned to other key is returned.
-    #[inline] pub fn get_stats_or_panic<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> u8 {
+    #[inline] pub fn get_stats_or_panic<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> u64 {
         self.get_stats(key, access_stats).expect("Invalid access to a key outside the set given during construction.")
     }
 
@@ -111,7 +111,7 @@ impl<S: BuildSeededHasher> Map<S> {
     /// 
     /// If the `key` was not in the input key-value collection given during construction,
     /// it either panics or returns a value assigned to other key is returned.
-    #[inline] pub fn get_or_panic<K: Hash + ?Sized>(&self, key: &K) -> u8 {
+    #[inline] pub fn get_or_panic<K: Hash + ?Sized>(&self, key: &K) -> u64 {
         self.get_stats_or_panic(key, &mut ())
     }
 
