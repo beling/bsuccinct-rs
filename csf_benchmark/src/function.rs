@@ -56,7 +56,7 @@ where LSC: fp::LevelSizer, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
     }
 
     #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8> {
-        f.get_stats(&k, levels)
+        f.get_stats(&k, levels).map(|v| v as u8)
     }
 }
 
