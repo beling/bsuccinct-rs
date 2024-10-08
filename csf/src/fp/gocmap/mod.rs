@@ -61,8 +61,8 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             let index = conf.goconf.bits_per_group.bit_index_for_seed(hash, group_seed(group), group);
             if collision_solver.is_under_collision(index) { continue }
             collision_solver.add_value(index,
-                                              coding.rev_fragment_of(values[i], value_rev_indices[i]),
-                                              bits_per_fragment);
+                    coding.rev_fragment_of(values[i], value_rev_indices[i]),
+                        bits_per_fragment);
         }
     }
 

@@ -15,7 +15,7 @@ pub struct GOMapConf<
     /// Configuration of family of (group-optimized) hash functions (default: [`GOConf::default`]).
     pub goconf: GOConf<GS, SS, S>,
     /// Choose the size of each level.
-    pub level_size_chooser: LSC,
+    pub level_sizer: LSC,
     /// Constructs collision solver that decides which collisions are positive, and which are negative.
     pub collision_solver: CSB,
 }
@@ -23,7 +23,7 @@ pub struct GOMapConf<
 impl Default for GOMapConf {
     fn default() -> Self { Self {
         goconf: Default::default(),
-        level_size_chooser: Default::default(),
+        level_sizer: Default::default(),
         collision_solver: Default::default(),
     } }
 }
@@ -32,7 +32,7 @@ impl<CSB: CollisionSolverBuilder> GOMapConf<OptimalLevelSize, CSB, TwoToPowerBit
     pub fn cs(collision_solver: CSB) -> Self {
         Self {
             goconf: Default::default(),
-            level_size_chooser: Default::default(),
+            level_sizer: Default::default(),
             collision_solver,
         }
     }
@@ -42,7 +42,7 @@ impl<GS: GroupSize, SS: SeedSize, S> GOMapConf<OptimalLevelSize, LoMemAcceptEqua
     pub fn groups(goconf: GOConf<GS, SS, S>) -> Self {
         Self {
             goconf,
-            level_size_chooser: Default::default(),
+            level_sizer: Default::default(),
             collision_solver: Default::default(),
         }
     }
@@ -52,7 +52,7 @@ impl<CSB: CollisionSolverBuilder, GS: GroupSize, SS: SeedSize, S> GOMapConf<Opti
     pub fn groups_cs(goconf: GOConf<GS, SS, S>, collision_solver: CSB) -> Self {
         Self {
             goconf,
-            level_size_chooser: Default::default(),
+            level_sizer: Default::default(),
             collision_solver,
         }
     }
@@ -68,7 +68,7 @@ impl<LSC> GOMapConf<LSC, LoMemAcceptEquals, TwoToPowerBitsStatic::<4>, TwoToPowe
     pub fn lsize(level_size_chooser: LSC) -> Self {
         Self {
             goconf: Default::default(),
-            level_size_chooser,
+            level_sizer: level_size_chooser,
             collision_solver: Default::default(),
         }
     }
@@ -78,7 +78,7 @@ impl<LSC, CSB: CollisionSolverBuilder> GOMapConf<LSC, CSB, TwoToPowerBitsStatic:
     pub fn lsize_cs(level_size_chooser: LSC, collision_solver: CSB) -> Self {
         Self {
             goconf: Default::default(),
-            level_size_chooser,
+            level_sizer: level_size_chooser,
             collision_solver,
         }
     }
@@ -86,12 +86,12 @@ impl<LSC, CSB: CollisionSolverBuilder> GOMapConf<LSC, CSB, TwoToPowerBitsStatic:
 
 impl<LSC, GS: GroupSize, SS: SeedSize, S> GOMapConf<LSC, LoMemAcceptEquals, GS, SS, S> {
     pub fn groups_lsize(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC) -> Self {
-        Self { goconf, level_size_chooser, collision_solver: Default::default() }
+        Self { goconf, level_sizer: level_size_chooser, collision_solver: Default::default() }
     }
 }
 
 impl<LSC, CSB: CollisionSolverBuilder, GS: GroupSize, SS: SeedSize, S> GOMapConf<LSC, CSB, GS, SS, S> {
     pub fn groups_lsize_cs(goconf: GOConf<GS, SS, S>, level_size_chooser: LSC, collision_solver: CSB) -> Self {
-        Self { goconf, level_size_chooser, collision_solver }
+        Self { goconf, level_sizer: level_size_chooser, collision_solver }
     }
 }

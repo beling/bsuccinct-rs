@@ -25,6 +25,14 @@ pub trait KVSet<K> {
     /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
     fn for_each_key_value<F>(&self, f: F/*, retained_hint: P*/) where F: FnMut(&K, u8)/*, P: FnMut(&K) -> bool*/;
 
+    /// Call `f` for each key in the set, using single thread.
+    ///
+    /// If `self` doesn't remember which keys are retained it uses `retained_hint` to check this.
+    #[inline(always)]
+    fn for_each_key<F>(&self, mut f: F/*, retained_hint: P*/) where F: FnMut(&K)/*, P: FnMut(&K) -> bool*/ {
+        self.for_each_key_value(|k, _| f(k));
+    }
+
     /// Call `collision_solver.process_value(key_to_index(key), value, self.bits_per_value())` for each `key`-`value` pair.
     #[inline]
     fn process_all_values<I, CS>(&self, mut key_to_index: I, collision_solver: &mut CS)

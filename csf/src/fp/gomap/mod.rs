@@ -8,6 +8,11 @@ use std::hash::Hash;
 mod conf;
 pub use conf::GOMapConf;
 
+use crate::fp::CollisionSolver;
+
+use super::kvset::KVSet;
+use super::{CollisionSolverBuilder, LevelSizer};
+
 /// Finger-printing based compressed static function (immutable map)
 /// that uses group optimization and maps hashable keys to unsigned integer values of given bit-size.
 /// 
@@ -82,4 +87,38 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
         self.get_stats_or_panic(key, &mut ())
     }
 
+    
+
+    pub fn with_conf_stats<K, KV, LSC, CSB, BS>(kv: KV, conf: GOMapConf<LSC, CSB, GS, SS, S>, stats: &mut BS) -> Self
+        where K: Hash, KV: KVSet<K>, LSC: LevelSizer, CSB: CollisionSolverBuilder, BS: stats::BuildStatsCollector
+    {
+        let bits_per_value = kv.bits_per_value();
+        let level_sizes = Vec::<usize>::new();
+        let arrays = Vec::<Box<[u64]>>::new();
+        let values_lens = Vec::<usize>::new();
+        let values = Vec::<Box<[u64]>>::new();
+        let groups = Vec::<Box<[u64]>>::new();
+        let mut input_size = kv.kv_len();
+        let mut level_nr = 0;
+        while input_size != 0 {           
+            let (level_size_groups, level_size_segments) = conf.goconf.bits_per_group
+                .level_size_groups_segments(conf.level_sizer.size_segments(&kv) * 64);
+            stats.level(input_size, level_size_segments * 64);
+            
+            let mut collision_solver: <CSB as CollisionSolverBuilder>::CollisionSolver = conf.collision_solver.new(level_size_segments, bits_per_value);
+            kv.process_all_values(|key| conf.goconf.key_index(key, level_nr, level_size_groups as u64,
+                |_| 0), &mut collision_solver);
+            let collisions = collision_solver.to_collision_array();
+            let mut best_counts = vec![0u32; level_size_groups].into_boxed_slice();
+            kv.for_each_key(|key| {
+                let hash = conf.goconf.hash_builder.hash_one(key, level_nr);
+                let group = group_nr(hash, level_size_groups as u64);
+                let bit_nr = conf.goconf.bits_per_group.bit_index_for_seed(hash, 0, group);
+                if collisions.get_bit(bit_nr) { best_counts[group as usize] += 1; }
+            });
+            let mut best_seeds = conf.goconf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
+            
+        }
+        todo!()
+    }
 }

@@ -131,11 +131,7 @@ impl<S: BuildSeededHasher> Map<S> {
         bits_per_value: u8,
         construct_partial: bool
     ) -> Arrays
-        where K: Hash,
-              KV: KVSet<K>,
-              LSC: LevelSizer,
-              CSB: CollisionSolverBuilder,
-              BS: stats::BuildStatsCollector
+        where K: Hash, KV: KVSet<K>, LSC: LevelSizer, CSB: CollisionSolverBuilder, BS: stats::BuildStatsCollector
     {
         let mut res = Arrays::default();
         let mut input_size = kv.kv_len();
