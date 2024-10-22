@@ -44,6 +44,7 @@ pub fn map48_to_64(hash: u64, n: u64) -> u64 {
     ((((hash << 16) as u128) * (n as u128)) >> 64) as u64
 }*/ // the function is fine, but not needed
 
+/// Maps `hash` to the range `[0, n)` using either [`map64_to_64`] or [`map32_to_32`] (depended on platform).
 #[inline(always)]
 pub fn map_usize(hash: usize, n: usize) -> usize {
     #[cfg(target_pointer_width = "64")] { map64_to_64(hash as u64, n as u64) as usize }
