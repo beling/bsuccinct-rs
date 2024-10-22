@@ -1,6 +1,6 @@
 [package]
 name = "ph"
-version = "0.8.4"
+version = "0.8.5"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -13,17 +13,17 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [features]
-default = ["wyhash", "aligned-vec"]
-sip13 = []  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
+default = ["aligned-vec", "wyhash"]
+wyhash = ["seedable_hash/wyhash"]
+#sip13 = ["seedable_hasher/wyhash"]  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
+#fnv = ["seedable_hasher/fnv"]
 
 [dependencies]
 bitm = { version="0.4", path="../bitm" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 binout = { version=">=0.2", path="../binout" }
 rayon = "1.5"
-wyhash = { version="0.5", optional=true }
-#wyhash_git = { git = "https://github.com/eldruin/wyhash-rs", package = "wyhash", optional=true }    # does not work
-fnv = { version="1", optional=true }
+seedable_hash = { version="0.1", path="../seedable_hash" }
 
 [target.'cfg(target_pointer_width = "32")'.dependencies]
 aligned-vec = { version="0.6", optional=true }  #  for 32 bit support

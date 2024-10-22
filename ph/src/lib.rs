@@ -5,9 +5,7 @@
 
 pub mod utils;
 pub mod stats;
-pub mod seedable_hash;
-pub use seedable_hash::{BuildSeededHasher, Seedable, BuildDefaultSeededHasher};
-
 pub mod fmph;
 
+pub use seedable_hash::{self, BuildSeededHasher, Seedable, BuildDefaultSeededHasher};
 pub use dyn_size_of::GetSize;

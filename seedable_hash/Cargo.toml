@@ -1,0 +1,22 @@
+[package]
+name = "seedable_hash"
+version = "0.1.0"
+authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "The library for calculating seedable hashes and fast reduction of their ranges."
+documentation = "https://docs.rs/seedable_hash"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "algorithms", "data-structures", "science" ]
+keywords = [ "hashing", "hash", "seed", "reduce", "map" ]
+
+[features]
+default = ["wyhash"]
+sip13 = []  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
+
+[dependencies]
+wyhash = { version="0.5", optional=true }
+#wyhash_git = { git = "https://github.com/eldruin/wyhash-rs", package = "wyhash", optional=true }    # does not work
+fnv = { version="1", optional=true }
