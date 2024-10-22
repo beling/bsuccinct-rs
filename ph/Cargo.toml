@@ -15,8 +15,8 @@ keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 [features]
 default = ["aligned-vec", "wyhash"]
 wyhash = ["seedable_hash/wyhash"]
-#sip13 = ["seedable_hasher/wyhash"]  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
-#fnv = ["seedable_hasher/fnv"]
+sip13 = ["seedable_hash/wyhash"]  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
+fnv = ["seedable_hash/fnv"]
 
 [dependencies]
 bitm = { version="0.4", path="../bitm" }

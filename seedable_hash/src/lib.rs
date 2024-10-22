@@ -1,5 +1,8 @@
 //! Families of hash functions, seedable hashers.
 
+mod map;
+pub use map::{map16_to_16, map32_to_32, map64_to_32, map64_to_64, map_usize};
+
 use std::hash::{BuildHasher, Hash, Hasher};
 
 #[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
