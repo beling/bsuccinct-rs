@@ -1,0 +1,1 @@
+`seedable_hash` is the Rust library (by Piotr Beling) for calculating seedable hashes and fast reduction of their ranges.

@@ -1,4 +1,4 @@
-//! Families of hash functions, seedable hashers.
+#![doc = include_str!("../README.md")]
 
 mod map;
 pub use map::{map16_to_16, map32_to_32, map64_to_32, map64_to_64, map_usize};
@@ -12,7 +12,7 @@ use std::{hash::BuildHasherDefault, collections::hash_map::DefaultHasher};
 #[allow(deprecated)]
 use std::hash::SipHasher13;
 
-/// Trait possessed by families of hash functions that allow the creation of
+/// Family of hash functions that allows the creation of
 /// [`Hasher`] instances initialized with a given seed.
 pub trait BuildSeededHasher {
     type Hasher: Hasher;
