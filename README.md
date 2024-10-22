@@ -46,5 +46,5 @@ for example
 
 ```RUSTFLAGS="-C target-cpu=native" cargo install mphf_benchmark```
 
-# 32-bit addressing platforms support
+# Platforms with 32-bit addressing
 For portability, BSuccinct components compile and run on platforms with 32-bit addressing (like wasm32). However, they are optimized primarily with 64-bit CPUs in mind.
