@@ -44,6 +44,7 @@ impl<BH: BuildHasher> BuildSeededHasher for Seedable<BH> {
     }
 }
 
+/// [`BuildSeededHasher`] that uses [`std::hash::SipHasher13`].
 #[cfg(feature = "sip13")]
 #[derive(Default, Copy, Clone)]
 pub struct BuildSip13;
@@ -58,6 +59,7 @@ impl BuildSeededHasher for BuildSip13 {
     }
 }
 
+/// [`BuildSeededHasher`] that uses `wyhash` crate.
 #[cfg(feature = "wyhash")]
 #[derive(Default, Copy, Clone)]
 pub struct BuildWyHash;
@@ -84,6 +86,7 @@ impl BuildSeededHasher for BuildWyHashGit {
     }
 }*/
 
+/// [`BuildSeededHasher`] that uses `fnv` crate.
 #[cfg(feature = "fnv")]
 impl BuildSeededHasher for fnv::FnvBuildHasher {
     type Hasher = fnv::FnvHasher;
@@ -93,14 +96,18 @@ impl BuildSeededHasher for fnv::FnvBuildHasher {
     }
 }
 
+/// The default [`BuildSeededHasher`].
 #[cfg(feature = "wyhash")]
 pub type BuildDefaultSeededHasher = BuildWyHash;
 
+/// The default [`BuildSeededHasher`].
 #[cfg(all(feature = "sip13", not(feature = "wyhash")))]
 pub type BuildDefaultSeededHasher = BuildSip13;
 
+/// The default [`BuildSeededHasher`].
 #[cfg(all(feature = "fnv", not(feature = "sip13"), not(feature = "wyhash")))]
 pub type BuildDefaultSeededHasher = fnv::FnvBuildHasher;
 
+/// The default [`BuildSeededHasher`].
 #[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
 pub type BuildDefaultSeededHasher = Seedable<BuildHasherDefault<DefaultHasher>>;
