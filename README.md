@@ -8,11 +8,12 @@ Succinct data structures and other Rust libraries and programs by Piotr Beling.
 Included libraries:
 - `ph` ([crate](https://crates.io/crates/ph), [doc](https://docs.rs/ph)) - minimal perfect hash functions (FMPH and FMPHGO);
 - `csf` ([crate](https://crates.io/crates/csf), [doc](https://docs.rs/csf)) - compressed static functions (maps);
-- `cseq` ([crate](https://crates.io/crates/cseq), [doc](https://docs.rs/cseq)) - compact sequences (new and not well tested yet);
+- `cseq` ([crate](https://crates.io/crates/cseq), [doc](https://docs.rs/cseq)) - compact sequences (like Elias-Fano);
 - `minimum_redundancy` ([crate](https://crates.io/crates/minimum_redundancy), [doc](https://docs.rs/minimum_redundancy)) - encode and decode data with binary or non-binary Huffman coding;
-- `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
 - `bitm` ([crate](https://crates.io/crates/bitm), [doc](https://docs.rs/bitm)) - bit and bitmap manipulation;
+- `seedable_hash` ([crate](https://crates.io/crates/seedable_hash), [doc](https://docs.rs/seedable_hash)) - seedable hashers,
 - `binout` ([crate](https://crates.io/crates/binout), [doc](https://docs.rs/binout)) - binary encoding, decoding, serialization, deserialization;
+- `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
 - `dyn_size_of` ([crate](https://crates.io/crates/dyn_size_of), [doc](https://docs.rs/dyn_size_of)) - report approximate amount of memory consumed by variables, including the memory allocated on heap,
 - `butils` ([crate](https://crates.io/crates/butils), [doc](https://docs.rs/butils)) - (internal) utilities shared by software included in BSuccinct.
 
@@ -44,3 +45,6 @@ Once Rust is installed, to compile and install a program from sources and with n
 for example
 
 ```RUSTFLAGS="-C target-cpu=native" cargo install mphf_benchmark```
+
+# 32-bit addressing platforms support
+For portability, BSuccinct components compile and run on platforms with 32-bit addressing (like wasm32). However, they are optimized primarily with 64-bit CPUs in mind.
