@@ -14,7 +14,7 @@ Included libraries:
 - `seedable_hash` ([crate](https://crates.io/crates/seedable_hash), [doc](https://docs.rs/seedable_hash)) - seedable hashers,
 - `binout` ([crate](https://crates.io/crates/binout), [doc](https://docs.rs/binout)) - binary encoding, decoding, serialization, deserialization;
 - `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
-- `dyn_size_of` ([crate](https://crates.io/crates/dyn_size_of), [doc](https://docs.rs/dyn_size_of)) - report approximate amount of memory consumed by variables, including the memory allocated on heap,
+- `dyn_size_of` ([crate](https://crates.io/crates/dyn_size_of), [doc](https://docs.rs/dyn_size_of)) - calculate memory consumed by variables, including the memory allocated on heap,
 - `butils` ([crate](https://crates.io/crates/butils), [doc](https://docs.rs/butils)) - (internal) utilities shared by software included in BSuccinct.
 
 Included programs:
