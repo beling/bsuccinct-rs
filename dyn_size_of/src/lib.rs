@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI16, AtomicI32, AtomicI64, A
     AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize};
 
 #[cfg(feature = "aligned-vec")] use aligned_vec;
+#[cfg(feature = "rsdict")] use rsdict;
 
 /// Provides methods to get dynamic and total size of the variable.
 pub trait GetSize {
@@ -137,6 +138,11 @@ impl<T: GetSize> GetSize for Vec<T> {
 
 #[cfg(feature = "aligned-vec")] impl <T: GetSize, A: aligned_vec::Alignment> GetSize for aligned_vec::AVec<T, A> {
     impl_getsize_methods_for_vec!(T);
+}
+
+#[cfg(feature = "rsdict")] impl GetSize for rsdict::RsDict {
+    #[inline] fn size_bytes_dyn(&self) -> usize { self.heap_size() }
+    const USES_DYN_MEM: bool = true;
 }
 
 macro_rules! impl_getsize_for_tuple {
