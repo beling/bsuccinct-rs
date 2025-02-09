@@ -96,6 +96,33 @@ impl BuildSeededHasher for fnv::FnvBuildHasher {
     }
 }
 
+/// [`BuildSeededHasher`] that uses `gxhash` crate.
+#[cfg(feature = "gxhash")]
+impl BuildSeededHasher for gxhash::GxBuildHasher {
+    type Hasher = GxHasher;
+
+    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+        Self::Hasher::with_seed(seed)
+    }
+}
+
+#[cfg(feature = "rapidhash")]
+impl BuildSeededHasher for rapidhash::RapidBuildHasher {
+    type Hasher = rapidhash::RapidHasher;
+
+    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+        Self::Hasher::new(seed as u64)
+    }
+}
+#[cfg(feature = "rapidhash")]
+impl BuildSeededHasher for rapidhash::RapidInlineBuildHasher {
+    type Hasher = rapidhash::RapidInlineHasher;
+
+    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+        Self::Hasher::new(seed as u64)
+    }
+}
+
 /// The default [`BuildSeededHasher`].
 #[cfg(feature = "wyhash")]
 pub type BuildDefaultSeededHasher = BuildWyHash;
