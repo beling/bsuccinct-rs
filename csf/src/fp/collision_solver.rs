@@ -265,7 +265,7 @@ impl CollisionSolver for AcceptLimitedAverageDifferenceSolver {
 
     fn to_collision_array(self) -> Box<[u64]> {
         let mut result = Box::<[u64]>::with_zeroed_64bit_segments(self.cells.len() / 64);
-        for (index, cell) in self.cells.into_iter().enumerate() {
+        for (index, cell) in IntoIterator::into_iter(self.cells).enumerate() {
             let d = cell.get_count(self.bits_per_value);
             if d != 0 && cell.total_difference as u32 <= d as u32 * self.max_difference_per_value as u32 {
                 result.set_bit(index);
@@ -285,7 +285,7 @@ impl CollisionSolver for AcceptLimitedAverageDifferenceSolver {
     
     fn to_collision_and_values(self, bits_per_value: u8) -> (Box<[u64]>, Box<[u64]>, usize) {
         let mut to_select = Box::<[u64]>::with_zeroed_64bit_segments(self.cells.len() / 64);
-        for (index, cell) in self.cells.into_iter().enumerate() {
+        for (index, cell) in self.cells.iter().enumerate() {
             let d = cell.get_count(self.bits_per_value);
             if d != 0 && cell.total_difference as u32 <= d as u32 * self.max_difference_per_value as u32 {
                 to_select.set_bit(index);

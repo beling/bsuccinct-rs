@@ -283,7 +283,7 @@ impl<'k, K: Sync> ImmutableSlice<'k, K> {
         Self { slice, len: slice.len() }
     }
 
-    pub fn cached(slice: &'k [K], clone_threshold: usize) -> CachedKeySet<K, ImmutableSlice<K>> {
+    pub fn cached(slice: &[K], clone_threshold: usize) -> CachedKeySet<K, ImmutableSlice<K>> {
         CachedKeySet::new(ImmutableSlice::new(slice), clone_threshold)
     }
 }

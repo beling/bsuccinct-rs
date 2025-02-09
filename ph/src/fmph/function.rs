@@ -130,7 +130,6 @@ impl<S> BuildConf<S> {
 }
 
 /// Set `bit_index` bit in `result`. If it already was set, then set it in `collision`.
-#[cfg(not(feature = "no_branchless_bb"))]
 #[inline]
 pub(crate) fn fphash_add_bit(result: &mut [u64], collision: &mut [u64], bit_index: usize) {
     let index = bit_index / 64;
@@ -141,27 +140,11 @@ pub(crate) fn fphash_add_bit(result: &mut [u64], collision: &mut [u64], bit_inde
 }
 
 /// Set `bit_index` bit in `result`. If it already was set, then set it in `collision`.
-#[cfg(feature = "no_branchless_bb")]
-pub(crate) fn fphash_add_bit(result: &mut Box<[u64]>, collision: &mut Box<[u64]>, bit_index: usize) {
-    let index = bit_index / 64;
-    let mask = 1u64 << (bit_index % 64) as u64;
-
-    if collision[index] & mask == 0 {   // no collision
-        if result[index] & mask == 0 {
-            result[index] |= mask;
-        } else {
-            collision[index] |= mask;
-            //result[index] &= !mask;
-        }
-    }
-}
-
-/// Set `bit_index` bit in `result`. If it already was set, then set it in `collision`.
 #[inline]
 pub(crate) fn fphash_sync_add_bit(result: &[AtomicU64], collision: &[AtomicU64], bit_index: usize) {
     let index = bit_index / 64;
     let mask = 1u64 << (bit_index % 64) as u64;
-    #[cfg(feature = "no_branchless_bb")] if collision[index].load(Relaxed) & mask != 0 { return; } // TODO opłaca się? bezpieczne? benchmarki pokazują że się opłaca!!
+    // if collision[index].load(Relaxed) & mask != 0 { return; } // TODO opłaca się? bezpieczne? benchmarki pokazują że się opłaca!!
     let old_result = result[index].fetch_or(mask, Relaxed);
     if old_result & mask != 0 { collision[index].fetch_or(mask, Relaxed); }
     //collision[index].fetch_or(old_result & mask, Relaxed);    // alternative to line above
