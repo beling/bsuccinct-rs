@@ -106,6 +106,7 @@ impl BuildSeededHasher for gxhash::GxBuildHasher {
     }
 }
 
+/// [`BuildSeededHasher`] that uses `rapidhash::RapidBuildHasher`.
 #[cfg(feature = "rapidhash")]
 impl BuildSeededHasher for rapidhash::RapidBuildHasher {
     type Hasher = rapidhash::RapidHasher;
@@ -114,6 +115,8 @@ impl BuildSeededHasher for rapidhash::RapidBuildHasher {
         Self::Hasher::new(seed as u64)
     }
 }
+
+/// [`BuildSeededHasher`] that uses `rapidhash::RapidInlineBuildHasher`.
 #[cfg(feature = "rapidhash")]
 impl BuildSeededHasher for rapidhash::RapidInlineBuildHasher {
     type Hasher = rapidhash::RapidInlineHasher;
