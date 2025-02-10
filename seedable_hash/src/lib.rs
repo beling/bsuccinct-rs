@@ -99,7 +99,7 @@ impl BuildSeededHasher for fnv::FnvBuildHasher {
 /// [`BuildSeededHasher`] that uses `gxhash` crate.
 #[cfg(feature = "gxhash")]
 impl BuildSeededHasher for gxhash::GxBuildHasher {
-    type Hasher = GxHasher;
+    type Hasher = gxhash::GxHasher;
 
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::with_seed(seed)
