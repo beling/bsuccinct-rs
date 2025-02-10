@@ -102,7 +102,7 @@ impl BuildSeededHasher for gxhash::GxBuildHasher {
     type Hasher = gxhash::GxHasher;
 
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
-        Self::Hasher::with_seed(seed)
+        Self::Hasher::with_seed(seed as i64)
     }
 }
 
