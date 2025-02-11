@@ -5,13 +5,6 @@ pub use map::{map16_to_16, map32_to_32, map64_to_32, map64_to_64, map_usize};
 
 use std::hash::{BuildHasher, Hash, Hasher};
 
-#[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
-use std::{hash::BuildHasherDefault, collections::hash_map::DefaultHasher};
-
-#[cfg(feature = "sip13")]
-#[allow(deprecated)]
-use std::hash::SipHasher13;
-
 /// Family of hash functions that allows the creation of
 /// [`Hasher`] instances initialized with a given seed.
 pub trait BuildSeededHasher {
@@ -52,7 +45,8 @@ pub struct BuildSip13;
 #[cfg(feature = "sip13")]
 #[allow(deprecated)]
 impl BuildSeededHasher for BuildSip13 {
-    type Hasher = SipHasher13;
+    #[allow(deprecated)]
+    type Hasher = std::hash::SipHasher13;
 
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::new_with_keys(seed as u64, seed as u64)
@@ -127,17 +121,21 @@ impl BuildSeededHasher for rapidhash::RapidInlineBuildHasher {
 }
 
 /// The default [`BuildSeededHasher`].
-#[cfg(feature = "wyhash")]
+#[cfg(feature = "gxhash")]
+pub type BuildDefaultSeededHasher = gxhash::GxBuildHasher;
+
+/// The default [`BuildSeededHasher`].
+#[cfg(all(feature = "wyhash", not(feature = "gxhash")))]
 pub type BuildDefaultSeededHasher = BuildWyHash;
 
 /// The default [`BuildSeededHasher`].
-#[cfg(all(feature = "sip13", not(feature = "wyhash")))]
+#[cfg(all(feature = "sip13", not(feature = "gxhash"), not(feature = "wyhash")))]
 pub type BuildDefaultSeededHasher = BuildSip13;
 
 /// The default [`BuildSeededHasher`].
-#[cfg(all(feature = "fnv", not(feature = "sip13"), not(feature = "wyhash")))]
+#[cfg(all(feature = "fnv", not(feature = "gxhash"), not(feature = "sip13"), not(feature = "wyhash")))]
 pub type BuildDefaultSeededHasher = fnv::FnvBuildHasher;
 
 /// The default [`BuildSeededHasher`].
-#[cfg(all(not(feature = "fnv"), not(feature = "sip13"), not(feature = "wyhash")))]
-pub type BuildDefaultSeededHasher = Seedable<BuildHasherDefault<DefaultHasher>>;
+#[cfg(all(not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "fnv"), not(feature = "sip13")))]
+pub type BuildDefaultSeededHasher = Seedable<std::hash::BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
