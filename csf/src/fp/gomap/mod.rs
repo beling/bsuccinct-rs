@@ -8,10 +8,10 @@ use std::hash::Hash;
 mod conf;
 pub use conf::GOMapConf;
 
-use crate::fp::CollisionSolver;
+/*use crate::fp::CollisionSolver;
 
 use super::kvset::KVSet;
-use super::{CollisionSolverBuilder, LevelSizer};
+use super::{CollisionSolverBuilder, LevelSizer};*/
 
 /// Finger-printing based compressed static function (immutable map)
 /// that uses group optimization and maps hashable keys to unsigned integer values of given bit-size.
@@ -89,7 +89,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
 
     
 
-    pub fn with_conf_stats<K, KV, LSC, CSB, BS>(kv: KV, conf: GOMapConf<LSC, CSB, GS, SS, S>, stats: &mut BS) -> Self
+    /*TODO pub fn with_conf_stats<K, KV, LSC, CSB, BS>(kv: KV, conf: GOMapConf<LSC, CSB, GS, SS, S>, stats: &mut BS) -> Self
         where K: Hash, KV: KVSet<K>, LSC: LevelSizer, CSB: CollisionSolverBuilder, BS: stats::BuildStatsCollector
     {
         let bits_per_value = kv.bits_per_value();
@@ -120,5 +120,5 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOMap<GS, SS, S> {
             
         }
         todo!()
-    }
+    }*/
 }
