@@ -1,5 +1,6 @@
 use mem_dbg::MemSize;
-use sux::{bits::BitVec, rank_sel::{SelectFixed1, SelectFixed2, SelectZeroFixed1, SelectZeroFixed2}, traits::{ConvertTo, Select, SelectZero}};
+use sux::{bits::BitVec, rank_sel::{SelectAdapt, SelectAdaptConst, SelectZeroAdapt, SelectZeroAdaptConst},
+    traits::{SelectUnchecked, SelectZeroUnchecked}};
 use crate::{Conf, Tester};
 
 pub fn build_bit_vec(conf: &Conf) -> (BitVec, Tester) {
@@ -8,42 +9,42 @@ pub fn build_bit_vec(conf: &Conf) -> (BitVec, Tester) {
     (content, tester)
 }
 
-pub fn benchmark_select_fixed2(conf: &Conf) {
-    println!("sux SelectFixed2:");
+pub fn benchmark_select_adapt(conf: &Conf) {
+    println!("sux SelectAdapt:");
 
     let (mut content, tester) = build_bit_vec(conf);
     let content_size = content.mem_size(Default::default());
 
-    let rs = SelectFixed2::<_, _, 10, 2>::new(content);
+    let rs = SelectAdapt::new(content, 3);
     //rs.mem_dbg(Default::default()).unwrap();
-    tester.raport_select1("sux SelectFixed2",
+    tester.raport_select1("sux SelectAdapt",
         rs.mem_size(Default::default()) - content_size,
         |rank| unsafe { rs.select_unchecked(rank) });
 
-    content = rs.convert_to().unwrap();
-    let rs = SelectZeroFixed2::<_, _, 10, 2>::new(content);
+    content = rs.into_inner();
+    let rs = SelectZeroAdapt::new(content, 3);
     //rs.mem_dbg(Default::default()).unwrap();
-    tester.raport_select0("sux SelectFixed2",
+    tester.raport_select0("sux SelectAdapt",
             rs.mem_size(Default::default()) - content_size,
             |rank| unsafe { rs.select_zero_unchecked(rank) });
 }
 
-pub fn benchmark_select_fixed1(conf: &Conf) {
-    println!("sux SelectFixed1:");
+pub fn benchmark_select_adapt_const(conf: &Conf) {
+    println!("sux SelectAdaptConst:");
 
     let (mut content, tester) = build_bit_vec(conf);
     let content_size = content.mem_size(Default::default());
 
-    let rs = SelectFixed1::<_, _, 8>::new(content, tester.number_of_ones);
+    let rs = SelectAdaptConst::<_,_>::new(content);
     //rs.mem_dbg(Default::default()).unwrap();
-    tester.raport_select1("sux SelectFixed1",
+    tester.raport_select1("sux SelectAdaptConst",
         rs.mem_size(Default::default()) - content_size,
         |rank| unsafe { rs.select_unchecked(rank) });
 
-    content = rs.convert_to().unwrap();
-    let rs = SelectZeroFixed1::<_, _, 8>::new(content);
+    content = rs.into_inner();
+    let rs = SelectZeroAdaptConst::<_,_>::new(content);
     //rs.mem_dbg(Default::default()).unwrap();
-    tester.raport_select0("sux SelectFixed1",
+    tester.raport_select0("sux SelectAdaptConst",
             rs.mem_size(Default::default()) - content_size,
             |rank| unsafe { rs.select_zero_unchecked(rank) });
 }

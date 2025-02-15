@@ -66,7 +66,7 @@ rank_sel 1000000000 100000000 60 10000000
 ## Notes on benchmarks of structures supporting rank and select queries on bit vectors
 - We do not distinguish *rank<sub>0</sub>* from *rank<sub>1</sub>* as each is trivially computable from the other.
 - In a bit vector with *adversarial* distribution and *n* ones, 99% of them occupy the last *n* indices.
-- Versions of the tested crates: *bitm* 0.4.1, *succinct* 0.5.2, *sucds* 0.8.1, *sux* 0.2.0, *vers* 1.1.0.
+- Versions of the tested crates (supported by *cseq_benchmark 0.1.1*): *bitm* 0.4.1, *succinct* 0.5.2, *sucds* 0.8.1, *sux* 0.2.0, *vers* 1.1.0.
 - Structures supporting select marked with * use or are integrated with (in the case of *vers RsVec*) the corresponding rank structure and the space overhead given for them is additional.
 - We conducted the benchmarks using: long measurement (t=60) and cooling (c=20) times, 10<sup>7</sup> random query arguments, AMD Ryzen 5600G @3.9GHz CPU and compilation with native optimizations enabled.
 

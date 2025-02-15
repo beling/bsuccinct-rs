@@ -3,9 +3,6 @@
 use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize,
     AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize};
 
-#[cfg(feature = "aligned-vec")] use aligned_vec;
-#[cfg(feature = "rsdict")] use rsdict;
-
 /// Provides methods to get dynamic and total size of the variable.
 pub trait GetSize {
     /// Returns approximate number of bytes occupied by dynamic (heap) part of `self`.

@@ -33,12 +33,12 @@ pub enum Structure {
     SuccinctRank9,
     /// SelectFixed1 on uncompressed bit vector using sux crate
     #[cfg(target_pointer_width = "64")]
-    #[clap(visible_aliases = ["sux-sf1", "sux-sel1"])]
-    SuxSelectFixed1,
+    #[clap(visible_alias = "sux-adapt")]
+    SuxSelectAdapt,
     /// SelectFixed2 on uncompressed bit vector using sux crate
     #[cfg(target_pointer_width = "64")]
-    #[clap(visible_aliases = ["sux-sf2", "sux-sel2"])]
-    SuxSelectFixed2,
+    #[clap(visible_alias = "sux-adapt-const")]
+    SuxSelectAdaptConst,
     /// Rank/Select on uncompressed bit vector using vers crate
     #[cfg(feature = "vers-vecs")] Vers,
     /// Rank and select on bit vectors using all supported methods and crates
@@ -442,8 +442,8 @@ fn main() {
         #[cfg(target_pointer_width = "64")] Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
         #[cfg(target_pointer_width = "64")] Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
         #[cfg(target_pointer_width = "64")] Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuxSelectFixed1 => sux::benchmark_select_fixed1(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuxSelectFixed2 => sux::benchmark_select_fixed2(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuxSelectAdapt => sux::benchmark_select_adapt_const(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuxSelectAdaptConst => sux::benchmark_select_adapt(&conf),
         #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf),
         Structure::BV => {
             bitm::benchmark_rank_select(&conf);
@@ -454,8 +454,8 @@ fn main() {
             }
             #[cfg(feature = "vers-vecs")] vers::benchmark_rank_select(&conf);
             #[cfg(target_pointer_width = "64")] {
-            sux::benchmark_select_fixed2(&conf);
-            sux::benchmark_select_fixed1(&conf);
+            sux::benchmark_select_adapt(&conf);
+            sux::benchmark_select_adapt_const(&conf);
             }
         },
     }

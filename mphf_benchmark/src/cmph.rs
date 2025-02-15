@@ -50,6 +50,8 @@ impl<K: Hash + CMPHSource> MPHFBuilder<K> for CHDConf {
         let (k_data, k_len) = K::key_data_and_len(key);
         Some(unsafe{ cmph_search_packed(mphf.as_ptr() as *mut c_void, k_data, k_len) as u64 })
     }
+
+    fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }
 }
 
 pub fn chd_benchmark<K: Hash + CMPHSource>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, lambda: u8) {

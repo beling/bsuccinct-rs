@@ -1,19 +1,25 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "cmph-sys")] mod cmph;
-use butils::{XorShift32, XorShift64};
 #[cfg(feature = "cmph-sys")] use cmph::chd_benchmark;
 
+mod boomphf;
+use boomphf::BooMPHFConf;
+
+mod ptrhash;
+
+use butils::{XorShift32, XorShift64};
 use clap::{Parser, ValueEnum, Subcommand, Args};
 use ph::fmph;
 use bitm::{BitAccess, BitVec};
+use ptrhash::ptrhash_benchmark;
 use std::hash::Hash;
 use std::fmt::{Debug, Display, Formatter};
+use std::hint::black_box;
 use std::io::{stdout, Write, BufRead};
 use cpu_time::{ProcessTime, ThreadTime};
 use std::fs::{File, OpenOptions};
 use std::time::Instant;
-use boomphf::Mphf;
 use rayon::current_num_threads;
 use dyn_size_of::GetSize;
 use ph::BuildSeededHasher;
@@ -101,6 +107,8 @@ pub enum Method {
         #[arg(short='l', long, value_parser = clap::value_parser!(u8).range(1..32))]
         lambda: Option<u8>
     },
+    /// PtrHash
+    PtrHash,
     /// No method is tested
     None
 }
@@ -190,14 +198,14 @@ impl SearchStats {
             }
         } else {
             for v in input {
-                if h(v, &mut extra_levels_searched).is_none() {
+                if black_box(h(v, &mut extra_levels_searched)).is_none() {
                     not_found += 1;
                 }
             }
         }
         for _ in 1..lookup_runs {
             let mut dump = 0;
-            for v in input { h(v, &mut dump); }
+            for v in input { black_box(h(v, &mut dump)); }
         }
         let seconds = start_process_moment.elapsed().as_secs_f64();
         let divider = input.len() as f64;
@@ -274,9 +282,10 @@ trait MPHFBuilder<K: Hash> {
     const BUILD_THREADS: Threads = Threads::Both;
     const BUILD_THREADS_DOES_NOT_CHANGE_SIZE: bool = true;
 
-    type MPHF: GetSize;
+    type MPHF;
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF;
     fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64>;
+    fn mphf_size(mphf: &Self::MPHF) -> usize;
 
     /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
     fn benchmark_build_st(&self, keys: &[K], repeats: u32) -> (Self::MPHF, BuildStats) {
@@ -303,11 +312,11 @@ trait MPHFBuilder<K: Hash> {
             (Threads::Multi, _) | (Threads::Both, Threads::Multi) => self.benchmark_build_mt(keys, conf.build_runs),
             _ => {  // (Both, Both) pair
                 let (mphf, result_st) = self.benchmark_build_st(keys, conf.build_runs);
-                let size_st = Self::BUILD_THREADS_DOES_NOT_CHANGE_SIZE.then(|| mphf.size_bytes());
+                let size_st = Self::BUILD_THREADS_DOES_NOT_CHANGE_SIZE.then(|| Self::mphf_size(&mphf));
                 drop(mphf);
                 let (mphf, mut result_mt) = self.benchmark_build_mt(keys, conf.build_runs);
                 if let Some(size_st) = size_st {
-                    let size_mt = mphf.size_bytes();
+                    let size_mt = Self::mphf_size(&mphf);
                     if size_st != size_mt {
                         eprintln!("WARNING: ST/MT differ in sizes, {} != {}", size_st, size_mt);
                     }
@@ -321,7 +330,7 @@ trait MPHFBuilder<K: Hash> {
     /// Builds, tests, and returns MPHF.
     fn benchmark(&self, i: &(Vec<K>, Vec<K>), conf: &Conf) -> BenchmarkResult {
         let (h, build) = self.benchmark_build(&i.0, conf);
-        let size_bytes = h.size_bytes();
+        let size_bytes = Self::mphf_size(&h);
         let bits_per_value = 8.0 * size_bytes as f64 / i.0.len() as f64;
         if conf.lookup_runs == 0 {
             return BenchmarkResult { included: SearchStats::nan(), absent: SearchStats::nan(), size_bytes, bits_per_value, build }
@@ -357,6 +366,8 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.get_stats(key, levels)
     }
+    
+    fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }
 }
 
 impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::GOBuildConf<GS, SS, S>, KeyAccess) {
@@ -387,24 +398,8 @@ impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSi
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.get_stats(key, levels)
     }
-}
 
-struct BooMPHFConf { gamma: f64 }
-
-impl<K: Hash + Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
-    type MPHF = Mphf<K>;
-
-    fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
-        if use_multiple_threads {
-            Mphf::new_parallel(self.gamma, keys, None)
-        } else {
-            Mphf::new(self.gamma, keys)
-        }
-    }
-
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
-        mphf.try_hash_bench(&key, levels)
-    }
+    fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }
 }
 
 const FMPHGO_HEADER: &'static str = "cache_threshold bits_per_group_seed relative_level_size bits_per_group";
@@ -555,8 +550,8 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &
 #[cfg(feature = "cmph-sys")] trait CanBeKey: Hash + Sync + Send + Clone + Debug + cmph::CMPHSource {}
 #[cfg(feature = "cmph-sys")] impl<T: Hash + Sync + Send + Clone + Debug + cmph::CMPHSource> CanBeKey for T {}
 
-#[cfg(not(feature = "cmph-sys"))] trait CanBeKey: Hash + Sync + Send + Clone + Debug {}
-#[cfg(not(feature = "cmph-sys"))] impl<T: Hash + Sync + Send + Clone + Debug> CanBeKey for T {}
+#[cfg(not(feature = "cmph-sys"))] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default {}
+#[cfg(not(feature = "cmph-sys"))] impl<T: Hash + Sync + Send + Clone + Debug + Default> CanBeKey for T {}
 
 fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
@@ -609,7 +604,13 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                 }
             //}
         }
+        Method::PtrHash => {
+            println!("PtrHash: results...");
+            let mut csv_file = file("PtrHash", &conf, i, "");
+            ptrhash_benchmark(&mut csv_file, i, conf);
+        },
         Method::None => {}
+        
     }
 }
 
