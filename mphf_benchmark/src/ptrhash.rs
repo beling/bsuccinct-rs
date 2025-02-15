@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 
-use ptr_hash::{DefaultPtrHash, PtrHash, PtrHashParams};
+use ptr_hash::{PtrHash, PtrHashParams};
 
 use crate::{Conf, MPHFBuilder, Threads};
 
@@ -9,7 +9,7 @@ impl<K: std::hash::Hash + Sync + Send + Default> MPHFBuilder<K> for PtrHashParam
     type MPHF = PtrHash<K>;
 
     fn new(&self, keys: &[K], _use_multiple_threads: bool) -> Self::MPHF {
-        DefaultPtrHash::new(keys, *self)
+        <PtrHash<K>>::new(keys, *self)
     }
 
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
