@@ -24,7 +24,7 @@ pub trait BuildSeededHasher {
 
 /// [`BuildSeededHasher`] that uses standard [`BuildHasher`].
 #[derive(Default, Copy, Clone)]
-pub struct Seedable<BH: BuildHasher>(BH);
+pub struct Seedable<BH: BuildHasher>(pub BH);
 
 impl<BH: BuildHasher> BuildSeededHasher for Seedable<BH> {
     type Hasher = BH::Hasher;
