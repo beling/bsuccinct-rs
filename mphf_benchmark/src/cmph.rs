@@ -20,6 +20,7 @@ pub trait CMPHSource: Sized {
 
 impl<K: Hash + CMPHSource> MPHFBuilder<K> for CHDConf {
     type MPHF = Box<[u8]>;
+    type Value = cmph_uint32;
 
     const CAN_DETECT_ABSENCE: bool = false;
     const BUILD_THREADS: Threads = Threads::Single;
@@ -46,9 +47,14 @@ impl<K: Hash + CMPHSource> MPHFBuilder<K> for CHDConf {
         }
     }
 
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
         let (k_data, k_len) = K::key_data_and_len(key);
         Some(unsafe{ cmph_search_packed(mphf.as_ptr() as *mut c_void, k_data, k_len) as u64 })
+    }
+
+    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
+        let (k_data, k_len) = K::key_data_and_len(key);
+        unsafe{ cmph_search_packed(mphf.as_ptr() as *mut c_void, k_data, k_len) }
     }
 
     fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }

@@ -173,6 +173,7 @@ const BENCHMARK_HEADER: &'static str = "size_bytes bits_per_value avg_deep avg_l
 
 impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::BuildConf<S>, KeyAccess) {
     type MPHF = fmph::Function<S>;
+    type Value = Option<u64>;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         let mut conf = self.0.clone();
@@ -188,8 +189,12 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
         }
     }
 
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.get_stats(key, levels)
+    }
+
+    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
+        mphf.get(key)
     }
     
     fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }
@@ -197,6 +202,7 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
 
 impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::GOBuildConf<GS, SS, S>, KeyAccess) {
     type MPHF = fmph::GOFunction<GS, SS, S>;
+    type Value = Option<u64>;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         let mut conf = self.0.clone();
@@ -220,8 +226,12 @@ impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSi
         }
     }
 
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
         mphf.get_stats(key, levels)
+    }
+
+    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
+        mphf.get(key)
     }
 
     fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }

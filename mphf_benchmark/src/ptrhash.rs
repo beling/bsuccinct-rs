@@ -7,13 +7,18 @@ use crate::{Conf, MPHFBuilder, Threads};
 
 impl<K: std::hash::Hash + Sync + Send + Default> MPHFBuilder<K> for PtrHashParams {
     type MPHF = PtrHash<K>;
+    type Value = usize;
 
     fn new(&self, keys: &[K], _use_multiple_threads: bool) -> Self::MPHF {
         <PtrHash<K>>::new(keys, *self)
     }
 
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
         Some(mphf.index_minimal(key) as u64)
+    }
+
+    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
+        mphf.index_minimal(key)
     }
 
     fn mphf_size(_mphf: &Self::MPHF) -> usize { 

@@ -1,7 +1,8 @@
 
-use std::{hash::Hash, time::Instant};
+use std::{hash::Hash, hint::black_box, time::Instant};
 
-use cpu_time::ThreadTime;
+use bitm::{BitAccess, BitVec};
+use cpu_time::{ProcessTime, ThreadTime};
 
 use crate::{BenchmarkResult, BuildStats, Conf, SearchStats, Threads};
 
@@ -11,8 +12,10 @@ pub trait MPHFBuilder<K: Hash> {
     const BUILD_THREADS_DOES_NOT_CHANGE_SIZE: bool = true;
 
     type MPHF;
+    type Value;
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF;
-    fn value(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64>;
+    fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64>;
+    fn value(mphf: &Self::MPHF, key: &K) -> Self::Value;
     fn mphf_size(mphf: &Self::MPHF) -> usize;
 
     /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
@@ -55,6 +58,45 @@ pub trait MPHFBuilder<K: Hash> {
         }
     }
 
+    /// Lookups for all keys in `input` and returns search statistics.
+    /// If `verify` is `true`, checks if the `mphf` is valid for the given `input`.
+    fn benchmark_lookup(&self, mphf: &Self::MPHF, input: &[K], verify: bool, lookup_runs: u32) -> SearchStats {
+        if input.is_empty() || lookup_runs == 0 { return SearchStats::nan(); }
+        let mut extra_levels_searched = 0u64;
+        let mut not_found = 0usize;
+        if verify {
+            let mut seen = Box::<[u64]>::with_zeroed_bits(input.len());
+            for v in input {
+                if let Some(index) = Self::value_ex(mphf, v, &mut extra_levels_searched) {
+                    let index = index as usize;
+                    assert!(index < input.len(), "MPHF assigns too large value {}>{}.", index, input.len());
+                    assert!(!seen.get_bit(index), "MPHF assigns the same value to two keys of input.");
+                    seen.set_bit(index);
+                } else {
+                    not_found += 1;
+                }
+            }
+        } else {
+            for v in input {
+                if Self::value_ex(mphf, v, &mut extra_levels_searched).is_none() {
+                    not_found += 1;
+                }
+            }
+        }
+        let start_process_moment = ProcessTime::now();
+        for _ in 0..lookup_runs {
+            let mut dump = 0;
+            for v in input { black_box(Self::value_ex(mphf, v, &mut dump)); }
+        }
+        let seconds = start_process_moment.elapsed().as_secs_f64();
+        let divider = input.len() as f64;
+        SearchStats {
+            avg_deep: extra_levels_searched as f64 / divider,
+            avg_lookup_time: seconds / (divider * lookup_runs as f64),
+            absences_found: not_found as f64 / divider
+        }
+    }
+
     /// Builds, tests, and returns MPHF.
     fn benchmark(&self, i: &(Vec<K>, Vec<K>), conf: &Conf) -> BenchmarkResult {
         let (h, build) = self.benchmark_build(&i.0, conf);
@@ -63,10 +105,10 @@ pub trait MPHFBuilder<K: Hash> {
         if conf.lookup_runs == 0 {
             return BenchmarkResult { included: SearchStats::nan(), absent: SearchStats::nan(), size_bytes, bits_per_value, build }
         }
-        let included = SearchStats::new(&i.0, |k, s| Self::value(&h, k, s), conf.verify, conf.lookup_runs);
+        let included = self.benchmark_lookup(&h, &i.0, conf.verify, conf.lookup_runs);
         assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
         let absent = if conf.save_details && Self::CAN_DETECT_ABSENCE {
-            SearchStats::new(&i.1, |k, s| Self::value(&h, k, s), false, conf.lookup_runs)
+            self.benchmark_lookup(&h, &i.1, false, conf.lookup_runs)
         } else {
             SearchStats::nan()
         };
