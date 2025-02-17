@@ -79,3 +79,39 @@ impl Display for BuildStats {
         }
     }
 }
+
+/// All statistics/results.
+pub struct BenchmarkResult {
+    pub included: SearchStats,
+    pub absent: SearchStats,
+    pub size_bytes: usize,
+    pub bits_per_value: f64,
+    pub build: BuildStats
+}
+
+impl BenchmarkResult {
+    pub fn all<'a>(&'a self) -> impl Display + 'a {
+        struct All<'a>(&'a BenchmarkResult);
+        impl<'a> Display for All<'a> {
+            fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+                write!(f, "{} {} {} {} {} {} {} {} {}", self.0.size_bytes,
+                       self.0.bits_per_value, self.0.included.avg_deep, self.0.included.avg_lookup_time,
+                       self.0.build.time_st, self.0.build.time_mt,
+                       self.0.absent.avg_lookup_time, self.0.absent.avg_lookup_time, self.0.absent.absences_found
+                )
+            }
+        }
+        All(self)
+    }
+}
+
+impl Display for BenchmarkResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "size [bits/key]: {:.2}", self.bits_per_value)?;
+        if !self.included.avg_lookup_time.is_nan() {
+            write!(f, "\tlookup time [ns]: {:.0}", self.included.avg_lookup_time * 1_000_000_000.0)?;
+        }
+        write!(f, "\t{}", self.build)?;
+        Ok(())
+    }
+}

@@ -4,7 +4,7 @@
 #[cfg(feature = "cmph-sys")] use cmph::chd_benchmark;
 
 mod stats;
-pub use stats::{SearchStats, BuildStats};
+pub use stats::{SearchStats, BuildStats, BenchmarkResult};
 
 mod boomphf;
 use boomphf::BooMPHFConf;
@@ -17,7 +17,7 @@ use ph::fmph;
 
 use ptrhash::ptrhash_benchmark;
 use std::hash::Hash;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::io::{stdout, Write, BufRead};
 use cpu_time::ThreadTime;
 use std::fs::{File, OpenOptions};
@@ -170,40 +170,6 @@ pub struct Conf {
 
 const BENCHMARK_HEADER: &'static str = "size_bytes bits_per_value avg_deep avg_lookup_time build_time_st build_time_mt absent_avg_deep absent_avg_lookup_time absences_found";
 
-struct BenchmarkResult {
-    included: SearchStats,
-    absent: SearchStats,
-    size_bytes: usize,
-    bits_per_value: f64,
-    build: BuildStats
-}
-
-impl BenchmarkResult {
-    fn all<'a>(&'a self) -> impl Display + 'a {
-        struct All<'a>(&'a BenchmarkResult);
-        impl<'a> Display for All<'a> {
-            fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-                write!(f, "{} {} {} {} {} {} {} {} {}", self.0.size_bytes,
-                       self.0.bits_per_value, self.0.included.avg_deep, self.0.included.avg_lookup_time,
-                       self.0.build.time_st, self.0.build.time_mt,
-                       self.0.absent.avg_lookup_time, self.0.absent.avg_lookup_time, self.0.absent.absences_found
-                )
-            }
-        }
-        All(self)
-    }
-}
-
-impl Display for BenchmarkResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "size [bits/key]: {:.2}", self.bits_per_value)?;
-        if !self.included.avg_lookup_time.is_nan() {
-            write!(f, "\tlookup time [ns]: {:.0}", self.included.avg_lookup_time * 1_000_000_000.0)?;
-        }
-        write!(f, "\t{}", self.build)?;
-        Ok(())
-    }
-}
 
 trait MPHFBuilder<K: Hash> {
     const CAN_DETECT_ABSENCE: bool = true;
