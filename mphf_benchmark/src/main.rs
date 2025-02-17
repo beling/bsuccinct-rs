@@ -7,26 +7,24 @@ mod builder;
 pub use builder::MPHFBuilder;
 
 mod stats;
-pub use stats::{SearchStats, BuildStats, BenchmarkResult};
+pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
-mod boomphf;
-use boomphf::BooMPHFConf;
+mod inout;
+use inout::{RawLines, gen_data};
+
+mod fmph;
+use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, FMPHGO_HEADER};
 
 mod ptrhash;
 
 use butils::{XorShift32, XorShift64};
 use clap::{Parser, ValueEnum, Subcommand, Args};
-use ph::fmph;
 
 use ptrhash::ptrhash_benchmark;
 use std::hash::Hash;
 use std::fmt::Debug;
-use std::io::{stdout, Write, BufRead};
-use std::fs::{File, OpenOptions};
 use rayon::current_num_threads;
-use dyn_size_of::GetSize;
-use ph::BuildSeededHasher;
-use ph::fmph::keyset::{SliceSourceWithRefs, ImmutableSlice};
+
 use ph::seedable_hash::BuildWyHash;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -169,219 +167,6 @@ pub struct Conf {
     pub save_details: bool,
 }
 
-const BENCHMARK_HEADER: &'static str = "size_bytes bits_per_value avg_deep avg_lookup_time build_time_st build_time_mt absent_avg_deep absent_avg_lookup_time absences_found";
-
-impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::BuildConf<S>, KeyAccess) {
-    type MPHF = fmph::Function<S>;
-    type Value = Option<u64>;
-
-    fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
-        let mut conf = self.0.clone();
-        conf.use_multiple_threads = use_multiple_threads;
-        match self.1 {
-            //KeyAccess::LoMem(0) => Self::MPHF::with_conf(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
-            //KeyAccess::Sequential => Self::MPHF::with_conf(
-            //    CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
-            //    conf),
-            KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
-            KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
-            KeyAccess::Copy => Self::MPHF::with_conf(ImmutableSlice::cached(keys, usize::MAX), conf)
-        }
-    }
-
-    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
-        mphf.get_stats(key, levels)
-    }
-
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
-        mphf.get(key)
-    }
-    
-    fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }
-}
-
-impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::GOBuildConf<GS, SS, S>, KeyAccess) {
-    type MPHF = fmph::GOFunction<GS, SS, S>;
-    type Value = Option<u64>;
-
-    fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
-        let mut conf = self.0.clone();
-        conf.use_multiple_threads = use_multiple_threads;
-        match self.1 {
-            //KeyAccess::Sequential => Self::MPHF::with_builder(
-            //    CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
-            //    conf),
-            KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
-            KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
-            KeyAccess::Copy => Self::MPHF::with_conf(ImmutableSlice::cached(keys, usize::MAX), conf)
-
-            /*KeyAccess::LoMem(0) => Self::MPHF::with_builder(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
-            KeyAccess::LoMem(clone_threshold) => Self::MPHF::with_builder(
-                CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), clone_threshold),
-                self.0.clone()),
-            //KeyAccess::StoreIndices => Self::MPHF::from_slice_with_conf(keys, self.0.clone()),
-            KeyAccess::StoreIndices => Self::MPHF::with_builder(SliceSourceWithRefs::new(keys), self.0.clone()),
-            //KeyAccess::StoreIndices => Self::MPHF::with_conf(CachedKeySet::slice(keys, keys.len()/10), self.0.clone()),
-            KeyAccess::CopyKeys => Self::MPHF::with_builder(SliceSourceWithClones::new(keys), self.0.clone())*/
-        }
-    }
-
-    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
-        mphf.get_stats(key, levels)
-    }
-
-    #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
-        mphf.get(key)
-    }
-
-    fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }
-}
-
-const FMPHGO_HEADER: &'static str = "cache_threshold bits_per_group_seed relative_level_size bits_per_group";
-
-struct FMPHGOBuildParams<S> {
-    hash: S,
-    relative_level_size: u16,
-    cache_threshold: usize,
-    key_access: KeyAccess
-}
-
-fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
-    where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
-{
-    (fmph::GOBuildConf::with_lsize_ct_mt(
-        fmph::GOConf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
-        p.relative_level_size, p.cache_threshold, false), p.key_access)
-    .benchmark(i, conf)
-}
-
-fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
-    where GS: fmph::GroupSize + Sync + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
-{
-    match bits_per_group_seed {
-        1 => h2bench(fmph::TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
-        2 => h2bench(fmph::TwoToPowerBitsStatic::<1>, bits_per_group, i, conf, p),
-        4 => h2bench(fmph::TwoToPowerBitsStatic::<2>, bits_per_group, i, conf, p),
-        8 => h2bench(fmph::Bits8, bits_per_group, i, conf, p),
-        //16 => h2bench(TwoToPowerBitsStatic::<5>, bits_per_group, i, conf, p),
-        _ => h2bench(fmph::Bits(bits_per_group_seed), bits_per_group, i, conf, p)
-    }
-}
-
-fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams<S>)
-                -> BenchmarkResult
-    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
-{
-    let b = if bits_per_group.is_power_of_two() {
-        match bits_per_group {
-            //1 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<0>, i, conf, p),
-            //2 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<1>, i, conf, p),
-            //4 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<2>, i, conf, p),
-            8 => h2b(bits_per_group_seed, fmph::TwoToPowerBitsStatic::<3>, i, conf, p),
-            16 => h2b(bits_per_group_seed, fmph::TwoToPowerBitsStatic::<4>, i, conf, p),
-            32 => h2b(bits_per_group_seed, fmph::TwoToPowerBitsStatic::<5>, i, conf, p),
-            //64 => h2b(bits_per_group_seed, TwoToPowerBitsStatic::<6>, i, conf, p),
-            _ => h2b(bits_per_group_seed, fmph::TwoToPowerBits::new(bits_per_group.trailing_zeros() as u8), i, conf, p)
-        }
-    } else {
-        h2b(bits_per_group_seed, fmph::Bits(bits_per_group), i, conf, p)
-    };
-    if let Some(ref mut f) = file {
-        writeln!(f, "{} {} {} {} {}", p.cache_threshold, bits_per_group_seed, p.relative_level_size, bits_per_group, b.all()).unwrap();
-    }
-    b
-}
-
-fn fmphgo_benchmark<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams<S>)
-    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
-{
-    let b = fmphgo(file, i, conf, bits_per_group_seed, bits_per_group, p);
-    println!(" {} {} {:.1}\t{}", bits_per_group_seed, bits_per_group, p.relative_level_size as f64/100.0, b);
-}
-
-fn fmphgo_run<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams<S>)
-    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
-{
-    if p.relative_level_size == 0 {
-        for relative_level_size in (100..=200).step_by(/*50*/100) {
-            p.relative_level_size = relative_level_size;
-            fmphgo_benchmark(file, i, conf, bits_per_group_seed, bits_per_group, &p);
-        }
-        p.relative_level_size = 0;
-    } else {
-        fmphgo_benchmark(file, i, conf, bits_per_group_seed, bits_per_group, &p);
-    }
-}
-
-fn fmphgo_benchmark_all<S, K>(mut csv_file: Option<File>, hash: S, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess)
-where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
-{
-    println!("bps rls \\ bpglog 2 3 4 5 ... 62");
-    let mut p = FMPHGOBuildParams {
-        hash,
-        relative_level_size: 0,
-        cache_threshold: usize::MAX,
-        key_access
-    };
-    for bits_per_group_seed in 1u8..=10u8 {
-        for relative_level_size in (100..=200).step_by(/*50*/100) {
-            p.relative_level_size = relative_level_size;
-            print!("{} {}", bits_per_group_seed, relative_level_size);
-            //for bits_per_group_log2 in 3u8..=7u8 {
-            for bits_per_group in 2u8..=62u8/*.step_by(2)*/ {
-                //let (_, b) = Conf::bps_bpg_lsize(bits_per_group_seed, TwoToPowerBits::new(bits_per_group_log2), relative_level_size).benchmark(verify);
-                let b = fmphgo(&mut csv_file, i, conf, bits_per_group_seed, bits_per_group, &p);
-                print!(" {:.2}", b.bits_per_value);
-                stdout().flush().unwrap();
-            }
-            println!();
-        }
-    }
-}
-
-
-
-const FMPH_BENCHMARK_HEADER: &'static str = "cache_threshold relative_level_size";
-const BOOMPHF_BENCHMARK_HEADER: &'static str = "relative_level_size";
-
-fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, &FMPHConf)>)
-where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
-{
-    let mut file = if let Some((_, fc)) = use_fmph {
-        println!("FMPH hash caching threshold={}: gamma results...", fc.cache_threshold);
-        file("FMPH", &conf, i, FMPH_BENCHMARK_HEADER)
-    } else {
-        println!("boomphf: gamma results...");
-        file("boomphf", &conf, i, BOOMPHF_BENCHMARK_HEADER)
-    };
-    for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
-        let gamma = relative_level_size as f64 / 100.0f64;
-        if let Some((ref hash, fc)) = use_fmph {
-            let b = (fmph::BuildConf::hash_lsize_ct_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
-            println!(" {:.1}\t{}", gamma, b);
-            if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, relative_level_size, b.all()).unwrap(); }
-        } else {
-            let b = BooMPHFConf { gamma }.benchmark(i, &conf);
-            println!(" {:.1}\t{}", gamma, b);
-            if let Some(ref mut f) = file { writeln!(f, "{} {}", relative_level_size, b.all()).unwrap(); }
-        };
-    }
-}
-
-fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &str) -> Option<File> {
-    if !conf.save_details { return None; }
-    let ks_name = match conf.key_source {
-        KeySource::xs32 => "32",
-        KeySource::xs64 => "64",
-        KeySource::stdin|KeySource::stdinz => "str",
-    };
-    let file_name = format!("{}_{}_{}_{}.csv", method_name, ks_name, i.0.len(), i.1.len());
-    let file_already_existed = std::path::Path::new(&file_name).exists();
-    let mut file = OpenOptions::new().append(true).create(true).open(&file_name).unwrap();
-    if !file_already_existed { writeln!(file, "{} {}", extra_header, BENCHMARK_HEADER).unwrap(); }
-    Some(file)
-}
-
 #[cfg(feature = "cmph-sys")] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource {}
 #[cfg(feature = "cmph-sys")] impl<T: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource> CanBeKey for T {}
 
@@ -391,10 +176,10 @@ fn file<K>(method_name: &str, conf: &Conf, i: &(Vec<K>, Vec<K>), extra_header: &
 fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
         Method::FMPHGO_all => {
-            fmphgo_benchmark_all(file("FMPHGO_all", &conf, i, FMPHGO_HEADER), BuildWyHash::default(), &i, &conf, KeyAccess::Indices8);
+            fmphgo_benchmark_all(file("FMPHGO_all", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER), BuildWyHash::default(), &i, &conf, KeyAccess::Indices8);
         }
         Method::FMPHGO(ref fmphgo_conf) => {
-            let mut file = file("FMPHGO", &conf, i, FMPHGO_HEADER);
+            let mut file = file("FMPHGO", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER);
             println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.cache_threshold);
             let mut p = FMPHGOBuildParams {
                 hash: BuildWyHash::default(),
@@ -441,83 +226,11 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
         }
         Method::PtrHash => {
             println!("PtrHash: results...");
-            let mut csv_file = file("PtrHash", &conf, i, "");
+            let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "");
             ptrhash_benchmark(&mut csv_file, i, conf);
         },
         Method::None => {}
         
-    }
-}
-
-/*struct Generate32x<const N: usize>(XorShift32);
-impl<const N: usize> Generate32x<N> {
-    pub fn new(seed: u32) -> Self { Self(XorShift32(seed)) }
-}
-
-impl<const N: usize> Iterator for Generate32x<N> {
-    type Item = [u32; N];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        /*let mut result: [MaybeUninit<u32>; N] = unsafe {
-            MaybeUninit::uninit().assume_init()
-        };
-        for v in &mut result { v.write(self.0.next().unwrap()); }
-        Some(unsafe{std::mem::transmute::<_, [u32; N]>(result)})*/
-        let mut result = [0u32; N];
-        for v in &mut result { *v = self.0.next().unwrap(); }
-        Some(result)
-    }
-}*/
-
-
-fn gen_data<I: Iterator>(keys_num: usize, foreign_keys_num: usize, mut generator: I) -> (Vec<I::Item>, Vec<I::Item>) {
-    let mut keys = Vec::with_capacity(keys_num);
-    keys.extend(generator.by_ref().take(keys_num));
-    let mut foreign = Vec::with_capacity(foreign_keys_num);
-    foreign.extend(generator.take(foreign_keys_num));
-    (keys, foreign)
-    //(generator.by_ref().take(keys_num).collect(), generator.take(foreign_keys_num).collect())
-}
-
-//fn test_data_32x<const N: usize>(how_many: usize) -> (Vec<[u32; N]>, Vec<[u32; N]>) { test_data(how_many, Generate32x::<N>::new(5678)) }
-
-fn print_input_stats(setname: &str, strings: &[Box<[u8]>]){
-    if strings.len() == 0 {
-        println!("{} is empty", setname);
-    } else {
-        println!("{} has {} strings with an average length of {:.1} bytes", setname, strings.len(), strings.iter().map(|s| s.len()).sum::<usize>() as f64 / strings.len() as f64)
-    }
-}
-
-pub struct RawLines<B> {
-    buf: B,
-    separator: u8,
-}
-
-impl<B> RawLines<B> {
-    pub fn separated_by_newlines(buf: B) -> Self { Self { buf, separator: b'\n' } }
-    pub fn separated_by_zeros(buf: B) -> Self { Self { buf, separator: 0 } }
-}
-
-impl<B: BufRead> Iterator for RawLines<B> {
-    type Item = std::io::Result<Box<[u8]>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut buf = Vec::new();
-        match self.buf.read_until(self.separator, &mut buf) {
-            Ok(0) => None,
-            Ok(_n) => {
-                if buf.last() == Some(&self.separator) {
-                    buf.pop();
-                    if self.separator == b'\n' && buf.last() == Some(&b'\r') {
-                        buf.pop();
-                    }
-                }
-                //buf.shrink_to_fit();
-                Some(Ok(buf.into_boxed_slice()))
-            }
-            Err(e) => Some(Err(e)),
-        }
     }
 }
 

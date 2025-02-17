@@ -1,4 +1,22 @@
-use std::fmt::{Display, Formatter};
+use std::{fmt::{Display, Formatter}, fs::{File, OpenOptions}, io::Write};
+
+use crate::{Conf, KeySource};
+
+const BENCHMARK_HEADER: &'static str = "size_bytes bits_per_value avg_deep avg_lookup_time build_time_st build_time_mt absent_avg_deep absent_avg_lookup_time absences_found";
+
+pub fn file(method_name: &str, conf: &Conf, i_lens0: usize, i_lens1: usize, extra_header: &str) -> Option<File> {
+    if !conf.save_details { return None; }
+    let ks_name = match conf.key_source {
+        KeySource::xs32 => "32",
+        KeySource::xs64 => "64",
+        KeySource::stdin|KeySource::stdinz => "str",
+    };
+    let file_name = format!("{}_{}_{}_{}.csv", method_name, ks_name, i_lens0, i_lens1);
+    let file_already_existed = std::path::Path::new(&file_name).exists();
+    let mut file = OpenOptions::new().append(true).create(true).open(&file_name).unwrap();
+    if !file_already_existed { writeln!(file, "{} {}", extra_header, BENCHMARK_HEADER).unwrap(); }
+    Some(file)
+}
 
 /// Represents average (per value) lookup: level searched, times (seconds).
 pub struct SearchStats {
@@ -68,5 +86,13 @@ impl Display for BenchmarkResult {
         }
         write!(f, "\t{}", self.build)?;
         Ok(())
+    }
+}
+
+pub fn print_input_stats(setname: &str, strings: &[Box<[u8]>]){
+    if strings.len() == 0 {
+        println!("{} is empty", setname);
+    } else {
+        println!("{} has {} strings with an average length of {:.1} bytes", setname, strings.len(), strings.iter().map(|s| s.len()).sum::<usize>() as f64 / strings.len() as f64)
     }
 }
