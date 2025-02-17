@@ -67,19 +67,6 @@ impl BuildSeededHasher for BuildWyHash {
     }
 }
 
-/*#[cfg(feature = "wyhash_git")]
-#[derive(Default, Copy, Clone)]
-pub struct BuildWyHashGit;
-
-#[cfg(feature = "wyhash_git")]
-impl BuildSeededHasher for BuildWyHashGit {
-    type Hasher = wyhash_git::WyHash;
-
-    #[inline] fn build_hasher(&self, mut seed: u32) -> Self::Hasher {
-        Self::Hasher::new(seed as u64, [0xa076_1d64_78bd_642f, 0xe703_7ed1_a0b4_28db, 0x8ebc_6af0_9c88_c6e3, 0x5899_65cc_7537_4cc3])
-    }
-}*/
-
 /// [`BuildSeededHasher`] that uses `fnv` crate.
 #[cfg(feature = "fnv")]
 impl BuildSeededHasher for fnv::FnvBuildHasher {
