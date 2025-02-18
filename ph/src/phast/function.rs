@@ -1,5 +1,3 @@
-//! Perfect Hashing with fast evaluation.
-
 use std::hash::Hash;
 
 use crate::seeds::SeedSize;

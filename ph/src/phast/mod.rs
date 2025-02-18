@@ -1,3 +1,5 @@
+//! Perfect Hashing with fast evaluation.
+
 pub mod compressed_array;
 pub use compressed_array::{CompressedArray, DefaultCompressedArray};
 
@@ -13,4 +15,3 @@ pub use function::Function;
 
 pub const MAX_SPAN: usize = 256;
 pub const MAX_VALUES: usize = 4096;
-//pub const MAX_VALUES: usize = 2048; // OK?
