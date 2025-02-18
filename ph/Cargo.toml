@@ -14,8 +14,10 @@ keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [features]
 default = ["aligned-vec", "wyhash"]
+gxhash = ["seedable_hash/gxhash"]
+rapidhash = ["seedable_hash/rapidhash"]
 wyhash = ["seedable_hash/wyhash"]
-sip13 = ["seedable_hash/wyhash"]  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
+sip13 = ["seedable_hash/sip13"]  # if enabled, makes available BuildSip13 that uses Sip13 from compilter internals
 fnv = ["seedable_hash/fnv"]
 
 [dependencies]
@@ -23,7 +25,7 @@ bitm = { version="0.4", path="../bitm" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 binout = { version=">=0.2", path="../binout" }
 rayon = "1.5"
-seedable_hash = { version="0.1", path="../seedable_hash" }
+seedable_hash = { version="0.1", path="../seedable_hash", default-features = false }
 
 [target.'cfg(target_pointer_width = "32")'.dependencies]
 aligned-vec = { version="0.6", optional=true }  #  for 32 bit support
