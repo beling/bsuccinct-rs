@@ -2,12 +2,12 @@ use std::hash::Hash;
 use binout::{VByte, Serializer, AsIs};
 use bitm::{BitAccess, Rank, ceiling_div};
 
+use crate::seeds::{Bits8, SeedSize, TwoToPowerBitsStatic};
 use crate::utils::{ArrayWithRank, read_bits};
 use crate::{BuildDefaultSeededHasher, BuildSeededHasher, stats};
 
-use super::Bits8;
 use super::function::{concat_level_arrays, from_mut_slice, get_mut_slice, level_array_for, LevelArray};
-use super::goindexing::{GroupSize, SeedSize, TwoToPowerBitsStatic};
+use super::goindexing::GroupSize;
 use std::io;
 use std::sync::atomic::AtomicU64;
 use dyn_size_of::GetSize;
@@ -758,7 +758,7 @@ mod tests {
     use crate::fmph::function::tests::{test_mphf, test_mphf_iter};
     use crate::fmph::TwoToPowerBits;
     use std::fmt::{Debug, Display};
-    use crate::fmph::Bits;
+    use crate::seeds::Bits;
 
     fn test_read_write<GS: GroupSize + Sync, SS: SeedSize>(h: &GOFunction<GS, SS>)
         where SS::VecElement: std::cmp::PartialEq + Debug

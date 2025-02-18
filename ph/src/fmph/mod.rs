@@ -4,8 +4,11 @@ mod function;
 pub use function::{Function, BuildConf};
 
 pub mod goindexing;
-pub use goindexing::{GroupSize, SeedSize, TwoToPowerBits, TwoToPowerBitsStatic, Bits, Bits8};
+pub use goindexing::{GroupSize, TwoToPowerBits};
 mod gofunction;
 pub use gofunction::{GOFunction, GOConf, GOBuildConf};
+
+// For backward compatibility: 
+pub use crate::seeds::{SeedSize, Bits8, TwoToPowerBitsStatic, Bits};
 
 pub mod keyset;
