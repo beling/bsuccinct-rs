@@ -2,10 +2,14 @@
 
 It can test the algorithms included in the following crates:
 - [ph](https://crates.io/crates/ph),
-- [boomphf](https://crates.io/crates/boomphf),
-- [cmph-sys](https://crates.io/crates/cmph-sys) (only if compiled with `cmph-sys` feature, and only *CHD* algorithm is supported).
+- [boomphf](https://crates.io/crates/boomphf) (only if compiled with `boomphf` feature),
+- [cmph-sys](https://crates.io/crates/cmph-sys) (only if compiled with `cmph-sys` feature, and only *CHD* algorithm is supported),
+- [PTRHash](https://crates.io/crates/ptr_hash) (experimental).
 
 Please run the program with the `--help` switch to see the available options.
+
+The availability of some options depends on the activation of the following features:
+- *fmph-key-access* - allows a choice of multiple methods of accessing keys by FMPH(GO).
 
 Below you can find instructions for [installing](#installation) `mphf_benchmark` and
 [reproducing experiments](#reproducing-experiments-from-the-papers) performed with it,

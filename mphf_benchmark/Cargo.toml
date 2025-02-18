@@ -28,7 +28,7 @@ mem_dbg = "0.2"
 clap = { version="4.0", features = ["derive"] }
 
 [features]
-fmph-key-access = []    # Allows a choice of multiple methods for accessing keys via FMPH(GO).
+fmph-key-access = []    # Allows a choice of multiple methods of accessing keys by FMPH(GO).
 
 #[profile.release]
 #lto = true
