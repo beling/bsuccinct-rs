@@ -29,12 +29,12 @@ use ph::seedable_hash::BuildWyHash;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum KeyAccess {
-    // Only sequential access to the keys is allowed, upto 10% of keys can be cached (for random access).
-    //Sequential,  //(usize),
     /// Random-access, read-only access to the keys is allowed. The algorithm stores 8-bit indices of the remaining keys.
     Indices8,
+    #[cfg(feature = "fmph-key-access")]
     /// Random-access, read-only access to the keys is allowed. The algorithm stores 16-bit indices of the remaining keys.
     Indices16,
+    #[cfg(feature = "fmph-key-access")]
     /// Vector of keys can be modified. The method stores remaining keys, and removes the rest from the vector.
     Copy
 }
@@ -96,6 +96,7 @@ pub enum Method {
     FMPHGO(FMPHGOConf),
     /// FMPH
     FMPH(FMPHConf),
+    #[cfg(feature = "boomphf")]
     /// boomphf
     Boomphf {
         /// Relative level size as percent of number of keys, equals to *100γ*
@@ -208,6 +209,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
         Method::FMPH(ref fmph_conf) => {
             fmph_benchmark(i, conf, fmph_conf.level_size, Some((BuildWyHash::default(), fmph_conf)));
         }
+        #[cfg(feature = "boomphf")]
         Method::Boomphf{level_size} => {
             fmph_benchmark::<BuildWyHash, _>(i, conf, level_size, None);
         }

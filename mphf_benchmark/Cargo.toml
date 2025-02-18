@@ -22,10 +22,13 @@ dyn_size_of = { version="0.4", path="../dyn_size_of" }
 cpu-time = "1"
 ph = { version="0.8", path="../ph", features = ["wyhash"] }
 cmph-sys = { version=">=0.1", git = "https://github.com/beling/cmph-sys", optional = true }
-boomphf = { package = "boomphf-patched", version="0.5.9-0", git = "https://github.com/beling/rust-boomphf" }
+boomphf = { package = "boomphf-patched", version="0.5.9-0", git = "https://github.com/beling/rust-boomphf", optional = true }
 ptr_hash = "0.1"
 mem_dbg = "0.2"
 clap = { version="4.0", features = ["derive"] }
+
+[features]
+fmph-key-access = []    # Allows a choice of multiple methods for accessing keys via FMPH(GO).
 
 #[profile.release]
 #lto = true

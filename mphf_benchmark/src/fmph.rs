@@ -2,15 +2,18 @@ use std::fs::File;
 use std::hash::Hash;
 use std::fmt::Debug;
 use std::io::Write;
-use boomphf::Mphf;
+#[cfg(feature = "boomphf")] use boomphf::Mphf;
 use dyn_size_of::GetSize;
 use ph::{fmph, BuildSeededHasher};
-use ph::fmph::keyset::{SliceSourceWithRefs, ImmutableSlice};
+use ph::fmph::keyset::SliceSourceWithRefs;
+#[cfg(feature = "fmph-key-access")] use ph::fmph::keyset::ImmutableSlice;
 
 use crate::{BenchmarkResult, Conf, FMPHConf, KeyAccess, MPHFBuilder, file};
 
+#[cfg(feature = "boomphf")]
 pub struct BooMPHFConf { pub gamma: f64 }
 
+#[cfg(feature = "boomphf")]
 impl<K: std::hash::Hash + std::fmt::Debug + Sync + Send> MPHFBuilder<K> for BooMPHFConf {
     type MPHF = Mphf<K>;
     type Value = Option<u64>;
@@ -42,15 +45,13 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         let mut conf = self.0.clone();
         conf.use_multiple_threads = use_multiple_threads;
+        #[cfg(feature = "fmph-key-access")]
         match self.1 {
-            //KeyAccess::LoMem(0) => Self::MPHF::with_conf(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
-            //KeyAccess::Sequential => Self::MPHF::with_conf(
-            //    CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
-            //    conf),
             KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
             KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
             KeyAccess::Copy => Self::MPHF::with_conf(ImmutableSlice::cached(keys, usize::MAX), conf)
         }
+        #[cfg(not(feature = "fmph-key-access"))] Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf)
     }
 
     #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
@@ -76,8 +77,8 @@ impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSi
             //    CachedKeySet::new(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), keys.len() / 10),
             //    conf),
             KeyAccess::Indices8 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf),
-            KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
-            KeyAccess::Copy => Self::MPHF::with_conf(ImmutableSlice::cached(keys, usize::MAX), conf)
+            #[cfg(feature = "fmph-key-access")] KeyAccess::Indices16 => Self::MPHF::with_conf(SliceSourceWithRefs::<_, u16>::new(keys), conf),
+            #[cfg(feature = "fmph-key-access")] KeyAccess::Copy => Self::MPHF::with_conf(ImmutableSlice::cached(keys, usize::MAX), conf)
 
             /*KeyAccess::LoMem(0) => Self::MPHF::with_builder(DynamicKeySet::with_len(|| keys.iter(), keys.len(), true), self.0.clone()),
             KeyAccess::LoMem(clone_threshold) => Self::MPHF::with_builder(
@@ -223,9 +224,11 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
             println!(" {:.1}\t{}", gamma, b);
             if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, relative_level_size, b.all()).unwrap(); }
         } else {
-            let b = BooMPHFConf { gamma }.benchmark(i, &conf);
-            println!(" {:.1}\t{}", gamma, b);
-            if let Some(ref mut f) = file { writeln!(f, "{} {}", relative_level_size, b.all()).unwrap(); }
+            #[cfg(feature = "boomphf")] {
+                let b = BooMPHFConf { gamma }.benchmark(i, &conf);
+                println!(" {:.1}\t{}", gamma, b);
+                if let Some(ref mut f) = file { writeln!(f, "{} {}", relative_level_size, b.all()).unwrap(); }
+            }
         };
     }
 }
