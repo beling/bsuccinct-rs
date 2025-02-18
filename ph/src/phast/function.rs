@@ -37,6 +37,10 @@ impl<CA: GetSize, SS: SeedSize> GetSize for Level<CA, SS> {
     const USES_DYN_MEM: bool = true;
 }
 
+/// PHast (Perfect Hashing with fast evaluation).
+/// 
+/// Perfect hash function with very fast evaluation and size below 2 bits/key
+/// developed by Peter Sanders and Piotr Beling.
 pub struct Function<SS: SeedSize, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher> {
     pub levels: Box<[Level<CA, SS>]>,
     pub hasher: S
