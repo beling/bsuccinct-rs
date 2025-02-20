@@ -15,6 +15,9 @@ use inout::{RawLines, gen_data};
 mod fmph;
 use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, FMPHGO_HEADER};
 
+mod phast;
+use phast::phast_benchmark;
+
 mod ptrhash;
 
 use butils::{XorShift32, XorShift64};
@@ -96,6 +99,8 @@ pub enum Method {
     FMPHGO(FMPHGOConf),
     /// FMPH
     FMPH(FMPHConf),
+    /// PHast
+    phast,
     #[cfg(feature = "boomphf")]
     /// boomphf
     Boomphf {
@@ -208,6 +213,11 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
         }
         Method::FMPH(ref fmph_conf) => {
             fmph_benchmark(i, conf, fmph_conf.level_size, Some((BuildWyHash::default(), fmph_conf)));
+        },
+        Method::phast => {
+            println!("PHast: results...");
+            let mut csv_file = file("CHD", &conf, i.0.len(), i.1.len(), "");
+            phast_benchmark(&mut csv_file, i, conf);
         }
         #[cfg(feature = "boomphf")]
         Method::Boomphf{level_size} => {
@@ -218,7 +228,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                 eprintln!("Benchmarking CHD with keys from stdin is not supported.")
             } else {*/
                 println!("CHD: lambda results...");
-                let mut csv = file("CHD", &conf, i, "lambda");
+                let mut csv = file("CHD", &conf, i.0.len(), i.1.len(), "lambda");
                 if let Some(lambda) = lambda {
                     chd_benchmark(&mut csv, i, conf, lambda);
                 } else {

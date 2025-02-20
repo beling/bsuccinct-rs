@@ -1,7 +1,7 @@
-use std::hash::Hash;
+use std::{hash::Hash, usize};
 
-use crate::seeds::SeedSize;
-use super::{builder::build_mt, conf::Conf, evaluator::Weights, CompressedArray, DefaultCompressedArray};
+use crate::{seeds::Bits8, seeds::SeedSize};
+use super::{bits_per_seed_to_100_bucket_size, builder::build_mt, conf::Conf, evaluator::Weights, CompressedArray, DefaultCompressedArray};
 use bitm::{BitAccess, BitVec};
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -50,6 +50,25 @@ impl<SS: SeedSize, CA, S> GetSize for Function<SS, CA, S> where Level<CA, SS>: G
     const USES_DYN_MEM: bool = true;
 }
 
+impl Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher> {
+    pub fn new<K>(keys: Vec::<K>) -> Self where K: Hash {
+        Self::with_keys_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+            std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
+    }
+
+    pub fn new_st<K>(keys: Vec::<K>) -> Self where K: Hash {
+        Self::with_keys_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        1, BuildDefaultSeededHasher::default())
+    }
+}
+
+impl<SS: SeedSize, CA: CompressedArray> Function<SS, CA, BuildDefaultSeededHasher> {
+    pub fn with_keys_bps<K>(keys: Vec::<K>, bits_per_seed: SS) -> Self where K: Hash {
+        Self::with_keys_bps_bs_threads_hash(keys, bits_per_seed, bits_per_seed_to_100_bucket_size(bits_per_seed.into()),
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
+    }
+}
+
 impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S> {
     /*    pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
@@ -89,7 +108,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         unreachable!()
     }
 
-    pub fn new<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash {
+    pub fn with_keys_bps_bs_threads_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash {
         let mut levels = Vec::new();
         while !keys.is_empty() {
             let level_nr = levels.len() as u32;
@@ -136,7 +155,6 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
 pub(crate) mod tests {
     use std::fmt::Display;
 
-    use crate::phast::conf::bits_per_seed_to_100_bucket_size;
     use super::*;
 
     fn mphf_test<K: Display+Hash, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher>(f: &Function<SS, CA, S>, keys: &[K]) {
@@ -153,7 +171,7 @@ pub(crate) mod tests {
     #[test]
     fn test_small() {
         let input = [1, 2, 3, 4, 5];
-        let f = Function::<_, DefaultCompressedArray>::new(input.to_vec(), crate::seeds::Bits(8), bits_per_seed_to_100_bucket_size(8), 1, Default::default());
+        let f = Function::new(input.to_vec());
         mphf_test(&f, &input);
     }
 }
