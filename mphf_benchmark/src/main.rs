@@ -7,6 +7,7 @@ mod builder;
 pub use builder::MPHFBuilder;
 
 mod stats;
+use ph::phast::bits_per_seed_to_100_bucket_size;
 pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
 mod inout;
@@ -16,7 +17,7 @@ mod fmph;
 use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, FMPHGO_HEADER};
 
 mod phast;
-use phast::PHastConf;
+use phast::phast_benchmark;
 
 mod ptrhash;
 
@@ -88,9 +89,22 @@ pub struct FMPHGOConf {
     pub key_access: KeyAccess,
 }
 
-/*#[derive(Args)]
+#[derive(Args)]
 pub struct PHastConf {
-}*/
+    /// Number of bits to store seed of each bucket
+    #[arg(default_value_t = 8, value_parser = clap::value_parser!(u8).range(1..16))]
+    pub bits_per_seed: u8,
+
+    /// Expected number of keys per bucket multipled by 100
+    #[arg()]
+    pub bucket_size: Option<u16>,
+}
+
+impl PHastConf {
+    fn bucket_size(&self) -> u16 {
+        self.bucket_size.unwrap_or_else(|| bits_per_seed_to_100_bucket_size(self.bits_per_seed))
+    }
+}
 
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -105,7 +119,7 @@ pub enum Method {
     /// FMPH
     FMPH(FMPHConf),
     /// PHast
-    phast,
+    phast(PHastConf),
     #[cfg(feature = "boomphf")]
     /// boomphf
     Boomphf {
@@ -225,12 +239,12 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                 _ => fmph_benchmark(i, conf, fmph_conf.level_size, Some((StrHasher::default(), fmph_conf)))
             }
         },
-        Method::phast => {
-            println!("PHast: results...");
+        Method::phast(ref phast_conf) => {
+            println!("PHast {} {}: results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
             let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "");
             match conf.key_source {
-                KeySource::xs32 | KeySource::xs64 => PHastConf::<IntHasher>::default().run(&mut csv_file, i, conf),
-                _ => PHastConf::<StrHasher>::default().run(&mut csv_file, i, conf),
+                KeySource::xs32 | KeySource::xs64 => phast_benchmark::<IntHasher, _>(&mut csv_file, i, conf, phast_conf),
+                _ => phast_benchmark::<StrHasher, _>(&mut csv_file, i, conf, phast_conf),
             }
         }
         #[cfg(feature = "boomphf")]
