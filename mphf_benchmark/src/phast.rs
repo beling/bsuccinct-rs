@@ -1,14 +1,14 @@
-use ph::{fmph::Bits8, phast::DefaultCompressedArray, BuildDefaultSeededHasher, BuildSeededHasher, GetSize};
+use ph::{fmph::Bits8, phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray}, BuildSeededHasher, GetSize};
 
 use crate::{Conf, MPHFBuilder};
 use std::{fs::File, hash::Hash, io::Write};
 
 #[derive(Default)]
-pub struct PHastConf<S: BuildSeededHasher> {
+pub struct PHastConf<S> {
     hash: std::marker::PhantomData<S>
 }
 
-impl<S: BuildSeededHasher> PHastConf<S> {
+impl<S: BuildSeededHasher + Default> PHastConf<S> {
     pub fn run<K: Hash + Sync + Send + Clone>(&self, csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf) {
         let b = self.benchmark(i, conf);
         if let Some(ref mut f) = csv_file { writeln!(f, "{}", b.all()).unwrap(); }
@@ -16,13 +16,23 @@ impl<S: BuildSeededHasher> PHastConf<S> {
     }
 }
 
-impl<S: BuildSeededHasher, K: Hash + Sync + Send + Clone> MPHFBuilder<K> for PHastConf<S> {
-    type MPHF = ph::phast::Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher>;
+impl<S: BuildSeededHasher + Default, K: Hash + Sync + Send + Clone> MPHFBuilder<K> for PHastConf<S> {
+    type MPHF = ph::phast::Function<Bits8, DefaultCompressedArray, S>;
 
     type Value = usize;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
-        if use_multiple_threads { Self::MPHF::new(keys.to_vec()) } else { Self::MPHF::new_st(keys.to_vec()) }
+        if use_multiple_threads {
+            Self::MPHF::with_keys_bps_bs_threads_hash(keys.to_vec(), Bits8::default(),
+                bits_per_seed_to_100_bucket_size(8),
+                std::thread::available_parallelism().map_or(1, |v| v.into()),
+                S::default()
+            )
+        } else {
+            Self::MPHF::with_keys_bps_bs_threads_hash(keys.to_vec(), Bits8::default(),
+                bits_per_seed_to_100_bucket_size(8), 1, S::default()
+            )
+        }
     }
 
     #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {

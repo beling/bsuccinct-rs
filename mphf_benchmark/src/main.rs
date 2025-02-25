@@ -88,6 +88,10 @@ pub struct FMPHGOConf {
     pub key_access: KeyAccess,
 }
 
+/*#[derive(Args)]
+pub struct PHastConf {
+}*/
+
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand)]
