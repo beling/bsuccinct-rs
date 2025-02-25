@@ -116,7 +116,11 @@ pub enum Method {
         lambda: Option<u8>
     },
     /// PtrHash
-    PtrHash,
+    PtrHash {
+        /// Configuration: 0 = compact, 1 = default, 2 = fast
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(0..=2))]
+        speed: u8
+    },
     /// No method is tested
     None
 }
@@ -245,13 +249,12 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                 }
             //}
         }
-        Method::PtrHash => {
+        Method::PtrHash{ speed } => {
             println!("PtrHash: results...");
             let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "");
-            ptrhash_benchmark(&mut csv_file, i, conf);
+            ptrhash_benchmark(&mut csv_file, i, conf, speed);
         },
         Method::None => {}
-        
     }
 }
 
