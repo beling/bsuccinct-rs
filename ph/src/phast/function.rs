@@ -1,6 +1,6 @@
 use std::{hash::Hash, usize};
 
-use crate::{seeds::Bits8, seeds::SeedSize};
+use crate::seeds::{Bits8, SeedSize};
 use super::{bits_per_seed_to_100_bucket_size, builder::build_mt, conf::Conf, evaluator::Weights, CompressedArray, DefaultCompressedArray};
 use bitm::{BitAccess, BitVec};
 use dyn_size_of::GetSize;
@@ -68,6 +68,51 @@ impl<SS: SeedSize, CA: CompressedArray> Function<SS, CA, BuildDefaultSeededHashe
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
     }
 }
+
+/*impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher + Sync> Function<SS, CA, S> {
+    pub fn with_keyset_bps_bs_threads_hash<K, KS: KeySet<K>>(mut keys: KS, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash {
+        let mut levels = Vec::new();
+        let use_mt = threads_num > 1;
+        while keys.keys_len() != 0 {
+            let level_nr = levels.len() as u32;
+            let mut hashes = keys.maybe_par_map_each_key(|k| hasher.hash_one(k, level_nr), |_| true /* TODO */, use_mt);
+            //radsort::unopt::sort(&mut hashes);
+            hashes.voracious_mt_sort(threads_num);
+            let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+            let seeds =
+                build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+            let keys_len = keys.keys_len();
+            let mut unassigned_values = Box::with_filled_bits(keys_len);
+            if keys_len % 64 != 0 {
+                *unassigned_values.last_mut().unwrap() >>= 64 - keys_len % 64;
+            }
+            let mut unassigned_len = keys_len;
+            keys.maybe_par_retain_keys(|key| { // TODO use unsorted hashes
+                let key_hash = hasher.hash_one(key, level_nr);
+                //let seed = seeds.get_fragment(conf.bucket_for(key_hash), bits_per_seed) as u16;
+                let seed = bits_per_seed.get_seed(&seeds, conf.bucket_for(key_hash));
+                if seed == 0 {
+                    true
+                } else {
+                    let value = conf.f(key_hash, seed);
+                    unassigned_values.clear_bit(value);
+                    unassigned_len -= 1;
+                    false
+                }
+            }, |_| true, || 0 /* TODO */, use_mt);
+            //let unassigned_values: EliasFano = EliasFano::new(&unassigned_values, keys_len, unassigned_len);
+            let unassigned_values = CA::new(&unassigned_values, keys_len, unassigned_len);
+            levels.push(Level {
+                seeds,
+                conf,
+                unassigned_values,
+            });
+        }
+        Self {
+            levels: levels.into_boxed_slice(), hasher
+        }
+    }
+}*/
 
 impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S> {
     /*    pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {

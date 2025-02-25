@@ -1,11 +1,22 @@
-use ph::{fmph::Bits8, phast::DefaultCompressedArray, BuildDefaultSeededHasher, GetSize};
+use ph::{fmph::Bits8, phast::DefaultCompressedArray, BuildDefaultSeededHasher, BuildSeededHasher, GetSize};
 
 use crate::{Conf, MPHFBuilder};
 use std::{fs::File, hash::Hash, io::Write};
 
-pub struct PHastConf;
+#[derive(Default)]
+pub struct PHastConf<S: BuildSeededHasher> {
+    hash: std::marker::PhantomData<S>
+}
 
-impl<K: Hash + Sync + Send + Clone> MPHFBuilder<K> for PHastConf {
+impl<S: BuildSeededHasher> PHastConf<S> {
+    pub fn run<K: Hash + Sync + Send + Clone>(&self, csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf) {
+        let b = self.benchmark(i, conf);
+        if let Some(ref mut f) = csv_file { writeln!(f, "{}", b.all()).unwrap(); }
+        println!(" \t{}", b);
+    }
+}
+
+impl<S: BuildSeededHasher, K: Hash + Sync + Send + Clone> MPHFBuilder<K> for PHastConf<S> {
     type MPHF = ph::phast::Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher>;
 
     type Value = usize;
@@ -29,8 +40,8 @@ impl<K: Hash + Sync + Send + Clone> MPHFBuilder<K> for PHastConf {
     const BUILD_THREADS_DOES_NOT_CHANGE_SIZE: bool = false;
 }
 
-pub fn phast_benchmark<K: std::hash::Hash + Sync + Send + Default + Clone>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf) {
+/*pub fn phast_benchmark<K: std::hash::Hash + Sync + Send + Default + Clone>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf) {
     let b = PHastConf.benchmark(i, conf);
     if let Some(ref mut f) = csv_file { writeln!(f, "{}", b.all()).unwrap(); }
     println!(" \t{}", b);
-}
+}*/

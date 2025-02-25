@@ -16,7 +16,7 @@ mod fmph;
 use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, FMPHGO_HEADER};
 
 mod phast;
-use phast::phast_benchmark;
+use phast::PHastConf;
 
 mod ptrhash;
 
@@ -28,7 +28,8 @@ use std::hash::Hash;
 use std::fmt::Debug;
 use rayon::current_num_threads;
 
-use ph::seedable_hash::BuildWyHash;
+type IntHasher = ph::Seedable<fxhash::FxBuildHasher>;
+type StrHasher = ph::BuildDefaultSeededHasher;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum KeyAccess {
@@ -181,14 +182,13 @@ pub struct Conf {
 
 fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
-        Method::FMPHGO_all => {
-            fmphgo_benchmark_all(file("FMPHGO_all", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER), BuildWyHash::default(), &i, &conf, KeyAccess::Indices8);
-        }
+        Method::FMPHGO_all =>
+            fmphgo_benchmark_all(file("FMPHGO_all", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER),
+                &i, &conf, KeyAccess::Indices8),
         Method::FMPHGO(ref fmphgo_conf) => {
             let mut file = file("FMPHGO", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER);
             println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.cache_threshold);
             let mut p = FMPHGOBuildParams {
-                hash: BuildWyHash::default(),
                 relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
                 cache_threshold: fmphgo_conf.cache_threshold,
                 key_access: fmphgo_conf.key_access,
@@ -212,16 +212,25 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
             }
         }
         Method::FMPH(ref fmph_conf) => {
-            fmph_benchmark(i, conf, fmph_conf.level_size, Some((BuildWyHash::default(), fmph_conf)));
+            match conf.key_source {
+                KeySource::xs32 | KeySource::xs64 => fmph_benchmark(i, conf, fmph_conf.level_size, Some((IntHasher::default(), fmph_conf))),
+                _ => fmph_benchmark(i, conf, fmph_conf.level_size, Some((StrHasher::default(), fmph_conf)))
+            }
         },
         Method::phast => {
             println!("PHast: results...");
-            let mut csv_file = file("CHD", &conf, i.0.len(), i.1.len(), "");
-            phast_benchmark(&mut csv_file, i, conf);
+            let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "");
+            match conf.key_source {
+                KeySource::xs32 | KeySource::xs64 => PHastConf::<IntHasher>::default().run(&mut csv_file, i, conf),
+                _ => PHastConf::<StrHasher>::default().run(&mut csv_file, i, conf),
+            }
         }
         #[cfg(feature = "boomphf")]
         Method::Boomphf{level_size} => {
-            fmph_benchmark::<BuildWyHash, _>(i, conf, level_size, None);
+            match conf.key_source {
+                KeySource::xs32 | KeySource::xs64 => fmph_benchmark::<IntHasher, _>(i, conf, level_size, None),
+                _ => fmph_benchmark::<StrHasher, _>(i, conf, level_size, None)
+            }
         }
         #[cfg(feature = "cmph-sys")] Method::CHD{lambda} => {
             /*if conf.key_source == KeySource::stdin || conf.key_source == KeySource::stdinz {

@@ -83,7 +83,8 @@ impl<SS: SeedSize> Conf<SS> {
     /// Returns index of `key` in its partition.
     #[inline]
     pub fn in_partition(&self, key: u64, seed: u16) -> usize {
-        (wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
+        //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
+        (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.partition_size_minus_one) as usize
     }
 
     /// Returns the value of the function for given `key` and `seed`.

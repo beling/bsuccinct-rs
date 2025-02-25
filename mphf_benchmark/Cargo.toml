@@ -20,15 +20,24 @@ butils = { version="0.1", path="../butils" }
 rayon = "1.5"
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 cpu-time = "1"
-ph = { version="0.8", path="../ph", features = ["wyhash"] }
+ph = { version="0.8", path="../ph", features = ["gxhash"] }
 cmph-sys = { version=">=0.1", git = "https://github.com/beling/cmph-sys", optional = true }
 boomphf = { package = "boomphf-patched", version="0.5.9-0", git = "https://github.com/beling/rust-boomphf", optional = true }
 ptr_hash = "0.1"
 mem_dbg = "0.2"
 clap = { version="4.0", features = ["derive"] }
+fxhash = "0.2"
 
 [features]
+default = ["gxhash", "sux"]
 fmph-key-access = []    # Allows a choice of multiple methods of accessing keys by FMPH(GO).
+gxhash = ["ph/gxhash"]
+rapidhash = ["ph/rapidhash"]
+wyhash = ["ph/wyhash"]
+sip13 = ["ph/sip13"]  # if enabled, makes available BuildSip13 that uses Sip13 from compiler internals
+fnv = ["ph/fnv"]
+sux = ["ph/sux"]
+cacheline-ef = ["ph/cacheline-ef"]
 
 #[profile.release]
 #lto = true

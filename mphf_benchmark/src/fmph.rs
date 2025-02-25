@@ -8,7 +8,7 @@ use ph::{fmph, BuildSeededHasher};
 use ph::fmph::keyset::SliceSourceWithRefs;
 #[cfg(feature = "fmph-key-access")] use ph::fmph::keyset::ImmutableSlice;
 
-use crate::{BenchmarkResult, Conf, FMPHConf, KeyAccess, MPHFBuilder, file};
+use crate::{file, BenchmarkResult, Conf, FMPHConf, IntHasher, KeyAccess, KeySource, MPHFBuilder, StrHasher};
 
 #[cfg(feature = "boomphf")]
 pub struct BooMPHFConf { pub gamma: f64 }
@@ -104,24 +104,30 @@ impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSi
 
 pub const FMPHGO_HEADER: &'static str = "cache_threshold bits_per_group_seed relative_level_size bits_per_group";
 
-pub struct FMPHGOBuildParams<S> {
-    pub hash: S,
+pub struct FMPHGOBuildParams {
     pub relative_level_size: u16,
     pub cache_threshold: usize,
     pub key_access: KeyAccess
 }
 
-pub fn h2bench<GS, SS, S, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
-    where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
+pub fn h2bench<GS, SS, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams) -> BenchmarkResult
+    where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, K: Hash + Sync + Send + Clone
 {
-    (fmph::GOBuildConf::with_lsize_ct_mt(
-        fmph::GOConf::hash_bps_bpg(p.hash.clone(), bits_per_group_seed, bits_per_group),
-        p.relative_level_size, p.cache_threshold, false), p.key_access)
-    .benchmark(i, conf)
+    if conf.key_source == KeySource::xs32 || conf.key_source == KeySource::xs64 {
+        (fmph::GOBuildConf::with_lsize_ct_mt(
+            fmph::GOConf::hash_bps_bpg(IntHasher::default(), bits_per_group_seed, bits_per_group),
+            p.relative_level_size, p.cache_threshold, false), p.key_access)
+        .benchmark(i, conf)
+    } else {
+        (fmph::GOBuildConf::with_lsize_ct_mt(
+            fmph::GOConf::hash_bps_bpg(StrHasher::default(), bits_per_group_seed, bits_per_group),
+            p.relative_level_size, p.cache_threshold, false), p.key_access)
+        .benchmark(i, conf)
+    }
 }
 
-pub fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams<S>) -> BenchmarkResult
-    where GS: fmph::GroupSize + Sync + Copy, S: BuildSeededHasher + Sync + Clone, K: Hash + Sync + Send + Clone
+pub fn h2b<GS, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams) -> BenchmarkResult
+    where GS: fmph::GroupSize + Sync + Copy, K: Hash + Sync + Send + Clone
 {
     match bits_per_group_seed {
         1 => h2bench(fmph::TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
@@ -133,9 +139,9 @@ pub fn h2b<GS, S, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, V
     }
 }
 
-pub fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams<S>)
+pub fn fmphgo<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams)
                 -> BenchmarkResult
-    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
+    where K: Hash + Sync + Send + Clone
 {
     let b = if bits_per_group.is_power_of_two() {
         match bits_per_group {
@@ -157,15 +163,15 @@ pub fn fmphgo<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, 
     b
 }
 
-pub fn fmphgo_benchmark<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams<S>)
-    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
+pub fn fmphgo_benchmark<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams)
+    where K: Hash + Sync + Send + Clone
 {
     let b = fmphgo(file, i, conf, bits_per_group_seed, bits_per_group, p);
     println!(" {} {} {:.1}\t{}", bits_per_group_seed, bits_per_group, p.relative_level_size as f64/100.0, b);
 }
 
-pub fn fmphgo_run<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams<S>)
-    where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
+pub fn fmphgo_run<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams)
+    where K: Hash + Sync + Send + Clone
 {
     if p.relative_level_size == 0 {
         for relative_level_size in (100..=200).step_by(/*50*/100) {
@@ -178,12 +184,11 @@ pub fn fmphgo_run<S, K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Co
     }
 }
 
-pub fn fmphgo_benchmark_all<S, K>(mut csv_file: Option<File>, hash: S, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess)
-where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Clone
+pub fn fmphgo_benchmark_all<K>(mut csv_file: Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess)
+where K: Hash + Sync + Send + Clone
 {
     println!("bps rls \\ bpglog 2 3 4 5 ... 62");
     let mut p = FMPHGOBuildParams {
-        hash,
         relative_level_size: 0,
         cache_threshold: usize::MAX,
         key_access
