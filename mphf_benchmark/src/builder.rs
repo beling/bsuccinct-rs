@@ -6,6 +6,20 @@ use cpu_time::{ProcessTime, ThreadTime};
 
 use crate::{BenchmarkResult, BuildStats, Conf, SearchStats, Threads};
 
+#[inline(never)]
+fn warn_size_diff(size_st: usize, size_mt: usize) {
+    if size_st != size_mt {
+        eprintln!("WARNING: ST/MT differ in sizes, {} != {}", size_st, size_mt);
+    }
+}
+
+#[inline(never)]
+fn check_collision(seen: &mut [u64], input_len: usize, index: usize) {
+    assert!(index < input_len, "MPHF assigns too large value {}>{}.", index, input_len);
+    assert!(!seen.get_bit(index), "MPHF assigns the same value to two keys of input.");
+    seen.set_bit(index);
+}
+
 pub trait MPHFBuilder<K: Hash> {
     const CAN_DETECT_ABSENCE: bool = true;
     const BUILD_THREADS: Threads = Threads::Both;
@@ -46,12 +60,7 @@ pub trait MPHFBuilder<K: Hash> {
                 let size_st = Self::BUILD_THREADS_DOES_NOT_CHANGE_SIZE.then(|| Self::mphf_size(&mphf));
                 drop(mphf);
                 let (mphf, mut result_mt) = self.benchmark_build_mt(keys, conf.build_runs);
-                if let Some(size_st) = size_st {
-                    let size_mt = Self::mphf_size(&mphf);
-                    if size_st != size_mt {
-                        eprintln!("WARNING: ST/MT differ in sizes, {} != {}", size_st, size_mt);
-                    }
-                }
+                if let Some(size_st) = size_st { warn_size_diff(size_st, Self::mphf_size(&mphf)); }
                 result_mt.time_st = result_st.time_st;
                 (mphf, result_mt)
             }
@@ -68,10 +77,7 @@ pub trait MPHFBuilder<K: Hash> {
             let mut seen = Box::<[u64]>::with_zeroed_bits(input.len());
             for v in input {
                 if let Some(index) = Self::value_ex(mphf, v, &mut extra_levels_searched) {
-                    let index = index as usize;
-                    assert!(index < input.len(), "MPHF assigns too large value {}>{}.", index, input.len());
-                    assert!(!seen.get_bit(index), "MPHF assigns the same value to two keys of input.");
-                    seen.set_bit(index);
+                    check_collision(&mut seen, input.len(), index as usize);
                 } else {
                     not_found += 1;
                 }
@@ -85,8 +91,7 @@ pub trait MPHFBuilder<K: Hash> {
         }
         let start_process_moment = ProcessTime::now();
         for _ in 0..lookup_runs {
-            let mut dump = 0;
-            for v in input { black_box(Self::value_ex(mphf, v, &mut dump)); }
+            for v in input { black_box(Self::value(mphf, v)); }
         }
         let seconds = start_process_moment.elapsed().as_secs_f64();
         let divider = input.len() as f64;
