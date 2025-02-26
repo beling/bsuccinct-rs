@@ -63,6 +63,6 @@ pub fn phast_benchmark<H: BuildSeededHasher+Default, K: Hash + Sync + Send + Clo
         8 => benchmark_with::<H, _, _>(Bits8, bucket_size_100, i, conf),
         b => benchmark_with::<H, _, _>(Bits(b), bucket_size_100, i, conf),
     };
-    if let Some(ref mut f) = csv_file { writeln!(f, "{}", b.all()).unwrap(); }
+    if let Some(ref mut f) = csv_file { writeln!(f, "{} {bucket_size_100} {}", phast_conf.bits_per_seed, b.all()).unwrap(); }
     println!(" \t{}", b);
 }

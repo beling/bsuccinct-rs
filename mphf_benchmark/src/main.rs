@@ -241,7 +241,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
         },
         Method::phast(ref phast_conf) => {
             println!("PHast {} {}: results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-            let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "");
+            let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100");
             match conf.key_source {
                 KeySource::xs32 | KeySource::xs64 => phast_benchmark::<IntHasher, _>(&mut csv_file, i, conf, phast_conf),
                 _ => phast_benchmark::<StrHasher, _>(&mut csv_file, i, conf, phast_conf),
@@ -269,7 +269,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
         }
         Method::PtrHash{ speed } => {
             println!("PtrHash: results...");
-            let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "");
+            let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "speed");
             ptrhash_benchmark(&mut csv_file, i, conf, speed);
         },
         Method::None => {}

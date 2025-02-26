@@ -40,6 +40,6 @@ pub fn ptrhash_benchmark<K: std::hash::Hash + Sync + Send + Default>(csv_file: &
         2 => no_stat(PtrHashParams::default_fast()).benchmark(i, conf),
         _ => no_stat(PtrHashParams::default()).benchmark(i, conf)
     };
-    if let Some(ref mut f) = csv_file { writeln!(f, "{}", b.all()).unwrap(); }
+    if let Some(ref mut f) = csv_file { writeln!(f, "{speed} {}", b.all()).unwrap(); }
     println!(" \t{}", b);
 }
