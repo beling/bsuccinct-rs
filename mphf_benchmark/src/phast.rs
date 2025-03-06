@@ -1,4 +1,4 @@
-use ph::{seeds::{Bits8, Bits, SeedSize}, phast::DefaultCompressedArray, BuildSeededHasher, GetSize};
+use ph::{fmph::TwoToPowerBitsStatic, phast::DefaultCompressedArray, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
 
 use crate::{BenchmarkResult, Conf, MPHFBuilder, PHastConf};
 use std::{fs::File, hash::Hash, io::Write};
@@ -61,7 +61,8 @@ pub fn phast_benchmark<H: BuildSeededHasher+Default, K: Hash + Sync + Send + Clo
     let bucket_size_100 = phast_conf.bucket_size();
     let b = match phast_conf.bits_per_seed {
         8 => benchmark_with::<H, _, _>(Bits8, bucket_size_100, i, conf),
-        b => benchmark_with::<H, _, _>(Bits(b), bucket_size_100, i, conf),
+        4 => benchmark_with::<H, _, _>(TwoToPowerBitsStatic::<2>, bucket_size_100, i, conf),
+        b => benchmark_with::<H, _, _>(BitsFast(b), bucket_size_100, i, conf),
     };
     if let Some(ref mut f) = csv_file { writeln!(f, "{} {bucket_size_100} {}", phast_conf.bits_per_seed, b.all()).unwrap(); }
     println!(" \t{}", b);

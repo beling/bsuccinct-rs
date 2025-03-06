@@ -20,6 +20,11 @@ fn check_collision(seen: &mut [u64], input_len: usize, index: usize) {
     seen.set_bit(index);
 }
 
+#[inline(never)]
+fn ensure_no_absences(absences_found: f64) {
+    assert_eq!(absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", absences_found*100.0);
+}
+
 pub trait MPHFBuilder<K: Hash> {
     const CAN_DETECT_ABSENCE: bool = true;
     const BUILD_THREADS: Threads = Threads::Both;
@@ -111,7 +116,7 @@ pub trait MPHFBuilder<K: Hash> {
             return BenchmarkResult { included: SearchStats::nan(), absent: SearchStats::nan(), size_bytes, bits_per_value, build }
         }
         let included = self.benchmark_lookup(&h, &i.0, conf.verify, conf.lookup_runs);
-        assert_eq!(included.absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", included.absences_found*100.0);
+        ensure_no_absences(included.absences_found);
         let absent = if conf.save_details && Self::CAN_DETECT_ABSENCE {
             self.benchmark_lookup(&h, &i.1, false, conf.lookup_runs)
         } else {

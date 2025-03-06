@@ -43,6 +43,7 @@ pub struct BuildStats {
 }
 
 impl Display for BuildStats {
+    #[inline(never)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match (!self.time_st.is_nan(), !self.time_mt.is_nan()) {
             (true, false) => write!(f, "build time [ms] ST: {:.0}", self.time_st * 1_000.0),
@@ -63,6 +64,7 @@ pub struct BenchmarkResult {
 }
 
 impl BenchmarkResult {
+    #[inline(never)]
     pub fn all<'a>(&'a self) -> impl Display + 'a {
         struct All<'a>(&'a BenchmarkResult);
         impl<'a> Display for All<'a> {
@@ -79,6 +81,7 @@ impl BenchmarkResult {
 }
 
 impl Display for BenchmarkResult {
+    #[inline(never)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "size [bits/key]: {:.2}", self.bits_per_value)?;
         if !self.included.avg_lookup_time.is_nan() {
@@ -89,6 +92,7 @@ impl Display for BenchmarkResult {
     }
 }
 
+#[inline(never)]
 pub fn print_input_stats(setname: &str, strings: &[Box<[u8]>]){
     if strings.len() == 0 {
         println!("{} is empty", setname);

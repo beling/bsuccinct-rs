@@ -120,6 +120,8 @@ impl SeedSize for Bits {
 }
 
 /// Size in bits.
+/// 
+/// Uses unaligned reads/writes to access data in SeedSize implementation.
 #[derive(Copy, Clone)]
 pub struct BitsFast(pub u8);
 
@@ -284,7 +286,7 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
         *v |= (seed as u64) << s;
     }
 
-    fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+    #[inline] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
         vec[index / Self::VALUES_PER_64 as usize] |= (seed as u64) << Self::shift_for(index);
     }
 

@@ -167,6 +167,11 @@ pub fn fmphgo_benchmark<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: 
     where K: Hash + Sync + Send + Clone
 {
     let b = fmphgo(file, i, conf, bits_per_group_seed, bits_per_group, p);
+    print_fmphgo_result(bits_per_group_seed, bits_per_group, p, b);
+}
+
+#[inline(never)]
+fn print_fmphgo_result(bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams, b: BenchmarkResult) {
     println!(" {} {} {:.1}\t{}", bits_per_group_seed, bits_per_group, p.relative_level_size as f64/100.0, b);
 }
 
@@ -187,7 +192,7 @@ pub fn fmphgo_run<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf,
 pub fn fmphgo_benchmark_all<K>(mut csv_file: Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess)
 where K: Hash + Sync + Send + Clone
 {
-    println!("bps rls \\ bpglog 2 3 4 5 ... 62");
+    print_fmphgo_all_header();
     let mut p = FMPHGOBuildParams {
         relative_level_size: 0,
         cache_threshold: usize::MAX,
@@ -201,12 +206,22 @@ where K: Hash + Sync + Send + Clone
             for bits_per_group in 2u8..=62u8/*.step_by(2)*/ {
                 //let (_, b) = Conf::bps_bpg_lsize(bits_per_group_seed, TwoToPowerBits::new(bits_per_group_log2), relative_level_size).benchmark(verify);
                 let b = fmphgo(&mut csv_file, i, conf, bits_per_group_seed, bits_per_group, &p);
-                print!(" {:.2}", b.bits_per_value);
-                std::io::stdout().flush().unwrap();
+                print_bit_per_value(b.bits_per_value);
             }
             println!();
         }
     }
+}
+
+#[inline(never)]
+fn print_fmphgo_all_header() {
+    println!("bps rls \\ bpglog 2 3 4 5 ... 62");
+}
+
+#[inline(never)]
+fn print_bit_per_value(bits_per_value: f64) {
+    print!(" {:.2}", bits_per_value);
+    std::io::stdout().flush().unwrap();
 }
 
 pub const FMPH_BENCHMARK_HEADER: &'static str = "cache_threshold relative_level_size";
@@ -215,19 +230,12 @@ pub const BOOMPHF_BENCHMARK_HEADER: &'static str = "relative_level_size";
 pub fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, &FMPHConf)>)
 where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
 {
-    let mut file = if let Some((_, fc)) = use_fmph {
-        println!("FMPH hash caching threshold={}: gamma results...", fc.cache_threshold);
-        file("FMPH", &conf, i.0.len(), i.1.len(), FMPH_BENCHMARK_HEADER)
-    } else {
-        println!("boomphf: gamma results...");
-        file("boomphf", &conf, i.0.len(), i.1.len(), BOOMPHF_BENCHMARK_HEADER)
-    };
+    let mut file = get_fmph_file(i.0.len(), i.1.len(), conf, &use_fmph.as_ref().map(|p| p.1));
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {
         let gamma = relative_level_size as f64 / 100.0f64;
         if let Some((ref hash, fc)) = use_fmph {
             let b = (fmph::BuildConf::hash_lsize_ct_mt(hash.clone(), relative_level_size, fc.cache_threshold, false), fc.key_access).benchmark(i, &conf);
-            println!(" {:.1}\t{}", gamma, b);
-            if let Some(ref mut f) = file { writeln!(f, "{} {} {}", fc.cache_threshold, relative_level_size, b.all()).unwrap(); }
+            print_fmph_result(&mut file, relative_level_size, gamma, b, fc);
         } else {
             #[cfg(feature = "boomphf")] {
                 let b = BooMPHFConf { gamma }.benchmark(i, &conf);
@@ -236,4 +244,22 @@ where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
             }
         };
     }
+}
+
+#[inline(never)]
+fn print_fmph_result(file: &mut Option<File>, relative_level_size: u16, gamma: f64, b: BenchmarkResult, fc: &FMPHConf) {
+    println!(" {:.1}\t{}", gamma, b);
+    if let Some(ref mut f) = *file { writeln!(f, "{} {} {}", fc.cache_threshold, relative_level_size, b.all()).unwrap(); }
+}
+
+#[inline(never)]
+fn get_fmph_file(i0_len: usize, i1_len: usize, conf: &Conf, use_fmph: &Option<&FMPHConf>) -> Option<File> {
+    let file = if let Some(fc) = *use_fmph {
+        println!("FMPH hash caching threshold={}: gamma results...", fc.cache_threshold);
+        file("FMPH", &conf, i0_len, i1_len, FMPH_BENCHMARK_HEADER)
+    } else {
+        println!("boomphf: gamma results...");
+        file("boomphf", &conf, i0_len, i1_len, BOOMPHF_BENCHMARK_HEADER)
+    };
+    file
 }
