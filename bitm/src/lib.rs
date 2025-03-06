@@ -79,7 +79,7 @@ pub unsafe fn set_bits57(ptr: *mut u8, first_bit: usize, value: u64, len_mask: u
     let shift = first_bit % 8;
     v &= !(len_mask << shift);
     v |= value << shift;
-    unsafe{ ptr.write_unaligned(v); }
+    ptr.write_unaligned(v);
 }
 
 /// Read at least 25 bits from `ptr`, beginning from `first_bit`.
@@ -111,7 +111,7 @@ pub unsafe fn set_bits25(ptr: *mut u8, first_bit: usize, value: u32, len_mask: u
     let shift = first_bit % 8;
     v &= !(len_mask << shift);
     v |= value << shift;
-    unsafe{ ptr.write_unaligned(v); }
+    ptr.write_unaligned(v);
 }
 
 #[cfg(test)]
