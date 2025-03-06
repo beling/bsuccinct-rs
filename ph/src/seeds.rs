@@ -114,8 +114,75 @@ impl SeedSize for Bits {
     }
 
     fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)> {
-        let bits_per_group_seed = SeedSize::read(input)?;
-        Ok((bits_per_group_seed, read_bits(input, number_of_seeds * bits_per_group_seed.0 as usize)?))
+        let bits_per_seed = SeedSize::read(input)?;
+        Ok((bits_per_seed, read_bits(input, number_of_seeds * bits_per_seed.0 as usize)?))
+    }
+}
+
+/// Size in bits.
+#[derive(Copy, Clone)]
+pub struct BitsFast(pub u8);
+
+impl Mul<usize> for BitsFast {
+    type Output = usize;
+
+    #[inline(always)] fn mul(self, rhs: usize) -> Self::Output {
+        self.0 as usize * rhs
+    }
+}
+
+impl Into<u8> for BitsFast {
+    #[inline(always)] fn into(self) -> u8 { self.0 }
+}
+
+impl TryFrom<u8> for BitsFast {
+    type Error = &'static str;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Ok(Self(value))
+    }
+}
+
+impl BitsFast {
+    #[inline]
+    fn vec_len(&self, number_of_seeds: usize) -> usize {
+        ceiling_div(number_of_seeds * self.0 as usize, 8) + 3
+    }
+}
+
+impl SeedSize for BitsFast {
+    type VecElement = u8;
+
+    #[inline(always)] fn new_zeroed_seed_vec(&self, number_of_seeds: usize) -> Box<[Self::VecElement]> {
+        vec![0; self.vec_len(number_of_seeds)].into_boxed_slice()
+    }
+
+    #[inline(always)] fn new_seed_vec(&self, seed: u16, number_of_seeds: usize) -> Box<[Self::VecElement]> {
+        let mut vec = Self::new_zeroed_seed_vec(&self, number_of_seeds);
+        for index in 0..number_of_seeds { self.init_seed(&mut vec, index, seed); }
+        vec
+    }
+
+    #[inline(always)] fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16 {
+        (unsafe{ bitm::get_bits25(vec.as_ptr(), index * self.0 as usize) } & ((1<<self.0)-1)) as u16
+    }
+
+    #[inline(always)] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        unsafe { bitm::set_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32, (1<<self.0)-1) }
+    }
+
+    #[inline(always)] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        unsafe { bitm::init_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32) }
+    }
+
+    fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {
+        SeedSize::write(self, output)?;
+        AsIs::write_all(output, seeds)
+    }
+
+    fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)> {
+        let bits_per_seed = SeedSize::read(input)?;
+        Ok((bits_per_seed, AsIs::read_n(input, bits_per_seed.vec_len(number_of_seeds))?))
     }
 }
 

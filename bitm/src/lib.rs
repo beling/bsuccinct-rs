@@ -52,7 +52,7 @@ pub use bitvec::*;
 
 /// Read at least 57 bits from `ptr`, beginning from `first_bit`.
 #[inline(always)]
-pub unsafe fn read_bits57(ptr: *const u8, first_bit: usize) -> u64 {
+pub unsafe fn get_bits57(ptr: *const u8, first_bit: usize) -> u64 {
     let ptr = ptr.add(first_bit / 8) as *const u64;
     let v = ptr.read_unaligned();
     v >> (first_bit % 8)
@@ -84,7 +84,7 @@ pub unsafe fn set_bits57(ptr: *mut u8, first_bit: usize, value: u64, len_mask: u
 
 /// Read at least 25 bits from `ptr`, beginning from `first_bit`.
 #[inline(always)]
-pub unsafe fn read_bits25(ptr: *const u8, first_bit: usize) -> u32 {
+pub unsafe fn get_bits25(ptr: *const u8, first_bit: usize) -> u32 {
     let ptr = ptr.add(first_bit / 8) as *const u32;
     let v = ptr.read_unaligned();
     v >> (first_bit % 8)
