@@ -50,6 +50,70 @@ pub use bitvec::*;
     max_value.into().checked_ilog2().map_or(0, |v| v as u8+1)
 }
 
+/// Read at least 57 bits from `ptr`, beginning from `first_bit`.
+#[inline(always)]
+pub unsafe fn read_bits57(ptr: *const u8, first_bit: usize) -> u64 {
+    let ptr = ptr.add(first_bit / 8) as *const u64;
+    let v = ptr.read_unaligned();
+    v >> (first_bit % 8)
+}
+
+/// Write at least 57 bits to `ptr` buffer, beginning from `first_bit`, using bit-or operation.
+/// Appropriate fragment of buffer should be zeroed.
+#[inline(always)]
+pub unsafe fn init_bits57(ptr: *mut u8, first_bit: usize, value: u64) {
+    let ptr = ptr.add(first_bit / 8) as *mut u64;
+    let mut v = ptr.read_unaligned();
+    v |= value << (first_bit % 8);
+    ptr.write_unaligned(v);
+}
+
+/// Write desired number, at most 57 bits to `ptr`, beginning from `first_bit`, using bit-or operation.
+/// Before write, appropriate fragment of buffer is zeroed by bit-and with `len_mask`
+/// (which should be of type 0..01..1, with desired number of bit ones).
+/// The most significant bits of `value` should be zeros.
+#[inline(always)]
+pub unsafe fn set_bits57(ptr: *mut u8, first_bit: usize, value: u64, len_mask: u64) {
+    let ptr = ptr.add(first_bit / 8) as *mut u64;
+    let mut v = ptr.read_unaligned();
+    let shift = first_bit % 8;
+    v &= !(len_mask << shift);
+    v |= value << shift;
+    unsafe{ ptr.write_unaligned(v); }
+}
+
+/// Read at least 25 bits from `ptr`, beginning from `first_bit`.
+#[inline(always)]
+pub unsafe fn read_bits25(ptr: *const u8, first_bit: usize) -> u32 {
+    let ptr = ptr.add(first_bit / 8) as *const u32;
+    let v = ptr.read_unaligned();
+    v >> (first_bit % 8)
+}
+
+/// Write at least 25 bits to `ptr` buffer, beginning from `first_bit`, using bit-or operation.
+/// Appropriate fragment of buffer should be zeroed.
+#[inline(always)]
+pub unsafe fn init_bits25(ptr: *mut u8, first_bit: usize, value: u32) {
+    let ptr = ptr.add(first_bit / 8) as *mut u32;
+    let mut v = ptr.read_unaligned();
+    v |= value << (first_bit % 8);
+    ptr.write_unaligned(v);
+}
+
+/// Write desired number, at most 25 bits to `ptr`, beginning from `first_bit`, using bit-or operation.
+/// Before write, appropriate fragment of buffer is zeroed by bit-and with `len_mask`
+/// (which should be of type 0..01..1, with desired number of bit ones).
+/// The most significant bits of `value` should be zeros.
+#[inline(always)]
+pub unsafe fn set_bits25(ptr: *mut u8, first_bit: usize, value: u32, len_mask: u32) {
+    let ptr = ptr.add(first_bit / 8) as *mut u32;
+    let mut v = ptr.read_unaligned();
+    let shift = first_bit % 8;
+    v &= !(len_mask << shift);
+    v |= value << shift;
+    unsafe{ ptr.write_unaligned(v); }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
