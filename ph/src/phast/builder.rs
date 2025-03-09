@@ -1,4 +1,5 @@
 use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
+use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::seeds::SeedSize;
@@ -47,13 +48,21 @@ pub fn bucket_lens<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>) -> Box<[usize]> 
 
 const SMALL_BUCKET_LIMIT: usize = 8;
 
-/// Read-only data shared by all threads.
+//// Read-only data shared by all threads.
 struct BuildConf<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
     conf: Conf<SS>,
     span_limit: u16,
     evaluator: BE,
     keys: &'k [u64],
     bucket_begin: Box<[usize]>,
+}
+
+fn construct_unassigned(unassigned_len: usize) -> Box<[u64]> {
+    let mut unassigned_values = Box::with_filled_bits(unassigned_len);
+    if unassigned_len % 64 != 0 {
+        *unassigned_values.last_mut().unwrap() >>= 64 - unassigned_len % 64;
+    }
+    unassigned_values
 }
 
 impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
@@ -70,6 +79,26 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
             evaluator,
         }, seeds)
     }
+
+    #[inline]
+    pub fn process_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
+        let seed = self.conf.bits_per_seed.get_seed(&seeds, bucket);
+        if seed == 0 { return; }
+        let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
+        for key_hash in keys {
+            unassigned_values.clear_bit(self.conf.f(*key_hash, seed));
+        }
+        *unassigned_len -= keys.len();
+    }
+
+    pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
+        let mut unassigned_len = self.keys.len();
+        let mut unassigned_values = construct_unassigned(unassigned_len);
+        for bucket in 0..self.bucket_begin.len()-1 {
+            self.process_bucket(bucket, seeds, &mut unassigned_values, &mut unassigned_len);
+        }
+        (unassigned_values, unassigned_len)
+    }
 }
 
 /*#[inline]
@@ -81,7 +110,12 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
     return seeds;
 }*/
 
-pub fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize) -> Box<[SS::VecElement]>
+#[inline] fn gap_for(partition_size: u16, bucket_size100: u16) -> usize {
+    (100 * partition_size as usize - 1) / bucket_size100 as usize + 2
+}
+
+pub fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize)
+ -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
 where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
     //let threads_num = rayon::current_num_threads();
@@ -89,7 +123,8 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     if threads_num == 1 {
         let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator);
         ThreadBuilder::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
-        return seeds;
+        let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+        return (seeds, unassigned_values, unassigned_len);
         //return build_st(keys, conf, span_limit, evaluator);
     }
     let chunk_size = SS::VEC_ELEMENT_BIT_SIZE >> conf.bits_per_seed().trailing_zeros();
@@ -100,7 +135,7 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     let mut thread_builders = Vec::with_capacity(threads_num);
     let mut bucket_begin = 0;
     let mut remaining_seeds = &mut seeds[..];
-    let gap = (100 * conf.partition_size() as usize - 1) / bucket_size100 as usize + 2;
+    let gap = gap_for(conf.partition_size(), bucket_size100);
     //dbg!(conf.partition_size(), bucket_size100, gap);
     for _ in 0..threads_num-1 {
         let seeds;
@@ -118,7 +153,6 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     for next in 1..thread_builders.len() {
         let prev = next-1;
         for bucket in 0..gap {
-            //let seed = thread_builders[next].seeds.get_fragment(bucket, builder.conf.bits_per_seed()) as u16;
             let seed = conf.bits_per_seed.get_seed(&thread_builders[next].seeds, bucket) as u16;
             if seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
@@ -128,9 +162,9 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
         thread_builders[prev].buckets_num += gap;
         thread_builders[prev].build();
     }
-    /*let without_last = thread_builders.len()-1;
-    thread_builders[0..without_last].par_iter_mut().for_each(ThreadBuilder::build);*/
-    seeds
+    drop(thread_builders);
+    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    (seeds, unassigned_values, unassigned_len)
 }
 
 /// Data stored by each thread.

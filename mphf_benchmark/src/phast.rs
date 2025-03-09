@@ -10,7 +10,7 @@ pub struct PHastBencher<SS, S> {
     bucket_size_100: u16,
 }
 
-impl<SS: SeedSize, S: BuildSeededHasher + Default, K: Hash + Sync + Send + Clone> MPHFBuilder<K> for PHastBencher<SS, S> {
+impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone> MPHFBuilder<K> for PHastBencher<SS, S> {
     type MPHF = ph::phast::Function<SS, DefaultCompressedArray, S>;
 
     type Value = usize;
@@ -52,12 +52,12 @@ impl<SS: SeedSize, S: BuildSeededHasher + Default, K: Hash + Sync + Send + Clone
 }*/
 
 pub fn benchmark_with<S, SS, K>(bits_per_seed: SS, bucket_size_100: u16, i: &(Vec<K>, Vec<K>), conf: &Conf) -> BenchmarkResult
-where SS: SeedSize, S: BuildSeededHasher + Default, K: Hash + Sync + Send + Clone
+where SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone
 {
     PHastBencher { hash: std::marker::PhantomData::<S>::default(), bits_per_seed, bucket_size_100 }.benchmark(i, conf)
 }
 
-pub fn phast_benchmark<H: BuildSeededHasher+Default, K: Hash + Sync + Send + Clone>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf) {
+pub fn phast_benchmark<H: BuildSeededHasher+Default+Sync, K: Hash + Sync + Send + Clone>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf) {
     let bucket_size_100 = phast_conf.bucket_size();
     let b = match phast_conf.bits_per_seed {
         8 => benchmark_with::<H, _, _>(Bits8, bucket_size_100, i, conf),

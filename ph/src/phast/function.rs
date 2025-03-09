@@ -2,10 +2,10 @@ use std::{hash::Hash, usize};
 
 use crate::seeds::{Bits8, SeedSize};
 use super::{bits_per_seed_to_100_bucket_size, builder::build_mt, conf::Conf, evaluator::Weights, CompressedArray, DefaultCompressedArray};
-use bitm::{BitAccess, BitVec};
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
+use rayon::prelude::*;
 
 pub struct Level<CA, SS: SeedSize> {
     seeds: Box<[SS::VecElement]>,
@@ -51,19 +51,19 @@ impl<SS: SeedSize, CA, S> GetSize for Function<SS, CA, S> where Level<CA, SS>: G
 }
 
 impl Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher> {
-    pub fn new<K>(keys: Vec::<K>) -> Self where K: Hash {
+    pub fn new<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
         Self::with_keys_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
             std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
     }
 
-    pub fn new_st<K>(keys: Vec::<K>) -> Self where K: Hash {
+    pub fn new_st<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
         Self::with_keys_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
         1, BuildDefaultSeededHasher::default())
     }
 }
 
 impl<SS: SeedSize, CA: CompressedArray> Function<SS, CA, BuildDefaultSeededHasher> {
-    pub fn with_keys_bps<K>(keys: Vec::<K>, bits_per_seed: SS) -> Self where K: Hash {
+    pub fn with_keys_bps<K>(keys: Vec::<K>, bits_per_seed: SS) -> Self where K: Hash+Send+Sync {
         Self::with_keys_bps_bs_threads_hash(keys, bits_per_seed, bits_per_seed_to_100_bucket_size(bits_per_seed.into()),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
     }
@@ -153,35 +153,35 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         unreachable!()
     }
 
-    pub fn with_keys_bps_bs_threads_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash {
+    pub fn with_keys_bps_bs_threads_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
         let mut levels = Vec::new();
         while !keys.is_empty() {
             let level_nr = levels.len() as u32;
-            let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
+            let mut hashes: Box<[_]> = /*if threads_num > 1 && keys.len() > 4*2048 {    //maybe better for string keys
+                //let mut k = Vec::with_capacity(keys.len());
+                //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one(k, level_nr)));
+                //k.into_boxed_slice()
+                keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
+            } else*/ {
+                keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
+            };
             //radsort::unopt::sort(&mut hashes);
             hashes.voracious_mt_sort(threads_num);
             let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
-            let seeds =
+            let (seeds, unassigned_values, unassigned_len) =
                 build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
             let keys_len = keys.len();
-            let mut unassigned_values = Box::with_filled_bits(keys_len);
-            if keys_len % 64 != 0 {
-                *unassigned_values.last_mut().unwrap() >>= 64 - keys_len % 64;
+            if threads_num > 1 {
+                let mut result = Vec::with_capacity(unassigned_len);
+                std::mem::swap(&mut keys, &mut result);
+                keys.par_extend(result.into_par_iter().filter(|key| {
+                    bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+                }));
+            } else {
+                keys.retain(|key| { // TODO use unsorted hashes
+                    bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+                });
             }
-            let mut unassigned_len = keys_len;
-            keys.retain(|key| { // TODO use unsorted hashes
-                let key_hash = hasher.hash_one(key, level_nr);
-                //let seed = seeds.get_fragment(conf.bucket_for(key_hash), bits_per_seed) as u16;
-                let seed = bits_per_seed.get_seed(&seeds, conf.bucket_for(key_hash));
-                if seed == 0 {
-                    true
-                } else {
-                    let value = conf.f(key_hash, seed);
-                    unassigned_values.clear_bit(value);
-                    unassigned_len -= 1;
-                    false
-                }
-            });
             //let unassigned_values: EliasFano = EliasFano::new(&unassigned_values, keys_len, unassigned_len);
             let unassigned_values = CA::new(&unassigned_values, keys_len, unassigned_len);
             levels.push(Level {
@@ -199,6 +199,8 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
 #[cfg(test)]
 pub(crate) mod tests {
     use std::fmt::Display;
+
+    use bitm::{BitAccess, BitVec};
 
     use super::*;
 
