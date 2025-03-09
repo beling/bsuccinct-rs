@@ -157,12 +157,12 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         let mut levels = Vec::new();
         while !keys.is_empty() {
             let level_nr = levels.len() as u32;
-            let mut hashes: Box<[_]> = /*if threads_num > 1 && keys.len() > 4*2048 {    //maybe better for string keys
+            let mut hashes: Box<[_]> = if threads_num > 1 && keys.len() > 4*2048 {    //maybe better for string keys
                 //let mut k = Vec::with_capacity(keys.len());
                 //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one(k, level_nr)));
                 //k.into_boxed_slice()
                 keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
-            } else*/ {
+            } else {
                 keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
             };
             //radsort::unopt::sort(&mut hashes);
