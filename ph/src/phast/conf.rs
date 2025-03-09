@@ -25,10 +25,11 @@ fn mix16fast(mut x: u16) -> u16 {
     x
 }*/
 
-#[inline]
+#[inline(always)]
 fn wymum(a: u64, b: u64) -> u64 {
-    let r = u128::from(a) * u128::from(b);
-    ((r >> 64) ^ r) as u64
+    let r = (a as u128) * (b as u128);
+    //((r >> 64) ^ r) as u64
+    (r >> 64) as u64
 }
 
 //const SEEDS_MAP: [u64; 256] = std::array::from_fn(|i| mix64(i as u64));
