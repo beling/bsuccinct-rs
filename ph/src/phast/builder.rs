@@ -4,24 +4,82 @@ use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::seeds::SeedSize;
 use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, MAX_SPAN, MAX_VALUES};
+use rayon::prelude::*;
 
 pub type UsedValues = CyclicSet<MAX_VALUES>;
 
-/// keys mus be sorted
-pub fn bucket_lens<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>) -> Box<[usize]> {
+#[inline]
+fn bucket_sizes_st<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>) -> Box<[usize]> {
     let mut buckets = vec![0; conf.buckets_num + 1].into_boxed_slice();
-    for key in keys.iter() { buckets[conf.bucket_for(*key)] += 1 }
-    let mut sum = 0;
-    for b in buckets.iter_mut() { 
-        let inc = *b;
-        *b = sum;
-        sum += inc;
-        /*let old_sum = sum;
-        sum += *b;
-        *b = old_sum;*/
+    for key in keys.iter() { unsafe{ *buckets.get_unchecked_mut(conf.bucket_for(*key)) += 1 } }
+    buckets
+}
+
+fn bucket_sizes_mt<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>, mut threads_num: usize) -> Box<[usize]> {    
+    //let mut threads_num = rayon::current_num_threads().min(keys.len() / (8*4096));
+    threads_num = threads_num.min(keys.len() / (8*4096));
+    if threads_num <= 1 { return bucket_sizes_st(keys, conf); }
+    let mut buckets = vec![0; conf.buckets_num + 1].into_boxed_slice();
+    let mut threads = Vec::with_capacity(threads_num);
+    let mut remaining_buckets = &mut buckets[..];
+    let mut remaining_first = 0;
+    let mut key_idx = 0;
+    while key_idx < keys.len() {
+        let mut new_key_idx = key_idx + (keys.len() - key_idx) / threads_num;
+        if let Some(mut last_bucket_for_thread) = keys.get(new_key_idx).map(|key| conf.bucket_for(*key)) {
+            let keys_for_thread = &keys[key_idx..new_key_idx];
+            unsafe{ *remaining_buckets.get_unchecked_mut(last_bucket_for_thread-remaining_first) += 1 };
+            new_key_idx += 1;
+            while new_key_idx < keys.len() {
+                let b = conf.bucket_for(keys[new_key_idx]);
+                unsafe{ *remaining_buckets.get_unchecked_mut(b-remaining_first) += 1 };
+                new_key_idx += 1;
+                if b != last_bucket_for_thread { break; }
+            }
+            last_bucket_for_thread += 1;
+            let thread_buckets;
+            (thread_buckets, remaining_buckets) = remaining_buckets.split_at_mut(last_bucket_for_thread-remaining_first);
+            threads.push((keys_for_thread, thread_buckets, remaining_first));
+            remaining_first = last_bucket_for_thread;
+        } else {
+            break;
+        }
+        key_idx = new_key_idx;
+        threads_num -= 1;
     }
+    threads.push((&keys[key_idx..], remaining_buckets, remaining_first));
+    threads.into_par_iter().for_each(|(keys, buckets, first)| {
+        for key in keys.iter() {
+            unsafe{ *buckets.get_unchecked_mut(conf.bucket_for(*key)-first) += 1 };
+        }
+    });
+    buckets
+}
+
+#[inline(always)]
+fn accumulative_sum(buckets: std::slice::IterMut<'_, usize>) -> usize {
+    let mut sum = 0;
+    for b in buckets { 
+        let inc = *b; *b = sum; sum += inc;
+        //let old_sum = sum; sum += *b; *b = old_sum;
+    }
+    sum
+}
+
+/// Calculate bucket_begin array using a single thread. `keys` must be sorted.
+pub fn bucket_begin_st<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>) -> Box<[usize]> {
+    let mut buckets = bucket_sizes_st(keys, conf);
+    let sum = accumulative_sum(buckets.iter_mut()); //bucket_lens
     debug_assert_eq!(sum, keys.len());
-    buckets // buckets[0] == 0, buckets[conf.buckets_num] == number of keys
+    buckets
+}
+
+/// Calculate bucket_begin array using up to `threads_num` threads. `keys` must be sorted.
+pub fn bucket_begin_mt<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>, threads_num: usize) -> Box<[usize]> {
+    let mut buckets = bucket_sizes_mt(keys, conf, threads_num);
+    let sum = accumulative_sum(buckets.iter_mut()); //bucket_lens
+    debug_assert_eq!(sum, keys.len());
+    buckets
 }
 
 /*pub fn sorted(keys: &[u64], bucket_lens: &mut [usize], conf: &Conf) -> Box<[u64]> {
@@ -67,15 +125,14 @@ fn construct_unassigned(unassigned_len: usize) -> Box<[u64]> {
 
 impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
     #[inline]
-    pub fn new(keys: &'k [u64], conf: Conf<SS>, span_limit: u16, evaluator: BE) -> (Self, Box<[SS::VecElement]>) {
-        let bucket_lens = bucket_lens(&keys, &conf);
+    pub fn new(keys: &'k [u64], conf: Conf<SS>, span_limit: u16, evaluator: BE, bucket_begin: Box<[usize]>) -> (Self, Box<[SS::VecElement]>) {
         //let seeds = Box::with_zeroed_bits(conf.buckets_num * conf.bits_per_seed() as usize);
         let seeds = conf.new_seeds_vec();
         (Self {
             conf,
             span_limit,
             keys,
-            bucket_begin: bucket_lens,
+            bucket_begin,
             evaluator,
         }, seeds)
     }
@@ -121,17 +178,18 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     //let threads_num = rayon::current_num_threads();
     let threads_num = threads_num.min(rayon::current_num_threads()).min(conf.buckets_num / 4096).max(1);
     if threads_num == 1 {
-        let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator);
+        let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator, bucket_begin_st(keys, &conf));
         ThreadBuilder::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
         return (seeds, unassigned_values, unassigned_len);
         //return build_st(keys, conf, span_limit, evaluator);
     }
+    let bucket_begin = bucket_begin_mt(keys, &conf, threads_num);   // moving down makes program slower
     let chunk_size = SS::VEC_ELEMENT_BIT_SIZE >> conf.bits_per_seed().trailing_zeros();
     // keys_per_thread = buckets number / max_threads rounded to multiple of chunk_size
     let buckets_per_thread = ((conf.buckets_num + (threads_num*chunk_size)/2) / (threads_num*chunk_size)) * chunk_size;
     let seed_words_per_thread = buckets_per_thread * conf.bits_per_seed() as usize / SS::VEC_ELEMENT_BIT_SIZE;
-    let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator);
+    let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator, bucket_begin);
     let mut thread_builders = Vec::with_capacity(threads_num);
     let mut bucket_begin = 0;
     let mut remaining_seeds = &mut seeds[..];
