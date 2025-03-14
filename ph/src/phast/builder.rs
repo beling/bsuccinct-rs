@@ -171,6 +171,17 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
     (100 * partition_size as usize - 1) / bucket_size100 as usize + 2
 }
 
+#[inline(always)]
+pub fn build_st<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE)
+-> (Box<[SS::VecElement]>, Box<[u64]>, usize)
+where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
+{
+    let (builder, mut seeds) = BuildConf::new(keys, conf, 256, evaluator, bucket_begin_st(keys, &conf));
+    ThreadBuilder::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
+    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    (seeds, unassigned_values, unassigned_len)
+}
+
 pub fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize)
  -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
 where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send

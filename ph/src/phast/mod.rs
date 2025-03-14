@@ -1,7 +1,7 @@
 //! Perfect Hashing with fast evaluation.
 
 pub mod compressed_array;
-pub use compressed_array::{CompressedArray, DefaultCompressedArray};
+pub use compressed_array::{CompressedArray, CompressedBuilder, DefaultCompressedArray};
 
 mod builder;
 mod conf;

@@ -1,19 +1,19 @@
 use std::{hash::Hash, usize};
 
 use crate::seeds::{Bits8, SeedSize};
-use super::{bits_per_seed_to_100_bucket_size, builder::build_mt, conf::Conf, evaluator::Weights, CompressedArray, DefaultCompressedArray};
+use super::{bits_per_seed_to_100_bucket_size, builder::build_st, builder::build_mt, conf::Conf, evaluator::Weights, CompressedArray, CompressedBuilder, DefaultCompressedArray};
+use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
-pub struct Level<CA, SS: SeedSize> {
+pub struct SeedEx<SS: SeedSize> {
     seeds: Box<[SS::VecElement]>,
     conf: Conf<SS>,
-    unassigned_values: CA
 }
 
-impl<CA, SS: SeedSize> Level<CA, SS> {
+impl<SS: SeedSize> SeedEx<SS> {
     #[inline]
     fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
 
@@ -29,9 +29,21 @@ impl<CA, SS: SeedSize> Level<CA, SS> {
     }
 }
 
-impl<CA: GetSize, SS: SeedSize> GetSize for Level<CA, SS> {
-    fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() + self.unassigned_values.size_bytes_dyn() }
-    fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() + self.unassigned_values.size_bytes_content_dyn() }
+impl<SS: SeedSize> GetSize for SeedEx<SS> {
+    fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
+    fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
+    const USES_DYN_MEM: bool = true;
+}
+
+
+pub struct Level<SS: SeedSize> {
+    seeds: SeedEx<SS>,
+    shift: usize
+}
+
+impl<SS: SeedSize> GetSize for Level<SS> {
+    fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
+    fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
@@ -40,159 +52,284 @@ impl<CA: GetSize, SS: SeedSize> GetSize for Level<CA, SS> {
 /// Perfect hash function with very fast evaluation and size below 2 bits/key
 /// developed by Peter Sanders and Piotr Beling.
 pub struct Function<SS: SeedSize, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher> {
-    pub levels: Box<[Level<CA, SS>]>,
-    pub hasher: S
+    pub level0: SeedEx<SS>,
+    pub unassigned: CA,
+    pub levels: Box<[Level<SS>]>,
+    pub hasher: S,
 }
 
-impl<SS: SeedSize, CA, S> GetSize for Function<SS, CA, S> where Level<CA, SS>: GetSize {
-    fn size_bytes_dyn(&self) -> usize { self.levels.size_bytes_dyn() }
-    fn size_bytes_content_dyn(&self) -> usize { self.levels.size_bytes_content_dyn() }
+impl<SS: SeedSize, CA, S> GetSize for Function<SS, CA, S> where Level<SS>: GetSize, CA: GetSize {
+    fn size_bytes_dyn(&self) -> usize {
+        self.level0.size_bytes_dyn() +
+            self.unassigned.size_bytes_dyn() +
+            self.levels.size_bytes_dyn()
+    }
+    fn size_bytes_content_dyn(&self) -> usize {
+        self.level0.size_bytes_content_dyn() +
+            self.unassigned.size_bytes_content_dyn() +
+            self.levels.size_bytes_content_dyn()
+    }
     const USES_DYN_MEM: bool = true;
 }
 
-impl Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher> {
-    pub fn new<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
-        Self::with_keys_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
-            std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
-    }
-
-    pub fn new_st<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
-        Self::with_keys_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
-        1, BuildDefaultSeededHasher::default())
-    }
-}
-
-impl<SS: SeedSize, CA: CompressedArray> Function<SS, CA, BuildDefaultSeededHasher> {
-    pub fn with_keys_bps<K>(keys: Vec::<K>, bits_per_seed: SS) -> Self where K: Hash+Send+Sync {
-        Self::with_keys_bps_bs_threads_hash(keys, bits_per_seed, bits_per_seed_to_100_bucket_size(bits_per_seed.into()),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
-    }
-}
-
-/*impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher + Sync> Function<SS, CA, S> {
-    pub fn with_keyset_bps_bs_threads_hash<K, KS: KeySet<K>>(mut keys: KS, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash {
-        let mut levels = Vec::new();
-        let use_mt = threads_num > 1;
-        while keys.keys_len() != 0 {
-            let level_nr = levels.len() as u32;
-            let mut hashes = keys.maybe_par_map_each_key(|k| hasher.hash_one(k, level_nr), |_| true /* TODO */, use_mt);
-            //radsort::unopt::sort(&mut hashes);
-            hashes.voracious_mt_sort(threads_num);
-            let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
-            let seeds =
-                build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
-            let keys_len = keys.keys_len();
-            let mut unassigned_values = Box::with_filled_bits(keys_len);
-            if keys_len % 64 != 0 {
-                *unassigned_values.last_mut().unwrap() >>= 64 - keys_len % 64;
-            }
-            let mut unassigned_len = keys_len;
-            keys.maybe_par_retain_keys(|key| { // TODO use unsorted hashes
-                let key_hash = hasher.hash_one(key, level_nr);
-                //let seed = seeds.get_fragment(conf.bucket_for(key_hash), bits_per_seed) as u16;
-                let seed = bits_per_seed.get_seed(&seeds, conf.bucket_for(key_hash));
-                if seed == 0 {
-                    true
-                } else {
-                    let value = conf.f(key_hash, seed);
-                    unassigned_values.clear_bit(value);
-                    unassigned_len -= 1;
-                    false
-                }
-            }, |_| true, || 0 /* TODO */, use_mt);
-            //let unassigned_values: EliasFano = EliasFano::new(&unassigned_values, keys_len, unassigned_len);
-            let unassigned_values = CA::new(&unassigned_values, keys_len, unassigned_len);
-            levels.push(Level {
-                seeds,
-                conf,
-                unassigned_values,
-            });
-        }
-        Self {
-            levels: levels.into_boxed_slice(), hasher
-        }
-    }
-}*/
-
 impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S> {
-    /*    pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
-        let key_hash = self.hasher.hash_one(key, 0);
-        let seed = self.seeds.get_fragment(self.conf.bucket_for(key_hash), self.conf.bits_per_seed) as u16;
-        if seed != 0 { return self.conf.f(key_hash, seed); }
-        for level_nr in 0..self.levels.len() {
-            let key_hash = self.hasher.hash_one(key, level_nr as u32);
-            let seed = self.levels[level_nr].seed_for(key_hash);
-            if seed != 0 {
-                let mut index = self.levels[level_nr].get(key_hash, seed);
-                for level_nr in (0..=level_nr).rev() {
-                    index = self.levels[level_nr].unassigned_values.get_or_panic(index) as usize;
-                }
-                return index;
-            }
-        }
-        unreachable!()
-    } */
-
-
+    
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
-        let seed = self.levels[0].seed_for(key_hash);
-        if seed != 0 { return self.levels[0].get(key_hash, seed); }
-        for level_nr in 1..self.levels.len() {
-            let key_hash = self.hasher.hash_one(key, level_nr as u32);
-            let seed = self.levels[level_nr].seed_for(key_hash);
+        let seed = self.level0.seed_for(key_hash);
+        if seed != 0 { return self.level0.get(key_hash, seed); }
+
+        for level_nr in 0..self.levels.len() {
+            let l = &self.levels[level_nr];
+            let key_hash = self.hasher.hash_one(key, level_nr as u32 + 1);
+            let seed = l.seeds.seed_for(key_hash);
             if seed != 0 {
-                let mut index = self.levels[level_nr].get(key_hash, seed);
-                for level_nr in (0..level_nr).rev() {
-                    //index = self.levels[level_nr].unassigned_values.get_or_panic(index) as usize;
-                    index = self.levels[level_nr].unassigned_values.get(index);
-                }
-                return index;
+                return self.unassigned.get(l.seeds.get(key_hash, seed) + l.shift)
             }
         }
         unreachable!()
     }
 
-    pub fn with_keys_bps_bs_threads_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
-        let mut levels = Vec::new();
+    pub fn with_vec_bps_bs_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, hasher: S) -> Self where K: Hash {
+        Self::_new(|h| {
+            let (level0, unassigned_values, unassigned_len) =
+                Self::build_level_st(&mut keys, bits_per_seed, bucket_size100, h, 0);
+            (keys, level0, unassigned_values, unassigned_len)
+        }, |keys, level_nr, h| {
+            Self::build_level_st(keys, bits_per_seed, bucket_size100, h, level_nr)
+        }, hasher)
+    }
+
+    pub fn with_vec_bps_bs_threads_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
+        if threads_num == 1 { return Self::with_vec_bps_bs_hash(keys, bits_per_seed, bucket_size100, hasher); }
+        Self::_new(|h| {
+            let (level0, unassigned_values, unassigned_len) =
+                Self::build_level_mt(&mut keys, bits_per_seed, bucket_size100, threads_num, &h, 0);
+            (keys, level0, unassigned_values, unassigned_len)
+        }, |keys, level_nr, h| {
+            Self::build_level_mt(keys, bits_per_seed, bucket_size100, threads_num, &h, level_nr)
+        }, hasher)
+    }
+
+    pub fn with_slice_bps_bs_hash<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, hasher: S) -> Self where K: Hash+Clone {
+        Self::_new(|h| {
+            Self::build_level_from_slice_st(keys, bits_per_seed, bucket_size100, h, 0)
+        }, |keys, level_nr, h| {
+            Self::build_level_st(keys, bits_per_seed, bucket_size100, &h, level_nr)
+        }, hasher)
+    }
+
+    pub fn with_slice_bps_bs_threads_hash<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send+Clone, S: Sync {
+        if threads_num == 1 { return Self::with_slice_bps_bs_hash(keys, bits_per_seed, bucket_size100, hasher); }
+        Self::_new(|h| {
+            Self::build_level_from_slice_mt(keys, bits_per_seed, bucket_size100, threads_num, h, 0)
+        }, |keys, level_nr, h| {
+            Self::build_level_mt(keys, bits_per_seed, bucket_size100, threads_num, &h, level_nr)
+        }, hasher)
+    }
+
+    #[inline]
+    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S) -> Self
+        where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS>, Box<[u64]>, usize),
+            BL: Fn(&mut Vec::<K>, u32, &S) -> (SeedEx<SS>, Box<[u64]>, usize),
+        {
+        let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
+        //Self::finish_building(keys, bits_per_seed, bucket_size100, threads_num, hasher, level0, unassigned_values, unassigned_len)
+        let mut level0_unassigned = unassigned_values.bit_ones();
+        let mut unassigned = Vec::with_capacity(unassigned_len * 3 / 2);
+
+        let mut levels = Vec::with_capacity(16);
+        let mut last = 0;
         while !keys.is_empty() {
-            let level_nr = levels.len() as u32;
-            let mut hashes: Box<[_]> = if threads_num > 1 && keys.len() > 4*2048 {    //maybe better for string keys
-                //let mut k = Vec::with_capacity(keys.len());
-                //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one(k, level_nr)));
-                //k.into_boxed_slice()
-                keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
-            } else {
-                keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
-            };
-            //radsort::unopt::sort(&mut hashes);
-            hashes.voracious_mt_sort(threads_num);
-            let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
-            let (seeds, unassigned_values, unassigned_len) =
-                build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
             let keys_len = keys.len();
-            if threads_num > 1 {
-                let mut result = Vec::with_capacity(unassigned_len);
-                std::mem::swap(&mut keys, &mut result);
-                keys.par_extend(result.into_par_iter().filter(|key| {
-                    bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
-                }));
-            } else {
-                keys.retain(|key| { // TODO use unsorted hashes
-                    bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
-                });
+            let (seeds, unassigned_values, _unassigned_len) =
+                build_level(&mut keys, levels.len() as u32+1, &hasher);
+            let shift = unassigned.len();
+            for i in 0..keys_len {
+                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                    last = level0_unassigned.next().unwrap();                    
+                }
+                unassigned.push(last);
             }
-            //let unassigned_values: EliasFano = EliasFano::new(&unassigned_values, keys_len, unassigned_len);
-            let unassigned_values = CA::new(&unassigned_values, keys_len, unassigned_len);
-            levels.push(Level {
-                seeds,
-                conf,
-                unassigned_values,
-            });
+            levels.push(Level { seeds, shift });
         }
+        debug_assert!(level0_unassigned.next().is_none());
+        drop(level0_unassigned);
+
+        let mut builder = CA::Builder::new(unassigned.len(), last);
+        builder.push_all(unassigned);
+
         Self {
-            levels: levels.into_boxed_slice(), hasher
+            level0,
+            unassigned: CA::finish(builder),
+            levels: levels.into_boxed_slice(),
+            hasher,
         }
+    }
+
+    #[inline]
+    fn build_level_from_slice_st<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, hasher: &S, level_nr: u32)
+        -> (Vec<K>, SeedEx<SS>, Box<[u64]>, usize)
+        where K: Hash+Clone
+    {
+        let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
+        //radsort::unopt::sort(&mut hashes);
+        hashes.voracious_sort();
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let (seeds, unassigned_values, unassigned_len) =
+            build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.partition_size()));
+        let mut keys_vec = Vec::with_capacity(unassigned_len);
+        keys_vec.extend(keys.into_iter().filter(|key| {
+            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+        }).cloned());
+        (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+    }
+
+    #[inline]
+    fn build_level_from_slice_mt<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u32)
+        -> (Vec<K>, SeedEx<SS>, Box<[u64]>, usize)
+        where K: Hash+Sync+Send+Clone, S: Sync
+    {
+        let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
+            //let mut k = Vec::with_capacity(keys.len());
+            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one(k, level_nr)));
+            //k.into_boxed_slice()
+            keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
+        } else {
+            keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
+        };
+        //radsort::unopt::sort(&mut hashes);
+        hashes.voracious_mt_sort(threads_num);
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let (seeds, unassigned_values, unassigned_len) =
+            build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+        let mut keys_vec = Vec::with_capacity(unassigned_len);
+        keys_vec.par_extend(keys.into_par_iter().filter(|key| {
+            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+        }).cloned());
+        (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+    }
+
+    #[inline(always)]
+    fn build_level_st<K>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, hasher: &S, level_nr: u32)
+        -> (SeedEx<SS>, Box<[u64]>, usize)
+        where K: Hash
+    {
+        let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
+        hashes.voracious_sort();
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let (seeds, unassigned_values, unassigned_len) =
+            build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.partition_size()));
+        keys.retain(|key| {
+            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+        });
+        (SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+    }
+
+    #[inline]
+    fn build_level_mt<K>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u32)
+        -> (SeedEx<SS>, Box<[u64]>, usize)
+        where K: Hash+Sync+Send, S: Sync
+    {
+        let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
+            //let mut k = Vec::with_capacity(keys.len());
+            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one(k, level_nr)));
+            //k.into_boxed_slice()
+            keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
+        } else {
+            keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
+        };
+        //radsort::unopt::sort(&mut hashes);
+        hashes.voracious_mt_sort(threads_num);
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let (seeds, unassigned_values, unassigned_len) =
+            build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+        let mut result = Vec::with_capacity(unassigned_len);
+        std::mem::swap(keys, &mut result);
+        keys.par_extend(result.into_par_iter().filter(|key| {
+            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+        }));
+        (SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+    }
+
+    /*#[inline(always)]
+    fn finish_building<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S, level0: SeedEx<SS>, unassigned_values: Box<[u64]>, unassigned_len: usize) -> Self where K: Hash+Sync+Send, S: Sync {
+        let mut level0_unassigned = unassigned_values.bit_ones();
+        let mut unassigned = Vec::with_capacity(unassigned_len * 3 / 2);
+
+        let mut levels = Vec::with_capacity(16);
+        let mut last = 0;
+        while !keys.is_empty() {
+            let keys_len = keys.len();
+            let (seeds, unassigned_values, _unassigned_len) =
+                Self::build_level(&mut keys, bits_per_seed, bucket_size100, threads_num, &hasher, levels.len() as u32+1);
+            let shift = unassigned.len();
+            for i in 0..keys_len {
+                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                    last = level0_unassigned.next().unwrap();                    
+                }
+                unassigned.push(last);
+            }
+            levels.push(Level { seeds, shift });
+        }
+        debug_assert!(level0_unassigned.next().is_none());
+        drop(level0_unassigned);
+
+        let mut builder = CA::Builder::new(unassigned.len(), last);
+        builder.push_all(unassigned);
+
+        Self {
+            level0,
+            unassigned: CA::finish(builder),
+            levels: levels.into_boxed_slice(),
+            hasher,
+        }
+    }*/
+
+    /*pub fn new2<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
+        let keys_len = keys.len();
+        let (level0, unassigned_values, _unassigned_len) =
+            Self::build_level(&mut keys, bits_per_seed, bucket_size100, threads_num, &hasher, 0);
+        let largest_unassigned = bitmap_largest(&unassigned_values, keys_len);
+
+        let mut levels_data = Vec::with_capacity(16);
+        let mut total_len = 0;
+        while !keys.is_empty() {
+            let keys_len = keys.len();
+            let (seeds, unassigned_values, _unassigned_len) =
+                Self::build_level(&mut keys, bits_per_seed, bucket_size100, threads_num, &hasher, levels_data.len() as u32+1);
+            levels_data.push((seeds, unassigned_values, keys_len, total_len));
+            total_len += keys_len;
+        }
+        let mut levels = Vec::with_capacity(levels_data.len());
+        let mut builder = CA::Builder::new(total_len, largest_unassigned);
+        let mut level0_unassigned = unassigned_values.bit_ones();
+        let mut last = 0;
+        for (seeds, unassigned_values, keys_len, shift) in levels_data {
+            for i in 0..keys_len {
+                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                    last = level0_unassigned.next().unwrap();                    
+                }
+                builder.push(last);
+            }
+            levels.push(Level { seeds, shift });
+        }
+        debug_assert!(level0_unassigned.next().is_none());
+        drop(level0_unassigned);
+
+        Self {
+            level0,
+            unassigned: CA::finish(builder),
+            levels: levels.into_boxed_slice(),
+            hasher,
+        }
+    }*/
+}
+
+impl Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher> {
+    pub fn with_vec_threads<K>(keys: Vec::<K>, threads_num: usize) -> Self where K: Hash+Send+Sync {
+        Self::with_vec_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
     }
 }
 
