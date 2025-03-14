@@ -327,8 +327,23 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
 }
 
 impl Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher> {
-    pub fn with_vec_threads<K>(keys: Vec::<K>, threads_num: usize) -> Self where K: Hash+Send+Sync {
+    pub fn from_vec_st<K>(keys: Vec::<K>) -> Self where K: Hash {
+        Self::with_vec_bps_bs_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        BuildDefaultSeededHasher::default())
+    }
+
+    pub fn from_vec_mt<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
         Self::with_vec_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
+    }
+
+    pub fn from_slice_st<K>(keys: &[K]) -> Self where K: Hash+Clone {
+        Self::with_slice_bps_bs_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        BuildDefaultSeededHasher::default())
+    }
+
+    pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
+        Self::with_slice_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
     }
 }
@@ -355,7 +370,7 @@ pub(crate) mod tests {
     #[test]
     fn test_small() {
         let input = [1, 2, 3, 4, 5];
-        let f = Function::new(input.to_vec());
+        let f = Function::from_slice_st(&input);
         mphf_test(&f, &input);
     }
 }
