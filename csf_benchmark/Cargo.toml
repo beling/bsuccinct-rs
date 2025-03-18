@@ -14,6 +14,6 @@ keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [dependencies]
 csf = { version ="0.2", path = "../csf" }
-ph = { version="0.8", path="../ph", features = ["wyhash"] }
+ph = { version=">=0.8", path="../ph", features = ["wyhash"] }
 clap = { version="4", features = ["derive"] }
 #fsum = { version ="0.1", path = "../fsum" }

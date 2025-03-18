@@ -14,7 +14,7 @@ keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [dependencies]
 bitm = { version="0.4", path="../bitm" }
-ph = { version="0.8", path="../ph", features = ["wyhash"] }
+ph = { version=">=0.8", path="../ph", features = ["wyhash"] }
 minimum_redundancy = { version="0.3", path="../minimum_redundancy" }
 binout = { version=">=0.2", path="../binout" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
