@@ -8,7 +8,7 @@ use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
-pub struct SeedEx<SS: SeedSize> {
+struct SeedEx<SS: SeedSize> {
     seeds: Box<[SS::VecElement]>,
     conf: Conf<SS>,
 }
@@ -24,7 +24,7 @@ impl<SS: SeedSize> SeedEx<SS> {
     }
 
     #[inline]
-    pub fn get(&self, key: u64, seed: u16) -> usize {
+    fn get(&self, key: u64, seed: u16) -> usize {
         self.conf.f(key, seed)
     }
 }
@@ -36,7 +36,7 @@ impl<SS: SeedSize> GetSize for SeedEx<SS> {
 }
 
 
-pub struct Level<SS: SeedSize> {
+struct Level<SS: SeedSize> {
     seeds: SeedEx<SS>,
     shift: usize
 }
@@ -52,10 +52,10 @@ impl<SS: SeedSize> GetSize for Level<SS> {
 /// Perfect hash function with very fast evaluation and size below 2 bits/key
 /// developed by Peter Sanders and Piotr Beling.
 pub struct Function<SS: SeedSize, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher> {
-    pub level0: SeedEx<SS>,
-    pub unassigned: CA,
-    pub levels: Box<[Level<SS>]>,
-    pub hasher: S,
+    level0: SeedEx<SS>,
+    unassigned: CA,
+    levels: Box<[Level<SS>]>,
+    hasher: S,
 }
 
 impl<SS: SeedSize, CA, S> GetSize for Function<SS, CA, S> where Level<SS>: GetSize, CA: GetSize {
@@ -74,6 +74,11 @@ impl<SS: SeedSize, CA, S> GetSize for Function<SS, CA, S> where Level<SS>: GetSi
 
 impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S> {
     
+    /// Returns value assigned to the given `key`.
+    /// 
+    /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key collection (exclusive).
+    /// `key` must come from the input key collection given during construction.
+    #[inline]
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
         let seed = self.level0.seed_for(key_hash);
@@ -90,6 +95,11 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         unreachable!()
     }
 
+    /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
+    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
+    /// 
+    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// `keys` cannot contain duplicates.
     pub fn with_vec_bps_bs_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, hasher: S) -> Self where K: Hash {
         Self::_new(|h| {
             let (level0, unassigned_values, unassigned_len) =
@@ -100,6 +110,11 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         }, hasher)
     }
 
+    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
+    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
+    /// 
+    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// `keys` cannot contain duplicates.
     pub fn with_vec_bps_bs_threads_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
         if threads_num == 1 { return Self::with_vec_bps_bs_hash(keys, bits_per_seed, bucket_size100, hasher); }
         Self::_new(|h| {
@@ -111,6 +126,12 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         }, hasher)
     }
 
+
+    /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
+    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
+    /// 
+    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// `keys` cannot contain duplicates.
     pub fn with_slice_bps_bs_hash<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, hasher: S) -> Self where K: Hash+Clone {
         Self::_new(|h| {
             Self::build_level_from_slice_st(keys, bits_per_seed, bucket_size100, h, 0)
@@ -119,6 +140,12 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         }, hasher)
     }
 
+
+    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
+    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
+    /// 
+    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// `keys` cannot contain duplicates.
     pub fn with_slice_bps_bs_threads_hash<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send+Clone, S: Sync {
         if threads_num == 1 { return Self::with_slice_bps_bs_hash(keys, bits_per_seed, bucket_size100, hasher); }
         Self::_new(|h| {
@@ -327,21 +354,33 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
 }
 
 impl Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher> {
+    /// Constructs [`Function`] for given `keys`, using a single thread.
+    /// 
+    /// `keys` cannot contain duplicates.
     pub fn from_vec_st<K>(keys: Vec::<K>) -> Self where K: Hash {
         Self::with_vec_bps_bs_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
         BuildDefaultSeededHasher::default())
     }
 
+    /// Constructs [`Function`] for given `keys`, using multiple threads.
+    /// 
+    /// `keys` cannot contain duplicates.
     pub fn from_vec_mt<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
         Self::with_vec_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())
     }
 
+    /// Constructs [`Function`] for given `keys`, using a single thread.
+    /// 
+    /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K]) -> Self where K: Hash+Clone {
         Self::with_slice_bps_bs_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
         BuildDefaultSeededHasher::default())
     }
 
+    /// Constructs [`Function`] for given `keys`, using multiple threads.
+    /// 
+    /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
         Self::with_slice_bps_bs_threads_hash(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default())

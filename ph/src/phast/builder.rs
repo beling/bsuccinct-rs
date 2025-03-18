@@ -172,7 +172,7 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
 }
 
 #[inline(always)]
-pub fn build_st<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE)
+pub(crate) fn build_st<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE)
 -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
 where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
@@ -182,7 +182,7 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     (seeds, unassigned_values, unassigned_len)
 }
 
-pub fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize)
+pub(crate) fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize)
  -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
 where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
@@ -345,7 +345,7 @@ struct ThreadBuilder<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
 }
 
 impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> {
-    pub fn new(conf: &'k BuildConf<'k, BE, SS>, buckets: Range<usize>, gap: usize, seeds: &'k mut [SS::VecElement]) -> Self {
+    pub(crate) fn new(conf: &'k BuildConf<'k, BE, SS>, buckets: Range<usize>, gap: usize, seeds: &'k mut [SS::VecElement]) -> Self {
         Self {
             used_values: UsedValues::default(),
             conf,
@@ -359,7 +359,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
         }
     }
 
-    pub fn build(&mut self) {
+    pub(crate) fn build(&mut self) {
         //let mut seeds = vec![0; self.conf.buckets_num].into_boxed_slice();
         if !self.find_nonempty() { return; }
         self.value_to_clear = self.partition_begin(self.span_begin);
@@ -512,17 +512,17 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
 
     /// Number of the last bucket included in the span limit + 1.
     #[inline]
-    pub fn span_end(&self) -> usize {
+    pub(crate) fn span_end(&self) -> usize {
         (self.span_begin + self.conf.span_limit as usize).min(self.buckets_num)
     }
 
     #[inline]
-    pub fn bucket_size(&self, bucket_nr: usize) -> usize {
+    pub(crate) fn bucket_size(&self, bucket_nr: usize) -> usize {
         self.bucket_begin[bucket_nr+1] - self.bucket_begin[bucket_nr]
     }
 
     #[inline]
-    pub fn bucket_is_empty(&self, bucket_nr: usize) -> bool {
+    pub(crate) fn bucket_is_empty(&self, bucket_nr: usize) -> bool {
         self.bucket_begin[bucket_nr+1] == self.bucket_begin[bucket_nr]
     }
 }

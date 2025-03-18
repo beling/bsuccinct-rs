@@ -5,18 +5,18 @@ use std::ops::{Index, IndexMut};
 use super::MAX_SPAN;
 
 /// SIZE must the power of two
-pub struct CyclicSet<const SIZE: usize>([u64; SIZE]);  // filled in pseudo-code
+pub(crate) struct CyclicSet<const SIZE: usize>([u64; SIZE]);  // filled in pseudo-code
 
 impl<const SIZE: usize> CyclicSet<SIZE> {
     const MASK: usize = SIZE-1;
 
     #[inline]
-    pub fn contain(&self, value: usize) -> bool {
+    pub(crate) fn contain(&self, value: usize) -> bool {
         unsafe{ self.0.get_bit_unchecked(value & Self::MASK) }
     }
 
     #[inline]
-    pub fn add(&mut self, value: usize) {
+    pub(crate) fn add(&mut self, value: usize) {
         unsafe{ self.0.set_bit_unchecked(value & Self::MASK) }
     }
 
@@ -30,7 +30,7 @@ impl<const SIZE: usize> CyclicSet<SIZE> {
     }*/
 
     #[inline]
-    pub fn remove(&mut self, value: usize) {
+    pub(crate) fn remove(&mut self, value: usize) {
         unsafe{ self.0.clear_bit_unchecked(value & Self::MASK) }
     }
 }
