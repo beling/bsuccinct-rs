@@ -4,7 +4,7 @@ mod rank_select;
 
 pub use rank_select::{RankSimple, ArrayWithRankSimple, RankSelect101111, ArrayWithRank101111,
      Rank, Select, Select0, SelectForRank101111, Select0ForRank101111, select64, optimal_combined_sampling,
-     BinaryRankSearch, CombinedSampling, ConstCombinedSamplingDensity, AdaptiveCombinedSamplingDensity, };
+     BinaryRankSearch, CombinedSampling, ConstCombinedSamplingDensity, AdaptiveCombinedSamplingDensity};
 
 mod bitvec;
 pub use bitvec::*;
@@ -69,7 +69,7 @@ pub unsafe fn init_bits57(ptr: *mut u8, first_bit: usize, value: u64) {
 }
 
 /// Write desired number, at most 57 lowest `value` bits to `ptr`, beginning from `first_bit`, using bit-or operation.
-/// Before write, appropriate fragment of buffer is zeroed by bit-and with `len_mask`
+/// Before write, appropriate fragment of buffer is zeroed by bit-andn with `len_mask`
 /// (which should be of type 0..01..1, with desired number of bit ones).
 /// The most significant bits of `value` should be zeros.
 #[inline(always)]
@@ -101,7 +101,7 @@ pub unsafe fn init_bits25(ptr: *mut u8, first_bit: usize, value: u32) {
 }
 
 /// Write desired number, at most 25 lowest `value` bits to `ptr`, beginning from `first_bit`, using bit-or operation.
-/// Before write, appropriate fragment of buffer is zeroed by bit-and with `len_mask`
+/// Before write, appropriate fragment of buffer is zeroed by bit-andn with `len_mask`
 /// (which should be of type 0..01..1, with desired number of bit ones).
 /// The most significant bits of `value` should be zeros.
 #[inline(always)]
