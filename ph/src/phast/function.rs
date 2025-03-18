@@ -47,7 +47,7 @@ impl<SS: SeedSize> GetSize for Level<SS> {
     const USES_DYN_MEM: bool = true;
 }
 
-/// PHast (Perfect Hashing with fast evaluation).
+/// PHast (Perfect Hashing with fast evaluation). Experimental.
 /// 
 /// Perfect hash function with very fast evaluation and size below 2 bits/key
 /// developed by Peter Sanders and Piotr Beling.
