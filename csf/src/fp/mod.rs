@@ -8,8 +8,8 @@ pub use map::{Map, MapConf};
 mod cmap;
 pub use cmap::{CMap, CMapConf};
 
-mod gomap;
-pub use gomap::{GOMap, GOMapConf};
+//mod gomap;
+//pub use gomap::{GOMap, GOMapConf};
 
 mod gocmap;
 pub use gocmap::{GOCMap, GOCMapConf};
