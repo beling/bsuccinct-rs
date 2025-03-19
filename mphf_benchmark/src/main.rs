@@ -19,12 +19,12 @@ use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, 
 mod phast;
 use phast::phast_benchmark;
 
-mod ptrhash;
+#[cfg(feature = "ptr_hash")] mod ptrhash;
+#[cfg(feature = "ptr_hash")] use ptrhash::ptrhash_benchmark;
 
 use butils::{XorShift32, XorShift64};
 use clap::{Parser, ValueEnum, Subcommand, Args};
 
-use ptrhash::ptrhash_benchmark;
 use std::hash::Hash;
 use std::fmt::Debug;
 use rayon::current_num_threads;
@@ -133,6 +133,7 @@ pub enum Method {
         #[arg(short='l', long, value_parser = clap::value_parser!(u8).range(1..32))]
         lambda: Option<u8>
     },
+    #[cfg(feature = "ptr_hash")]
     /// PtrHash
     PtrHash {
         /// Configuration: 0 = compact, 1 = default, 2 = fast
@@ -267,7 +268,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                 }
             //}
         }
-        Method::PtrHash{ speed } => {
+        #[cfg(feature = "ptr_hash")] Method::PtrHash{ speed } => {
             println!("PtrHash: results...");
             let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "speed");
             ptrhash_benchmark(&mut csv_file, i, conf, speed);
