@@ -37,7 +37,7 @@ wyhash = ["ph/wyhash"]
 sip13 = ["ph/sip13"]  # if enabled, makes available BuildSip13 that uses Sip13 from compiler internals
 fnv = ["ph/fnv"]
 sux = ["ph/sux"]
-cacheline-ef = ["ph/cacheline-ef"]
+#cacheline-ef = ["ph/cacheline-ef"]
 
 #[profile.release]
 #lto = true
