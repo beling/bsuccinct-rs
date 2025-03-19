@@ -29,7 +29,7 @@ clap = { version="4.0", features = ["derive"] }
 fxhash = "0.2"
 
 [features]
-default = ["gxhash", "sux"]
+default = ["sux"]
 fmph-key-access = []    # Allows a choice of multiple methods of accessing keys by FMPH(GO).
 gxhash = ["ph/gxhash"]
 rapidhash = ["ph/rapidhash"]
