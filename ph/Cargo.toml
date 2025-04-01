@@ -1,6 +1,6 @@
 [package]
 name = "ph"
-version = "0.9.1"
+version = "0.9.2"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -31,9 +31,9 @@ seedable_hash = { version="0.1", path="../seedable_hash", default-features = fal
 arrayvec = "0.7"
 voracious_radix_sort = { version = "1.2.0", features = ["voracious_multithread"] }
 cseq = { version = "0.1", path = "../cseq", optional = true }
-sux = { version = "0.5", optional = true }
-mem_dbg = { version="0.2", optional = true } # required by sux and cacheline-ef
-cacheline-ef = { git = "https://github.com/ragnargrootkoerkamp/cacheline-ef", version = "0.1", optional = true }
+sux = { version = "0.6", optional = true }
+mem_dbg = { version="0.3", optional = true } # required by sux and cacheline-ef
+cacheline-ef = { version = "1.1.0", optional = true }
 
 [target.'cfg(target_pointer_width = "32")'.dependencies]
 aligned-vec = { version="0.6", optional=true }  #  for 32 bit support
