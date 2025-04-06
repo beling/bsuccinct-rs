@@ -168,6 +168,7 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
 }*/
 
 #[inline] fn gap_for(partition_size: u16, bucket_size100: u16) -> usize {
+    // roundup((P + lambda) / lambda) =
     (100 * partition_size as usize - 1) / bucket_size100 as usize + 2
 }
 
