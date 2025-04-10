@@ -410,7 +410,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
     #[inline]
     pub fn clear_used(&mut self) {
         let end = self.partition_begin(self.span_begin);
-        while self.value_to_clear != end {
+        while self.value_to_clear != end {  // TODO clear in 64-bit steps
             self.used_values.remove(self.value_to_clear);
             self.value_to_clear += 1;
         }
