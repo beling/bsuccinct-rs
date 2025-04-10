@@ -6,7 +6,7 @@ use crate::seeds::SeedSize;
 use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, MAX_SPAN, MAX_VALUES};
 use rayon::prelude::*;
 
-pub type UsedValues = CyclicSet<MAX_VALUES>;
+pub type UsedValues = CyclicSet<{MAX_VALUES/64}>;
 
 #[inline]
 fn bucket_sizes_st<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>) -> Box<[usize]> {
@@ -340,7 +340,7 @@ struct ThreadBuilder<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
     value_to_clear: usize,
 
     candidates_to_active: BinaryHeap<(BE::Value, Reverse<usize>)>,    // (value, bucket)
-    in_candidates_to_active: CyclicSet<MAX_SPAN>,
+    in_candidates_to_active: CyclicSet<{MAX_SPAN/64}>,
 
     seeds: &'k mut [SS::VecElement]
 }

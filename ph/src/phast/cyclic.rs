@@ -4,11 +4,11 @@ use std::ops::{Index, IndexMut};
 
 use super::MAX_SPAN;
 
-/// SIZE must the power of two
-pub(crate) struct CyclicSet<const SIZE: usize>([u64; SIZE]);  // filled in pseudo-code
+/// SIZE in 64-bit segments, must be the power of two
+pub(crate) struct CyclicSet<const SIZE_64: usize>([u64; SIZE_64]);  // filled in pseudo-code
 
-impl<const SIZE: usize> CyclicSet<SIZE> {
-    const MASK: usize = SIZE-1;
+impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
+    const MASK: usize = SIZE_64*64 - 1;
 
     #[inline]
     pub(crate) fn contain(&self, value: usize) -> bool {
@@ -35,7 +35,7 @@ impl<const SIZE: usize> CyclicSet<SIZE> {
     }
 }
 
-impl<const SIZE: usize> Default for CyclicSet<SIZE> {
+impl<const SIZE_64: usize> Default for CyclicSet<SIZE_64> {
     #[inline] fn default() -> Self {
         Self(std::array::from_fn(|_| 0))
     }
