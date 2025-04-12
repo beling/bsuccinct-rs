@@ -10,7 +10,8 @@ pub fn file(method_name: &str, conf: &Conf, i_lens0: usize, i_lens1: usize, extr
         KeySource::xs32 => "32",
         KeySource::xs64 => "64",
         KeySource::stdin|KeySource::stdinz => "str",
-    };
+        KeySource::randstr => "randstr",
+            };
     let file_name = format!("{}_{}_{}_{}.csv", method_name, ks_name, i_lens0, i_lens1);
     let file_already_existed = std::path::Path::new(&file_name).exists();
     let mut file = OpenOptions::new().append(true).create(true).open(&file_name).unwrap();

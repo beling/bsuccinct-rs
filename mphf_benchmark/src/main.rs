@@ -11,7 +11,7 @@ use ph::phast::bits_per_seed_to_100_bucket_size;
 pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
 mod inout;
-use inout::{RawLines, gen_data};
+use inout::{gen_data, RandomStrings, RawLines};
 
 mod fmph;
 use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, FMPHGO_HEADER};
@@ -154,7 +154,9 @@ pub enum KeySource {
     /// Standard input, separated by newlines (0xA or 0xD, 0xA bytes)
     stdin,
     /// Standard input, zero-separated
-    stdinz
+    stdinz,
+    /// Random strings, each of length in [10, 50)
+    randstr
 }
 
 #[derive(Parser)]
@@ -282,23 +284,24 @@ fn main() {
     println!("multi-threaded calculations use {} threads (to set by the RAYON_NUM_THREADS environment variable)", current_num_threads());
     println!("build and lookup times are averaged over {} and {} runs, respectively", conf.build_runs, conf.lookup_runs);
     match conf.key_source {
-        KeySource::xs32 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))); },
-        KeySource::xs64 => { run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))); },
+        KeySource::xs32 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))),
+        KeySource::xs64 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))),
         KeySource::stdin|KeySource::stdinz => {
-            //let lines = std::io::stdin().lock().lines().map(|l| l.unwrap());
-            let lines = if conf.key_source == KeySource::stdin {
-                RawLines::separated_by_newlines(std::io::stdin().lock())
-            } else {
-                RawLines::separated_by_zeros(std::io::stdin().lock())
-            }.map(|l| l.unwrap());
-            let i = if let Some(keys_num) = conf.keys_num {
-                gen_data(keys_num, conf.foreign_keys_num, lines)
-            } else {
-                (lines.collect(), Vec::new())
-            };
-            print_input_stats("key set", &i.0);
-            print_input_stats("foreign key set", &i.1);
-            run(&conf, &i);
-        }
+                        //let lines = std::io::stdin().lock().lines().map(|l| l.unwrap());
+                        let lines = if conf.key_source == KeySource::stdin {
+                            RawLines::separated_by_newlines(std::io::stdin().lock())
+                        } else {
+                            RawLines::separated_by_zeros(std::io::stdin().lock())
+                        }.map(|l| l.unwrap());
+                        let i = if let Some(keys_num) = conf.keys_num {
+                            gen_data(keys_num, conf.foreign_keys_num, lines)
+                        } else {
+                            (lines.collect(), Vec::new())
+                        };
+                        print_input_stats("key set", &i.0);
+                        print_input_stats("foreign key set", &i.1);
+                        run(&conf, &i);
+            }
+        KeySource::randstr => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, RandomStrings::new(10..50, 1234)))
     };
 }
