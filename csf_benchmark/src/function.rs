@@ -10,7 +10,7 @@ pub trait CSFBuilder {
     const CAN_DETECT_ABSENCE: bool = true;
     type CSF: GetSize;
     fn new(self, keys: &[u32], values: &[u8], frequencies: &[u32; 256]) -> Self::CSF;
-    fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8>;
+    fn value(f: &Self::CSF, k: u32, levels: &mut usize) -> Option<u8>;
 }
 
 pub trait PrintParams {
@@ -55,7 +55,7 @@ where LSC: fp::LevelSizer, CSB: fp::CollisionSolverBuilder, S: BuildSeededHasher
             self)
     }
 
-    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8> {
+    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut usize) -> Option<u8> {
         f.get_stats(&k, levels).map(|v| v as u8)
     }
 }
@@ -84,7 +84,7 @@ where LSC: fp::LevelSizer, CSB: fp::CollisionSolverBuilder+fp::IsLossless, S: Bu
             &mut ())
     }
 
-    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8> {
+    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut usize) -> Option<u8> {
         f.get_stats(&k, levels).copied()
     }
 }
@@ -116,7 +116,7 @@ where LSC: fp::LevelSizer, GS: fp::GroupSize, SS: fp::SeedSize, S: BuildSeededHa
             &mut ())
     }
 
-    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8> {
+    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut usize) -> Option<u8> {
         f.get_stats(&k, levels).copied()
     }
 }
@@ -150,7 +150,7 @@ impl CSFBuilder for BuildLSCMap
              0).unwrap()
     }
 
-    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8> {
+    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut usize) -> Option<u8> {
         f.get_stats(&k, levels).copied()
     }
 }
@@ -177,7 +177,7 @@ impl CSFBuilder for BuildLSMap
         Self::CSF::try_with_conf_kv(keys, values, ls::MapConf::new()).unwrap()
     }
 
-    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut u64) -> Option<u8> {
+    #[inline(always)] fn value(f: &Self::CSF, k: u32, levels: &mut usize) -> Option<u8> {
         *levels += 1;
         Some(f.get(&k) as u8)
     }

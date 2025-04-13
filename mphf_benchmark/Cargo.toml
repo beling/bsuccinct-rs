@@ -24,14 +24,16 @@ ph = { version="0.9", path="../ph" }
 cmph-sys = { version=">=0.1", git = "https://github.com/beling/cmph-sys", optional = true }
 boomphf = { package = "boomphf-patched", version="0.5.9-0", git = "https://github.com/beling/rust-boomphf", optional = true }
 ptr_hash = { version="1.1", optional = true }
+cacheline-ef = { version = "1.1", optional = true }
 mem_dbg = "0.3"
 clap = { version="4.0", features = ["derive"] }
 fxhash = "0.2"
 seedable_hash = { version="0.1", path="../seedable_hash", default-features = false }
 
 [features]
-default = ["sux", "wyhash"]
-fmph-key-access = []    # Allows a choice of multiple methods of accessing keys by FMPH(GO).
+default = ["sux", "ptr_hash", "gxhash"] #"sux", "wyhash"
+fmph = []   # Allow testing FMPH and FMPHGO
+fmph-key-access = ["fmph"]    # Allows a choice of multiple methods of accessing keys by FMPH(GO).
 gxhash = ["ph/gxhash"]
 rapidhash = ["ph/rapidhash"]
 wyhash = ["ph/wyhash"]
@@ -39,7 +41,8 @@ xxhash-rust = ["ph/xxhash-rust"]
 sip13 = ["ph/sip13"]  # if enabled, makes available BuildSip13 that uses Sip13 from compiler internals
 fnv = ["ph/fnv"]
 sux = ["ph/sux"]
-#cacheline-ef = ["ph/cacheline-ef"]
+ptr_hash = ['dep:cacheline-ef', 'dep:ptr_hash']
+cacheline-ef = ["ph/cacheline-ef"]
 
 #[profile.release]
 #lto = true

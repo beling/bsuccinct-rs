@@ -37,23 +37,17 @@ impl<W: Write> BuildStatsCollector for BuildStatsPrinter<W> {
 pub trait AccessStatsCollector {
     /// Lookup algorithm calls this method to report that a value has been just found at given level (counting from 0).
     /// The single lookup can call `found_on_level` few times if it finds the fragments on value at different levels.
-    #[inline(always)] fn found_on_level(&mut self, _level_nr: u32) {}
+    #[inline(always)] fn found_on_level(&mut self, _level_nr: usize) {}
 
     /// Lookup algorithm calls this method to report that a value has not been found and reports number of level searched (counting from 0).
-    #[inline(always)]  fn fail_on_level(&mut self, _level_nr: u32) {}
+    #[inline(always)] fn fail_on_level(&mut self, _level_nr: usize) {}
 }
 
 /// Ignores all events and does nothing.
 impl AccessStatsCollector for () {}
 
 /// Increases own value by the number of levels visited, regardless of the result of the search.
-impl AccessStatsCollector for u32 {
-    #[inline(always)] fn found_on_level(&mut self, level_nr: u32) { *self += level_nr + 1; }
-    #[inline(always)] fn fail_on_level(&mut self, level_nr: u32) { *self += level_nr + 1; }
-}
-
-/// Increases own value by the number of levels visited, regardless of the result of the search.
-impl AccessStatsCollector for u64 {
-    #[inline(always)] fn found_on_level(&mut self, level_nr: u32) { *self += level_nr as u64 + 1; }
-    #[inline(always)] fn fail_on_level(&mut self, level_nr: u32) { *self += level_nr as u64 + 1; }
+impl AccessStatsCollector for usize {
+    #[inline(always)] fn found_on_level(&mut self, level_nr: usize) { *self += level_nr + 1; }
+    #[inline(always)] fn fail_on_level(&mut self, level_nr: usize) { *self += level_nr + 1; }
 }

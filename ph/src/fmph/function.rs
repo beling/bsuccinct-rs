@@ -194,7 +194,7 @@ pub(crate) fn get_mut_slice(v: &mut [AtomicU64]) -> &mut [u64] {
 }*/ // works, bot difference is negligible
 
 /// Returns the index of `key` at level with given `seed` and size (`level_size`), using given (seeded) `hash` method.
-#[inline(always)] fn index(key: &impl Hash, hash: &impl BuildSeededHasher, seed: u32, level_size: usize) -> usize {
+#[inline(always)] fn index(key: &impl Hash, hash: &impl BuildSeededHasher, seed: u64, level_size: usize) -> usize {
     utils::map64_to_64(hash.hash_one(key, seed), level_size as u64) as usize
 }
 
@@ -218,7 +218,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     /// Returns whether `key` is retained (`false` if it is already hashed at the levels built so far).
     pub fn retained<K>(&self, key: &K) -> bool where K: Hash {
         self.arrays.iter().enumerate()
-            .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash_builder, seed as u32, a.len() << 6)))
+            .all(|(seed, a)| !a.get_bit(index(key, &self.conf.hash_builder, seed as u64, a.len() << 6)))
     }
 
     /// Build level for given sequence of key indices using a single thread
@@ -250,7 +250,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Builds level using a single thread.
-    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> LevelArray
+    fn build_level_st<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u64) -> LevelArray
         where K: Hash
     {
         let mut result = level_array_for(level_size_segments);
@@ -265,7 +265,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Builds level possibly (if `keys` can be iterated in parallel) using multiple threads
-    fn build_level<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u32) -> LevelArray
+    fn build_level<K>(&self, keys: &impl KeySet<K>, level_size_segments: usize, seed: u64) -> LevelArray
         where K: Hash + Sync
     {
         if !(self.conf.use_multiple_threads && keys.has_par_for_each_key()) {
@@ -284,7 +284,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     /// Returns number of the level about to build (number of levels built so far).
-    #[inline(always)] fn level_nr(&self) -> u32 { self.arrays.len() as u32 }
+    #[inline(always)] fn level_nr(&self) -> u64 { self.arrays.len() as u64 }
 
     fn build_levels<K, BS>(&mut self, keys: &mut impl KeySet<K>, stats: &mut BS)
         where K: Hash + Sync, BS: stats::BuildStatsCollector
@@ -394,7 +394,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
 pub struct Function<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     level_sizes: Box<[u64]>,
-    hash_builder: S,
+    hash_builder: S
 }
 
 impl<S: BuildSeededHasher> GetSize for Function<S> {
@@ -406,7 +406,7 @@ impl<S: BuildSeededHasher> GetSize for Function<S> {
 impl<S: BuildSeededHasher> Function<S> {
 
     /// Returns index of the key `k` at the level of the given number (`level_nr`) and `size`.
-    #[inline(always)] fn index<K: Hash + ?Sized>(&self, k: &K, level_nr: u32, size: usize) -> usize {
+    #[inline(always)] fn index<K: Hash + ?Sized>(&self, k: &K, level_nr: u64, size: usize) -> usize {
         //utils::map64_to_32(self.hash_builder.hash_one(k, level_nr), size as u32) as usize
         utils::map64_to_64(self.hash_builder.hash_one(k, level_nr), size as u64) as usize
     }
@@ -418,10 +418,10 @@ impl<S: BuildSeededHasher> Function<S> {
     /// either [`None`] or an undetermined value from the specified range is returned.
     pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut array_begin_index = 0usize;
-        let mut level_nr = 0u32;
+        let mut level_nr = 0usize;
         loop {
-            let level_size = (*self.level_sizes.get(level_nr as usize)? as usize) << 6;
-            let i = array_begin_index + self.index(key, level_nr, level_size);
+            let level_size = (*self.level_sizes.get(level_nr)? as usize) << 6;
+            let i = array_begin_index + self.index(key, level_nr as u64, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level_nr);
                 return Some(unsafe{self.array.rank_unchecked(i)} as u64);
