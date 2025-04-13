@@ -44,6 +44,6 @@ sux = ["ph/sux"]
 ptr_hash = ['dep:cacheline-ef', 'dep:ptr_hash']
 cacheline-ef = ["ph/cacheline-ef"]
 
-[profile.release]
-lto = true
-codegen-units = 1
+#[profile.release]
+#lto = true
+#codegen-units = 1
