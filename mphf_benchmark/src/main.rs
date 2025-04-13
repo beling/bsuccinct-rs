@@ -291,7 +291,7 @@ fn main() {
     let conf: Conf = Conf::parse();
     println!("multi-threaded calculations use {} threads (to set by the RAYON_NUM_THREADS environment variable)", current_num_threads());
     println!("build and lookup times are averaged over {} and {} runs, respectively", conf.build_runs, conf.lookup_runs);
-    println!("integer and string hashers: {} {}", std::any::type_name::<IntHasher>(), std::any::type_name::<StrHasher>());
+    println!("hasher:  integer {}  string {}", std::any::type_name::<IntHasher>(), std::any::type_name::<StrHasher>());
     match conf.key_source {
         KeySource::xs32 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))),
         KeySource::xs64 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))),
