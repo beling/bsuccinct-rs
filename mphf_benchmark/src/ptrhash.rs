@@ -26,7 +26,7 @@ where PtrHash<K, BF>: MemSize, Hx: ptr_hash::hash::Hasher<K>, BF: BucketFn + Mem
     type Value = usize;
 
     fn new(&self, keys: &[K], _use_multiple_threads: bool) -> Self::MPHF {
-        <Self::MPHF>::new(keys, self.0)
+        Self::MPHF::new(keys, self.0)
     }
 
     #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
