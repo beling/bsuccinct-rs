@@ -26,23 +26,23 @@ fn ensure_no_absences(absences_found: f64) {
 }
 
 pub trait TypeToQuery {
-    //type ToHash: Hash;
-    fn to_query_type(&self) -> impl Hash;
+    type ToHash<'s>:  ?Sized + Hash + 's where Self: 's;
+    fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s>;
 }
 
 impl TypeToQuery for u32 {
-    //type ToHash = u32;
-    fn to_query_type(&self) -> impl Hash { self }
+    type ToHash<'s> = u32;
+    #[inline(always)] fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s> { self }
 }
 
 impl TypeToQuery for u64 {
-    //type ToHash = u64;
-    fn to_query_type(&self) -> impl Hash { self }
+    type ToHash<'s> = u64;
+    #[inline(always)] fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s> { self }
 }
 
 impl TypeToQuery for Box<[u8]> {
-    //type ToHash = &[u64];
-    fn to_query_type(&self) -> impl Hash { self.as_ref() }
+    type ToHash<'s> = [u8];
+    #[inline(always)] fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s> { self.as_ref() }
 }
 
 pub trait MPHFBuilder<K: Hash + TypeToQuery> {

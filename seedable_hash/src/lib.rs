@@ -9,28 +9,14 @@ use std::hash::{BuildHasher, Hash, Hasher};
 /// [`Hasher`] instances initialized with a given seed.
 pub trait BuildSeededHasher {
     type Hasher: Hasher;
-    type ProcessedSeed;
-
-    fn process_seed(&self, seed: u64) -> Self::ProcessedSeed;
-    fn build_from_processed(processed_seed: &Self::ProcessedSeed, seed: u64) -> Self::Hasher;
 
     /// Creates a new hasher initialized with the given 64-bit `seed`.
-    #[inline(always)] fn build_hasher(&self, seed: u64) -> Self::Hasher {
-        Self::build_from_processed(&self.process_seed(seed), seed)
-    }
+    fn build_hasher(&self, seed: u64) -> Self::Hasher;
 
     /// Calculates the hash of a single value `x`, using given 64-bit `seed`.
     #[inline(always)]
     fn hash_one<T: Hash>(&self, x: T, seed: u64) -> u64 {
         let mut h = self.build_hasher(seed);
-        x.hash(&mut h);
-        h.finish()
-    }
-
-    /// Calculates the hash of a single value `x`, using given 64-bit `seed`.
-    #[inline(always)]
-    fn hash_one_processed<T: Hash>(x: T, processed_seed: &Self::ProcessedSeed, seed: u64) -> u64 {
-        let mut h = Self::build_from_processed(processed_seed, seed);
         x.hash(&mut h);
         h.finish()
     }
@@ -42,54 +28,12 @@ pub struct Seedable<BH: BuildHasher + Clone>(pub BH);
 
 impl<BH: BuildHasher + Clone> BuildSeededHasher for Seedable<BH> {
     type Hasher = BH::Hasher;
-    type ProcessedSeed = Self;
 
     #[inline(always)]
     fn build_hasher(&self, seed: u64) -> Self::Hasher {
         let mut result = self.0.build_hasher();
         result.write_u64(seed);
         result
-    }
-    
-    #[inline(always)]
-    fn process_seed(&self, _seed: u64) -> Self::ProcessedSeed { self.clone() }
-    
-    #[inline(always)]
-    fn build_from_processed(processed_seed: &Self::ProcessedSeed, seed: u64) -> Self::Hasher {
-        processed_seed.build_hasher(seed)
-    }
-
-    #[inline(always)]
-    fn hash_one_processed<T: Hash>(x: T, processed_seed: &Self::ProcessedSeed, seed: u64) -> u64 {
-        processed_seed.hash_one(x, seed)
-    }
-}
-
-/// [`BuildSeededHasher`] that uses standard [`BuildHasher`].
-#[derive(Default, Copy, Clone)]
-pub struct SeedableCloned<BH: BuildHasher>(pub BH);
-
-impl<BH: BuildHasher> BuildSeededHasher for SeedableCloned<BH> where BH::Hasher: Clone {
-    type Hasher = BH::Hasher;
-    type ProcessedSeed = BH::Hasher;
-
-    #[inline(always)]
-    fn build_hasher(&self, seed: u64) -> Self::Hasher {
-        let mut result = self.0.build_hasher();
-        result.write_u64(seed);
-        result
-    }
-    
-    #[inline(always)]
-    fn process_seed(&self, seed: u64) -> Self::ProcessedSeed {
-        let mut result = self.0.build_hasher();
-        result.write_u64(seed);
-        result
-    }
-    
-    #[inline(always)]
-    fn build_from_processed(processed_seed: &Self::ProcessedSeed, _seed: u64) -> Self::Hasher {
-        processed_seed.clone()
     }
 }
 
@@ -121,19 +65,10 @@ pub struct BuildWyHash;
 #[cfg(feature = "wyhash")]
 impl BuildSeededHasher for BuildWyHash {
     type Hasher = wyhash::WyHash;
-    type ProcessedSeed = Self;
 
     #[inline]
     fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::with_seed(seed)
-    }
-    
-    #[inline]
-    fn process_seed(&self, _seed: u64) -> Self::ProcessedSeed { BuildWyHash }
-    
-    #[inline]
-    fn build_from_processed(processed_seed: &Self::ProcessedSeed, seed: u64) -> Self::Hasher {
-        processed_seed.build_hasher(seed)
     }
 }
 
@@ -146,12 +81,12 @@ pub struct BuildXxh3;
 impl BuildSeededHasher for BuildXxh3 {
     type Hasher = xxhash_rust::xxh3::Xxh3;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    /*#[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::with_seed(seed as u64)
-    }
+    }*/
 
     #[inline]
-    fn build_hasher64(&self, seed: u64) -> Self::Hasher {
+    fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::with_seed(seed)
     }
 }
@@ -171,7 +106,6 @@ impl BuildSeededHasher for fnv::FnvBuildHasher {
     }
 }
 
-
 /// [`BuildSeededHasher`] that uses `GxHasher` from `gxhash` crate.
 #[cfg(feature = "gxhash")]
 #[derive(Default, Copy, Clone)]
@@ -183,17 +117,6 @@ pub struct BuildGxHash;
 #[cfg(feature = "gxhash")]
 impl BuildSeededHasher for BuildGxHash {
     type Hasher = gxhash::GxHasher;
-    type ProcessedSeed = gxhash::GxBuildHasher;
-    
-    #[inline]
-    fn process_seed(&self, seed: u64) -> Self::ProcessedSeed {
-        Self::ProcessedSeed::with_seed(seed as i64)
-    }
-
-    #[inline]
-    fn build_from_processed(processed_seed: &Self::ProcessedSeed, _seed: u64) -> Self::Hasher {
-        processed_seed.build_hasher()
-    }
 
     #[inline] fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::with_seed(seed as i64)

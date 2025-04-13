@@ -30,11 +30,11 @@ impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send 
     }
 
     #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
-        Some(mphf.get(&key.to_query_type()) as u64)  // TODO level support
+        Some(mphf.get(key.to_query_type()) as u64)  // TODO level support
     }
 
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
-        mphf.get(&key.to_query_type())
+        mphf.get(key.to_query_type())
     }
 
     #[inline(always)] fn mphf_size(mphf: &Self::MPHF) -> usize {

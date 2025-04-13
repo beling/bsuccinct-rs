@@ -13,7 +13,7 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [features]
-default = ["aligned-vec", "sux", "wyhash"] #"sux" #, "cseq", "cacheline-ef"
+default = ["aligned-vec", "sux"] #, "wyhash""sux" #, "cseq", "cacheline-ef"
 gxhash = ["seedable_hash/gxhash"]
 rapidhash = ["seedable_hash/rapidhash"]
 wyhash = ["seedable_hash/wyhash"]
