@@ -153,7 +153,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     {
         if threads_num == 1 { return Self::with_slice_bps_bs_hash(keys, bits_per_seed, bucket_size100, hasher, stats); }
         Self::_new(|h| {
-            Self::build_level_from_slice_mt(keys, bits_per_seed, bucket_size100, threads_num, h, 0)
+            Self::build_level_from_slice_mt(keys, bits_per_seed, bucket_size100, threads_num, h, 0, stats)
         }, |keys, level_nr, h| {
             Self::build_level_mt(keys, bits_per_seed, bucket_size100, threads_num, &h, level_nr, ())
         }, hasher)
@@ -222,10 +222,11 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     }
 
     #[inline]
-    fn build_level_from_slice_mt<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u64)
+    fn build_level_from_slice_mt<K, St>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u64, mut stats: St)
         -> (Vec<K>, SeedEx<SS>, Box<[u64]>, usize)
-        where K: Hash+Sync+Send+Clone, S: Sync
+        where K: Hash+Sync+Send+Clone, S: Sync, St: BuildStats
     {
+        stats.pre_hash();
         let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
             //let mut k = Vec::with_capacity(keys.len());
             //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
@@ -234,15 +235,19 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         } else {
             keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
         };
+        stats.pre_sort();
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
+        stats.pre_seeding();
         let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
             build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+        stats.pre_keys_removing();
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
+        stats.post_keys_removing();
         (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
     }
 

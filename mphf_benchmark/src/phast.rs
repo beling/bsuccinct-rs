@@ -18,12 +18,14 @@ impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send 
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         if use_multiple_threads {
+            println!("Multiple threading:");
             Self::MPHF::with_slice_bps_bs_threads_hash(keys, 
                 self.bits_per_seed, self.bucket_size_100,
                 std::thread::available_parallelism().map_or(1, |v| v.into()),
                 S::default(), self.stats
             )
         } else {
+            println!("Single threading:");
             Self::MPHF::with_slice_bps_bs_hash(keys,
                 self.bits_per_seed, self.bucket_size_100, S::default(), self.stats
             )
