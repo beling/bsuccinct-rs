@@ -25,7 +25,27 @@ fn ensure_no_absences(absences_found: f64) {
     assert_eq!(absences_found, 0.0, "MPHF does not assign the value for {}% keys of the input", absences_found*100.0);
 }
 
-pub trait MPHFBuilder<K: Hash> {
+pub trait TypeToQuery {
+    type ToHash<'s>:  ?Sized + Hash + 's where Self: 's;
+    fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s>;
+}
+
+impl TypeToQuery for u32 {
+    type ToHash<'s> = u32;
+    #[inline(always)] fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s> { self }
+}
+
+impl TypeToQuery for u64 {
+    type ToHash<'s> = u64;
+    #[inline(always)] fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s> { self }
+}
+
+impl TypeToQuery for Box<[u8]> {
+    type ToHash<'s> = [u8];
+    #[inline(always)] fn to_query_type<'s>(&'s self) -> &'s Self::ToHash::<'s> { self.as_ref() }
+}
+
+pub trait MPHFBuilder<K: Hash + TypeToQuery> {
     const CAN_DETECT_ABSENCE: bool = true;
     const BUILD_THREADS: Threads = Threads::Both;
     const BUILD_THREADS_DOES_NOT_CHANGE_SIZE: bool = true;

@@ -86,7 +86,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
-            let key_hash = self.hasher.hash_one(key, level_nr as u32 + 1);
+            let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
             let seed = l.seeds.seed_for(key_hash);
             if seed != 0 {
                 return self.unassigned.get(l.seeds.get(key_hash, seed) + l.shift)
@@ -162,7 +162,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     #[inline]
     fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S) -> Self
         where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS>, Box<[u64]>, usize),
-            BL: Fn(&mut Vec::<K>, u32, &S) -> (SeedEx<SS>, Box<[u64]>, usize),
+            BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS>, Box<[u64]>, usize),
         {
         let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
         //Self::finish_building(keys, bits_per_seed, bucket_size100, threads_num, hasher, level0, unassigned_values, unassigned_len)
@@ -174,7 +174,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         while !keys.is_empty() {
             let keys_len = keys.len();
             let (seeds, unassigned_values, _unassigned_len) =
-                build_level(&mut keys, levels.len() as u32+1, &hasher);
+                build_level(&mut keys, levels.len() as u64+1, &hasher);
             let shift = unassigned.len();
             for i in 0..keys_len {
                 if !unsafe{unassigned_values.get_bit_unchecked(i)} {
@@ -199,7 +199,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     }
 
     #[inline]
-    fn build_level_from_slice_st<K, St: BuildStats>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, hasher: &S, level_nr: u32, mut stats: St)
+    fn build_level_from_slice_st<K, St: BuildStats>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, hasher: &S, level_nr: u64, mut stats: St)
         -> (Vec<K>, SeedEx<SS>, Box<[u64]>, usize)
         where K: Hash+Clone
     {
@@ -222,13 +222,13 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     }
 
     #[inline]
-    fn build_level_from_slice_mt<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u32)
+    fn build_level_from_slice_mt<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u64)
         -> (Vec<K>, SeedEx<SS>, Box<[u64]>, usize)
         where K: Hash+Sync+Send+Clone, S: Sync
     {
         let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
             //let mut k = Vec::with_capacity(keys.len());
-            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one(k, level_nr)));
+            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
             //k.into_boxed_slice()
             keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
         } else {
@@ -247,7 +247,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     }
 
     #[inline(always)]
-    fn build_level_st<K, St: BuildStats>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, hasher: &S, level_nr: u32, mut stats: St)
+    fn build_level_st<K, St: BuildStats>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, hasher: &S, level_nr: u64, mut stats: St)
         -> (SeedEx<SS>, Box<[u64]>, usize)
         where K: Hash
     {
@@ -268,14 +268,14 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     }
 
     #[inline]
-    fn build_level_mt<K, St: BuildStats>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u32, mut stats: St)
+    fn build_level_mt<K, St: BuildStats>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, level_nr: u64, mut stats: St)
         -> (SeedEx<SS>, Box<[u64]>, usize)
         where K: Hash+Sync+Send, S: Sync
     {
         stats.pre_hash();
         let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
             //let mut k = Vec::with_capacity(keys.len());
-            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one(k, level_nr)));
+            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
             //k.into_boxed_slice()
             keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
         } else {

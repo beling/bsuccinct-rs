@@ -45,7 +45,7 @@ impl<C: GetSize, S> GetSize for CMap<C, S> {
 }
 
 impl<C, S: BuildSeededHasher> CMap<C, S> {
-    #[inline(always)] fn index<K: Hash + ?Sized>(&self, k: &K, level_nr: u32, size: usize) -> usize {
+    #[inline(always)] fn index<K: Hash + ?Sized>(&self, k: &K, level_nr: u64, size: usize) -> usize {
         utils::map64_to_64(self.hash_builder.hash_one(k, level_nr), size as u64) as usize
     }
 }
@@ -55,10 +55,10 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
     pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, k: &K, access_stats: &mut A) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
         let mut result_decoder = self.value_coding.decoder();
         let mut array_begin_index = 0usize;
-        let mut level = 0u32;
+        let mut level = 0usize;
         loop {
-            let level_size = (*self.level_sizes.get(level as usize)? as usize) << 6usize;
-            let i = array_begin_index + self.index(k, level, level_size);
+            let level_size = (*self.level_sizes.get(level)? as usize) << 6usize;
+            let i = array_begin_index + self.index(k, level as u64, level_size);
             if self.array.content.get_bit(i) {
                 match result_decoder.consume(self.value_fragments.get_fragment(self.array.rank(i), self.value_coding.bits_per_fragment()) as u8) {
                     DecodingResult::Value(v) => {
@@ -103,7 +103,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         let mut arrays = Vec::<Box<[u64]>>::new();
         let mut input_size = keys.len();
         let mut value_rev_indices: Box<[u8]> = values.iter().map(|c| value_coding.len_of(*c)-1).collect();
-        let mut level_nr = 0u32;
+        let mut level_nr = 0u64;
         while input_size != 0 {
             let level_size_segments = conf.level_sizer.size_segments_for_values(
                 || values[0..input_size].iter().zip(value_rev_indices[0..input_size].iter()).map(|(c, ri)| value_coding.rev_fragment_of(*c, *ri) as u64),
@@ -150,7 +150,7 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
         for input_index in 0..keys.len() {
             //let mut result_decoder = self.value_coding.decoder();
             let mut array_begin_index = 0usize;
-            let mut level = 0u32;
+            let mut level = 0u64;
             loop {
                 let level_size = (levels[level as usize] as usize) << 6usize;
                 let i = array_begin_index + utils::map64_to_64(conf.hash.hash_one(&keys[input_index], level), level_size as u64) as usize;

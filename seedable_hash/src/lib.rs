@@ -10,12 +10,12 @@ use std::hash::{BuildHasher, Hash, Hasher};
 pub trait BuildSeededHasher {
     type Hasher: Hasher;
 
-    /// Creates a new hasher initialized with the given `seed`.
-    fn build_hasher(&self, seed: u32) -> Self::Hasher;
+    /// Creates a new hasher initialized with the given 64-bit `seed`.
+    fn build_hasher(&self, seed: u64) -> Self::Hasher;
 
-    /// Calculates the hash of a single value `x`, using given `seed`.
-    #[inline]
-    fn hash_one<T: Hash>(&self, x: T, seed: u32) -> u64 {
+    /// Calculates the hash of a single value `x`, using given 64-bit `seed`.
+    #[inline(always)]
+    fn hash_one<T: Hash>(&self, x: T, seed: u64) -> u64 {
         let mut h = self.build_hasher(seed);
         x.hash(&mut h);
         h.finish()
@@ -24,15 +24,15 @@ pub trait BuildSeededHasher {
 
 /// [`BuildSeededHasher`] that uses standard [`BuildHasher`].
 #[derive(Default, Copy, Clone)]
-pub struct Seedable<BH: BuildHasher>(pub BH);
+pub struct Seedable<BH: BuildHasher + Clone>(pub BH);
 
-impl<BH: BuildHasher> BuildSeededHasher for Seedable<BH> {
+impl<BH: BuildHasher + Clone> BuildSeededHasher for Seedable<BH> {
     type Hasher = BH::Hasher;
 
-    #[inline]
-    fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    #[inline(always)]
+    fn build_hasher(&self, seed: u64) -> Self::Hasher {
         let mut result = self.0.build_hasher();
-        result.write_u32(seed);
+        result.write_u64(seed);
         result
     }
 }
@@ -51,6 +51,10 @@ impl BuildSeededHasher for BuildSip13 {
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::new_with_keys(seed as u64, seed as u64)
     }
+
+    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
+        Self::Hasher::new_with_keys(seed as u64, seed as u64)
+    }
 }
 
 /// [`BuildSeededHasher`] that uses `wyhash` crate.
@@ -62,17 +66,28 @@ pub struct BuildWyHash;
 impl BuildSeededHasher for BuildWyHash {
     type Hasher = wyhash::WyHash;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
-        Self::Hasher::with_seed(seed as u64)
+    #[inline]
+    fn build_hasher(&self, seed: u64) -> Self::Hasher {
+        Self::Hasher::with_seed(seed)
     }
 }
 
+/// [`BuildSeededHasher`] that uses `Xxh3` from `xxhash_rust` crate.
 #[cfg(feature = "xxhash-rust")]
-impl BuildSeededHasher for xxhash_rust::xxh3::Xxh3Builder {
+#[derive(Default, Copy, Clone)]
+pub struct BuildXxh3;
+
+#[cfg(feature = "xxhash-rust")]
+impl BuildSeededHasher for BuildXxh3 {
     type Hasher = xxhash_rust::xxh3::Xxh3;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    /*#[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::with_seed(seed as u64)
+    }*/
+
+    #[inline]
+    fn build_hasher(&self, seed: u64) -> Self::Hasher {
+        Self::Hasher::with_seed(seed)
     }
 }
 
@@ -84,14 +99,26 @@ impl BuildSeededHasher for fnv::FnvBuildHasher {
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::with_key(seed as u64)
     }
+
+    #[inline]
+    fn build_hasher64(&self, seed: u64) -> Self::Hasher {
+        Self::Hasher::with_key(seed)
+    }
 }
+
+/// [`BuildSeededHasher`] that uses `GxHasher` from `gxhash` crate.
+#[cfg(feature = "gxhash")]
+#[derive(Default, Copy, Clone)]
+pub struct BuildGxHash;
+
+//type BuildGxHash = gxhash::GxBuildHasher;
 
 /// [`BuildSeededHasher`] that uses `gxhash` crate.
 #[cfg(feature = "gxhash")]
-impl BuildSeededHasher for gxhash::GxBuildHasher {
+impl BuildSeededHasher for BuildGxHash {
     type Hasher = gxhash::GxHasher;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    #[inline] fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::with_seed(seed as i64)
     }
 }
@@ -104,6 +131,10 @@ impl BuildSeededHasher for rapidhash::RapidBuildHasher {
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::new(seed as u64)
     }
+
+    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
+        Self::Hasher::new(seed)
+    }
 }
 
 /// [`BuildSeededHasher`] that uses `rapidhash::RapidInlineBuildHasher`.
@@ -114,11 +145,15 @@ impl BuildSeededHasher for rapidhash::RapidInlineBuildHasher {
     #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
         Self::Hasher::new(seed as u64)
     }
+
+    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
+        Self::Hasher::new(seed)
+    }
 }
 
 /// The default [`BuildSeededHasher`].
 #[cfg(feature = "gxhash")]
-pub type BuildDefaultSeededHasher = gxhash::GxBuildHasher;
+pub type BuildDefaultSeededHasher = BuildGxHash;
 
 /// The default [`BuildSeededHasher`].
 #[cfg(all(feature = "wyhash", not(feature = "gxhash")))]
@@ -126,7 +161,7 @@ pub type BuildDefaultSeededHasher = BuildWyHash;
 
 /// The default [`BuildSeededHasher`].
 #[cfg(all(feature = "xxhash-rust", not(feature = "gxhash"), not(feature = "wyhash")))]
-pub type BuildDefaultSeededHasher = xxhash_rust::xxh3::Xxh3Builder;
+pub type BuildDefaultSeededHasher = BuildXxh3;
 
 /// The default [`BuildSeededHasher`].
 #[cfg(all(feature = "sip13", not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "xxhash-rust")))]

@@ -38,7 +38,7 @@ impl<S: BuildSeededHasher> GetSize for Map<S> {
 }
 
 #[inline]
-fn index<H: BuildSeededHasher, K: Hash + ?Sized>(hash: &H, k: &K, level_nr: u32, level_size: usize) -> usize {
+fn index<H: BuildSeededHasher, K: Hash + ?Sized>(hash: &H, k: &K, level_nr: u64, level_size: usize) -> usize {
     ph::utils::map64_to_64(hash.hash_one(k, level_nr), level_size as u64) as usize
 }
 
@@ -78,10 +78,10 @@ impl<S: BuildSeededHasher> Map<S> {
     /// either [`None`] or a value assigned to other key is returned.
     pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut array_begin_index = 0usize;
-        let mut level = 0u32;
+        let mut level = 0usize;
         loop {
-            let level_size = *self.level_sizes.get(level as usize)? << 6usize;
-            let i = array_begin_index + index(&self.hash, key, level, level_size);
+            let level_size = *self.level_sizes.get(level)? << 6usize;
+            let i = array_begin_index + index(&self.hash, key, level as u64, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level);
                 return Some(self.values.get_fragment(self.array.rank(i), self.bits_per_value));
@@ -135,7 +135,7 @@ impl<S: BuildSeededHasher> Map<S> {
     {
         let mut res = Arrays::default();
         let mut input_size = kv.kv_len();
-        let mut level_nr = 0u32;
+        let mut level_nr = 0u64;
         let mut levels_without_reduction = 0;   // number of levels without any reduction in number of the keys
         while input_size != 0 {
             let level_size_segments = conf.level_sizer.size_segments(kv);

@@ -361,11 +361,11 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
             loop {
                 match result_decoder.consume(self.value_fragments.get(&(k, fragment_nr)) as u8) {
                     DecodingResult::Value(v) => {
-                        access_stats.found_on_level(fragment_nr as u32);
+                        access_stats.found_on_level(fragment_nr as usize);
                         return Some(v)
                     },
                     DecodingResult::Invalid => {
-                        access_stats.fail_on_level(fragment_nr as u32);
+                        access_stats.fail_on_level(fragment_nr as usize);
                         return None
                     },
                     DecodingResult::Incomplete => {}
@@ -376,11 +376,11 @@ impl<C: Coding, S: BuildSeededHasher> CMap<C, S> {
             loop {
                 match result_decoder.consume_checked(self.value_fragments.get(&(k, fragment_nr)) as u8) {
                     DecodingResult::Value(v) => {
-                        access_stats.found_on_level(fragment_nr as u32);
+                        access_stats.found_on_level(fragment_nr as usize);
                         return Some(v)
                     },
                     DecodingResult::Invalid => {
-                        access_stats.fail_on_level(fragment_nr as u32);
+                        access_stats.fail_on_level(fragment_nr as usize);
                         return None
                     },
                     DecodingResult::Incomplete => {}

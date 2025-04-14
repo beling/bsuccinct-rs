@@ -363,7 +363,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
     pub(crate) fn build(&mut self) {
         //let mut seeds = vec![0; self.conf.buckets_num].into_boxed_slice();
         if !self.find_nonempty() { return; }
-        self.value_to_clear = self.partition_begin(self.span_begin);
+        self.value_to_clear = self.partition_begin(self.span_begin); // / 64;
         self.add_candidates_from(self.span_begin);
         while let Some((_, Reverse(best_bucket))) = self.candidates_to_active.pop() {
         //while let Some(best_bucket) = self.extract_best_bucket() {
@@ -409,9 +409,10 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
     /// Clear used before span_begin.
     #[inline]
     pub fn clear_used(&mut self) {
-        let end = self.partition_begin(self.span_begin);
+        let end = self.partition_begin(self.span_begin); // / 64;
         while self.value_to_clear != end {  // TODO clear in 64-bit steps
             self.used_values.remove(self.value_to_clear);
+            //self.used_values.remove_fragment_64(self.value_to_clear);
             self.value_to_clear += 1;
         }
     }

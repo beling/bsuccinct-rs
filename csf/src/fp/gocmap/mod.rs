@@ -50,7 +50,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
     /// Maps value of each key to code fragment, and adds the fragment to collision solver.
     fn consider_all<K, LSC, GetGroupSeed, CS, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                                   keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
-                                                  level_size_groups: u64, level_nr: u32,
+                                                  level_size_groups: u64, level_nr: u64,
                                                   group_seed: GetGroupSeed, collision_solver: &mut CS)
         where K: Hash, GetGroupSeed: Fn(u64) -> u16, CS: CollisionSolver  // returns group seed for group with given index
     {
@@ -69,7 +69,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
     /// Counts number of positive collisions in each group.
     fn count_collisions_in_groups<K, LSC, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                               keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
-                                              level_size_groups: u64, level_nr: u32, group_seed: u16) -> Box<[u8]>
+                                              level_size_groups: u64, level_nr: u64, group_seed: u16) -> Box<[u8]>
         where K: Hash
     {
         let mut collision_solver = CountPositiveCollisions::new(conf.goconf.bits_per_group * (level_size_groups as usize));
@@ -81,10 +81,10 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
     pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<<<C as Coding>::Decoder<'_> as Decoder>::Decoded> {
         let mut result_decoder = self.value_coding.decoder();
         let mut groups_before = 0;
-        let mut level_nr = 0u32;
+        let mut level_nr = 0usize;
         loop {
-            let level_size_groups = *self.level_size.get(level_nr as usize)?;
-            let hash = self.goconf.hash_builder.hash_one(key, level_nr);
+            let level_size_groups = *self.level_size.get(level_nr)?;
+            let hash = self.goconf.hash_builder.hash_one(key, level_nr as u64);
             let group = groups_before + group_nr(hash, level_size_groups);
             let seed = self.goconf.bits_per_seed.get_seed(&self.group_seeds, group as usize);
             let i = self.goconf.bits_per_group.bit_index_for_seed(hash, seed, group);
@@ -130,7 +130,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
         let mut group_seeds = Vec::<Box<[SS::VecElement]>>::new();
         let mut input_size = keys.len();
         let mut value_rev_indices: Box<[u8]> = values.iter().map(|c| value_coding.len_of(*c)-1).collect();
-        let mut level_nr = 0u32;
+        let mut level_nr = 0u64;
         while input_size != 0 {
             let in_keys = &keys[0..input_size];
             let in_values = &values[0..input_size];
@@ -196,7 +196,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
         let mut output_value_fragments = Box::<[u64]>::with_zeroed_bits(out_fragments_num as usize * value_coding.bits_per_fragment() as usize);
         for input_index in 0..keys.len() {
             let mut groups_before = 0u64;
-            let mut level_nr = 0u32;
+            let mut level_nr = 0u64;
             loop {
                 let level_size_groups = level_size[level_nr as usize];
                 let hash = conf.goconf.hash_builder.hash_one(&keys[input_index], level_nr);

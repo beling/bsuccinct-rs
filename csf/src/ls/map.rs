@@ -33,7 +33,7 @@ pub struct Map<S = BuildDefaultSeededHasher> {
 
 /// Maps `k` to range `[0, size)` using given `hash_builder` and seed.
 #[inline(always)] fn index<K: Hash, S: BuildSeededHasher>(hash_builder: &S, k: &K, fun_number_seed: u8, size: usize) -> usize {
-    map64_to_64(hash_builder.hash_one(k, fun_number_seed as u32), size as u64) as usize
+    map64_to_64(hash_builder.hash_one(k, fun_number_seed as u64), size as u64) as usize
 }
 
 impl<S> GetSize for Map<S> {

@@ -1,6 +1,6 @@
 use ph::{fmph::TwoToPowerBitsStatic, phast::{stats::BuildStats, DefaultCompressedArray}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
 
-use crate::{BenchmarkResult, Conf, MPHFBuilder, PHastConf};
+use crate::{builder::TypeToQuery, BenchmarkResult, Conf, MPHFBuilder, PHastConf};
 use std::{fs::File, hash::Hash, io::Write};
 
 #[derive(Default)]
@@ -11,7 +11,7 @@ pub struct PHastBencher<SS, S, St> {
     stats: St
 }
 
-impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone, St: BuildStats> MPHFBuilder<K> for PHastBencher<SS, S, St> {
+impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, St: BuildStats> MPHFBuilder<K> for PHastBencher<SS, S, St> {
     type MPHF = ph::phast::Function<SS, DefaultCompressedArray, S>;
 
     type Value = usize;
@@ -35,7 +35,7 @@ impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send 
     }
 
     #[inline(always)] fn value(mphf: &Self::MPHF, key: &K) -> Self::Value {
-        mphf.get(key)
+        mphf.get(key.to_query_type())
     }
 
     #[inline(always)] fn mphf_size(mphf: &Self::MPHF) -> usize {
@@ -52,12 +52,12 @@ impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send 
 }*/
 
 pub fn benchmark_with<S, SS, K, St>(bits_per_seed: SS, bucket_size_100: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, stats: St) -> BenchmarkResult
-where SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone, St: BuildStats
+where SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, St: BuildStats
 {
     PHastBencher { hash: std::marker::PhantomData::<S>::default(), bits_per_seed, bucket_size_100, stats }.benchmark(i, conf)
 }
 
-pub fn phast_benchmark<H: BuildSeededHasher+Default+Sync, K: Hash + Sync + Send + Clone, St: BuildStats>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, stats: St) {
+pub fn phast_benchmark<H: BuildSeededHasher+Default+Sync, K: Hash + Sync + Send + Clone + TypeToQuery, St: BuildStats>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, stats: St) {
     let bucket_size_100 = phast_conf.bucket_size();
     let b = match phast_conf.bits_per_seed {
         8 => benchmark_with::<H, _, _, _>(Bits8, bucket_size_100, i, conf, stats),

@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "cmph-sys")] mod cmph;
+use builder::TypeToQuery;
 #[cfg(feature = "cmph-sys")] use cmph::chd_benchmark;
 
 mod builder;
@@ -13,8 +14,8 @@ pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stat
 mod inout;
 use inout::{gen_data, RandomStrings, RawLines};
 
-mod fmph;
-use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, FMPHGO_HEADER};
+#[cfg(feature = "fmph")] mod fmph;
+#[cfg(feature = "fmph")] use fmph::{fmph_benchmark, fmphgo_benchmark_all, fmphgo_run, FMPHGOBuildParams, FMPHGO_HEADER};
 
 mod phast;
 use phast::phast_benchmark;
@@ -54,6 +55,7 @@ pub enum Threads {
     Both = 2 | 1
 }
 
+#[cfg(feature = "fmph")]
 #[allow(non_camel_case_types)]
 #[derive(Args)]
 pub struct FMPHConf {
@@ -112,10 +114,13 @@ impl PHastConf {
 pub enum Method {
     // Most methods
     //Most,
+    #[cfg(feature = "fmph")]
     /// FMPHGO with all settings
     FMPHGO_all,
+    #[cfg(feature = "fmph")]
     /// FMPHGO with selected settings
     FMPHGO(FMPHGOConf),
+    #[cfg(feature = "fmph")]
     /// FMPH
     FMPH(FMPHConf),
     /// PHast
@@ -199,18 +204,18 @@ pub struct Conf {
     pub save_details: bool,
 }
 
-#[cfg(feature = "cmph-sys")] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource {}
-#[cfg(feature = "cmph-sys")] impl<T: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource> CanBeKey for T {}
+#[cfg(feature = "cmph-sys")] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource + TypeToQuery {}
+#[cfg(feature = "cmph-sys")] impl<T: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource + TypeToQuery> CanBeKey for T {}
 
-#[cfg(not(feature = "cmph-sys"))] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default {}
-#[cfg(not(feature = "cmph-sys"))] impl<T: Hash + Sync + Send + Clone + Debug + Default> CanBeKey for T {}
+#[cfg(not(feature = "cmph-sys"))] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default + TypeToQuery {}
+#[cfg(not(feature = "cmph-sys"))] impl<T: Hash + Sync + Send + Clone + Debug + Default + TypeToQuery> CanBeKey for T {}
 
 fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
-        Method::FMPHGO_all =>
+        #[cfg(feature = "fmph")] Method::FMPHGO_all =>
             fmphgo_benchmark_all(file("FMPHGO_all", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER),
                 &i, &conf, KeyAccess::Indices8),
-        Method::FMPHGO(ref fmphgo_conf) => {
+        #[cfg(feature = "fmph")] Method::FMPHGO(ref fmphgo_conf) => {
             let mut file = file("FMPHGO", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER);
             println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.cache_threshold);
             let mut p = FMPHGOBuildParams {
@@ -236,7 +241,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                 _ => eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
             }
         }
-        Method::FMPH(ref fmph_conf) => {
+        #[cfg(feature = "fmph")] Method::FMPH(ref fmph_conf) => {
             match conf.key_source {
                 KeySource::xs32 | KeySource::xs64 => fmph_benchmark(i, conf, fmph_conf.level_size, Some((IntHasher::default(), fmph_conf))),
                 _ => fmph_benchmark(i, conf, fmph_conf.level_size, Some((StrHasher::default(), fmph_conf)))
@@ -273,7 +278,10 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
         #[cfg(feature = "ptr_hash")] Method::PtrHash{ speed } => {
             println!("PtrHash: results...");
             let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "speed");
-            ptrhash_benchmark(&mut csv_file, i, conf, speed);
+            match conf.key_source {
+                KeySource::xs32 | KeySource::xs64 => ptrhash_benchmark::<ptr_hash::hash::FxHash, _>(&mut csv_file, i, conf, speed),
+                _ => ptrhash_benchmark::<ptrhash::StrHasherForPtr, _>(&mut csv_file, i, conf, speed),
+            }
         },
         Method::None => {}
     }
@@ -283,25 +291,26 @@ fn main() {
     let conf: Conf = Conf::parse();
     println!("multi-threaded calculations use {} threads (to set by the RAYON_NUM_THREADS environment variable)", current_num_threads());
     println!("build and lookup times are averaged over {} and {} runs, respectively", conf.build_runs, conf.lookup_runs);
+    println!("hasher:  integer {}  string {}", std::any::type_name::<IntHasher>(), std::any::type_name::<StrHasher>());
     match conf.key_source {
         KeySource::xs32 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))),
         KeySource::xs64 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))),
         KeySource::stdin|KeySource::stdinz => {
-                        //let lines = std::io::stdin().lock().lines().map(|l| l.unwrap());
-                        let lines = if conf.key_source == KeySource::stdin {
-                            RawLines::separated_by_newlines(std::io::stdin().lock())
-                        } else {
-                            RawLines::separated_by_zeros(std::io::stdin().lock())
-                        }.map(|l| l.unwrap());
-                        let i = if let Some(keys_num) = conf.keys_num {
-                            gen_data(keys_num, conf.foreign_keys_num, lines)
-                        } else {
-                            (lines.collect(), Vec::new())
-                        };
-                        print_input_stats("key set", &i.0);
-                        print_input_stats("foreign key set", &i.1);
-                        run(&conf, &i);
-            }
+            //let lines = std::io::stdin().lock().lines().map(|l| l.unwrap());
+            let lines = if conf.key_source == KeySource::stdin {
+                RawLines::separated_by_newlines(std::io::stdin().lock())
+            } else {
+                RawLines::separated_by_zeros(std::io::stdin().lock())
+            }.map(|l| l.unwrap());
+            let i = if let Some(keys_num) = conf.keys_num {
+                gen_data(keys_num, conf.foreign_keys_num, lines)
+            } else {
+                (lines.collect(), Vec::new())
+            };
+            print_input_stats("key set", &i.0);
+            print_input_stats("foreign key set", &i.1);
+            run(&conf, &i);
+        },
         KeySource::randstr => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, RandomStrings::new(10..50, 1234)))
     };
 }

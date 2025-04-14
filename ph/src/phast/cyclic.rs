@@ -33,6 +33,11 @@ impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
     pub(crate) fn remove(&mut self, value: usize) {
         unsafe{ self.0.clear_bit_unchecked(value & Self::MASK) }
     }
+
+    /*const CHUNK_MASK: usize = SIZE_64 - 1;
+    #[inline] pub fn remove_fragment_64(&mut self, chunk_index: usize) {
+        unsafe{ *self.0.get_unchecked_mut(chunk_index & Self::CHUNK_MASK) = 0 };
+    }*/
 }
 
 impl<const SIZE_64: usize> Default for CyclicSet<SIZE_64> {

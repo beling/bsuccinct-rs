@@ -127,7 +127,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOConf<GS, SS, S> {
     }
 
     /// Returns array index for given `key`, seed and size (in groups) of level, and group seed provided by `group_seed`.
-    #[inline(always)] pub fn key_index<GetGroupSeed, K>(&self, key: &K, level_seed: u32, level_size_groups: u64, group_seed: GetGroupSeed) -> usize
+    #[inline(always)] pub fn key_index<GetGroupSeed, K>(&self, key: &K, level_seed: u64, level_size_groups: u64, group_seed: GetGroupSeed) -> usize
         where GetGroupSeed: FnOnce(u64) -> u16, K: Hash
     {
         self.hash_index(self.hash_builder.hash_one(key, level_seed), level_size_groups, group_seed)
@@ -310,13 +310,13 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
     }
 
     /// Returns number the level about to build (number of levels built so far).
-    #[inline(always)] fn level_nr(&self) -> u32 { self.level_sizes.len() as u32 }
+    #[inline(always)] fn level_nr(&self) -> u64 { self.level_sizes.len() as u64 }
 
     /// Returns whether `key` is retained (`false` if it is already hashed at the levels built so far).
     fn retained<K>(&self, key: &K) -> bool where K: Hash {
         self.arrays.iter().zip(self.group_seeds.iter()).zip(self.level_sizes.iter()).enumerate()
             .all(|(level_seed, ((a, seeds), level_size_groups))| {
-                !a.get_bit(self.conf.goconf.key_index(key, level_seed as u32, *level_size_groups,
+                !a.get_bit(self.conf.goconf.key_index(key, level_seed as u64, *level_size_groups,
                 |group| self.conf.goconf.bits_per_seed.get_seed(seeds, group as usize)))
             })
     }
@@ -490,13 +490,13 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// either [`None`] or an undetermined value from the specified range is returned.
     pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut groups_before = 0u64;
-        let mut level_nr = 0u32;
+        let mut level_nr = 0usize;
         loop {
-            let level_size_groups = *self.level_sizes.get(level_nr as usize)?;
+            let level_size_groups = *self.level_sizes.get(level_nr)?;
             /*let bit_index = self.conf.key_index(key, level_nr, level_size_groups,
                                                 |g| self.conf.bits_per_seed.get_seed(&self.group_seeds, (groups_before + g) as usize)
             ); // wrong as bit_index_for_seed is called with wrong group */
-            let hash = self.conf.hash_builder.hash_one(key, level_nr);
+            let hash = self.conf.hash_builder.hash_one(key, level_nr as u64);
             let group = groups_before + group_nr(hash, level_size_groups);
             let seed = self.conf.bits_per_seed.get_seed(&self.group_seeds, group as usize);
             let bit_index = self.conf.bits_per_group.bit_index_for_seed(hash, seed, group);
