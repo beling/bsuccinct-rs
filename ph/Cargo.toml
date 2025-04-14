@@ -28,7 +28,7 @@ bitm = { version="0.5", path="../bitm" }
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 binout = { version=">=0.2", path="../binout" }
 rayon = "1.5"
-seedable_hash = { version="0.1", path="../seedable_hash", default-features = false }
+seedable_hash = { version="0.2", path="../seedable_hash", default-features = false }
 arrayvec = "0.7"
 voracious_radix_sort = { version = "1.2.0", features = ["voracious_multithread"] }
 cseq = { version = "0.1", path = "../cseq", optional = true }
