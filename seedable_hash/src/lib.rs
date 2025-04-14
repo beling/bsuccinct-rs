@@ -3,6 +3,8 @@
 mod map;
 pub use map::{map16_to_16, map32_to_32, map64_to_32, map64_to_64, map_usize};
 
+mod hasher_for;
+
 use std::hash::{BuildHasher, Hash, Hasher};
 
 /// Family of hash functions that allows the creation of
