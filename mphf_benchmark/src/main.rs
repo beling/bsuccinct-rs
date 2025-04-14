@@ -246,8 +246,8 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
             println!("PHast {} {}: results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
             let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100");
             match conf.key_source {
-                KeySource::xs32 | KeySource::xs64 => phast_benchmark::<IntHasher, _>(&mut csv_file, i, conf, phast_conf),
-                _ => phast_benchmark::<StrHasher, _>(&mut csv_file, i, conf, phast_conf),
+                KeySource::xs32 | KeySource::xs64 => phast_benchmark::<IntHasher, _, _>(&mut csv_file, i, conf, phast_conf, ph::phast::stats::BuildProgressRaport::default()),
+                _ => phast_benchmark::<StrHasher, _, _>(&mut csv_file, i, conf, phast_conf, ph::phast::stats::BuildProgressRaport::default()),
             }
         }
         #[cfg(feature = "boomphf")]
