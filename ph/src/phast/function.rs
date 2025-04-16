@@ -78,7 +78,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     /// 
     /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key collection (exclusive).
     /// `key` must come from the input key collection given during construction.
-    #[inline]
+    #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
         let seed = self.level0.seed_for(key_hash);
