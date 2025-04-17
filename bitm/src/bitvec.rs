@@ -250,6 +250,10 @@ pub trait BitAccess {
         self.init_bits(*begin, v, len); *begin += len as usize;
     }
 
+    /// Initialize bits `[begin, begin+len)` to `v`, without bounds checking.
+    /// Before initialization, the bits are assumed to be cleared or already set to `v`.
+    unsafe fn init_bits_unchecked(&mut self, begin: usize, v: u64, len: u8);
+
     /// Sets bits `[begin, begin+len)` to the content of `v`. Panics if the range is out of bounds.
     fn set_bits(&mut self, begin: usize, v: u64, len: u8);
 
@@ -346,6 +350,12 @@ pub trait BitAccess {
     /// Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline(always)] fn init_successive_fragment(&mut self, index: &mut usize, v: u64, v_size: u8) {
         self.init_fragment(*index, v, v_size);  *index += 1;
+    }
+
+    /// Initializes `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
+    /// The result is undefined if the range is out of bounds. Before initialization, the bits are assumed to be cleared or already set to `v`.
+    #[inline(always)] unsafe fn init_fragment_unchecked(&mut self, index: usize, v: u64, v_size: u8) {
+        self.init_bits_unchecked(index * v_size as usize, v, v_size)
     }
 
     /// Sets index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
@@ -648,6 +658,15 @@ impl BitAccess for [u64] {
             self[segment+1] |= v >> (64-offset);
         }
         self[segment] |= v << offset;
+    }
+
+    unsafe fn init_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
+        debug_assert!({let f = self.get_bits(begin, len); f == 0 || f == v});
+        let (segment, offset) = (begin / 64, (begin % 64) as u8);
+        if offset + len > 64 {
+            *self.get_unchecked_mut(segment+1) |= v >> (64-offset);
+        }
+        *self.get_unchecked_mut(segment) |= v << offset;
     }
 
     fn set_bits(&mut self, begin: usize, v: u64, len: u8) {
