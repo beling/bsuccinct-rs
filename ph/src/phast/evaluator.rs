@@ -104,3 +104,15 @@ impl BucketToActivateEvaluator for Weights {
         sw - 1024 * bucket_nr as i64
     }
 }
+
+struct SizePos;
+
+impl BucketToActivateEvaluator for SizePos {
+    type Value = (usize, usize);
+
+    const MIN: Self::Value = (0, 0);
+
+    fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value {
+        (bucket_size, usize::MAX - bucket_nr)
+    }
+}

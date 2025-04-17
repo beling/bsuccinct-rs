@@ -109,7 +109,7 @@ const SMALL_BUCKET_LIMIT: usize = 8;
 //// Read-only data shared by all threads.
 struct BuildConf<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
     conf: Conf<SS>,
-    span_limit: u16,
+    span_limit: usize,
     evaluator: BE,
     keys: &'k [u64],
     bucket_begin: Box<[usize]>,
@@ -125,7 +125,7 @@ fn construct_unassigned(unassigned_len: usize) -> Box<[u64]> {
 
 impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
     #[inline]
-    pub fn new(keys: &'k [u64], conf: Conf<SS>, span_limit: u16, evaluator: BE, bucket_begin: Box<[usize]>) -> (Self, Box<[SS::VecElement]>) {
+    pub fn new(keys: &'k [u64], conf: Conf<SS>, span_limit: usize, evaluator: BE, bucket_begin: Box<[usize]>) -> (Self, Box<[SS::VecElement]>) {
         //let seeds = Box::with_zeroed_bits(conf.buckets_num * conf.bits_per_seed() as usize);
         let seeds = conf.new_seeds_vec();
         (Self {
@@ -183,7 +183,7 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     (seeds, unassigned_values, unassigned_len)
 }
 
-pub(crate) fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize)
+pub(crate) fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: usize, evaluator: BE, threads_num: usize)
  -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
 where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
