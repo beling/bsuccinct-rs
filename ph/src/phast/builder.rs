@@ -462,6 +462,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
                 if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
                     continue;
                 }
+                if crate::phast::evaluator::FIRST_FEASIBLE { return seed; }
                 best_value = seed_value;
                 best_seed = seed;
             }
@@ -488,6 +489,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
                 for i in 1..values_used_by_seed.len() {
                     if values_used_by_seed[i-1] == values_used_by_seed[i] { continue 'outer; }
                 }
+                if crate::phast::evaluator::FIRST_FEASIBLE { return seed; }
                 best_value = seed_value;
                 best_seed = seed;
             }

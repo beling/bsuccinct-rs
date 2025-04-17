@@ -1,7 +1,7 @@
 use std::{hash::Hash, usize};
 
 use crate::seeds::{Bits8, SeedSize};
-use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::Weights, CompressedArray, CompressedBuilder, DefaultCompressedArray, WINDOW_SIZE};
+use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::crate_evaluator, CompressedArray, CompressedBuilder, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -204,7 +204,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         hashes.voracious_sort();
         let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
-            build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.partition_size()));
+            build_st(&hashes, conf, crate_evaluator(conf.bits_per_seed(), conf.partition_size()));
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.extend(keys.into_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
@@ -229,7 +229,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         hashes.voracious_mt_sort(threads_num);
         let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
-            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, crate_evaluator(conf.bits_per_seed(), conf.partition_size()), threads_num);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
@@ -246,7 +246,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         hashes.voracious_sort();
         let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
-            build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.partition_size()));
+            build_st(&hashes, conf, crate_evaluator(conf.bits_per_seed(), conf.partition_size()));
         keys.retain(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         });
@@ -270,7 +270,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         hashes.voracious_mt_sort(threads_num);
         let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
-            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, crate_evaluator(conf.bits_per_seed(), conf.partition_size()), threads_num);
         let mut result = Vec::with_capacity(unassigned_len);
         std::mem::swap(keys, &mut result);
         keys.par_extend(result.into_par_iter().filter(|key| {

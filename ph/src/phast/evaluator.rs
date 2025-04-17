@@ -117,3 +117,22 @@ impl BucketToActivateEvaluator for SizePos {
         (bucket_size, usize::MAX - bucket_nr)
     }
 }
+
+pub(crate) struct SizeRandom;
+
+impl BucketToActivateEvaluator for SizeRandom {
+    type Value = (usize, u64);
+
+    const MIN: Self::Value = (0, 0);
+
+    #[inline]
+    fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value {
+        (bucket_size, butils::XorShift64(bucket_nr as u64).nth(5).unwrap())
+    }
+}
+
+//pub(crate) fn crate_evaluator(bits_per_seed: u8, partition_size: u16) -> Weights { Weights::new(bits_per_seed, partition_size) }
+pub(crate) fn crate_evaluator(_: u8, _: u16) -> SizePos { SizePos }
+//pub(crate) fn crate_evaluator(_: u8, _: u16) -> SizeRandom { SizeRandom }
+
+pub(crate) const FIRST_FEASIBLE: bool = true;
