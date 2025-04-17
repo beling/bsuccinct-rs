@@ -13,5 +13,5 @@ mod evaluator;
 mod function;
 pub use function::Function;
 
-const MAX_SPAN: usize = 256;
-const MAX_VALUES: usize = 4096;
+const MAX_SPAN: usize = 64 * 1024 * 1024;
+const MAX_VALUES: usize = 64 * 1024 * 1024;

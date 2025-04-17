@@ -5,7 +5,7 @@ use std::ops::{Index, IndexMut};
 use super::MAX_SPAN;
 
 /// SIZE in 64-bit segments, must be the power of two
-pub(crate) struct CyclicSet<const SIZE_64: usize>([u64; SIZE_64]);  // filled in pseudo-code
+pub(crate) struct CyclicSet<const SIZE_64: usize>(Box<[u64; SIZE_64]>);  // filled in pseudo-code
 
 impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
     const MASK: usize = SIZE_64*64 - 1;
@@ -42,17 +42,17 @@ impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
 
 impl<const SIZE_64: usize> Default for CyclicSet<SIZE_64> {
     #[inline] fn default() -> Self {
-        Self(std::array::from_fn(|_| 0))
+        Self(Box::new(std::array::from_fn(|_| 0)))
     }
 }
 
 /// SIZE must be the power of 2
-pub struct CyclicArray<T, const SIZE: usize = MAX_SPAN>(pub [T; SIZE]);
+pub struct CyclicArray<T, const SIZE: usize = MAX_SPAN>(pub Box<[T; SIZE]>);
 
 impl<T: Default, const SIZE: usize> Default for CyclicArray<T, SIZE> {
     #[inline(always)]
     fn default() -> Self {
-        Self(std::array::from_fn(|_| Default::default()))
+        Self(Box::new(std::array::from_fn(|_| Default::default())))
     }
 }
 
