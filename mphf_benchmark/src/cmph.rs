@@ -47,7 +47,7 @@ impl<K: Hash + CMPHSource> MPHFBuilder<K> for CHDConf {
         }
     }
 
-    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut usize) -> Option<u64> {
         let (k_data, k_len) = K::key_data_and_len(key);
         Some(unsafe{ cmph_search_packed(mphf.as_ptr() as *mut c_void, k_data, k_len) as u64 })
     }

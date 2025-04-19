@@ -53,7 +53,7 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
     type MPHF;
     type Value;
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF;
-    fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64>;
+    fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut usize) -> Option<u64>;
     fn value(mphf: &Self::MPHF, key: &K) -> Self::Value;
     fn mphf_size(mphf: &Self::MPHF) -> usize;
 
@@ -96,7 +96,7 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
     /// If `verify` is `true`, checks if the `mphf` is valid for the given `input`.
     fn benchmark_lookup(&self, mphf: &Self::MPHF, input: &[K], verify: bool, lookup_runs: u32) -> SearchStats {
         if input.is_empty() || lookup_runs == 0 { return SearchStats::nan(); }
-        let mut extra_levels_searched = 0u64;
+        let mut extra_levels_searched = 0;
         let mut not_found = 0usize;
         if verify {
             let mut seen = Box::<[u64]>::with_zeroed_bits(input.len());
