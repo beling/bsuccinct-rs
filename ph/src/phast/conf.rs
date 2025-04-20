@@ -7,7 +7,7 @@ pub(crate) struct Conf<SS: SeedSize = Bits> {
     pub(crate) bits_per_seed: SS,  // seed size, K=2**bits_per_seed
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) partition_size_minus_one: u16,  // partition size P
-    pub(crate) num_of_partitions: usize,   // m-P
+    pub(crate) n: usize
 }
 
 /*#[inline(always)]
@@ -28,8 +28,8 @@ fn mix16fast(mut x: u16) -> u16 {
 #[inline(always)]
 fn wymum(a: u64, b: u64) -> u64 {
     let r = (a as u128) * (b as u128);
-    //((r >> 64) ^ r) as u64
-    (r >> 64) as u64
+    ((r >> 64) ^ r) as u64
+    //(r >> 64) as u64
 }
 
 //const SEEDS_MAP: [u64; 256] = std::array::from_fn(|i| mix64(i as u64));
@@ -69,7 +69,7 @@ impl<SS: SeedSize> Conf<SS> {
             bits_per_seed,
             buckets_num: 1.max((number_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
             partition_size_minus_one: partition_size - 1,
-            num_of_partitions: number_of_keys + 1 - partition_size as usize,
+            n: number_of_keys
         }
     }
 
@@ -79,23 +79,10 @@ impl<SS: SeedSize> Conf<SS> {
         map64_to_64(key, self.buckets_num as u64) as usize
     }
 
-    /// Returns partition assigned to the `key`.
-    #[inline]
-    pub(crate) fn partition_begin(&self, key: u64) -> usize {
-        map64_to_64(key, self.num_of_partitions as u64) as usize
-    }
-
-    /// Returns index of `key` in its partition.
-    #[inline]
-    pub(crate) fn in_partition(&self, key: u64, seed: u16) -> usize {
-        //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
-        (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.partition_size_minus_one) as usize
-    }
-
     /// Returns the value of the function for given `key` and `seed`.
     #[inline]
     pub(crate) fn f(&self, key: u64, seed: u16) -> usize {
-        self.partition_begin(key) + self.in_partition(key, seed)
+        map64_to_64(wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key), self.n as u64) as usize
     }
 
     #[inline]

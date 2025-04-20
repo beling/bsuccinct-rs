@@ -418,8 +418,8 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
     }
 
     #[inline]
-    fn partition_begin(&self, non_empty_bucket: usize) -> usize {
-        self.conf.conf.partition_begin(self.conf.keys[self.bucket_begin[non_empty_bucket]])
+    fn partition_begin(&self, _non_empty_bucket: usize) -> usize {
+        0
     }
 
     fn best_seed_big(&mut self, keys: &[u64]) -> u16 {

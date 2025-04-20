@@ -132,7 +132,7 @@ impl BucketToActivateEvaluator for SizeRandom {
 }
 
 //pub(crate) fn crate_evaluator(bits_per_seed: u8, partition_size: u16) -> Weights { Weights::new(bits_per_seed, partition_size) }
-pub(crate) fn crate_evaluator(_: u8, _: u16) -> SizePos { SizePos }
-//pub(crate) fn crate_evaluator(_: u8, _: u16) -> SizeRandom { SizeRandom }
+//pub(crate) fn crate_evaluator(_: u8, _: u16) -> SizePos { SizePos }
+pub(crate) fn crate_evaluator(_: u8, _: u16) -> SizeRandom { SizeRandom }
 
-pub(crate) const FIRST_FEASIBLE: bool = true;
+pub(crate) const FIRST_FEASIBLE: bool = false;
