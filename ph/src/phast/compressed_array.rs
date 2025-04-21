@@ -75,6 +75,34 @@ impl CompressedArray for CSeqEliasFano {
     }
 }
 
+/// Implementation of `CompressedArray` that stores zig-zag encoded differences of values and linear functions
+/// with the same number of bits required to store the largest difference.
+pub struct ZigZagCompressedArray {
+    pub items: Box<[u64]>,
+    pub item_size: u8,
+    //pub lowest: usize,    //TODO
+    pub num_of_values: usize,
+    pub max_value: usize
+}
+
+pub struct ZigZagBuilder {
+    items: Vec<isize>,
+    //lowest: usize,
+    pub num_of_values: usize,
+    pub max_value: usize
+}
+
+impl CompressedBuilder for ZigZagBuilder {
+    fn new(num_of_values: usize, max_value: usize) -> Self {
+        Self { items: Vec::with_capacity(num_of_values), num_of_values, max_value }
+    }
+
+    fn push(&mut self, value: usize) {
+        todo!()
+    }
+}
+
+
 /// Implementation of `CompressedArray` that stores each value with the same number of bits required to store the largest one.
 pub struct Compact {
     pub items: Box<[u64]>,
