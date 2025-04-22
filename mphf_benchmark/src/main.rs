@@ -205,6 +205,10 @@ pub struct Conf {
     /// Save detailed results to CSV-like (but space separated) file
     #[arg(short='d', long, default_value_t = false)]
     pub save_details: bool,
+
+    /// Seed of random number generator.
+    #[arg(long, default_value_t = 1234, value_parser = clap::value_parser!(u64).range(1..))]
+    pub seed: u64
 }
 
 #[cfg(feature = "cmph-sys")] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource + TypeToQuery {}
@@ -304,8 +308,8 @@ fn main() {
     println!("build and lookup times are averaged over {} and {} runs, respectively", conf.build_runs, conf.lookup_runs);
     println!("hasher:  integer {}  string {}", std::any::type_name::<IntHasher>(), std::any::type_name::<StrHasher>());
     match conf.key_source {
-        KeySource::xs32 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(1234))),
-        KeySource::xs64 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(1234))),
+        KeySource::xs32 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift32(conf.seed as u32))),
+        KeySource::xs64 => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, XorShift64(conf.seed))),
         KeySource::stdin|KeySource::stdinz => {
             //let lines = std::io::stdin().lock().lines().map(|l| l.unwrap());
             let lines = if conf.key_source == KeySource::stdin {
@@ -322,6 +326,6 @@ fn main() {
             print_input_stats("foreign key set", &i.1);
             run(&conf, &i);
         },
-        KeySource::randstr => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, RandomStrings::new(10..50, 1234)))
+        KeySource::randstr => run(&conf, &gen_data(conf.keys_num.unwrap(), conf.foreign_keys_num, RandomStrings::new(10..50, conf.seed)))
     };
 }
