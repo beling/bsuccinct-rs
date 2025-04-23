@@ -14,7 +14,6 @@ keywords = [ "hashing", "hash", "seed", "reduce", "map" ]
 
 [features]
 default = ["wyhash"]
-#default = ["xxhash-rust"]
 sip13 = []  # if enabled, makes available BuildSip13 that uses Sip13 from compiler internals
 
 [dependencies]
