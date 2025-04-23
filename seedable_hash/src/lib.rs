@@ -96,13 +96,8 @@ impl BuildSeededHasher for BuildXxh3 {
 impl BuildSeededHasher for fnv::FnvBuildHasher {
     type Hasher = fnv::FnvHasher;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    #[inline] fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::with_key(seed as u64)
-    }
-
-    #[inline]
-    fn build_hasher64(&self, seed: u64) -> Self::Hasher {
-        Self::Hasher::with_key(seed)
     }
 }
 
