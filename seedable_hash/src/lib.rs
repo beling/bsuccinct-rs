@@ -123,31 +123,17 @@ impl BuildSeededHasher for BuildGxHash {
     }
 }
 
-/// [`BuildSeededHasher`] that uses `rapidhash::RapidBuildHasher`.
 #[cfg(feature = "rapidhash")]
-impl BuildSeededHasher for rapidhash::RapidBuildHasher {
+#[derive(Default, Copy, Clone)]
+pub struct BuildRapidHash;
+
+/// [`BuildSeededHasher`] that uses `rapidhash::RapidHasher`.
+#[cfg(feature = "rapidhash")]
+impl BuildSeededHasher for BuildRapidHash {
     type Hasher = rapidhash::RapidHasher;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    #[inline] fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::new(seed as u64)
-    }
-
-    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
-        Self::Hasher::new(seed)
-    }
-}
-
-/// [`BuildSeededHasher`] that uses `rapidhash::RapidInlineBuildHasher`.
-#[cfg(feature = "rapidhash")]
-impl BuildSeededHasher for rapidhash::RapidInlineBuildHasher {
-    type Hasher = rapidhash::RapidInlineHasher;
-
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
-        Self::Hasher::new(seed as u64)
-    }
-
-    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
-        Self::Hasher::new(seed)
     }
 }
 
