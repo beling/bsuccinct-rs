@@ -8,6 +8,7 @@ use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
+/// Represents map-or-bump function.
 struct SeedEx<SS: SeedSize> {
     seeds: Box<[SS::VecElement]>,
     conf: Conf<SS>,
