@@ -2,48 +2,26 @@ use bitm::{bits_to_store, ceiling_div, get_bits57, n_lowest_bits, set_bits57, Bi
 use dyn_size_of::GetSize;
 #[cfg(feature = "sux")] use sux::traits::IndexedSeq;
 
-/// Builder used to construct `CompressedArray`.
-pub trait CompressedBuilder {
-    fn new(num_of_values: usize, max_value: usize) -> Self;
-    fn push(&mut self, value: usize);
-
-    #[inline]
-    fn push_all(&mut self, values: impl IntoIterator<Item = usize>) {
-        for value in values { self.push(value); }
-    }
-}
-
 /// Compressed array of usize integers that can be used by `PHast`.
 pub trait CompressedArray {
-    type Builder: CompressedBuilder;
-
-    fn finish(builder: Self::Builder) -> Self;
-
-    #[inline] fn empty() -> Self where Self: Sized {
-        Self::finish(Self::Builder::new(0, 0))
-    }
-
-    /// Construct array from the `bitmap` with given length and number of bit ones.
-    #[inline] fn new(bitmap: &[u64], bitmap_len_bits: usize, number_of_ones: usize) -> Self where Self: Sized {
-        if number_of_ones == 0 {
-            Self::empty()
-        } else {    // number_of_ones > 0
-            let mut b = Self::Builder::new(number_of_ones, bitmap_largest(bitmap, bitmap_len_bits));
-            for value in bitmap.bit_ones() { b.push(value); }
-            Self::finish(b)
-        }
-    }
+    /// Construct `Self`.
+    fn new(values: Vec<usize>, last: usize) -> Self;
 
     /// Get `index`-th item from the array.
     fn get(&self, index: usize) -> usize;
 }
 
-/// Returns index of the last bit one in `bitmap` of given length.
-#[inline]
-pub fn bitmap_largest(bitmap: &[u64], bitmap_len_bits: usize) -> usize {
-    let mut largest = bitmap_len_bits - 1;
-    while !bitmap.get_bit(largest) { largest -= 1; }
-    largest
+/// Builder used to construct `CompressedArray`.
+pub trait CompressedBuilder: Sized {
+    fn new(num_of_values: usize, max_value: usize) -> Self;
+    fn push(&mut self, value: usize);
+
+    #[inline]
+    fn with_all(values: Vec<usize>, last: usize) -> Self {
+        let mut builder = Self::new(values.len(), last);
+        for value in values { builder.push(value); }
+        builder
+    }
 }
 
 /// CompressedArray implementation by Elias-Fano from `cseq` crate.
@@ -62,10 +40,9 @@ impl CompressedBuilder for cseq::elias_fano::Builder {
 
 #[cfg(feature = "cseq")]
 impl CompressedArray for CSeqEliasFano {
-    type Builder = cseq::elias_fano::Builder;
-    
-    #[inline] fn finish(builder: Self::Builder) -> Self {
-        builder.finish_s()
+
+    fn new(values: Vec<usize>, last: usize) -> Self {
+        cseq::elias_fano::Builder::with_all(values, last).finish_s()
     }
 
     #[inline]
@@ -107,14 +84,8 @@ impl GetSize for Compact {
 }
 
 impl CompressedArray for Compact {
-    type Builder = CompactBuilder;
-
-    #[inline] fn finish(builder: Self::Builder) -> Self {
-        builder.compact
-    }
-
-    #[inline] fn empty() -> Self where Self: Sized {
-        Self { items: Box::new([]), item_size: 0 }
+    fn new(values: Vec<usize>, last: usize) -> Self {
+        CompactBuilder::with_all(values, last).compact
     }
 
     #[inline]
@@ -172,15 +143,8 @@ impl CompactFast {
 }
 
 impl CompressedArray for CompactFast {
-    type Builder = CompactFastBuilder;
-    
-    #[inline]
-    fn finish(builder: Self::Builder) -> Self {
-        builder.compact
-    }
-
-    #[inline] fn empty() -> Self {
-        Self { items: Box::new([]), item_size: 0 }
+    fn new(values: Vec<usize>, last: usize) -> Self {
+        CompactFastBuilder::with_all(values, last).compact
     }
 
     #[inline]
@@ -205,10 +169,8 @@ impl CompressedArray for CompactFast {
 
 #[cfg(feature = "sux")]
 impl CompressedArray for SuxEliasFano {
-    type Builder = sux::dict::EliasFanoBuilder;
-    
-    #[inline] fn finish(builder: Self::Builder) -> Self {
-        SuxEliasFano(builder.build_with_seq())
+    fn new(values: Vec<usize>, last: usize) -> Self {
+        SuxEliasFano(sux::dict::EliasFanoBuilder::with_all(values, last).build_with_seq())
     }
 
     #[inline]
@@ -239,26 +201,10 @@ impl GetSize for SuxEliasFano {
 pub struct CachelineEF(cacheline_ef::CachelineEfVec);
 
 #[cfg(feature = "cacheline-ef")]
-impl CompressedBuilder for Vec<u64> {
-    #[inline] fn new(num_of_values: usize, _max_value: usize) -> Self {
-        Vec::with_capacity(num_of_values)
-    }
-
-    #[inline] fn push(&mut self, value: usize) {
-        self.push(value as u64);
-    }
-}
-
-#[cfg(feature = "cacheline-ef")]
 impl CompressedArray for CachelineEF {
-    type Builder = Vec<u64>;
-
-    fn finish(builder: Self::Builder) -> Self {
-        CachelineEF(cacheline_ef::CachelineEfVec::new(&builder))
-    }
-
-    fn empty() -> Self {
-        CachelineEF(cacheline_ef::CachelineEfVec::default())
+    fn new(values: Vec<usize>, _last: usize) -> Self {
+        let v: Vec<_> = values.iter().map(|v| *v as u64).collect();
+        CachelineEF(cacheline_ef::CachelineEfVec::new(&v))
     }
 
     //#[inline]

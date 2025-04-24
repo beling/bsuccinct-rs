@@ -1,7 +1,7 @@
 use std::{hash::Hash, usize};
 
 use crate::seeds::{Bits8, SeedSize};
-use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::Weights, CompressedArray, CompressedBuilder, DefaultCompressedArray, WINDOW_SIZE};
+use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::Weights, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -183,13 +183,9 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         }
         debug_assert!(level0_unassigned.next().is_none());
         drop(level0_unassigned);
-
-        let mut builder = CA::Builder::new(unassigned.len(), last);
-        builder.push_all(unassigned);
-
         Self {
             level0,
-            unassigned: CA::finish(builder),
+            unassigned: CA::new(unassigned, last),
             levels: levels.into_boxed_slice(),
             hasher,
         }
