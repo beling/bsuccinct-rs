@@ -11,6 +11,8 @@ Please run the program with the `--help` switch to see the available options.
 The availability of some options depends on the activation of the following features:
 - *fmph-key-access* - allows a choice of multiple methods of accessing keys by FMPH(GO).
 
+Features delegated to [seedable_hash crate](seedable_hash) and described in the [seedable_hash documentation](seedable_hash) decide which algorithm is used by the most methods to hash string keys ([GxHash](https://crates.io/crates/gxhash) enabled by the `gxhash` feature is the fastest on the platforms it supports).
+
 Below you can find instructions for [installing](#installation) `mphf_benchmark` and
 [reproducing experiments](#reproducing-experiments-from-the-papers) performed with it,
 which can be found in published or under review papers.
