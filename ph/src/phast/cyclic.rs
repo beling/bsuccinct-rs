@@ -2,7 +2,7 @@
 use bitm::BitAccess;
 use std::ops::{Index, IndexMut};
 
-use super::MAX_SPAN;
+use super::MAX_WINDOW_SIZE;
 
 /// SIZE in 64-bit segments, must be the power of two
 pub(crate) struct CyclicSet<const SIZE_64: usize>([u64; SIZE_64]);  // filled in pseudo-code
@@ -47,7 +47,7 @@ impl<const SIZE_64: usize> Default for CyclicSet<SIZE_64> {
 }
 
 /// SIZE must be the power of 2
-pub struct CyclicArray<T, const SIZE: usize = MAX_SPAN>(pub [T; SIZE]);
+pub struct CyclicArray<T, const SIZE: usize = MAX_WINDOW_SIZE>(pub [T; SIZE]);
 
 impl<T: Default, const SIZE: usize> Default for CyclicArray<T, SIZE> {
     #[inline(always)]

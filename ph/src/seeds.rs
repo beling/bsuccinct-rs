@@ -97,15 +97,17 @@ impl SeedSize for Bits {
     }
 
     #[inline(always)] fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16 {
-        vec.get_fragment(index, self.0) as u16
+        //vec.get_fragment(index, self.0) as u16
+        unsafe{ vec.get_fragment_unchecked(index, self.0) as u16 }
     }
 
     #[inline(always)] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
-        vec.set_fragment(index, seed as u64, self.0)
+        //vec.set_fragment(index, seed as u64, self.0)
+        unsafe { vec.set_fragment_unchecked(index, seed as u64, self.0); }
     }
 
     #[inline(always)] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
-        vec.init_fragment(index, seed as u64, self.0)
+        unsafe { vec.init_fragment_unchecked(index, seed as u64, self.0) }
     }
 
     fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {
@@ -212,11 +214,13 @@ impl SeedSize for Bits8 {
     }
 
     #[inline] fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16 {
-        vec[index] as u16
+        //vec[index] as u16
+        unsafe { *vec.get_unchecked(index) as u16 }
     }
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
-        vec[index] = seed as u8
+        //vec[index] = seed as u8
+        unsafe { *vec.get_unchecked_mut(index) = seed as u8 }
     }
 
     fn read_seed_vec(input: &mut dyn Read, number_of_seeds: usize) -> std::io::Result<(Self, Box<[Self::VecElement]>)> {
@@ -276,18 +280,23 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
     }
 
     #[inline(always)] fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16 {
-        (vec[index / Self::VALUES_PER_64 as usize] >> Self::shift_for(index)) as u16 & Self::MASK16
+        //(vec[index / Self::VALUES_PER_64 as usize] >> Self::shift_for(index)) as u16 & Self::MASK16
+        unsafe {
+            (*vec.get_unchecked(index / Self::VALUES_PER_64 as usize) >> Self::shift_for(index)) as u16 & Self::MASK16
+        }
     }
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
-        let v = &mut vec[index / Self::VALUES_PER_64 as usize];
+        //let v = &mut vec[index / Self::VALUES_PER_64 as usize];
+        let v = unsafe { vec.get_unchecked_mut(index / Self::VALUES_PER_64 as usize) };
         let s = Self::shift_for(index);
         *v &= !((Self::MASK16 as u64) << s);
         *v |= (seed as u64) << s;
     }
 
     #[inline] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
-        vec[index / Self::VALUES_PER_64 as usize] |= (seed as u64) << Self::shift_for(index);
+        //vec[index / Self::VALUES_PER_64 as usize] |= (seed as u64) << Self::shift_for(index);
+        unsafe{ *vec.get_unchecked_mut(index / Self::VALUES_PER_64 as usize) |= (seed as u64) << Self::shift_for(index); }
     }
 
     fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {

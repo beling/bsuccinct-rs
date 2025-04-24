@@ -1,6 +1,6 @@
 [package]
 name = "ph"
-version = "0.9.4"
+version = "0.9.6"
 authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -13,7 +13,7 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [features]
-default = ["aligned-vec", "sux"] #, "wyhash""sux" #, "cseq", "cacheline-ef"
+default = ["aligned-vec", "sux"]
 gxhash = ["seedable_hash/gxhash"]
 rapidhash = ["seedable_hash/rapidhash"]
 wyhash = ["seedable_hash/wyhash"]

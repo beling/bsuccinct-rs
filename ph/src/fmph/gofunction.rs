@@ -488,7 +488,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection given during construction,
     /// either [`None`] or an undetermined value from the specified range is returned.
-    pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
+    #[inline(always)] pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
         let mut groups_before = 0u64;
         let mut level_nr = 0usize;
         loop {
@@ -514,7 +514,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection given during construction,
     /// either [`None`] or an undetermined value from the specified range is returned.
-    #[inline] pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u64> {
+    #[inline(always)] pub fn get<K: Hash + ?Sized>(&self, key: &K) -> Option<u64> {
         self.get_stats(key, &mut ())
     }
 
@@ -523,7 +523,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection given during construction,
     /// it either panics or returns an undetermined value from the specified range.
-    #[inline] pub fn get_stats_or_panic<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> u64 {
+    #[inline(always)] pub fn get_stats_or_panic<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> u64 {
         self.get_stats(key, access_stats).expect("Invalid access to an item outside the set given during construction.")
     }
 
@@ -532,7 +532,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// The returned value is in the range: `0` (inclusive), the number of elements in the input key collection (exclusive).
     /// If the `key` was not in the input key collection given during construction,
     /// it either panics or returns an undetermined value from the specified range.
-    #[inline] pub fn get_or_panic<K: Hash + ?Sized>(&self, key: &K) -> u64 {
+    #[inline(always)] pub fn get_or_panic<K: Hash + ?Sized>(&self, key: &K) -> u64 {
         self.get_stats_or_panic(key, &mut ())
     }
 

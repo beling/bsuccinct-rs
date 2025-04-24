@@ -1,13 +1,14 @@
 use std::{hash::Hash, usize};
 
 use crate::seeds::{Bits8, SeedSize};
-use super::{bits_per_seed_to_100_bucket_size, builder::build_st, builder::build_mt, conf::Conf, evaluator::Weights, CompressedArray, CompressedBuilder, DefaultCompressedArray};
+use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::Weights, CompressedArray, CompressedBuilder, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
+/// Represents map-or-bump function.
 struct SeedEx<SS: SeedSize> {
     seeds: Box<[SS::VecElement]>,
     conf: Conf<SS>,
@@ -50,7 +51,7 @@ impl<SS: SeedSize> GetSize for Level<SS> {
 /// PHast (Perfect Hashing with fast evaluation). Experimental.
 /// 
 /// Perfect hash function with very fast evaluation and size below 2 bits/key
-/// developed by Peter Sanders and Piotr Beling.
+/// developed by Piotr Beling and Peter Sanders.
 pub struct Function<SS: SeedSize, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher> {
     level0: SeedEx<SS>,
     unassigned: CA,
@@ -78,7 +79,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     /// 
     /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key collection (exclusive).
     /// `key` must come from the input key collection given during construction.
-    #[inline]
+    #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
         let seed = self.level0.seed_for(key_hash);
@@ -229,7 +230,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         hashes.voracious_mt_sort(threads_num);
         let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
-            build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
@@ -270,7 +271,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         hashes.voracious_mt_sort(threads_num);
         let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
-            build_mt(&hashes, conf, bucket_size100, 256, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
+            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.partition_size()), threads_num);
         let mut result = Vec::with_capacity(unassigned_len);
         std::mem::swap(keys, &mut result);
         keys.par_extend(result.into_par_iter().filter(|key| {

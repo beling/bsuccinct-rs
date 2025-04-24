@@ -30,7 +30,7 @@ impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send 
         }
     }
 
-    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, _levels: &mut usize) -> Option<u64> {
         Some(mphf.get(key) as u64)  // TODO level support
     }
 

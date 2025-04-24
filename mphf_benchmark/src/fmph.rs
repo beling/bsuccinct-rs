@@ -8,6 +8,7 @@ use ph::{fmph, BuildSeededHasher};
 use ph::fmph::keyset::SliceSourceWithRefs;
 #[cfg(feature = "fmph-key-access")] use ph::fmph::keyset::ImmutableSlice;
 
+use crate::builder::TypeToQuery;
 use crate::{file, BenchmarkResult, Conf, FMPHConf, IntHasher, KeyAccess, KeySource, MPHFBuilder, StrHasher};
 
 #[cfg(feature = "boomphf")]
@@ -26,7 +27,7 @@ impl<K: std::hash::Hash + std::fmt::Debug + Sync + Send> MPHFBuilder<K> for BooM
         }
     }
 
-    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut usize) -> Option<u64> {
         mphf.try_hash_bench(&key, levels)
     }
 
@@ -38,7 +39,7 @@ impl<K: std::hash::Hash + std::fmt::Debug + Sync + Send> MPHFBuilder<K> for BooM
 }
 
 
-impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::BuildConf<S>, KeyAccess) {
+impl<K: Hash + Sync + Send + Clone + TypeToQuery, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::BuildConf<S>, KeyAccess) {
     type MPHF = fmph::Function<S>;
     type Value = Option<u64>;
 
@@ -54,7 +55,7 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
         #[cfg(not(feature = "fmph-key-access"))] Self::MPHF::with_conf(SliceSourceWithRefs::<_, u8>::new(keys), conf)
     }
 
-    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut usize) -> Option<u64> {
         mphf.get_stats(key, levels)
     }
 
@@ -65,7 +66,7 @@ impl<K: Hash + Sync + Send + Clone, S: BuildSeededHasher + Clone + Sync> MPHFBui
     fn mphf_size(mphf: &Self::MPHF) -> usize { mphf.size_bytes() }
 }
 
-impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::GOBuildConf<GS, SS, S>, KeyAccess) {
+impl<K: Hash + Sync + Send + Clone + TypeToQuery, GS: fmph::GroupSize + Sync, SS: fmph::SeedSize, S: BuildSeededHasher + Clone + Sync> MPHFBuilder<K> for (fmph::GOBuildConf<GS, SS, S>, KeyAccess) {
     type MPHF = fmph::GOFunction<GS, SS, S>;
     type Value = Option<u64>;
 
@@ -91,7 +92,7 @@ impl<K: Hash + Sync + Send + Clone, GS: fmph::GroupSize + Sync, SS: fmph::SeedSi
         }
     }
 
-    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut u64) -> Option<u64> {
+    #[inline(always)] fn value_ex(mphf: &Self::MPHF, key: &K, levels: &mut usize) -> Option<u64> {
         mphf.get_stats(key, levels)
     }
 
@@ -111,7 +112,7 @@ pub struct FMPHGOBuildParams {
 }
 
 pub fn h2bench<GS, SS, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams) -> BenchmarkResult
-    where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, K: Hash + Sync + Send + Clone
+    where GS: fmph::GroupSize + Sync + Copy, SS: fmph::SeedSize + Copy, K: Hash + Sync + Send + Clone + TypeToQuery
 {
     if conf.key_source == KeySource::xs32 || conf.key_source == KeySource::xs64 {
         (fmph::GOBuildConf::with_lsize_ct_mt(
@@ -127,7 +128,7 @@ pub fn h2bench<GS, SS, K>(bits_per_group_seed: SS, bits_per_group: GS, i: &(Vec<
 }
 
 pub fn h2b<GS, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<K>), conf: &Conf, p: &FMPHGOBuildParams) -> BenchmarkResult
-    where GS: fmph::GroupSize + Sync + Copy, K: Hash + Sync + Send + Clone
+    where GS: fmph::GroupSize + Sync + Copy, K: Hash + Sync + Send + Clone + TypeToQuery
 {
     match bits_per_group_seed {
         1 => h2bench(fmph::TwoToPowerBitsStatic::<0>, bits_per_group, i, conf, p),
@@ -141,7 +142,7 @@ pub fn h2b<GS, K>(bits_per_group_seed: u8, bits_per_group: GS, i: &(Vec<K>, Vec<
 
 pub fn fmphgo<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams)
                 -> BenchmarkResult
-    where K: Hash + Sync + Send + Clone
+    where K: Hash + Sync + Send + Clone + TypeToQuery
 {
     let b = if bits_per_group.is_power_of_two() {
         match bits_per_group {
@@ -164,7 +165,7 @@ pub fn fmphgo<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bit
 }
 
 pub fn fmphgo_benchmark<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBuildParams)
-    where K: Hash + Sync + Send + Clone
+    where K: Hash + Sync + Send + Clone + TypeToQuery
 {
     let b = fmphgo(file, i, conf, bits_per_group_seed, bits_per_group, p);
     print_fmphgo_result(bits_per_group_seed, bits_per_group, p, b);
@@ -176,7 +177,7 @@ fn print_fmphgo_result(bits_per_group_seed: u8, bits_per_group: u8, p: &FMPHGOBu
 }
 
 pub fn fmphgo_run<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, bits_per_group_seed: u8, bits_per_group: u8, p: &mut FMPHGOBuildParams)
-    where K: Hash + Sync + Send + Clone
+    where K: Hash + Sync + Send + Clone + TypeToQuery
 {
     if p.relative_level_size == 0 {
         for relative_level_size in (100..=200).step_by(/*50*/100) {
@@ -190,7 +191,7 @@ pub fn fmphgo_run<K>(file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf,
 }
 
 pub fn fmphgo_benchmark_all<K>(mut csv_file: Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, key_access: KeyAccess)
-where K: Hash + Sync + Send + Clone
+where K: Hash + Sync + Send + Clone + TypeToQuery
 {
     print_fmphgo_all_header();
     let mut p = FMPHGOBuildParams {
@@ -228,7 +229,7 @@ pub const FMPH_BENCHMARK_HEADER: &'static str = "cache_threshold relative_level_
 pub const BOOMPHF_BENCHMARK_HEADER: &'static str = "relative_level_size";
 
 pub fn fmph_benchmark<S, K>(i: &(Vec<K>, Vec<K>), conf: &Conf, level_size: Option<u16>, use_fmph: Option<(S, &FMPHConf)>)
-where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone
+where S: BuildSeededHasher + Clone + Sync, K: Hash + Sync + Send + Debug + Clone + TypeToQuery
 {
     let mut file = get_fmph_file(i.0.len(), i.1.len(), conf, &use_fmph.as_ref().map(|p| p.1));
     for relative_level_size in level_size.map_or(100..=200, |r| r..=r).step_by(/*50*/100) {

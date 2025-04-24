@@ -13,5 +13,11 @@ mod evaluator;
 mod function;
 pub use function::Function;
 
-const MAX_SPAN: usize = 256;
+/// Power of two grater or equal than `WINDOW_SIZE`.
+const MAX_WINDOW_SIZE: usize = 256;
+
+/// Power of two grater or equal then range of values covered by the window.
 const MAX_VALUES: usize = 4096;
+
+/// Window size. Maximum number of elements in the priority queue.
+const WINDOW_SIZE: u16 = 256;

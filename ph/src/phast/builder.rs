@@ -3,7 +3,7 @@ use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::seeds::SeedSize;
-use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, MAX_SPAN, MAX_VALUES};
+use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, MAX_WINDOW_SIZE, MAX_VALUES, WINDOW_SIZE};
 use rayon::prelude::*;
 
 pub type UsedValues = CyclicSet<{MAX_VALUES/64}>;
@@ -177,7 +177,7 @@ pub(crate) fn build_st<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, ev
 -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
 where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
-    let (builder, mut seeds) = BuildConf::new(keys, conf, 256, evaluator, bucket_begin_st(keys, &conf));
+    let (builder, mut seeds) = BuildConf::new(keys, conf, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf));
     ThreadBuilder::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     (seeds, unassigned_values, unassigned_len)
@@ -340,7 +340,7 @@ struct ThreadBuilder<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
     value_to_clear: usize,
 
     candidates_to_active: BinaryHeap<(BE::Value, Reverse<usize>)>,    // (value, bucket)
-    in_candidates_to_active: CyclicSet<{MAX_SPAN/64}>,
+    in_candidates_to_active: CyclicSet<{MAX_WINDOW_SIZE/64}>,
 
     seeds: &'k mut [SS::VecElement]
 }
