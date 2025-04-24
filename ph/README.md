@@ -1,11 +1,20 @@
-`ph` is the Rust library (by Piotr Beling) of data structures based on perfect hashing.
+`ph` is the Rust library (by Piotr Beling) of (minimal) perfect hash functions.
 
-The library contains an implementation of two variants of the *fingerprint-based minimal perfect hash function*:
-without (*FMPH*, [`fmph::Function`]) and with (*FMPHGO*, [`fmph::GOFunction`]) group optimization.
 A minimal perfect hash function (MPHF) is a bijection from a key set *K* to the set *{0, 1, ..., |K|−1}*.
 
-FMPH and FMPHGO can be constructed for any set *K* (given in advance) of hashable items and represented using about *2.8* and *2.1* bits per key (regardless of key types), respectively.
-FMPH and FMPHGO are fast (*O(1)* in expectation) to evaluate. Their construction requires very little auxiliary space, takes a short (*O(|K|)* in expectation) time (which is especially true for FMPH) and, in addition, can be parallelized or carried out without holding keys in memory.
+The library contains implementations of:
+- [PHast](`phast::Function`) -- bucket-placement based function with very fast evaluation and size below 2 bits/key,
+- two variants of the *fingerprint-based minimal perfect hash function*:
+without (*FMPH*, [`fmph::Function`]) and with (*FMPHGO*, [`fmph::GOFunction`]) group optimization.
+
+All of these functions can be constructed for any set *K* (given in advance) of hashable items.
+
+FMPH and FMPHGO can be represented using about *2.8* and *2.1* bits per key (regardless of key types), respectively.
+FMPH and FMPHGO are quite fast (*O(1)* in expectation) to evaluate. Their construction requires very little auxiliary space, takes a short (*O(|K|)* in expectation) time (which is especially true for FMPH) and, in addition, can be parallelized or carried out without holding keys in memory.
+
+The speed of our functions is affected by the hash algorithm used.
+The default one can be selected via features, which are delegated to [seedable_hash crate](seedable_hash) and described in the [seedable_hash documentation](seedable_hash).
+We recommend [GxHash](https://crates.io/crates/gxhash) (enabled by `gxhash` feature) on the platforms it supports.
 
 # Bibliography
 When using `ph` for research purposes, please cite the following paper which provides details on FMPH and FMPHGO:

@@ -48,12 +48,8 @@ impl BuildSeededHasher for BuildSip13 {
     #[allow(deprecated)]
     type Hasher = std::hash::SipHasher13;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
-        Self::Hasher::new_with_keys(seed as u64, seed as u64)
-    }
-
-    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
-        Self::Hasher::new_with_keys(seed as u64, seed as u64)
+    #[inline] fn build_hasher(&self, seed: u64) -> Self::Hasher {
+        Self::Hasher::new_with_keys(seed, seed)
     }
 }
 
@@ -81,10 +77,6 @@ pub struct BuildXxh3;
 impl BuildSeededHasher for BuildXxh3 {
     type Hasher = xxhash_rust::xxh3::Xxh3;
 
-    /*#[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
-        Self::Hasher::with_seed(seed as u64)
-    }*/
-
     #[inline]
     fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::with_seed(seed)
@@ -96,13 +88,8 @@ impl BuildSeededHasher for BuildXxh3 {
 impl BuildSeededHasher for fnv::FnvBuildHasher {
     type Hasher = fnv::FnvHasher;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    #[inline] fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::with_key(seed as u64)
-    }
-
-    #[inline]
-    fn build_hasher64(&self, seed: u64) -> Self::Hasher {
-        Self::Hasher::with_key(seed)
     }
 }
 
@@ -113,7 +100,6 @@ pub struct BuildGxHash;
 
 //type BuildGxHash = gxhash::GxBuildHasher;
 
-/// [`BuildSeededHasher`] that uses `gxhash` crate.
 #[cfg(feature = "gxhash")]
 impl BuildSeededHasher for BuildGxHash {
     type Hasher = gxhash::GxHasher;
@@ -123,31 +109,17 @@ impl BuildSeededHasher for BuildGxHash {
     }
 }
 
-/// [`BuildSeededHasher`] that uses `rapidhash::RapidBuildHasher`.
+/// [`BuildSeededHasher`] that uses `rapidhash::RapidHasher`.
 #[cfg(feature = "rapidhash")]
-impl BuildSeededHasher for rapidhash::RapidBuildHasher {
+#[derive(Default, Copy, Clone)]
+pub struct BuildRapidHash;
+
+#[cfg(feature = "rapidhash")]
+impl BuildSeededHasher for BuildRapidHash {
     type Hasher = rapidhash::RapidHasher;
 
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
+    #[inline] fn build_hasher(&self, seed: u64) -> Self::Hasher {
         Self::Hasher::new(seed as u64)
-    }
-
-    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
-        Self::Hasher::new(seed)
-    }
-}
-
-/// [`BuildSeededHasher`] that uses `rapidhash::RapidInlineBuildHasher`.
-#[cfg(feature = "rapidhash")]
-impl BuildSeededHasher for rapidhash::RapidInlineBuildHasher {
-    type Hasher = rapidhash::RapidInlineHasher;
-
-    #[inline] fn build_hasher(&self, seed: u32) -> Self::Hasher {
-        Self::Hasher::new(seed as u64)
-    }
-
-    #[inline] fn build_hasher64(&self, seed: u64) -> Self::Hasher {
-        Self::Hasher::new(seed)
     }
 }
 
@@ -164,13 +136,17 @@ pub type BuildDefaultSeededHasher = BuildWyHash;
 pub type BuildDefaultSeededHasher = BuildXxh3;
 
 /// The default [`BuildSeededHasher`].
-#[cfg(all(feature = "sip13", not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "xxhash-rust")))]
+#[cfg(all(feature = "rapidhash", not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "xxhash-rust")))]
+pub type BuildDefaultSeededHasher = BuildRapidHash;
+
+/// The default [`BuildSeededHasher`].
+#[cfg(all(feature = "sip13", not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "xxhash-rust"), not(feature = "rapidhash")))]
 pub type BuildDefaultSeededHasher = BuildSip13;
 
 /// The default [`BuildSeededHasher`].
-#[cfg(all(feature = "fnv", not(feature = "gxhash"), not(feature = "sip13"), not(feature = "wyhash"), not(feature = "xxhash-rust")))]
+#[cfg(all(feature = "fnv", not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "xxhash-rust"), not(feature = "rapidhash"), not(feature = "sip13")))]
 pub type BuildDefaultSeededHasher = fnv::FnvBuildHasher;
 
 /// The default [`BuildSeededHasher`].
-#[cfg(all(not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "xxhash-rust"), not(feature = "fnv"), not(feature = "sip13")))]
+#[cfg(all(not(feature = "gxhash"), not(feature = "wyhash"), not(feature = "xxhash-rust"), not(feature = "rapidhash"), not(feature = "sip13"), not(feature = "fnv")))]
 pub type BuildDefaultSeededHasher = Seedable<std::hash::BuildHasherDefault<std::collections::hash_map::DefaultHasher>>;
