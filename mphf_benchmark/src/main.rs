@@ -8,7 +8,7 @@ mod builder;
 pub use builder::MPHFBuilder;
 
 mod stats;
-use ph::phast::compressed_array::CompactFast;
+use ph::phast::compressed_array::{CompactFast, SimpleLinearRegression};
 use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray};
 pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
@@ -108,7 +108,11 @@ pub struct PHastConf {
 
     /// Test with Compact encoder of array that makes PHast minimal
     #[arg(short='c', long, default_value_t = false)]
-    pub compact: bool
+    pub compact: bool,
+
+    /// Test with Simple Linear Regression based encoder of array that makes PHast minimal
+    #[arg(short='l', long="ls", default_value_t = false)]
+    pub linear_simple: bool
 }
 
 impl PHastConf {
@@ -118,7 +122,7 @@ impl PHastConf {
 
     /// should elias fano be tested
     fn elias_fano(&self) -> bool {
-        self.elias_fano || !self.compact
+        self.elias_fano || !(self.compact || self.linear_simple)
     }
 }
 
@@ -273,6 +277,9 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
             }
             if phast_conf.compact {
                 phast_benchmark::<CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+            }
+            if phast_conf.linear_simple {
+                phast_benchmark::<SimpleLinearRegression, _>(&mut csv_file, i, conf, phast_conf, "LS");
             }
         },
         #[cfg(feature = "boomphf")]

@@ -80,12 +80,12 @@ impl LinearRegression {
 
 /// Implementation of `CompressedArray` that stores differences of values and linear regression
 /// with the same number of bits required to store the largest difference.
-pub struct CompressedBySimpleLinearRegression {
+pub struct SimpleLinearRegression {
     regression: LinearRegression,
     corrections: CompactFast,
 }
 
-impl CompressedArray for CompressedBySimpleLinearRegression {
+impl CompressedArray for SimpleLinearRegression {
     fn new(values: Vec<usize>, _last: usize, num_of_keys: usize) -> Self {
         let mut regression = LinearRegression::rounded(num_of_keys, num_of_keys, values.len()+1);
         let mut total_offset = 0;   // total offset for regression, max v - r difference
@@ -115,6 +115,12 @@ impl CompressedArray for CompressedBySimpleLinearRegression {
         self.regression.get(index) - self.corrections.get(index)
         //(unsafe { get_bits57(self.corrections.as_ptr(), index * self.bits_per_correction as usize) & n_lowest_bits(self.bits_per_correction) }) as usize
     }
+}
+
+impl GetSize for SimpleLinearRegression {
+    fn size_bytes_dyn(&self) -> usize { self.corrections.size_bytes_dyn() }
+    fn size_bytes_content_dyn(&self) -> usize { self.corrections.size_bytes_dyn() }
+    const USES_DYN_MEM: bool = true;
 }
 
 /// Implementation of `CompressedArray` that stores each value with the same number of bits required to store the largest one.
