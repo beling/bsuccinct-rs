@@ -1,4 +1,4 @@
-use bitm::{bits_to_store, ceiling_div, get_bits57, n_lowest_bits, set_bits57, BitAccess, BitVec};
+use bitm::{bits_to_store, ceiling_div, get_bits57, init_bits57, n_lowest_bits, set_bits57, BitAccess, BitVec};
 use dyn_size_of::GetSize;
 #[cfg(feature = "sux")] use sux::traits::IndexedSeq;
 
@@ -170,7 +170,6 @@ pub struct CompactFast {
 pub struct CompactFastBuilder {
     compact: CompactFast,
     first_bit: usize,
-    mask: u64
 }
 
 impl CompressedBuilder for CompactFastBuilder {
@@ -179,12 +178,11 @@ impl CompressedBuilder for CompactFastBuilder {
         Self {
             compact: CompactFast { items: vec![0; ceiling_div(item_size as usize * num_of_values, 8) + 7].into_boxed_slice(), item_size },
             first_bit: 0,
-            mask: n_lowest_bits(item_size)
         }
     }
 
     #[inline] fn push(&mut self, value: usize) {
-        unsafe{set_bits57(self.compact.items.as_mut_ptr(), self.first_bit, value as u64, self.mask)};
+        unsafe{init_bits57(self.compact.items.as_mut_ptr(), self.first_bit, value as u64)};
         self.first_bit += self.compact.item_size as usize;
     }
 }
