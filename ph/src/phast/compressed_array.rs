@@ -5,7 +5,7 @@ use dyn_size_of::GetSize;
 /// Compressed array of usize integers that can be used by `PHast`.
 pub trait CompressedArray {
     /// Construct `Self`.
-    fn new(values: Vec<usize>, last: usize) -> Self;
+    fn new(values: Vec<usize>, last_in_value: usize, num_of_keys: usize) -> Self;
 
     /// Get `index`-th item from the array.
     fn get(&self, index: usize) -> usize;
@@ -41,7 +41,7 @@ impl CompressedBuilder for cseq::elias_fano::Builder {
 #[cfg(feature = "cseq")]
 impl CompressedArray for CSeqEliasFano {
 
-    fn new(values: Vec<usize>, last: usize) -> Self {
+    fn new(values: Vec<usize>, last: usize, _num_of_keys: usize) -> Self {
         cseq::elias_fano::Builder::with_all(values, last).finish_s()
     }
 
@@ -52,33 +52,68 @@ impl CompressedArray for CSeqEliasFano {
     }
 }
 
-/// Implementation of `CompressedArray` that stores zig-zag encoded differences of values and linear functions
+/// Represents linear function f(i) = floor((multipler*i + offset) / divider).
+struct LinearRegression {
+    multipler: usize,
+    offset: usize,
+    divider: usize,
+}
+
+impl LinearRegression {
+    /// Returns linear function f(i) = round((multipler*i + offset) / divider) + total_offset.
+    #[inline] fn rounded(multipler: usize, offset: usize, divider: usize) -> Self {
+        Self { multipler, offset: offset + divider / 2, divider }
+    }
+
+    /// Add `total_offset` to each value returned by `get`.
+    #[inline] fn add_total_offset(&mut self, total_offset: usize) {
+        self.offset += total_offset * self.divider;
+    }
+
+    /// Returns the value of function.
+    #[inline(always)] fn get(&self, i: usize) -> usize {
+        (self.multipler*i + self.offset) / self.divider
+    }
+}
+
+
+
+/// Implementation of `CompressedArray` that stores differences of values and linear regression
 /// with the same number of bits required to store the largest difference.
-pub struct ZigZagCompressedArray {
-    pub items: Box<[u64]>,
-    pub item_size: u8,
+pub struct CompressedBySimpleLinearRegression {
+    regression: LinearRegression,
+    corrections: Box<[u8]>,
+    bits_per_correction: u8,
     //pub lowest: usize,    //TODO
     pub num_of_values: usize,
     pub max_value: usize
 }
 
-pub struct ZigZagBuilder {
-    items: Vec<isize>,
-    //lowest: usize,
-    pub num_of_values: usize,
-    pub max_value: usize
-}
-
-impl CompressedBuilder for ZigZagBuilder {
-    fn new(num_of_values: usize, max_value: usize) -> Self {
-        Self { items: Vec::with_capacity(num_of_values), num_of_values, max_value }
+impl CompressedArray for CompressedBySimpleLinearRegression {
+    fn new(values: Vec<usize>, last: usize, num_of_keys: usize) -> Self {
+        let regression = LinearRegression::rounded(num_of_keys, num_of_keys, values.len()+1);
+        let mut total_offset = 0;   // total offset for regression
+        let mut max_diff = 0;
+        for (i, v) in values.iter().copied().enumerate() {
+            let r = regression.get(i);
+            if r < v { 
+                let diff = v - r;
+                if diff > total_offset { total_offset = diff; }
+            } else {
+                let diff = r - v;
+                if diff > max_diff { max_diff = diff; }
+            }
+        }
+        regression.add_total_offset(total_offset);  // new regression gives values >= included in values
+        let bits_per_correction = bits_to_store((total_offset + max_diff) as u64);
+        
     }
 
-    fn push(&mut self, value: usize) {
-        todo!()
+    fn get(&self, index: usize) -> usize {
+        self.regression.get(index)
+        - (unsafe { get_bits57(self.corrections.as_ptr(), index * self.bits_per_correction as usize) & n_lowest_bits(self.bits_per_correction) }) as usize
     }
 }
-
 
 /// Implementation of `CompressedArray` that stores each value with the same number of bits required to store the largest one.
 pub struct Compact {
@@ -112,7 +147,7 @@ impl GetSize for Compact {
 }
 
 impl CompressedArray for Compact {
-    fn new(values: Vec<usize>, last: usize) -> Self {
+    fn new(values: Vec<usize>, last: usize, _num_of_keys: usize) -> Self {
         CompactBuilder::with_all(values, last).compact
     }
 
@@ -171,7 +206,7 @@ impl CompactFast {
 }
 
 impl CompressedArray for CompactFast {
-    fn new(values: Vec<usize>, last: usize) -> Self {
+    fn new(values: Vec<usize>, last: usize, _num_of_keys: usize) -> Self {
         CompactFastBuilder::with_all(values, last).compact
     }
 
@@ -186,7 +221,7 @@ impl CompressedArray for CompactFast {
 #[cfg(feature = "sux")] pub struct SuxEliasFano(sux::dict::elias_fano::EfSeq);
 
 #[cfg(feature = "sux")] impl CompressedBuilder for sux::dict::EliasFanoBuilder {
-    #[inline] fn new(num_of_values: usize, max_value: usize) -> Self {
+    #[inline] fn new(num_of_values: usize, max_value: usize, _num_of_keys: usize) -> Self {
         sux::dict::EliasFanoBuilder::new(num_of_values, max_value)
     }
 
@@ -197,8 +232,8 @@ impl CompressedArray for CompactFast {
 
 #[cfg(feature = "sux")]
 impl CompressedArray for SuxEliasFano {
-    fn new(values: Vec<usize>, last: usize) -> Self {
-        SuxEliasFano(sux::dict::EliasFanoBuilder::with_all(values, last).build_with_seq())
+    fn new(values: Vec<usize>, last: usize, num_of_keys: usize) -> Self {
+        SuxEliasFano(sux::dict::EliasFanoBuilder::with_all(values, last, num_of_keys).build_with_seq())
     }
 
     #[inline]
