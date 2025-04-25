@@ -5,7 +5,7 @@ use dyn_size_of::GetSize;
 /// Compressed array of usize integers that can be used by `PHast`.
 pub trait CompressedArray {
     /// Construct `Self`.
-    fn new(values: Vec<usize>, last_in_value: usize, num_of_keys: usize) -> Self;
+    fn new(values: Vec<usize>, last_in_value: usize, number_of_keys: usize) -> Self;
 
     /// Get `index`-th item from the array.
     fn get(&self, index: usize) -> usize;

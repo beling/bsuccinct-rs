@@ -102,13 +102,14 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_bps_bs_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, hasher: S) -> Self where K: Hash {
+        let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values, unassigned_len) =
                 Self::build_level_st(&mut keys, bits_per_seed, bucket_size100, h, 0);
             (keys, level0, unassigned_values, unassigned_len)
         }, |keys, level_nr, h| {
             Self::build_level_st(keys, bits_per_seed, bucket_size100, h, level_nr)
-        }, hasher)
+        }, hasher, number_of_keys)
     }
 
     /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
@@ -118,13 +119,14 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
     /// `keys` cannot contain duplicates.
     pub fn with_vec_bps_bs_threads_hash<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
         if threads_num == 1 { return Self::with_vec_bps_bs_hash(keys, bits_per_seed, bucket_size100, hasher); }
+        let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values, unassigned_len) =
                 Self::build_level_mt(&mut keys, bits_per_seed, bucket_size100, threads_num, &h, 0);
             (keys, level0, unassigned_values, unassigned_len)
         }, |keys, level_nr, h| {
             Self::build_level_mt(keys, bits_per_seed, bucket_size100, threads_num, &h, level_nr)
-        }, hasher)
+        }, hasher, number_of_keys)
     }
 
 
@@ -138,7 +140,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
             Self::build_level_from_slice_st(keys, bits_per_seed, bucket_size100, h, 0)
         }, |keys, level_nr, h| {
             Self::build_level_st(keys, bits_per_seed, bucket_size100, &h, level_nr)
-        }, hasher)
+        }, hasher, keys.len())
     }
 
 
@@ -153,11 +155,11 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
             Self::build_level_from_slice_mt(keys, bits_per_seed, bucket_size100, threads_num, h, 0)
         }, |keys, level_nr, h| {
             Self::build_level_mt(keys, bits_per_seed, bucket_size100, threads_num, &h, level_nr)
-        }, hasher)
+        }, hasher, keys.len())
     }
 
     #[inline]
-    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S) -> Self
+    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, number_of_keys: usize) -> Self
         where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS>, Box<[u64]>, usize),
             BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS>, Box<[u64]>, usize),
         {
@@ -185,7 +187,7 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
         drop(level0_unassigned);
         Self {
             level0,
-            unassigned: CA::new(unassigned, last),
+            unassigned: CA::new(unassigned, last, number_of_keys),
             levels: levels.into_boxed_slice(),
             hasher,
         }
