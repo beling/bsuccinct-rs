@@ -102,11 +102,11 @@ pub struct PHastConf {
     #[arg()]
     pub bucket_size: Option<u16>,
 
-    /// Test with Elias-Fano encoder
+    /// Test with Elias-Fano encoder of array that makes PHast minimal
     #[arg(short='e', long="ef", default_value_t = false)]
     pub elias_fano: bool,
 
-    /// Test with Compact encoder
+    /// Test with Compact encoder of array that makes PHast minimal
     #[arg(short='c', long, default_value_t = false)]
     pub compact: bool
 }
