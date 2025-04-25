@@ -140,7 +140,7 @@ impl LinearRegressionConstructor for LeastSquares {
             x_sum += x;
             y_sum += y;
         }
-        if n == 0 { return LinearRegression::rounded(0, 0, 0); }
+        //if n == 0 { return LinearRegression::rounded(0, 0, 0); }  //TODO
         let mut l = 0;
         let mut m = 0;
         for (x, y) in values.iter().copied().enumerate() {
