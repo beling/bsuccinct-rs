@@ -1,6 +1,6 @@
 use ph::{fmph::TwoToPowerBitsStatic, phast::{CompressedArray, DefaultCompressedArray}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
 
-use crate::{builder::TypeToQuery, BenchmarkResult, Conf, MPHFBuilder, PHastConf};
+use crate::{builder::TypeToQuery, BenchmarkResult, Conf, IntHasher, KeySource, MPHFBuilder, PHastConf, StrHasher};
 use std::{fs::File, hash::Hash, io::Write};
 
 #[derive(Default)]
@@ -58,13 +58,24 @@ where SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send
          array_compression: std::marker::PhantomData::<AC>::default(), bits_per_seed, bucket_size_100 }.benchmark(i, conf)
 }
 
-pub fn phast_benchmark<H: BuildSeededHasher+Default+Sync, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf) {
+pub fn phast_benchmark_enc<H, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, encoder: &str)
+    where H: BuildSeededHasher+Default+Sync, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
+{
     let bucket_size_100 = phast_conf.bucket_size();
     let b = match phast_conf.bits_per_seed {
         8 => benchmark_with::<H, _, AC, _>(Bits8, bucket_size_100, i, conf),
         4 => benchmark_with::<H, _, AC, _>(TwoToPowerBitsStatic::<2>, bucket_size_100, i, conf),
         b => benchmark_with::<H, _, AC, _>(BitsFast(b), bucket_size_100, i, conf),
     };
-    if let Some(ref mut f) = csv_file { writeln!(f, "{} {bucket_size_100} {}", phast_conf.bits_per_seed, b.all()).unwrap(); }
-    println!(" \t{}", b);
+    if let Some(ref mut f) = csv_file { writeln!(f, "{} {bucket_size_100} {encoder} {}", phast_conf.bits_per_seed, b.all()).unwrap(); }
+    println!(" {encoder}\t{}", b);
+}
+
+pub fn phast_benchmark<AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, encoder: &str)
+    where AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
+{
+    match conf.key_source {
+        KeySource::xs32 | KeySource::xs64 => phast_benchmark_enc::<IntHasher, AC, _>(csv_file, i, conf, phast_conf, encoder),
+        _ => phast_benchmark_enc::<StrHasher, AC, _>(csv_file, i, conf, phast_conf, encoder),
+    }
 }
