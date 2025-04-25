@@ -86,7 +86,7 @@ pub struct CompressedBySimpleLinearRegression {
 }
 
 impl CompressedArray for CompressedBySimpleLinearRegression {
-    fn new(values: Vec<usize>, last: usize, num_of_keys: usize) -> Self {
+    fn new(values: Vec<usize>, _last: usize, num_of_keys: usize) -> Self {
         let mut regression = LinearRegression::rounded(num_of_keys, num_of_keys, values.len()+1);
         let mut total_offset = 0;   // total offset for regression, max v - r difference
         let mut max_diff = 0;   // max r - v difference
@@ -209,7 +209,7 @@ impl CompressedArray for CompactFast {
 #[cfg(feature = "sux")] pub struct SuxEliasFano(sux::dict::elias_fano::EfSeq);
 
 #[cfg(feature = "sux")] impl CompressedBuilder for sux::dict::EliasFanoBuilder {
-    #[inline] fn new(num_of_values: usize, max_value: usize, _num_of_keys: usize) -> Self {
+    #[inline] fn new(num_of_values: usize, max_value: usize) -> Self {
         sux::dict::EliasFanoBuilder::new(num_of_values, max_value)
     }
 
@@ -220,8 +220,8 @@ impl CompressedArray for CompactFast {
 
 #[cfg(feature = "sux")]
 impl CompressedArray for SuxEliasFano {
-    fn new(values: Vec<usize>, last: usize, num_of_keys: usize) -> Self {
-        SuxEliasFano(sux::dict::EliasFanoBuilder::with_all(values, last, num_of_keys).build_with_seq())
+    fn new(values: Vec<usize>, last: usize, _num_of_keys: usize) -> Self {
+        SuxEliasFano(sux::dict::EliasFanoBuilder::with_all(values, last).build_with_seq())
     }
 
     #[inline]
