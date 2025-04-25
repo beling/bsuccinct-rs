@@ -1,4 +1,4 @@
-use bitm::{bits_to_store, ceiling_div, get_bits57, init_bits57, n_lowest_bits, set_bits57, BitAccess, BitVec};
+use bitm::{bits_to_store, ceiling_div, get_bits57, init_bits57, n_lowest_bits, BitAccess, BitVec};
 use dyn_size_of::GetSize;
 #[cfg(feature = "sux")] use sux::traits::IndexedSeq;
 
@@ -126,18 +126,6 @@ impl GetSize for CompactFast {
     fn size_bytes_dyn(&self) -> usize { self.items.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.items.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;
-}
-
-impl CompactFast {
-    pub fn from_slice_max(slice: &[usize], max_item: usize) -> Self {
-        let item_size = bits_to_store(max_item as u64);
-        let mut items = vec![0; ceiling_div(item_size as usize * slice.len(), 8) + 7].into_boxed_slice();
-        let mask = n_lowest_bits(item_size);
-        for (index, value) in slice.into_iter().enumerate() {
-            unsafe{set_bits57(items.as_mut_ptr(), index*item_size as usize, *value as u64, mask)};
-        }
-        Self { items, item_size }
-    }
 }
 
 impl CompressedArray for CompactFast {
