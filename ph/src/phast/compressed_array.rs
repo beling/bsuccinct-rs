@@ -82,18 +82,14 @@ impl LinearRegression {
 /// with the same number of bits required to store the largest difference.
 pub struct CompressedBySimpleLinearRegression {
     regression: LinearRegression,
-    corrections: Box<[u8]>,
-    bits_per_correction: u8,
-    //pub lowest: usize,    //TODO
-    pub num_of_values: usize,
-    pub max_value: usize
+    corrections: CompactFast,
 }
 
 impl CompressedArray for CompressedBySimpleLinearRegression {
     fn new(values: Vec<usize>, last: usize, num_of_keys: usize) -> Self {
-        let regression = LinearRegression::rounded(num_of_keys, num_of_keys, values.len()+1);
-        let mut total_offset = 0;   // total offset for regression
-        let mut max_diff = 0;
+        let mut regression = LinearRegression::rounded(num_of_keys, num_of_keys, values.len()+1);
+        let mut total_offset = 0;   // total offset for regression, max v - r difference
+        let mut max_diff = 0;   // max r - v difference
         for (i, v) in values.iter().copied().enumerate() {
             let r = regression.get(i);
             if r < v { 
@@ -105,13 +101,19 @@ impl CompressedArray for CompressedBySimpleLinearRegression {
             }
         }
         regression.add_total_offset(total_offset);  // new regression gives values >= included in values
-        let bits_per_correction = bits_to_store((total_offset + max_diff) as u64);
-        
+        //let bits_per_correction = bits_to_store((total_offset + max_diff) as u64);
+        let mut corrections = CompactFastBuilder::new(values.len(), total_offset + max_diff);
+        for (i, v) in values.iter().copied().enumerate() {
+            let diff = regression.get(i) - v;
+            debug_assert!(diff <= total_offset + max_diff);
+            corrections.push(diff);
+        }
+        Self { regression, corrections: corrections.compact }
     }
 
     fn get(&self, index: usize) -> usize {
-        self.regression.get(index)
-        - (unsafe { get_bits57(self.corrections.as_ptr(), index * self.bits_per_correction as usize) & n_lowest_bits(self.bits_per_correction) }) as usize
+        self.regression.get(index) - self.corrections.get(index)
+        //(unsafe { get_bits57(self.corrections.as_ptr(), index * self.bits_per_correction as usize) & n_lowest_bits(self.bits_per_correction) }) as usize
     }
 }
 
