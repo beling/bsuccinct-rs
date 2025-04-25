@@ -1,9 +1,15 @@
+use std::marker::PhantomData;
+
 use bitm::{bits_to_store, ceiling_div, get_bits57, init_bits57, n_lowest_bits, BitAccess, BitVec};
 use dyn_size_of::GetSize;
 #[cfg(feature = "sux")] use sux::traits::IndexedSeq;
 
 /// Compressed array of usize integers that can be used by `PHast`.
 pub trait CompressedArray {
+
+    /// Expect `values` to have `usize::MAX` for unused values; `false` if `values` must be sorted.
+    const MAX_FOR_UNUSED: bool = false;
+
     /// Construct `Self`.
     fn new(values: Vec<usize>, last_in_value: usize, number_of_keys: usize) -> Self;
 
@@ -53,45 +59,35 @@ impl CompressedArray for CSeqEliasFano {
 }
 
 /// Represents linear function f(i) = floor((multipler*i + offset) / divider).
-struct LinearRegression {
-    multipler: usize,
-    offset: usize,
+pub struct LinearRegression {
+    multipler: isize,   //usize
+    offset: isize,      //usize
     divider: usize,
 }
 
 impl LinearRegression {
     /// Returns linear function f(i) = round((multipler*i + offset) / divider) + total_offset.
-    #[inline] fn rounded(multipler: usize, offset: usize, divider: usize) -> Self {
-        Self { multipler, offset: offset + divider / 2, divider }
+    #[inline] pub fn rounded(multipler: isize, offset: isize, divider: usize) -> Self {
+        Self { multipler, offset: offset + divider as isize / 2, divider }
     }
 
     /// Add `total_offset` to each value returned by `get`.
-    #[inline] fn add_total_offset(&mut self, total_offset: usize) {
-        self.offset += total_offset * self.divider;
+    #[inline] pub fn add_total_offset(&mut self, total_offset: usize) {
+        self.offset += (total_offset * self.divider) as isize;
     }
 
     /// Returns the value of function.
-    #[inline(always)] fn get(&self, i: usize) -> usize {
-        (self.multipler*i + self.offset) / self.divider
+    #[inline(always)] pub fn get(&self, i: usize) -> usize {
+        (self.multipler*i as isize + self.offset) as usize / self.divider
     }
-}
 
-
-
-/// Implementation of `CompressedArray` that stores differences of values and linear regression
-/// with the same number of bits required to store the largest difference.
-pub struct SimpleLinearRegression {
-    regression: LinearRegression,
-    corrections: CompactFast,
-}
-
-impl CompressedArray for SimpleLinearRegression {
-    fn new(values: Vec<usize>, _last: usize, num_of_keys: usize) -> Self {
-        let mut regression = LinearRegression::rounded(num_of_keys, num_of_keys, values.len()+1);
+    /// Get corrections for `self` and shift `self` to enable all corrections being non-negative.
+    pub fn corrections(&mut self, values: Vec<usize>) -> CompactFast {
         let mut total_offset = 0;   // total offset for regression, max v - r difference
         let mut max_diff = 0;   // max r - v difference
         for (i, v) in values.iter().copied().enumerate() {
-            let r = regression.get(i);
+            if v == usize::MAX { continue; }
+            let r = self.get(i);
             if r < v { 
                 let diff = v - r;
                 if diff > total_offset { total_offset = diff; }
@@ -100,15 +96,78 @@ impl CompressedArray for SimpleLinearRegression {
                 if diff > max_diff { max_diff = diff; }
             }
         }
-        regression.add_total_offset(total_offset);  // new regression gives values >= included in values
+        self.add_total_offset(total_offset);  // new regression gives values >= included in values
         //let bits_per_correction = bits_to_store((total_offset + max_diff) as u64);
         let mut corrections = CompactFastBuilder::new(values.len(), total_offset + max_diff);
+        //let mut real_max_diff = 0;
         for (i, v) in values.iter().copied().enumerate() {
-            let diff = regression.get(i) - v;
-            debug_assert!(diff <= total_offset + max_diff);
-            corrections.push(diff);
+            if v == usize::MAX {
+                corrections.push(0);
+            } else {
+                let diff = self.get(i) - v;
+                debug_assert!(diff <= total_offset + max_diff);
+                corrections.push(diff);
+                //if diff > real_max_diff { real_max_diff = diff; }
+            }
         }
-        Self { regression, corrections: corrections.compact }
+        corrections.compact
+        //assert_eq!(real_max_diff, total_offset + max_diff);
+    }
+}
+
+pub trait LinearRegressionConstructor {
+    fn new(values: &[usize], num_of_keys: usize) -> LinearRegression;
+}
+
+pub struct Simple;
+
+impl LinearRegressionConstructor for Simple {
+    #[inline] fn new(values: &[usize], num_of_keys: usize) -> LinearRegression {
+        LinearRegression::rounded(num_of_keys as isize, num_of_keys as isize, values.len()+1)
+    }
+}
+
+pub struct LeastSquares;
+
+impl LinearRegressionConstructor for LeastSquares {
+    fn new(values: &[usize], _num_of_keys: usize) -> LinearRegression {        
+        let mut n= 0;
+        let mut x_sum = 0;
+        let mut y_sum = 0;
+        for (x, y) in values.iter().copied().enumerate() {
+            if y == usize::MAX { continue; }
+            n += 1;
+            x_sum += x;
+            y_sum += y;
+        }
+        if n == 0 { return LinearRegression::rounded(0, 0, 0); }
+        let mut l = 0;
+        let mut m = 0;
+        for (x, y) in values.iter().copied().enumerate() {
+            if y == usize::MAX { continue; }
+            let x_diff = (n * x) as isize - x_sum as isize;
+            m += (x_diff * x_diff) as usize;
+            l += x_diff * ((n * y) as isize - y_sum as isize);
+        }
+        LinearRegression::rounded(n as isize * l, (m * y_sum) as isize - l * x_sum as isize, m * n)
+    }
+}
+
+/// Implementation of `CompressedArray` that stores differences of values and linear regression
+/// with the same number of bits required to store the largest difference.
+pub struct LinearRegressionArray<C> {
+    regression: LinearRegression,
+    corrections: CompactFast,
+    constructor: PhantomData<C>
+}
+
+impl<C: LinearRegressionConstructor> CompressedArray for LinearRegressionArray<C> {
+    const MAX_FOR_UNUSED: bool = true;
+    
+    fn new(values: Vec<usize>, _last: usize, num_of_keys: usize) -> Self {
+        let mut regression = C::new(&values, num_of_keys);
+        let corrections = regression.corrections(values);
+        Self { regression, corrections, constructor: PhantomData }
     }
 
     fn get(&self, index: usize) -> usize {
@@ -117,7 +176,7 @@ impl CompressedArray for SimpleLinearRegression {
     }
 }
 
-impl GetSize for SimpleLinearRegression {
+impl<C> GetSize for LinearRegressionArray<C> {
     fn size_bytes_dyn(&self) -> usize { self.corrections.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.corrections.size_bytes_dyn() }
     const USES_DYN_MEM: bool = true;

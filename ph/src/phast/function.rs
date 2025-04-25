@@ -176,10 +176,19 @@ impl<SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SS, CA, S
                 build_level(&mut keys, levels.len() as u64+1, &hasher);
             let shift = unassigned.len();
             for i in 0..keys_len {
-                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
-                    last = level0_unassigned.next().unwrap();                    
+                if CA::MAX_FOR_UNUSED {
+                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                        last = level0_unassigned.next().unwrap();
+                        unassigned.push(last);
+                    } else {
+                        unassigned.push(usize::MAX);
+                    }
+                } else {
+                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                        last = level0_unassigned.next().unwrap();
+                    }
+                    unassigned.push(last);
                 }
-                unassigned.push(last);
             }
             levels.push(Level { seeds, shift });
         }

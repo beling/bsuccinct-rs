@@ -8,7 +8,7 @@ mod builder;
 pub use builder::MPHFBuilder;
 
 mod stats;
-use ph::phast::compressed_array::{CompactFast, SimpleLinearRegression};
+use ph::phast::compressed_array::{CompactFast, LeastSquares, LinearRegressionArray, Simple};
 use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray};
 pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
@@ -112,7 +112,11 @@ pub struct PHastConf {
 
     /// Test with Simple Linear Regression based encoder of array that makes PHast minimal
     #[arg(short='l', long="ls", default_value_t = false)]
-    pub linear_simple: bool
+    pub linear_simple: bool,
+
+    /// Test with Least Squares Regression based encoder of array that makes PHast minimal
+    #[arg(short='s', default_value_t = false)]
+    pub least_squares: bool
 }
 
 impl PHastConf {
@@ -122,7 +126,7 @@ impl PHastConf {
 
     /// should elias fano be tested
     fn elias_fano(&self) -> bool {
-        self.elias_fano || !(self.compact || self.linear_simple)
+        self.elias_fano || !(self.compact || self.linear_simple || self.least_squares)
     }
 }
 
@@ -279,7 +283,10 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                 phast_benchmark::<CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
             }
             if phast_conf.linear_simple {
-                phast_benchmark::<SimpleLinearRegression, _>(&mut csv_file, i, conf, phast_conf, "LS");
+                phast_benchmark::<LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+            }
+            if phast_conf.least_squares {
+                phast_benchmark::<LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
             }
         },
         #[cfg(feature = "boomphf")]
