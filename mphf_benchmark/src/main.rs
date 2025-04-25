@@ -101,11 +101,24 @@ pub struct PHastConf {
     /// Expected number of keys per bucket multipled by 100
     #[arg()]
     pub bucket_size: Option<u16>,
+
+    /// Test with Elias-Fano encoder of array that makes PHast minimal
+    #[arg(short='e', long="ef", default_value_t = false)]
+    pub elias_fano: bool,
+
+    /// Test with Compact encoder of array that makes PHast minimal
+    #[arg(short='c', long, default_value_t = false)]
+    pub compact: bool
 }
 
 impl PHastConf {
     fn bucket_size(&self) -> u16 {
         self.bucket_size.unwrap_or_else(|| bits_per_seed_to_100_bucket_size(self.bits_per_seed))
+    }
+
+    /// should elias fano be tested
+    fn elias_fano(&self) -> bool {
+        self.elias_fano || !self.compact
     }
 }
 
@@ -126,8 +139,6 @@ pub enum Method {
     FMPH(FMPHConf),
     /// PHast
     phast(PHastConf),
-    /// PHast uncompressed
-    phastu(PHastConf),
     #[cfg(feature = "boomphf")]
     /// boomphf
     Boomphf {
@@ -255,21 +266,15 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
             }
         },
         Method::phast(ref phast_conf) => {
-            println!("PHast {} {}: results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-            let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100");
-            match conf.key_source {
-                KeySource::xs32 | KeySource::xs64 => phast_benchmark::<IntHasher, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf),
-                _ => phast_benchmark::<StrHasher, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf),
+            println!("PHast {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+            let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+            if phast_conf.elias_fano() {
+                phast_benchmark::<DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+            }
+            if phast_conf.compact {
+                phast_benchmark::<CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
             }
         },
-        Method::phastu(ref phast_conf) => {
-            println!("PHastU {} {}: results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-            let mut csv_file = file("phastu", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100");
-            match conf.key_source {
-                KeySource::xs32 | KeySource::xs64 => phast_benchmark::<IntHasher, CompactFast, _>(&mut csv_file, i, conf, phast_conf),
-                _ => phast_benchmark::<StrHasher, CompactFast, _>(&mut csv_file, i, conf, phast_conf),
-            }
-        }
         #[cfg(feature = "boomphf")]
         Method::Boomphf{level_size} => {
             match conf.key_source {
