@@ -60,96 +60,108 @@ impl CompressedArray for CSeqEliasFano {
 
 /// Represents linear function f(i) = floor((multipler*i + offset) / divider).
 pub struct LinearRegression {
-    multipler: isize,   //usize
-    offset: isize,      //usize
-    divider: usize,
+    multipler: isize,   // can be usize
+    divider: isize, // can be usize
+    offset: isize,  // must be isize
+}
+
+#[inline(always)] fn mult_div(i: usize, multipler: usize, divider: usize) -> usize {
+    i * multipler / divider
 }
 
 impl LinearRegression {
-    /// Returns linear function f(i) = round((multipler*i + offset) / divider) + total_offset.
-    #[inline] pub fn rounded(multipler: isize, offset: isize, divider: usize) -> Self {
-        Self { multipler, offset: offset + divider as isize / 2, divider }
-    }
-
-    /// Add `total_offset` to each value returned by `get`.
-    #[inline] pub fn add_total_offset(&mut self, total_offset: usize) {
-        self.offset += (total_offset * self.divider) as isize;
-    }
-
-    /// Returns the value of function.
-    #[inline(always)] pub fn get(&self, i: usize) -> usize {
-        (self.multipler*i as isize + self.offset) as usize / self.divider
-    }
-
     /// Get corrections for `self` and shift `self` to enable all corrections being non-negative.
-    pub fn corrections(&mut self, values: Vec<usize>) -> CompactFast {
-        let mut total_offset = 0;   // total offset for regression, max v - r difference
-        let mut max_diff = 0;   // max r - v difference
+    pub fn new(multipler: usize, divider: usize, values: Vec<usize>) -> (Self, CompactFast) {
+        let mut max_diff = isize::MIN;   // max value - predicted difference = max correction
+        let mut min_diff = isize::MAX;   // min value - predicted difference = min correction
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX { continue; }
-            let r = self.get(i);
-            if r < v { 
-                let diff = v - r;
-                if diff > total_offset { total_offset = diff; }
-            } else {
-                let diff = r - v;
-                if diff > max_diff { max_diff = diff; }
-            }
+            let diff = v as isize - mult_div(i, multipler, divider) as isize;
+            if diff > max_diff { max_diff = diff }
+            if diff < min_diff { min_diff = diff }
         }
-        self.add_total_offset(total_offset);  // new regression gives values >= included in values
-        //let bits_per_correction = bits_to_store((total_offset + max_diff) as u64);
-        let mut corrections = CompactFastBuilder::new(values.len(), total_offset + max_diff);
-        //let mut real_max_diff = 0;
+        let regression = LinearRegression {
+            multipler: multipler as isize,
+            divider: divider as isize,
+            offset: min_diff * divider as isize
+        };
+        let mut corrections = CompactFastBuilder::new(values.len(), (max_diff - min_diff) as usize);
+        let mut real_max_correction = 0;
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX {
                 corrections.push(0);
             } else {
-                let diff = self.get(i) - v;
-                debug_assert!(diff <= total_offset + max_diff);
-                corrections.push(diff);
-                //if diff > real_max_diff { real_max_diff = diff; }
+                let correction = v as isize - regression.get(i);
+                debug_assert!(correction >= 0);
+                debug_assert!(correction <= max_diff - min_diff);
+                corrections.push(correction as usize);
+                if correction > real_max_correction { real_max_correction = correction; }
             }
         }
-        corrections.compact
-        //assert_eq!(real_max_diff, total_offset + max_diff);
+        dbg!(real_max_correction);
+        assert_eq!(real_max_correction, max_diff - min_diff);
+        (regression, corrections.compact)
+        
+    }
+
+    /// Add `total_offset` to each value returned by `get`.
+    /* #[inline] pub fn add_total_offset(&mut self, total_offset: usize) {
+        self.offset += dbg!(total_offset * self.divider) as isize;
+    }*/
+
+    /// Returns the value of function.
+    #[inline(always)] pub fn get(&self, i: usize) -> isize {
+        (self.multipler * i as isize + self.offset) / self.divider 
     }
 }
 
 pub trait LinearRegressionConstructor {
-    fn new(values: &[usize], num_of_keys: usize) -> LinearRegression;
+    fn new(values: &[usize], num_of_keys: usize) -> (usize, usize);
 }
 
 pub struct Simple;
 
 impl LinearRegressionConstructor for Simple {
-    #[inline] fn new(values: &[usize], num_of_keys: usize) -> LinearRegression {
-        LinearRegression::rounded(num_of_keys as isize, num_of_keys as isize, values.len()+1)
+    #[inline] fn new(values: &[usize], num_of_keys: usize) -> (usize, usize) {
+        (num_of_keys, values.len()+1)
     }
 }
 
 pub struct LeastSquares;
 
+fn div_round(n: i128, d: u128) -> i64 {
+    let d = d as i128;
+    dbg!(((dbg!(n) + d/2) / dbg!(d)) as i64)
+}
+
 impl LinearRegressionConstructor for LeastSquares {
-    fn new(values: &[usize], _num_of_keys: usize) -> LinearRegression {        
-        let mut n= 0;
+    fn new(values: &[usize], _num_of_keys: usize) -> (usize, usize) {        
+        let mut n= 0u128;
         let mut x_sum = 0;
         let mut y_sum = 0;
         for (x, y) in values.iter().copied().enumerate() {
             if y == usize::MAX { continue; }
             n += 1;
-            x_sum += x;
-            y_sum += y;
+            x_sum += x as u128;
+            y_sum += y as u128;
         }
+        dbg!(n);
         //if n == 0 { return LinearRegression::rounded(0, 0, 0); }  //TODO
         let mut l = 0;
         let mut m = 0;
         for (x, y) in values.iter().copied().enumerate() {
             if y == usize::MAX { continue; }
-            let x_diff = (n * x) as isize - x_sum as isize;
-            m += (x_diff * x_diff) as usize;
-            l += x_diff * ((n * y) as isize - y_sum as isize);
+            let x_diff = (n as i128 * x as i128) - x_sum as i128;
+            m += (x_diff * x_diff) as u128;
+            l += x_diff * (n as i128 * y as i128 - y_sum as i128);
         }
-        LinearRegression::rounded(n as isize * l, (m * y_sum) as isize - l * x_sum as isize, m * n)
+        dbg!(n);
+        //let multipler = n * l;
+        //let divider = m * n;
+        let multipler = div_round(l, n*n*n*n);
+        let divider = (m + (n*n*n*n)/2) / (n*n*n*n);
+
+        (dbg!(multipler) as usize, dbg!(divider) as usize)
     }
 }
 
@@ -165,13 +177,13 @@ impl<C: LinearRegressionConstructor> CompressedArray for LinearRegressionArray<C
     const MAX_FOR_UNUSED: bool = true;
     
     fn new(values: Vec<usize>, _last: usize, num_of_keys: usize) -> Self {
-        let mut regression = C::new(&values, num_of_keys);
-        let corrections = regression.corrections(values);
+        let (multipler, divider) = C::new(&values, num_of_keys);
+        let (regression, corrections) = LinearRegression::new(multipler, divider, values);
         Self { regression, corrections, constructor: PhantomData }
     }
 
     fn get(&self, index: usize) -> usize {
-        self.regression.get(index) - self.corrections.get(index)
+        (self.regression.get(index) + self.corrections.get(index) as isize) as usize
         //(unsafe { get_bits57(self.corrections.as_ptr(), index * self.bits_per_correction as usize) & n_lowest_bits(self.bits_per_correction) }) as usize
     }
 }
