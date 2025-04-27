@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{isize, marker::PhantomData};
 
 use bitm::{bits_to_store, ceiling_div, get_bits57, init_bits57, n_lowest_bits, BitAccess, BitVec};
 use dyn_size_of::GetSize;
@@ -65,10 +65,6 @@ pub struct LinearRegression {
     offset: isize,  // must be isize
 }
 
-#[inline(always)] fn mult_div(i: usize, multipler: usize, divider: usize) -> usize {
-    i * multipler / divider
-}
-
 impl LinearRegression {
     /// Get corrections for `self` and shift `self` to enable all corrections being non-negative.
     pub fn new(multipler: usize, divider: usize, values: Vec<usize>) -> (Self, CompactFast) {
@@ -76,30 +72,35 @@ impl LinearRegression {
         let mut min_diff = isize::MAX;   // min value - predicted difference = min correction
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX { continue; }
-            let diff = v as isize - mult_div(i, multipler, divider) as isize;
+            let diff = v as isize - (i * multipler / divider) as isize;
             if diff > max_diff { max_diff = diff }
             if diff < min_diff { min_diff = diff }
         }
         let regression = LinearRegression {
-            multipler: multipler as isize,
-            divider: divider as isize,
-            offset: min_diff * divider as isize
+            multipler: dbg!(multipler) as isize,
+            divider: dbg!(divider) as isize,
+            offset: dbg!(min_diff * divider as isize)
         };
-        let mut corrections = CompactFastBuilder::new(values.len(), (max_diff - min_diff) as usize);
-        let mut real_max_correction = 0;
+        let max_correction = (max_diff - min_diff) as usize;
+        let mut corrections = CompactFastBuilder::new(values.len(), max_correction);
+        let mut real_max_correction = usize::MIN;
+        let mut real_min_correction = usize::MAX;
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX {
                 corrections.push(0);
             } else {
                 let correction = v as isize - regression.get(i);
                 debug_assert!(correction >= 0);
-                debug_assert!(correction <= max_diff - min_diff);
+                let correction = correction as usize;
+                debug_assert!(correction <= max_correction, "{correction} <= {max_correction}");
                 corrections.push(correction as usize);
                 if correction > real_max_correction { real_max_correction = correction; }
+                if correction < real_min_correction { real_min_correction = correction; }
             }
         }
-        dbg!(real_max_correction);
-        assert_eq!(real_max_correction, max_diff - min_diff);
+        dbg!(real_min_correction, real_max_correction);
+        assert_eq!(real_min_correction, 0);
+        assert_eq!(real_max_correction, max_correction);
         (regression, corrections.compact)
         
     }
