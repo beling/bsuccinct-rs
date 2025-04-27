@@ -72,14 +72,14 @@ impl LinearRegression {
         let mut min_diff = isize::MAX;   // min value - predicted difference = min correction
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX { continue; }
-            let diff = v as isize - (i * multipler / divider) as isize;
+            let diff = (i * multipler / divider) as isize - v as isize;
             if diff > max_diff { max_diff = diff }
             if diff < min_diff { min_diff = diff }
         }
         let regression = LinearRegression {
-            multipler: dbg!(multipler) as isize,
-            divider: dbg!(divider) as isize,
-            offset: dbg!(min_diff * divider as isize)
+            multipler: multipler as isize,
+            divider: divider as isize,
+            offset: min_diff * divider as isize
         };
         let max_correction = (max_diff - min_diff) as usize;
         let mut corrections = CompactFastBuilder::new(values.len(), max_correction);
@@ -89,7 +89,7 @@ impl LinearRegression {
             if v == usize::MAX {
                 corrections.push(0);
             } else {
-                let correction = v as isize - regression.get(i);
+                let correction = regression.get(i) - v as isize;
                 debug_assert!(correction >= 0);
                 let correction = correction as usize;
                 debug_assert!(correction <= max_correction, "{correction} <= {max_correction}");
@@ -98,7 +98,6 @@ impl LinearRegression {
                 if correction < real_min_correction { real_min_correction = correction; }
             }
         }
-        dbg!(real_min_correction, real_max_correction);
         assert_eq!(real_min_correction, 0);
         assert_eq!(real_max_correction, max_correction);
         (regression, corrections.compact)
@@ -112,7 +111,7 @@ impl LinearRegression {
 
     /// Returns the value of function.
     #[inline(always)] pub fn get(&self, i: usize) -> isize {
-        (self.multipler * i as isize + self.offset) / self.divider 
+        (self.multipler * i as isize - self.offset) / self.divider 
     }
 }
 
@@ -130,8 +129,7 @@ impl LinearRegressionConstructor for Simple {
 
 pub struct LeastSquares;
 
-fn div_round(n: i128, d: u128) -> i64 {
-    let d = d as i128;
+fn div_round(n: u128, d: u128) -> i64 {
     dbg!(((dbg!(n) + d/2) / dbg!(d)) as i64)
 }
 
@@ -148,20 +146,20 @@ impl LinearRegressionConstructor for LeastSquares {
         }
         dbg!(n);
         //if n == 0 { return LinearRegression::rounded(0, 0, 0); }  //TODO
-        let mut l = 0;
-        let mut m = 0;
+        let mut multipler = 0;
+        let mut divider = 0;
         for (x, y) in values.iter().copied().enumerate() {
             if y == usize::MAX { continue; }
             let x_diff = (n as i128 * x as i128) - x_sum as i128;
-            m += (x_diff * x_diff) as u128;
-            l += x_diff * (n as i128 * y as i128 - y_sum as i128);
+            divider += (x_diff * x_diff) as u128;
+            multipler += x_diff * (n as i128 * y as i128 - y_sum as i128);
         }
         dbg!(n);
         //let multipler = n * l;
         //let divider = m * n;
-        let multipler = div_round(l, n*n*n*n);
-        let divider = (m + (n*n*n*n)/2) / (n*n*n*n);
-
+        let n3 = n*n*n;
+        let multipler = div_round(multipler as u128, n3);
+        let divider = div_round(divider, n3);
         (dbg!(multipler) as usize, dbg!(divider) as usize)
     }
 }
@@ -184,7 +182,7 @@ impl<C: LinearRegressionConstructor> CompressedArray for LinearRegressionArray<C
     }
 
     fn get(&self, index: usize) -> usize {
-        (self.regression.get(index) + self.corrections.get(index) as isize) as usize
+        (self.regression.get(index) - self.corrections.get(index) as isize) as usize
         //(unsafe { get_bits57(self.corrections.as_ptr(), index * self.bits_per_correction as usize) & n_lowest_bits(self.bits_per_correction) }) as usize
     }
 }
