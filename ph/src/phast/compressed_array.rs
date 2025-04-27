@@ -72,16 +72,16 @@ impl LinearRegression {
         let mut min_diff = isize::MAX;   // min value - predicted difference = min correction
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX { continue; }
-            let diff = (i * multipler / divider) as isize - v as isize;
+            let diff = (i * multipler) as isize - (v * divider) as isize;   // divide by divider here?
             if diff > max_diff { max_diff = diff }
             if diff < min_diff { min_diff = diff }
         }
         let regression = LinearRegression {
             multipler: multipler as isize,
             divider: divider as isize,
-            offset: min_diff * divider as isize
+            offset: min_diff
         };
-        let max_correction = (max_diff - min_diff) as usize;
+        let max_correction = (max_diff - min_diff) as usize / divider;
         let mut corrections = CompactFastBuilder::new(values.len(), max_correction);
         let mut real_max_correction = usize::MIN;
         let mut real_min_correction = usize::MAX;
@@ -129,8 +129,8 @@ impl LinearRegressionConstructor for Simple {
 
 pub struct LeastSquares;
 
-fn div_round(n: u128, d: u128) -> i64 {
-    dbg!(((dbg!(n) + d/2) / dbg!(d)) as i64)
+fn div_round(n: u128, d: u128) -> usize {
+    ((n + d/2) / d) as usize
 }
 
 impl LinearRegressionConstructor for LeastSquares {
@@ -144,7 +144,6 @@ impl LinearRegressionConstructor for LeastSquares {
             x_sum += x as u128;
             y_sum += y as u128;
         }
-        dbg!(n);
         //if n == 0 { return LinearRegression::rounded(0, 0, 0); }  //TODO
         let mut multipler = 0;
         let mut divider = 0;
@@ -154,13 +153,12 @@ impl LinearRegressionConstructor for LeastSquares {
             divider += (x_diff * x_diff) as u128;
             multipler += x_diff * (n as i128 * y as i128 - y_sum as i128);
         }
-        dbg!(n);
         //let multipler = n * l;
         //let divider = m * n;
         let n3 = n*n*n;
         let multipler = div_round(multipler as u128, n3);
         let divider = div_round(divider, n3);
-        (dbg!(multipler) as usize, dbg!(divider) as usize)
+        (multipler as usize, divider as usize)
     }
 }
 
