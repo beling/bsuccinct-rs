@@ -59,6 +59,7 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
 
     /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
     fn benchmark_build_st(&self, keys: &[K], repeats: u32) -> (Self::MPHF, BuildStats) {
+        std::thread::sleep(std::time::Duration::from_millis(200));
         let start_moment = ThreadTime::now();   // ProcessTime?
         for _ in 1..repeats { self.new(keys, false); }
         let h = self.new(keys, false);
@@ -68,6 +69,7 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
 
     /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
     fn benchmark_build_mt(&self, keys: &[K], repeats: u32) -> (Self::MPHF, BuildStats) {
+        std::thread::sleep(std::time::Duration::from_millis(200));
         let start_moment =  Instant::now();
         for _ in 1..repeats { self.new(keys, true); }
         let h = self.new(keys, true);
@@ -114,6 +116,7 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
                 }
             }
         }
+        std::thread::sleep(std::time::Duration::from_millis(200));
         let start_process_moment = ProcessTime::now();
         for _ in 0..lookup_runs {
             for v in input { black_box(Self::value(mphf, v)); }
