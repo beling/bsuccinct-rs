@@ -84,8 +84,8 @@ impl LinearRegression {
         };
         let max_correction = (max_diff - min_diff) as usize / divider;
         let mut corrections = CompactFastBuilder::new(values.len(), max_correction);
-        let mut real_max_correction = usize::MIN;
-        let mut real_min_correction = usize::MAX;
+        //let mut real_max_correction = usize::MIN;
+        //let mut real_min_correction = usize::MAX;
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX {
                 corrections.push(0);
@@ -95,12 +95,12 @@ impl LinearRegression {
                 let correction = correction as usize;
                 debug_assert!(correction <= max_correction, "{correction} <= {max_correction}");
                 corrections.push(correction as usize);
-                if correction > real_max_correction { real_max_correction = correction; }
-                if correction < real_min_correction { real_min_correction = correction; }
+                //if correction > real_max_correction { real_max_correction = correction; }
+                //if correction < real_min_correction { real_min_correction = correction; }
             }
         }
-        assert_eq!(real_min_correction, 0);
-        assert_eq!(real_max_correction, max_correction);
+        //assert_eq!(real_min_correction, 0);
+        //assert_eq!(real_max_correction, max_correction);
         (regression, corrections.compact)
     }
 
@@ -130,38 +130,7 @@ impl LinearRegressionConstructor for Simple {
 
 pub struct LeastSquares;
 
-fn div_round(n: u128, d: u128) -> usize {
-    ((n + d/2) / d) as usize
-}
-
 impl LinearRegressionConstructor for LeastSquares {
-    /*fn new(values: &[usize], _num_of_keys: usize) -> (usize, usize) {        
-        let mut n= 0u128;
-        let mut x_sum = 0;
-        let mut y_sum = 0;
-        for (x, y) in values.iter().copied().enumerate() {
-            if y == usize::MAX { continue; }
-            n += 1;
-            x_sum += x as u128;
-            y_sum += y as u128;
-        }
-        //if n == 0 { return LinearRegression::rounded(0, 0, 0); }  //TODO
-        let mut multipler = 0;
-        let mut divider = 0;
-        for (x, y) in values.iter().copied().enumerate() {
-            if y == usize::MAX { continue; }
-            let x_diff = (n as i128 * x as i128) - x_sum as i128;
-            divider += (x_diff * x_diff) as u128;
-            multipler += x_diff * (n as i128 * y as i128 - y_sum as i128);
-        }
-        //let multipler = n * l;
-        //let divider = m * n;
-        let n3 = n*n*n;
-        let multipler = div_round(multipler as u128, n3);
-        let divider = div_round(divider, n3);
-        (multipler as usize, divider as usize)
-    }*/
-
     fn new(values: &[usize], _num_of_keys: usize) -> (usize, usize) {        
         let mut n= 0u128;
         let mut x_sum = 0;
@@ -176,14 +145,16 @@ impl LinearRegressionConstructor for LeastSquares {
             x_sqr_sum += (x as u128) * (x as u128);
             xy_sum += (x as u128) * (y as u128);
         }
-        //if n == 0 { return LinearRegression::rounded(0, 0, 0); }  //TODO
-        let multipler = y_sum * x_sqr_sum - x_sum * xy_sum;
-        let divider = n * x_sqr_sum - x_sum * x_sum;
-        //let multipler = n * l;
-        //let divider = m * n;
-        let n3 = n*n*n;
-        let multipler = div_round(multipler as u128, n3);
-        let divider = div_round(divider, n3);
+        if n == 0 { return (1, 1); }
+        let mut multipler = (n * xy_sum).abs_diff(x_sum * y_sum);
+        let mut divider = (n * x_sqr_sum).abs_diff(x_sum * x_sum);
+        let max_vals = (1<<(isize::BITS-2)) / n;
+        if multipler > max_vals || divider > max_vals {
+            let div = (multipler / max_vals).max(divider / max_vals);
+            let divh = div / 2;
+            multipler = (multipler + divh) / div;
+            divider = (divider + divh) / div;
+        }
         (multipler as usize, divider as usize)
     }
 }
