@@ -66,7 +66,8 @@ pub struct LinearRegression {
 }
 
 impl LinearRegression {
-    /// Get corrections for `self` and shift `self` to enable all corrections being non-negative.
+    /// Constructs `LinearRegression` (with given `multipler/divider` linear coefficient) and possibly small array of corrections
+    /// that can produce given `values`.
     pub fn new(multipler: usize, divider: usize, values: Vec<usize>) -> (Self, CompactFast) {
         let mut max_diff = isize::MIN;   // max value - predicted difference = max correction
         let mut min_diff = isize::MAX;   // min value - predicted difference = min correction
@@ -101,7 +102,6 @@ impl LinearRegression {
         assert_eq!(real_min_correction, 0);
         assert_eq!(real_max_correction, max_correction);
         (regression, corrections.compact)
-        
     }
 
     /// Add `total_offset` to each value returned by `get`.
@@ -116,6 +116,7 @@ impl LinearRegression {
 }
 
 pub trait LinearRegressionConstructor {
+    /// Returns linear coefficient as numerator and denominator.
     fn new(values: &[usize], num_of_keys: usize) -> (usize, usize);
 }
 
@@ -134,7 +135,7 @@ fn div_round(n: u128, d: u128) -> usize {
 }
 
 impl LinearRegressionConstructor for LeastSquares {
-    fn new(values: &[usize], _num_of_keys: usize) -> (usize, usize) {        
+    /*fn new(values: &[usize], _num_of_keys: usize) -> (usize, usize) {        
         let mut n= 0u128;
         let mut x_sum = 0;
         let mut y_sum = 0;
@@ -153,6 +154,31 @@ impl LinearRegressionConstructor for LeastSquares {
             divider += (x_diff * x_diff) as u128;
             multipler += x_diff * (n as i128 * y as i128 - y_sum as i128);
         }
+        //let multipler = n * l;
+        //let divider = m * n;
+        let n3 = n*n*n;
+        let multipler = div_round(multipler as u128, n3);
+        let divider = div_round(divider, n3);
+        (multipler as usize, divider as usize)
+    }*/
+
+    fn new(values: &[usize], _num_of_keys: usize) -> (usize, usize) {        
+        let mut n= 0u128;
+        let mut x_sum = 0;
+        let mut y_sum = 0;
+        let mut x_sqr_sum = 0;
+        let mut xy_sum = 0;
+        for (x, y) in values.iter().copied().enumerate() {
+            if y == usize::MAX { continue; }
+            n += 1;
+            x_sum += x as u128;
+            y_sum += y as u128;
+            x_sqr_sum += (x as u128) * (x as u128);
+            xy_sum += (x as u128) * (y as u128);
+        }
+        //if n == 0 { return LinearRegression::rounded(0, 0, 0); }  //TODO
+        let multipler = y_sum * x_sqr_sum - x_sum * xy_sum;
+        let divider = n * x_sqr_sum - x_sum * x_sum;
         //let multipler = n * l;
         //let divider = m * n;
         let n3 = n*n*n;
