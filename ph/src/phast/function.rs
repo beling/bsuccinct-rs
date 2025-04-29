@@ -176,6 +176,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
         while !keys.is_empty() {
+            dbg!(keys.len());
             let keys_len = keys.len();
             let (seeds, unassigned_values, _unassigned_len) =
                 build_level(&mut keys, levels.len() as u64+1, &hasher);
