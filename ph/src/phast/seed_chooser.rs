@@ -111,18 +111,30 @@ pub struct ShiftOnly;
 
 impl SeedChooser for ShiftOnly {
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
-        let without_shift: Box<[usize]> = keys.iter()
+        let mut without_shift: Box<[usize]> = keys.iter()
             .map(|key| conf.slice_begin(*key) + conf.in_slice_noseed(*key))
             .collect();
-        for shift in (0..256).step_by(64) {
-            let mut used = 0;
-            for first in &without_shift {
-                used |= used_values.get64(first + shift);
-            }
-            if used != u64::MAX {
-                return used.trailing_ones() as u16;
+        without_shift.sort_unstable();  // maybe it is better to postpone self-collision test?
+        for i in 1..without_shift.len() {
+            if without_shift[i-1] == without_shift[i] { // self-collision?
+                return 0;
             }
         }
-        u16::MAX    //??
+        let seeds_num = conf.seeds_num();
+        for shift in (0..seeds_num).step_by(64) {
+            let mut used = 0;
+            for first in &without_shift {
+                used |= used_values.get64(first + shift as usize);
+            }
+            if used != u64::MAX {
+                let total_shift = shift + used.trailing_ones() as u16;
+                if total_shift == seeds_num { return 0; }
+                for first in &without_shift {
+                    used_values.add(*first + total_shift as usize);
+                }
+                return total_shift as u16 + 1;
+            }
+        }
+        0
     }
 }
