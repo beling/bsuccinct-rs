@@ -1,3 +1,5 @@
+use std::u16;
+
 use crate::seeds::SeedSize;
 
 use super::{builder::UsedValues, conf::Conf};
@@ -101,5 +103,26 @@ impl SeedChooser for SeedOnly {
             }
         };
         best_seed
+    }
+}
+
+
+pub struct ShiftOnly;
+
+impl SeedChooser for ShiftOnly {
+    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
+        let without_shift: Box<[usize]> = keys.iter()
+            .map(|key| conf.slice_begin(*key) + conf.in_slice_noseed(*key))
+            .collect();
+        for shift in (0..256).step_by(64) {
+            let mut used = 0;
+            for first in &without_shift {
+                used |= used_values.get64(first + shift);
+            }
+            if used != u64::MAX {
+                return used.trailing_ones() as u16;
+            }
+        }
+        u16::MAX    //??
     }
 }
