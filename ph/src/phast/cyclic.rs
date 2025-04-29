@@ -5,10 +5,11 @@ use std::ops::{Index, IndexMut};
 use super::MAX_WINDOW_SIZE;
 
 /// SIZE in 64-bit segments, must be the power of two
-pub(crate) struct CyclicSet<const SIZE_64: usize>([u64; SIZE_64]);  // filled in pseudo-code
+pub struct CyclicSet<const SIZE_64: usize>([u64; SIZE_64]);  // filled in pseudo-code
 
 impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
     const MASK: usize = SIZE_64*64 - 1;
+    const CHUNK_MASK: usize = SIZE_64 - 1;
 
     #[inline]
     pub(crate) fn contain(&self, value: usize) -> bool {
@@ -18,6 +19,17 @@ impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
     #[inline]
     pub(crate) fn add(&mut self, value: usize) {
         unsafe{ self.0.set_bit_unchecked(value & Self::MASK) }
+    }
+
+    /// Returns `first_value` and 63 consecutive values as a bitset.
+    #[inline]
+    pub(crate) fn get64(&self, first_value: usize) -> u64 {
+        let chunk_index = first_value / 64;
+        let bit_in_lo = first_value % 64;
+        let lo = unsafe{ *self.0.get_unchecked(chunk_index & Self::CHUNK_MASK) };
+        if bit_in_lo == 0 { return lo; }
+        let hi = unsafe{ *self.0.get_unchecked((chunk_index+1) & Self::CHUNK_MASK) };
+        (lo >> bit_in_lo) | (hi << (64-bit_in_lo))
     }
 
     /*#[inline]
@@ -34,7 +46,7 @@ impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
         unsafe{ self.0.clear_bit_unchecked(value & Self::MASK) }
     }
 
-    /*const CHUNK_MASK: usize = SIZE_64 - 1;
+    /*
     #[inline] pub fn remove_fragment_64(&mut self, chunk_index: usize) {
         unsafe{ *self.0.get_unchecked_mut(chunk_index & Self::CHUNK_MASK) = 0 };
     }*/

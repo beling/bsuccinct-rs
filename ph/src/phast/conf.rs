@@ -4,7 +4,7 @@ use crate::seeds::{Bits, SeedSize};
 
 /// PHast map-or-bump function configuration.
 #[derive(Clone, Copy)]
-pub(crate) struct Conf<SS: SeedSize = Bits> {
+pub struct Conf<SS: SeedSize = Bits> {
     pub(crate) bits_per_seed: SS,  // seed size, K=2**bits_per_seed
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) slice_len_minus_one: u16,  // slice length L

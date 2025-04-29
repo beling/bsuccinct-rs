@@ -1,9 +1,9 @@
-use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
+use std::{cmp::Reverse, collections::BinaryHeap, marker::PhantomData, ops::Range};
 use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::seeds::SeedSize;
-use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, MAX_WINDOW_SIZE, MAX_VALUES, WINDOW_SIZE};
+use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, seed_chooser::SeedChooser, MAX_VALUES, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
 pub type UsedValues = CyclicSet<{MAX_VALUES/64}>;
@@ -104,8 +104,6 @@ pub fn bucket_begin_mt<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>, threads_num:
     result
 }*/
 
-const SMALL_BUCKET_LIMIT: usize = 8;
-
 //// Read-only data shared by all threads.
 struct BuildConf<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
     conf: Conf<SS>,
@@ -177,25 +175,25 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
 }
 
 #[inline(always)]
-pub(crate) fn build_st<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE)
+pub(crate) fn build_st<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE)
 -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
-where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
+where SC: SeedChooser, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
     let (builder, mut seeds) = BuildConf::new(keys, conf, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf));
-    ThreadBuilder::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
+    ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     (seeds, unassigned_values, unassigned_len)
 }
 
-pub(crate) fn build_mt<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize)
+pub(crate) fn build_mt<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, threads_num: usize)
  -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
-where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
+where SC: SeedChooser + Send, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
     //let threads_num = rayon::current_num_threads();
     let threads_num = threads_num.min(rayon::current_num_threads()).min(conf.buckets_num / 4096).max(1);
     if threads_num == 1 {
         let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator, bucket_begin_st(keys, &conf));
-        ThreadBuilder::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
+        ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
         return (seeds, unassigned_values, unassigned_len);
         //return build_st(keys, conf, span_limit, evaluator);
@@ -217,13 +215,13 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
         thread_builders.push(ThreadBuilder::new(&builder, bucket_begin..bucket_begin+buckets_per_thread, gap, seeds));
         bucket_begin += buckets_per_thread;
     }
-    thread_builders.push(ThreadBuilder::new(&builder, bucket_begin..conf.buckets_num, 0, remaining_seeds));
+    thread_builders.push(ThreadBuilder::<SC, _, _>::new(&builder, bucket_begin..conf.buckets_num, 0, remaining_seeds));
     /*thread::scope(|s| {
         for thread in &mut thread_builders {
             s.spawn(|| thread.build());
         }
     });*/
-    thread_builders.par_iter_mut().for_each(ThreadBuilder::build);  // marginally faster than std
+    thread_builders.par_iter_mut().for_each(ThreadBuilder::<SC, _, _>::build);  // marginally faster than std
     for next in 1..thread_builders.len() {
         let prev = next-1;
         for bucket in 0..gap {
@@ -326,7 +324,7 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     )),
     repr(align(64))
 )]
-struct ThreadBuilder<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
+struct ThreadBuilder<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> {
     conf: &'k BuildConf<'k, BE, SS>,
 
     /// buckets to process by the thread
@@ -346,10 +344,12 @@ struct ThreadBuilder<'k, BE: BucketToActivateEvaluator, SS: SeedSize> {
     candidates_to_active: BinaryHeap<(BE::Value, Reverse<usize>)>,    // (value, bucket)
     in_candidates_to_active: CyclicSet<{MAX_WINDOW_SIZE/64}>,
 
-    seeds: &'k mut [SS::VecElement]
+    seeds: &'k mut [SS::VecElement],
+
+    seed_chooser: PhantomData<SC>,
 }
 
-impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> {
+impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, SC, BE, SS> {
     pub(crate) fn new(conf: &'k BuildConf<'k, BE, SS>, buckets: Range<usize>, gap: usize, seeds: &'k mut [SS::VecElement]) -> Self {
         Self {
             used_values: UsedValues::default(),
@@ -361,6 +361,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
             in_candidates_to_active: CyclicSet::default(),
             bucket_begin: &conf.bucket_begin[buckets.start..buckets.end+1],
             seeds,
+            seed_chooser: PhantomData
         }
     }
 
@@ -426,94 +427,10 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
         self.conf.conf.slice_begin(self.conf.keys[self.bucket_begin[non_empty_bucket]])
     }
 
-    fn best_seed_big(&mut self, keys: &[u64]) -> u16 {
-        let mut best_value = usize::MAX;
-        let mut best_seed = 0;
-        let mut values_used_by_seed = Vec::with_capacity(keys.len());
-        let simd_keys = keys.len() / 4 * 4;
-        //assert!(simd_keys <= keys.len());
-        'outer: for seed in 1u16..self.conf.conf.seeds_num() {    // seed=0 is special = no seed,
-            values_used_by_seed.clear();
-            for i in (0..simd_keys).step_by(4) {
-                let values = [
-                    self.conf.conf.f(keys[i], seed),
-                    self.conf.conf.f(keys[i+1], seed),
-                    self.conf.conf.f(keys[i+2], seed),
-                    self.conf.conf.f(keys[i+3], seed),
-                ];
-                let contains = [
-                    self.used_values.contain(values[0]),
-                    self.used_values.contain(values[1]),
-                    self.used_values.contain(values[2]),
-                    self.used_values.contain(values[3]),
-                ];
-                if contains.iter().any(|b| *b) { continue 'outer; }
-                //if contains[0] || contains[1] || contains[2] || contains[3] { continue 'outer; }
-                values_used_by_seed.push(values[0]);
-                values_used_by_seed.push(values[1]);
-                values_used_by_seed.push(values[2]);
-                values_used_by_seed.push(values[3]);
-            }
-            //assert!(keys.len() - simd_keys < 4);
-            for i in simd_keys..keys.len() {
-                let value = self.conf.conf.f(keys[i], seed);
-                if self.used_values.contain(value) { continue 'outer; }
-                values_used_by_seed.push(value);
-            }
-            let seed_value = values_used_by_seed.iter().sum();
-            if seed_value < best_value {
-                values_used_by_seed.sort();
-                if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
-                    continue;
-                }
-                best_value = seed_value;
-                best_seed = seed;
-            }
-        }
-        best_seed
-    }
-
-    #[inline]
-    fn best_seed_small(&mut self, keys: &[u64]) -> u16 {
-        assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
-        let mut best_value = usize::MAX;
-        let mut best_seed = 0;
-        let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
-        'outer: for seed in 1u16..self.conf.conf.seeds_num() {    // seed=0 is special = no seed,
-            values_used_by_seed.clear();
-            for key in keys.iter().copied() {
-                let value = self.conf.conf.f(key, seed);
-                if self.used_values.contain(value) { continue 'outer; }
-                values_used_by_seed.push(value);
-            }
-            let seed_value = values_used_by_seed.iter().sum();
-            if seed_value < best_value {
-                values_used_by_seed.sort_unstable();
-                for i in 1..values_used_by_seed.len() {
-                    if values_used_by_seed[i-1] == values_used_by_seed[i] { continue 'outer; }
-                }
-                best_value = seed_value;
-                best_seed = seed;
-            }
-        }
-        best_seed
-    }
-
-    #[inline]
+    #[inline(always)]
     fn best_seed(&mut self, bucket_nr: usize) -> u16 {
         let keys = &self.conf.keys[self.bucket_begin[bucket_nr]..self.bucket_begin[bucket_nr+1]];
-        //if keys.len() == 1 { return self.best_seed1(keys[0]); }
-        let best_seed = if keys.len() <= SMALL_BUCKET_LIMIT {
-            self.best_seed_small(keys)
-        } else {
-            self.best_seed_big(keys)
-        };
-        if best_seed != 0 { // can assign seed to the bucket
-            for key in keys {
-                self.used_values.add(self.conf.conf.f(*key, best_seed));
-            }
-        };
-        best_seed
+        SC::best_seed(&mut self.used_values, keys, &self.conf.conf)
     }
 
     /// Number of the last bucket included in the span limit + 1.

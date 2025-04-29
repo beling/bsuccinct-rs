@@ -1,18 +1,21 @@
-use ph::{fmph::TwoToPowerBitsStatic, phast::{CompressedArray, DefaultCompressedArray}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
+use ph::{fmph::TwoToPowerBitsStatic, phast::{CompressedArray, DefaultCompressedArray, SeedChooser}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
 
 use crate::{builder::TypeToQuery, BenchmarkResult, Conf, IntHasher, KeySource, MPHFBuilder, PHastConf, StrHasher};
 use std::{fs::File, hash::Hash, io::Write};
 
 #[derive(Default)]
-pub struct PHastBencher<SS, S, AC = DefaultCompressedArray> {
+pub struct PHastBencher<SC, SS, S, AC = DefaultCompressedArray> {
     hash: std::marker::PhantomData<S>,
     array_compression: std::marker::PhantomData<AC>,
     bits_per_seed: SS,
     bucket_size_100: u16,
+    seed_chooser: std::marker::PhantomData<SC>,
 }
 
-impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize> MPHFBuilder<K> for PHastBencher<SS, S, AC> {
-    type MPHF = ph::phast::Function<SS, AC, S>;
+impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
+    where SC: SeedChooser + Send, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
+{
+    type MPHF = ph::phast::Function<SC, SS, AC, S>;
 
     type Value = usize;
 
@@ -51,31 +54,32 @@ impl<SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send 
     println!(" \t{}", b);
 }*/
 
-pub fn benchmark_with<S, SS, AC, K>(bits_per_seed: SS, bucket_size_100: u16, i: &(Vec<K>, Vec<K>), conf: &Conf) -> BenchmarkResult
-where SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
+pub fn benchmark_with<SC, S, SS, AC, K>(bits_per_seed: SS, bucket_size_100: u16, i: &(Vec<K>, Vec<K>), conf: &Conf) -> BenchmarkResult
+where SC: SeedChooser + Send, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
 {
     PHastBencher { hash: std::marker::PhantomData::<S>::default(),
-         array_compression: std::marker::PhantomData::<AC>::default(), bits_per_seed, bucket_size_100 }.benchmark(i, conf)
+         array_compression: std::marker::PhantomData::<AC>::default(), bits_per_seed, bucket_size_100,
+        seed_chooser: std::marker::PhantomData::<SC>::default(), }.benchmark(i, conf)
 }
 
-pub fn phast_benchmark_enc<H, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, encoder: &str)
-    where H: BuildSeededHasher+Default+Sync, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
+pub fn phast_benchmark_enc<SC, H, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, encoder: &str)
+    where SC: SeedChooser + Send, H: BuildSeededHasher+Default+Sync, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
 {
     let bucket_size_100 = phast_conf.bucket_size();
     let b = match phast_conf.bits_per_seed {
-        8 => benchmark_with::<H, _, AC, _>(Bits8, bucket_size_100, i, conf),
-        4 => benchmark_with::<H, _, AC, _>(TwoToPowerBitsStatic::<2>, bucket_size_100, i, conf),
-        b => benchmark_with::<H, _, AC, _>(BitsFast(b), bucket_size_100, i, conf),
+        8 => benchmark_with::<SC, H, _, AC, _>(Bits8, bucket_size_100, i, conf),
+        4 => benchmark_with::<SC, H, _, AC, _>(TwoToPowerBitsStatic::<2>, bucket_size_100, i, conf),
+        b => benchmark_with::<SC, H, _, AC, _>(BitsFast(b), bucket_size_100, i, conf),
     };
     if let Some(ref mut f) = csv_file { writeln!(f, "{} {bucket_size_100} {encoder} {}", phast_conf.bits_per_seed, b.all()).unwrap(); }
     println!(" {encoder}\t{}", b);
 }
 
-pub fn phast_benchmark<AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, encoder: &str)
-    where AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
+pub fn phast_benchmark<SC, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, phast_conf: &PHastConf, encoder: &str)
+    where SC: SeedChooser + Send, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
 {
     match conf.key_source {
-        KeySource::xs32 | KeySource::xs64 => phast_benchmark_enc::<IntHasher, AC, _>(csv_file, i, conf, phast_conf, encoder),
-        _ => phast_benchmark_enc::<StrHasher, AC, _>(csv_file, i, conf, phast_conf, encoder),
+        KeySource::xs32 | KeySource::xs64 => phast_benchmark_enc::<SC, IntHasher, AC, _>(csv_file, i, conf, phast_conf, encoder),
+        _ => phast_benchmark_enc::<SC, StrHasher, AC, _>(csv_file, i, conf, phast_conf, encoder),
     }
 }

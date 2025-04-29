@@ -9,7 +9,7 @@ pub use builder::MPHFBuilder;
 
 mod stats;
 use ph::phast::compressed_array::{CompactFast, LeastSquares, LinearRegressionArray, Simple};
-use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray};
+use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray, SeedOnly};
 pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
 mod inout;
@@ -281,16 +281,16 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
             println!("PHast {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
             let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
             if phast_conf.elias_fano() {
-                phast_benchmark::<DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                phast_benchmark::<SeedOnly, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
             }
             if phast_conf.compact {
-                phast_benchmark::<CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                phast_benchmark::<SeedOnly, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
             }
             if phast_conf.linear_simple {
-                phast_benchmark::<LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                phast_benchmark::<SeedOnly, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
             }
             if phast_conf.least_squares {
-                phast_benchmark::<LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                phast_benchmark::<SeedOnly, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
             }
         },
         #[cfg(feature = "boomphf")]
