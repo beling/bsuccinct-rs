@@ -99,10 +99,11 @@ impl<SS: SeedSize> Conf<SS> {
         self.slice_begin(key) + self.in_slice(key, seed)
     }
 
-    #[inline]
-    pub(crate) fn seeds_num(&self) -> u16 { 1<<self.bits_per_seed.into() }
+    #[inline] pub(crate) fn seeds_num(&self) -> u16 {
+        1<<self.bits_per_seed.into()
+    }
 
-    pub(crate) fn slice_len(&self) -> u16 {
+    #[inline] pub(crate) fn slice_len(&self) -> u16 {
         self.slice_len_minus_one + 1
     }
 
