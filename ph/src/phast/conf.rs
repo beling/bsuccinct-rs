@@ -75,28 +75,40 @@ impl<SS: SeedSize> Conf<SS> {
     }
 
     /// Returns bucket assigned to the `key`.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn bucket_for(&self, key: u64) -> usize {
         map64_to_64(key, self.buckets_num as u64) as usize
     }
 
     /// Returns partition assigned to the `key`.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn partition_begin(&self, key: u64) -> usize {
         map64_to_64(key, self.num_of_partitions as u64) as usize
     }
 
     /// Returns index of `key` in its partition.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn in_partition(&self, key: u64, seed: u16) -> usize {
         //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
         (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.partition_size_minus_one) as usize
     }
 
+    /// Returns seed independent index of `key` in its partition.
+    #[inline(always)]
+    pub(crate) fn in_partition_noseed(&self, key: u64) -> usize {
+        //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
+        (key as u16 & self.partition_size_minus_one) as usize
+    }
+
     /// Returns the value of the function for given `key` and `seed`.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn f(&self, key: u64, seed: u16) -> usize {
         self.partition_begin(key) + self.in_partition(key, seed)
+    }
+
+    #[inline(always)]
+    pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
+        self.partition_begin(key) + self.in_partition_noseed(key) + shift as usize
     }
 
     #[inline]
