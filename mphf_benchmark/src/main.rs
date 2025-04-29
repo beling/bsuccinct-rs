@@ -227,7 +227,11 @@ pub struct Conf {
 
     /// Seed of random number generator.
     #[arg(long, default_value_t = 1234, value_parser = clap::value_parser!(u64).range(1..))]
-    pub seed: u64
+    pub seed: u64,
+
+    /// Cooling time before measuring construction or query time, in milliseconds
+    #[arg(short='c', long, default_value_t = 200)]
+    pub cooling: u16,
 }
 
 #[cfg(feature = "cmph-sys")] trait CanBeKey: Hash + Sync + Send + Clone + Debug + Default + cmph::CMPHSource + TypeToQuery {}

@@ -58,35 +58,35 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
     fn mphf_size(mphf: &Self::MPHF) -> usize;
 
     /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
-    fn benchmark_build_st(&self, keys: &[K], repeats: u32) -> (Self::MPHF, BuildStats) {
-        std::thread::sleep(std::time::Duration::from_millis(200));
+    fn benchmark_build_st(&self, keys: &[K], conf: &Conf) -> (Self::MPHF, BuildStats) {
+        std::thread::sleep(std::time::Duration::from_millis(conf.cooling as u64));
         let start_moment = ThreadTime::now();   // ProcessTime?
-        for _ in 1..repeats { self.new(keys, false); }
+        for _ in 1..conf.build_runs { self.new(keys, false); }
         let h = self.new(keys, false);
         let build_time_seconds = start_moment.elapsed().as_secs_f64();
-        (h, BuildStats { time_st: build_time_seconds / repeats as f64, time_mt: f64::NAN } )
+        (h, BuildStats { time_st: build_time_seconds / conf.build_runs as f64, time_mt: f64::NAN } )
     }
 
     /// Builds the MPHF and measure the CPU thread time of building. Returns: the MPHF, the time measured.
-    fn benchmark_build_mt(&self, keys: &[K], repeats: u32) -> (Self::MPHF, BuildStats) {
-        std::thread::sleep(std::time::Duration::from_millis(200));
+    fn benchmark_build_mt(&self, keys: &[K], conf: &Conf) -> (Self::MPHF, BuildStats) {
+        std::thread::sleep(std::time::Duration::from_millis(conf.cooling as u64));
         let start_moment =  Instant::now();
-        for _ in 1..repeats { self.new(keys, true); }
+        for _ in 1..conf.build_runs { self.new(keys, true); }
         let h = self.new(keys, true);
         let build_time_seconds = start_moment.elapsed().as_secs_f64();
-        (h, BuildStats { time_st: f64::NAN, time_mt: build_time_seconds / repeats as f64 } )
+        (h, BuildStats { time_st: f64::NAN, time_mt: build_time_seconds / conf.build_runs as f64 } )
     }
 
     /// Builds MPHF and measure the time of building. Returns: MPHF, and either single-thread and multiple-thread time of building, and one NaN.
     fn benchmark_build(&self, keys: &[K], conf: &Conf) -> (Self::MPHF, BuildStats) {
         match (Self::BUILD_THREADS, conf.threads) {
-            (Threads::Single, _) | (Threads::Both, Threads::Single) => self.benchmark_build_st(keys, conf.build_runs),
-            (Threads::Multi, _) | (Threads::Both, Threads::Multi) => self.benchmark_build_mt(keys, conf.build_runs),
+            (Threads::Single, _) | (Threads::Both, Threads::Single) => self.benchmark_build_st(keys, conf),
+            (Threads::Multi, _) | (Threads::Both, Threads::Multi) => self.benchmark_build_mt(keys, conf),
             _ => {  // (Both, Both) pair
-                let (mphf, result_st) = self.benchmark_build_st(keys, conf.build_runs);
+                let (mphf, result_st) = self.benchmark_build_st(keys, conf);
                 let size_st = Self::BUILD_THREADS_DOES_NOT_CHANGE_SIZE.then(|| Self::mphf_size(&mphf));
                 drop(mphf);
-                let (mphf, mut result_mt) = self.benchmark_build_mt(keys, conf.build_runs);
+                let (mphf, mut result_mt) = self.benchmark_build_mt(keys, conf);
                 if let Some(size_st) = size_st { warn_size_diff(size_st, Self::mphf_size(&mphf)); }
                 result_mt.time_st = result_st.time_st;
                 (mphf, result_mt)
@@ -96,8 +96,8 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
 
     /// Lookups for all keys in `input` and returns search statistics.
     /// If `verify` is `true`, checks if the `mphf` is valid for the given `input`.
-    fn benchmark_lookup(&self, mphf: &Self::MPHF, input: &[K], verify: bool, lookup_runs: u32) -> SearchStats {
-        if input.is_empty() || lookup_runs == 0 { return SearchStats::nan(); }
+    fn benchmark_lookup(&self, mphf: &Self::MPHF, input: &[K], verify: bool, conf: &Conf) -> SearchStats {
+        if input.is_empty() || conf.lookup_runs == 0 { return SearchStats::nan(); }
         let mut extra_levels_searched = 0;
         let mut not_found = 0usize;
         if verify {
@@ -116,16 +116,16 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
                 }
             }
         }
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::thread::sleep(std::time::Duration::from_millis(conf.cooling as u64));
         let start_process_moment = ProcessTime::now();
-        for _ in 0..lookup_runs {
+        for _ in 0..conf.lookup_runs {
             for v in input { black_box(Self::value(mphf, v)); }
         }
         let seconds = start_process_moment.elapsed().as_secs_f64();
         let divider = input.len() as f64;
         SearchStats {
             avg_deep: extra_levels_searched as f64 / divider,
-            avg_lookup_time: seconds / (divider * lookup_runs as f64),
+            avg_lookup_time: seconds / (divider * conf.lookup_runs as f64),
             absences_found: not_found as f64 / divider
         }
     }
@@ -138,10 +138,10 @@ pub trait MPHFBuilder<K: Hash + TypeToQuery> {
         if conf.lookup_runs == 0 {
             return BenchmarkResult { included: SearchStats::nan(), absent: SearchStats::nan(), size_bytes, bits_per_value, build }
         }
-        let included = self.benchmark_lookup(&h, &i.0, conf.verify, conf.lookup_runs);
+        let included = self.benchmark_lookup(&h, &i.0, conf.verify, conf);
         ensure_no_absences(included.absences_found);
         let absent = if conf.save_details && Self::CAN_DETECT_ABSENCE {
-            self.benchmark_lookup(&h, &i.1, false, conf.lookup_runs)
+            self.benchmark_lookup(&h, &i.1, false, conf)
         } else {
             SearchStats::nan()
         };
