@@ -66,8 +66,8 @@ impl BucketToActivateEvaluator for Quadric {
 pub(crate) struct Weights(pub [i32; 7]);
 
 impl Weights {
-    pub fn new(bits_per_seed: u8, partition_size: u16) -> Self {
-        Self(match (bits_per_seed, partition_size) {
+    pub fn new(bits_per_seed: u8, slice_len: u16) -> Self {
+        Self(match (bits_per_seed, slice_len) {
             (0..=4, 0..=512) => [-126969, 15686, 67995, 99429, 116711, 218955, 233075], //2.5
             (0..=4, _) => [-67844, 12942, 103312, 155604, 191240, 199105, 203210],  //2.5
             (5, 0..=512) => [-125171, 31908, 74770, 100065, 115115, 126729, 164878],    //2.9
