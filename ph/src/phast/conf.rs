@@ -55,7 +55,7 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 
 impl<SS: SeedSize> Conf<SS> {
 
-    pub(crate) fn new(number_of_keys: usize, bits_per_seed: SS, bucket_size_100: u16) -> Self {
+    pub(crate) fn new(number_of_keys: usize, bits_per_seed: SS, bucket_size_100: u16, max_shift: u16) -> Self {
         let slice_len = match number_of_keys {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
@@ -70,7 +70,7 @@ impl<SS: SeedSize> Conf<SS> {
             bits_per_seed,
             buckets_num: 1.max((number_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
             slice_len_minus_one: slice_len - 1,
-            num_of_slices: number_of_keys + 1 - slice_len as usize,
+            num_of_slices: number_of_keys + 1 - slice_len as usize - max_shift as usize,
         }
     }
 

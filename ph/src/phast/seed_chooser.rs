@@ -6,6 +6,11 @@ use super::{builder::UsedValues, conf::Conf};
 
 /// Choose best seed in bucket.
 pub trait SeedChooser {
+    fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16;
+
+    /// Returns function value for given primary code and seed.
+    fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize;
+    
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16;
 }
 
@@ -90,6 +95,12 @@ impl SeedOnly {
 }
 
 impl SeedChooser for SeedOnly {
+    #[inline(always)] fn extra_shift<SS: SeedSize>(_seed_size: SS) -> u16 { 0 }
+
+    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+        conf.f(primary_code, seed)
+    }
+
     #[inline]
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         let best_seed = if keys.len() <= SMALL_BUCKET_LIMIT {
@@ -110,6 +121,15 @@ impl SeedChooser for SeedOnly {
 pub struct ShiftOnly;
 
 impl SeedChooser for ShiftOnly {
+    #[inline(always)] fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16 {
+        (1 << seed_size.into()) - 1
+    }
+
+    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+        conf.f_shift(primary_code, seed)
+    }
+
+    #[inline]
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         let mut without_shift: Box<[usize]> = keys.iter()
             .map(|key| conf.slice_begin(*key) + conf.in_slice_noseed(*key))

@@ -24,10 +24,10 @@ impl<SS: SeedSize> SeedEx<SS> {
         self.conf.bits_per_seed.get_seed(&self.seeds, self.bucket_for(key))
     }
 
-    #[inline]
+    /*#[inline]
     fn get(&self, key: u64, seed: u16) -> usize {
         self.conf.f(key, seed)
-    }
+    }*/
 }
 
 impl<SS: SeedSize> GetSize for SeedEx<SS> {
@@ -86,14 +86,14 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
         let seed = self.level0.seed_for(key_hash);
-        if seed != 0 { return self.level0.get(key_hash, seed); }
+        if seed != 0 { return SC::f(key_hash, seed, &self.level0.conf); }
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
             let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
             let seed = l.seeds.seed_for(key_hash);
             if seed != 0 {
-                return self.unassigned.get(l.seeds.get(key_hash, seed) + l.shift)
+                return self.unassigned.get(SC::f(key_hash, seed, &l.seeds.conf) + l.shift)
             }
         }
         unreachable!()
@@ -216,7 +216,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_sort();
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
         let (seeds, unassigned_values, unassigned_len) =
             build_st::<SC, _, _>(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()));
         let mut keys_vec = Vec::with_capacity(unassigned_len);
@@ -241,7 +241,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
         let (seeds, unassigned_values, unassigned_len) =
             build_mt::<SC, _, _>(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), threads_num);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
@@ -258,7 +258,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
         let (seeds, unassigned_values, unassigned_len) =
             build_st::<SC, _, _>(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()));
         keys.retain(|key| {
@@ -282,7 +282,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
         let (seeds, unassigned_values, unassigned_len) =
             build_mt::<SC, _, _>(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), threads_num);
         let mut result = Vec::with_capacity(unassigned_len);
