@@ -137,8 +137,10 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
         }, seeds)
     }
 
+    /// Clears bits of `unassigned_values` occupied by the keys in given `bucket`.
+    /// Decreases `unassigned_len` by `keys.len()`.
     #[inline]
-    pub fn process_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
+    pub fn clear_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
         let seed = self.conf.bits_per_seed.get_seed(&seeds, bucket);
         if seed == 0 { return; }
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
@@ -148,11 +150,12 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
         *unassigned_len -= keys.len();
     }
 
+    /// Calculates bitmap of unassigned values and number of unassigned values.
     pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
         let mut unassigned_len = self.keys.len();
         let mut unassigned_values = construct_unassigned(unassigned_len);
         for bucket in 0..self.bucket_begin.len()-1 {
-            self.process_bucket(bucket, seeds, &mut unassigned_values, &mut unassigned_len);
+            self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut unassigned_len);
         }
         (unassigned_values, unassigned_len)
     }
@@ -167,9 +170,10 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
     return seeds;
 }*/
 
-#[inline] fn gap_for(partition_size: u16, bucket_size100: u16) -> usize {
+/// Returns gap size for given `slice_len` and `bucket_size100`.
+#[inline] fn gap_for(slice_len: u16, bucket_size100: u16) -> usize {
     // roundup((P + lambda) / lambda) =
-    (100 * partition_size as usize - 1) / bucket_size100 as usize + 2
+    (100 * slice_len as usize - 1) / bucket_size100 as usize + 2
 }
 
 #[inline(always)]
@@ -205,8 +209,8 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     let mut thread_builders = Vec::with_capacity(threads_num);
     let mut bucket_begin = 0;
     let mut remaining_seeds = &mut seeds[..];
-    let gap = gap_for(conf.partition_size(), bucket_size100);
-    //dbg!(conf.partition_size(), bucket_size100, gap);
+    let gap = gap_for(conf.slice_len(), bucket_size100);
+    //dbg!(conf.slice_len(), bucket_size100, gap);
     for _ in 0..threads_num-1 {
         let seeds;
         (seeds, remaining_seeds) = remaining_seeds.split_at_mut(seed_words_per_thread);
@@ -363,7 +367,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
     pub(crate) fn build(&mut self) {
         //let mut seeds = vec![0; self.conf.buckets_num].into_boxed_slice();
         if !self.find_nonempty() { return; }
-        self.value_to_clear = self.partition_begin(self.span_begin); // / 64;
+        self.value_to_clear = self.slice_begin(self.span_begin); // / 64;
         self.add_candidates_from(self.span_begin);
         while let Some((_, Reverse(best_bucket))) = self.candidates_to_active.pop() {
         //while let Some(best_bucket) = self.extract_best_bucket() {
@@ -409,7 +413,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
     /// Clear used before span_begin.
     #[inline]
     pub fn clear_used(&mut self) {
-        let end = self.partition_begin(self.span_begin); // / 64;
+        let end = self.slice_begin(self.span_begin); // / 64;
         while self.value_to_clear != end {  // TODO clear in 64-bit steps
             self.used_values.remove(self.value_to_clear);
             //self.used_values.remove_fragment_64(self.value_to_clear);
@@ -418,8 +422,8 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, BE, SS> 
     }
 
     #[inline]
-    fn partition_begin(&self, non_empty_bucket: usize) -> usize {
-        self.conf.conf.partition_begin(self.conf.keys[self.bucket_begin[non_empty_bucket]])
+    fn slice_begin(&self, non_empty_bucket: usize) -> usize {
+        self.conf.conf.slice_begin(self.conf.keys[self.bucket_begin[non_empty_bucket]])
     }
 
     fn best_seed_big(&mut self, keys: &[u64]) -> u16 {

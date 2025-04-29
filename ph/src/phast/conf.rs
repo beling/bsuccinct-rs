@@ -7,8 +7,8 @@ use crate::seeds::{Bits, SeedSize};
 pub(crate) struct Conf<SS: SeedSize = Bits> {
     pub(crate) bits_per_seed: SS,  // seed size, K=2**bits_per_seed
     pub(crate) buckets_num: usize, // number of buckets, B
-    pub(crate) partition_size_minus_one: u16,  // partition size P
-    pub(crate) num_of_partitions: usize,   // m-P
+    pub(crate) slice_len_minus_one: u16,  // slice length L
+    pub(crate) num_of_slices: usize,   // m-P
 }
 
 /*#[inline(always)]
@@ -56,7 +56,7 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 impl<SS: SeedSize> Conf<SS> {
 
     pub(crate) fn new(number_of_keys: usize, bits_per_seed: SS, bucket_size_100: u16) -> Self {
-        let partition_size = match number_of_keys {
+        let slice_len = match number_of_keys {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
             1300..1750 => 128,
@@ -69,8 +69,8 @@ impl<SS: SeedSize> Conf<SS> {
         Self {
             bits_per_seed,
             buckets_num: 1.max((number_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
-            partition_size_minus_one: partition_size - 1,
-            num_of_partitions: number_of_keys + 1 - partition_size as usize,
+            slice_len_minus_one: slice_len - 1,
+            num_of_slices: number_of_keys + 1 - slice_len as usize,
         }
     }
 
@@ -80,42 +80,42 @@ impl<SS: SeedSize> Conf<SS> {
         map64_to_64(key, self.buckets_num as u64) as usize
     }
 
-    /// Returns partition assigned to the `key`.
-    #[inline(always)]
-    pub(crate) fn partition_begin(&self, key: u64) -> usize {
-        map64_to_64(key, self.num_of_partitions as u64) as usize
+    /// Returns first value of slice assigned to the `key`.
+    #[inline]
+    pub(crate) fn slice_begin(&self, key: u64) -> usize {
+        map64_to_64(key, self.num_of_slices as u64) as usize
     }
 
-    /// Returns index of `key` in its partition.
-    #[inline(always)]
-    pub(crate) fn in_partition(&self, key: u64, seed: u16) -> usize {
-        //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
-        (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.partition_size_minus_one) as usize
+    /// Returns index of `key` in its slice.
+    #[inline]
+    pub(crate) fn in_slice(&self, key: u64, seed: u16) -> usize {
+        //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.slice_len_minus_one) as usize
+        (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns seed independent index of `key` in its partition.
     #[inline(always)]
-    pub(crate) fn in_partition_noseed(&self, key: u64) -> usize {
+    pub(crate) fn in_slice_noseed(&self, key: u64) -> usize {
         //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
-        (key as u16 & self.partition_size_minus_one) as usize
+        (key as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns the value of the function for given `key` and `seed`.
     #[inline(always)]
     pub(crate) fn f(&self, key: u64, seed: u16) -> usize {
-        self.partition_begin(key) + self.in_partition(key, seed)
+        self.slice_begin(key) + self.in_slice(key, seed)
     }
 
     #[inline(always)]
     pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
-        self.partition_begin(key) + self.in_partition_noseed(key) + shift as usize
+        self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize
     }
 
     #[inline]
     pub(crate) fn seeds_num(&self) -> u16 { 1<<self.bits_per_seed.into() }
 
-    pub(crate) fn partition_size(&self) -> u16 {
-        self.partition_size_minus_one + 1
+    pub(crate) fn slice_len(&self) -> u16 {
+        self.slice_len_minus_one + 1
     }
 
     #[inline(always)] pub(crate) fn bits_per_seed(&self) -> u8 {
