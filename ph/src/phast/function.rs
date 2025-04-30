@@ -52,6 +52,9 @@ impl<SS: SeedSize> GetSize for Level<SS> {
 /// 
 /// Perfect hash function with very fast evaluation and size below 2 bits/key
 /// developed by Piotr Beling and Peter Sanders.
+/// 
+/// See:
+/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Function<SS: SeedSize, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher> {
     level0: SeedEx<SS>,
     unassigned: CA,
