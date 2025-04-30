@@ -56,7 +56,8 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 impl<SS: SeedSize> Conf<SS> {
 
     pub(crate) fn new(number_of_keys: usize, bits_per_seed: SS, bucket_size_100: u16, max_shift: u16) -> Self {
-        let slice_len = match number_of_keys {
+        let max_shift = max_shift as usize;
+        let slice_len = match number_of_keys.wrapping_sub(max_shift) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
             1300..1750 => 128,
@@ -70,7 +71,7 @@ impl<SS: SeedSize> Conf<SS> {
             bits_per_seed,
             buckets_num: 1.max((number_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
             slice_len_minus_one: slice_len - 1,
-            num_of_slices: number_of_keys + 1 - slice_len as usize - max_shift as usize,
+            num_of_slices: number_of_keys + 1 - slice_len as usize - max_shift,
         }
     }
 
@@ -89,8 +90,12 @@ impl<SS: SeedSize> Conf<SS> {
     /// Returns index of `key` in its slice.
     #[inline]
     pub(crate) fn in_slice(&self, key: u64, seed: u16) -> usize {
-        //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.slice_len_minus_one) as usize
         (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
+        //((key.wrapping_mul(0x1d8e_4e27_c47d_124f).wrapping_add(seed as u64)) as u16 & self.slice_len_minus_one) as usize
+        /*const P: u16 = 0;
+        let seed_lo = (seed & ((1<<P)-1)) + 1;
+        (wymum((seed_lo as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key).wrapping_add(3*(seed>>P) as u64) as u16 & self.slice_len_minus_one) as usize*/
     }
 
     /// Returns seed independent index of `key` in its partition.
@@ -108,7 +113,7 @@ impl<SS: SeedSize> Conf<SS> {
 
     #[inline(always)]
     pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
-        self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize
+        self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize - 1
     }
 
     #[inline] pub(crate) fn seeds_num(&self) -> u16 {
