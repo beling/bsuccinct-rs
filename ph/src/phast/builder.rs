@@ -3,7 +3,7 @@ use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::seeds::SeedSize;
-use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, seed_chooser::SeedChooser, MAX_VALUES, MAX_WINDOW_SIZE, WINDOW_SIZE};
+use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_VALUES, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
 pub type UsedValues = CyclicSet<{MAX_VALUES/64}>;
@@ -172,6 +172,20 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
 #[inline] fn gap_for(slice_len: u16, bucket_size100: u16) -> usize {
     // roundup((P + lambda) / lambda) =
     (100 * slice_len as usize - 1) / bucket_size100 as usize + 2
+}
+
+#[inline(always)]
+pub(crate) fn build_last_level<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE)
+-> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
+where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
+{
+    let (builder, mut seeds) = BuildConf::new(keys, conf, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf));
+    let mut tb = ThreadBuilder::<SeedOnlyNoBump, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds);
+    tb.build();
+    if !tb.finished() { return None; }
+    drop(tb);
+    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    Some((seeds, unassigned_values, unassigned_len))
 }
 
 #[inline(always)]
@@ -374,6 +388,7 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
         //while let Some(best_bucket) = self.extract_best_bucket() {
             self.in_candidates_to_active.remove(best_bucket);
             let best_seed = self.best_seed(best_bucket);
+            if SC::NO_BUMPING && best_seed == u16::MAX { return; }
             //self.seeds.set_fragment(best_bucket, best_seed as u64, self.conf.conf.bits_per_seed());
             self.conf.conf.bits_per_seed.set_seed(&mut self.seeds, best_bucket, best_seed as u16);
             if best_bucket == self.span_begin {
@@ -398,6 +413,12 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
             if !self.bucket_is_empty(self.span_begin) { return true; }
             self.span_begin += 1;
         }
+    }
+
+    /// Returns whether the construction was successfully completed.
+    #[inline]
+    fn finished(&self) -> bool {
+        self.span_begin == self.buckets_num
     }
 
     #[inline]
