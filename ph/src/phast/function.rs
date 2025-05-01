@@ -23,11 +23,6 @@ impl<SS: SeedSize> SeedEx<SS> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
         self.conf.bits_per_seed.get_seed(&self.seeds, self.bucket_for(key))
     }
-
-    /*#[inline]
-    fn get(&self, key: u64, seed: u16) -> usize {
-        self.conf.f(key, seed)
-    }*/
 }
 
 impl<SS: SeedSize> GetSize for SeedEx<SS> {
@@ -175,6 +170,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, number_of_keys: usize) -> Self
         where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS>, Box<[u64]>, usize),
             BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS>, Box<[u64]>, usize),
+            K: Hash
         {
         let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
         //Self::finish_building(keys, bits_per_seed, bucket_size100, threads_num, hasher, level0, unassigned_values, unassigned_len)
@@ -183,9 +179,9 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
 
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
-        while !keys.is_empty() {
-            //dbg!(keys.len());
+        while keys.len() > 1024 {
             let keys_len = keys.len();
+            dbg!(keys_len);
             let (seeds, unassigned_values, _unassigned_len) =
                 build_level(&mut keys, levels.len() as u64+1, &hasher);
             let shift = unassigned.len();
@@ -206,14 +202,37 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
             }
             levels.push(Level { seeds, shift });
         }
-        debug_assert!(level0_unassigned.next().is_none());
+        dbg!(keys.len());   // TODO keys.len()==0
+        let mut last_seed = levels.len() as u64+1;
+        let (last_seeds, unassigned_values, _unassigned_len) =
+            Self::build_last_level(keys, &hasher, &mut last_seed);
+        let last_shift = unassigned.len();
+        for i in 0..last_seeds.conf.output_range::<SeedOnlyNoBump>() {
+            if CA::MAX_FOR_UNUSED {
+                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                    last = level0_unassigned.next().unwrap();
+                    unassigned.push(last);
+                } else {
+                    unassigned.push(usize::MAX);
+                }
+            } else {
+                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                    last = level0_unassigned.next().unwrap();
+                }
+                unassigned.push(last);
+            }
+        }
+
+        debug_assert!(level0_unassigned.next().is_none());  // TODO
         drop(level0_unassigned);
         Self {
             level0,
             unassigned: CA::new(unassigned, last, number_of_keys),
             levels: levels.into_boxed_slice(),
             hasher,
-            seed_chooser: PhantomData
+            seed_chooser: PhantomData,
+            last_level: Level { seeds: last_seeds, shift: last_shift },
+            last_level_seed: last_seed,
         }
     }
 
@@ -261,7 +280,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     }
 
     #[inline(always)]
-    fn build_last_level<K>(mut keys: Vec::<K>, hasher: &S, seed: &mut u64)
+    fn build_last_level<K>(keys: Vec::<K>, hasher: &S, seed: &mut u64)
         -> (SeedEx<Bits8>, Box<[u64]>, usize)
         where K: Hash
     {

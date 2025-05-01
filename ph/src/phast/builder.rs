@@ -138,22 +138,22 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
     /// Clears bits of `unassigned_values` occupied by the keys in given `bucket`.
     /// Decreases `unassigned_len` by `keys.len()`.
     #[inline]
-    pub fn clear_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
+    pub fn clear_assigned_from_bucket<SC:SeedChooser>(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
         let seed = self.conf.bits_per_seed.get_seed(&seeds, bucket);
         if seed == 0 { return; }
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
         for key_hash in keys {
-            unassigned_values.clear_bit(self.conf.f(*key_hash, seed));
+            unassigned_values.clear_bit(SC::f(*key_hash, seed, &self.conf));
         }
         *unassigned_len -= keys.len();
     }
 
     /// Calculates bitmap of unassigned values and number of unassigned values.
-    pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
-        let mut unassigned_len = self.keys.len();
+    pub fn unassigned_values<SC:SeedChooser>(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
+        let mut unassigned_len = self.conf.output_range::<SC>();
         let mut unassigned_values = construct_unassigned(unassigned_len);
         for bucket in 0..self.bucket_begin.len()-1 {
-            self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut unassigned_len);
+            self.clear_assigned_from_bucket::<SC>(bucket, seeds, &mut unassigned_values, &mut unassigned_len);
         }
         (unassigned_values, unassigned_len)
     }
@@ -184,7 +184,7 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
     tb.build();
     if !tb.finished() { return None; }
     drop(tb);
-    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    let (unassigned_values, unassigned_len) = builder.unassigned_values::<SeedOnlyNoBump>(&seeds);
     Some((seeds, unassigned_values, unassigned_len))
 }
 
@@ -195,7 +195,7 @@ where SC: SeedChooser, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: S
 {
     let (builder, mut seeds) = BuildConf::new(keys, conf, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf));
     ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
-    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    let (unassigned_values, unassigned_len) = builder.unassigned_values::<SC>(&seeds);
     (seeds, unassigned_values, unassigned_len)
 }
 
@@ -208,7 +208,7 @@ where SC: SeedChooser + Send, BE: BucketToActivateEvaluator + Send + Sync, BE::V
     if threads_num == 1 {
         let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator, bucket_begin_st(keys, &conf));
         ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
-        let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+        let (unassigned_values, unassigned_len) = builder.unassigned_values::<SC>(&seeds);
         return (seeds, unassigned_values, unassigned_len);
         //return build_st(keys, conf, span_limit, evaluator);
     }
@@ -242,14 +242,14 @@ where SC: SeedChooser + Send, BE: BucketToActivateEvaluator + Send + Sync, BE::V
             let seed = conf.bits_per_seed.get_seed(&thread_builders[next].seeds, bucket) as u16;
             if seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
-                thread_builders[prev].used_values.add(builder.conf.f(*key, seed));
+                thread_builders[prev].used_values.add(SC::f(*key, seed, &builder.conf));
             }
         }
         thread_builders[prev].buckets_num += gap;
         thread_builders[prev].build();
     }
     drop(thread_builders);
-    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    let (unassigned_values, unassigned_len) = builder.unassigned_values::<SC>(&seeds);
     (seeds, unassigned_values, unassigned_len)
 }
 

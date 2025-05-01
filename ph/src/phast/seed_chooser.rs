@@ -48,7 +48,7 @@ fn best_seed_big<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_see
         }
         //assert!(keys.len() - simd_keys < 4);
         for i in simd_keys..keys.len() {
-            let value = conf.f(keys[i], seed);
+            let value = SC::f(keys[i], seed, conf);
             if used_values.contain(value) { continue 'outer; }
             values_used_by_seed.push(value);
         }

@@ -2,6 +2,8 @@ use seedable_hash::map64_to_64;
 
 use crate::seeds::{Bits, SeedSize};
 
+use super::SeedChooser;
+
 /// PHast map-or-bump function configuration.
 #[derive(Clone, Copy)]
 pub struct Conf<SS: SeedSize = Bits> {
@@ -73,6 +75,11 @@ impl<SS: SeedSize> Conf<SS> {
             slice_len_minus_one: slice_len - 1,
             num_of_slices: output_range + 1 - slice_len as usize - max_shift,
         }
+    }
+
+    /// Returns outpu range of the function.
+    #[inline] pub fn output_range<SC: SeedChooser>(&self) -> usize {
+        self.num_of_slices + self.slice_len_minus_one as usize + SC::extra_shift(self.bits_per_seed) as usize
     }
 
     /// Returns bucket assigned to the `key`.
