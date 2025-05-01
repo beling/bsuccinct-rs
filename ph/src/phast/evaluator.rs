@@ -63,6 +63,7 @@ impl BucketToActivateEvaluator for Quadric {
     }
 }*/
 
+#[derive(Clone)]
 pub(crate) struct Weights(pub [i32; 7]);
 
 impl Weights {

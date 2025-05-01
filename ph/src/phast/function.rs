@@ -1,7 +1,7 @@
 use std::{hash::Hash, marker::PhantomData, usize};
 
-use crate::seeds::{Bits8, SeedSize};
-use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use crate::{phast::seed_chooser::SeedOnlyNoBump, seeds::{Bits8, SeedSize}};
+use super::{bits_per_seed_to_100_bucket_size, builder::{build_last_level, build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -62,6 +62,8 @@ pub struct Function<SC, SS, CA = DefaultCompressedArray, S = BuildDefaultSeededH
     unassigned: CA,
     levels: Box<[Level<SS>]>,
     hasher: S,
+    last_level: Level<Bits8>,
+    last_level_seed: u64,
     seed_chooser: PhantomData<SC>
 }
 
@@ -99,7 +101,10 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
                 return self.unassigned.get(SC::f(key_hash, seed, &l.seeds.conf) + l.shift)
             }
         }
-        unreachable!()
+
+        let key_hash = self.hasher.hash_one(key, self.last_level_seed);
+        let seed = self.last_level.seeds.seed_for(key_hash);
+        return self.unassigned.get(SeedOnlyNoBump::f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
     }
 
     /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
@@ -253,6 +258,28 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
         (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+    }
+
+    #[inline(always)]
+    fn build_last_level<K>(mut keys: Vec::<K>, hasher: &S, seed: &mut u64)
+        -> (SeedEx<Bits8>, Box<[u64]>, usize)
+        where K: Hash
+    {
+        let bits_per_seed = Bits8;
+        let len100 = (keys.len()+10)*105;
+        let conf = Conf::new((len100+len100/2)/100,
+            bits_per_seed, 450, 0);
+        let evaluator = Weights::new(conf.bits_per_seed(), conf.slice_len());
+        loop {
+            let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
+            hashes.voracious_sort();    // maybe standard sort here?
+            if let Some((seeds, unassigned_values, unassigned_len)) =
+                build_last_level(&hashes, conf, evaluator.clone())
+            {
+                return (SeedEx::<Bits8>{ seeds, conf }, unassigned_values, unassigned_len);
+            }
+            *seed += 1;
+        }
     }
 
     #[inline(always)]
