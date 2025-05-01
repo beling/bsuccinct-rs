@@ -82,13 +82,13 @@ impl<SS: SeedSize> Conf<SS> {
     }
 
     /// Returns first value of slice assigned to the `key`.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn slice_begin(&self, key: u64) -> usize {
         map64_to_64(key, self.num_of_slices as u64) as usize
     }
 
     /// Returns index of `key` in its slice.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn in_slice(&self, key: u64, seed: u16) -> usize {
         (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
@@ -96,6 +96,11 @@ impl<SS: SeedSize> Conf<SS> {
         /*const P: u16 = 0;
         let seed_lo = (seed & ((1<<P)-1)) + 1;
         (wymum((seed_lo as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key).wrapping_add(3*(seed>>P) as u64) as u16 & self.slice_len_minus_one) as usize*/
+    }
+
+    #[inline(always)]
+    pub(crate) fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
+        (wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns seed independent index of `key` in its partition.
@@ -114,6 +119,11 @@ impl<SS: SeedSize> Conf<SS> {
     #[inline(always)]
     pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
         self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize - 1
+    }
+
+    #[inline(always)]
+    pub(crate) fn f_nobump(&self, key: u64, seed: u16) -> usize {
+        self.slice_begin(key) + self.in_slice_nobump(key, seed)
     }
 
     #[inline] pub(crate) fn seeds_num(&self) -> u16 {
