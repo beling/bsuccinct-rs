@@ -9,11 +9,13 @@ pub trait SeedChooser {
     const NO_BUMPING: bool = false;
     const FIRST_SEED: u16 = if Self::NO_BUMPING { 0 } else { 1 };
 
+    /// How much the chooser can add to value over slice length.
     fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16;
 
     /// Returns function value for given primary code and seed.
     fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize;
     
+    /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16;
 }
 

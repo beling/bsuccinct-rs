@@ -55,9 +55,9 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 
 impl<SS: SeedSize> Conf<SS> {
 
-    pub(crate) fn new(number_of_keys: usize, bits_per_seed: SS, bucket_size_100: u16, max_shift: u16) -> Self {
+    pub(crate) fn new(output_range: usize, bits_per_seed: SS, bucket_size_100: u16, max_shift: u16) -> Self {
         let max_shift = max_shift as usize;
-        let slice_len = match number_of_keys.wrapping_sub(max_shift) {
+        let slice_len = match output_range.wrapping_sub(max_shift) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
             1300..1750 => 128,
@@ -69,9 +69,9 @@ impl<SS: SeedSize> Conf<SS> {
         let bucket_size_100 = bucket_size_100 as usize;
         Self {
             bits_per_seed,
-            buckets_num: 1.max((number_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
+            buckets_num: 1.max((output_range * 100 + bucket_size_100/2) / bucket_size_100),
             slice_len_minus_one: slice_len - 1,
-            num_of_slices: number_of_keys + 1 - slice_len as usize - max_shift,
+            num_of_slices: output_range + 1 - slice_len as usize - max_shift,
         }
     }
 
