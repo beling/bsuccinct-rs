@@ -5,3 +5,4 @@
 csf_benchmark_results/
 cseq_benchmark/utils/*.html
 cseq_benchmark/utils/*.csv
+*.csv
