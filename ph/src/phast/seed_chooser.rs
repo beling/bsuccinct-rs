@@ -1,4 +1,4 @@
-use std::{u16, usize};
+use std::{sync::atomic::AtomicU64, u16, usize};
 
 use crate::seeds::SeedSize;
 
@@ -56,6 +56,9 @@ fn best_seed_big<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_see
         if seed_value < *best_value {
             values_used_by_seed.sort();
             if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
+                SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
+                SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if SC::BUMPING { return; }
                 continue;
             }
             *best_value = seed_value;
@@ -79,7 +82,12 @@ fn best_seed_small<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_s
         if seed_value < *best_value {
             values_used_by_seed.sort_unstable();
             for i in 1..values_used_by_seed.len() {
-                if values_used_by_seed[i-1] == values_used_by_seed[i] { continue 'outer; }
+                if values_used_by_seed[i-1] == values_used_by_seed[i] {
+                    SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
+                    SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if SC::BUMPING { return; }
+                    continue 'outer;
+                }
             }
             *best_value = seed_value;
             *best_seed = seed;
@@ -151,6 +159,9 @@ impl SeedChooser for SeedOnlyNoBump {
 
 pub struct ShiftOnly;
 
+pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
+pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
+
 impl SeedChooser for ShiftOnly {
     #[inline(always)] fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16 {
         (1 << seed_size.into()) - 1
@@ -168,6 +179,8 @@ impl SeedChooser for ShiftOnly {
         without_shift.sort_unstable();  // maybe it is better to postpone self-collision test?
         for i in 1..without_shift.len() {
             if without_shift[i-1] == without_shift[i] { // self-collision?
+                SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
+                SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return 0;
             }
         }

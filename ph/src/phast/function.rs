@@ -183,7 +183,11 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         let mut last = 0;
         while keys.len() > 1024 {
             let keys_len = keys.len();
-            dbg!(keys_len);
+            println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
+                keys_len as f64 / 100000.0,
+                crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst),
+                crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst) * 100 / keys_len as u64,
+                crate::phast::seed_chooser::SELF_COLLISION_BUCKETS.load(std::sync::atomic::Ordering::SeqCst));
             let (seeds, unassigned_values, _unassigned_len) =
                 build_level(&mut keys, levels.len() as u64+1, &hasher);
             let shift = unassigned.len();

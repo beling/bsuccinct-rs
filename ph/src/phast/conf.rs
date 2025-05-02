@@ -70,8 +70,6 @@ impl<SS: SeedSize> Conf<SS> {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
             1300..1750 => 128,
-            //64..512 => 64,
-            //512..1750 => 128,
             1750..7500 => 256,
             7500..150000 => 512,
             _ if bits_per_seed.into() < 7 => 512,
@@ -123,8 +121,8 @@ impl<SS: SeedSize> Conf<SS> {
     /// Returns seed independent index of `key` in its partition.
     #[inline(always)]
     pub(crate) fn in_slice_noseed(&self, key: u64) -> usize {
-        //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.partition_size_minus_one) as usize
-        (key as u16 & self.slice_len_minus_one) as usize
+        (wymum_xor(key as u64, 0xe703_7ed1_a0b4_28db) as u16  & self.slice_len_minus_one) as usize
+        //(key as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns the value of the function for given `key` and `seed`.
