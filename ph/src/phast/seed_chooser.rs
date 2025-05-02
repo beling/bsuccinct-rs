@@ -122,6 +122,7 @@ pub struct SeedOnlyNoBump;
 
 impl SeedChooser for SeedOnlyNoBump {
     const BUMPING: bool = false;
+    const FIRST_SEED: u16 = 0;
 
     #[inline(always)] fn extra_shift<SS: SeedSize>(_seed_size: SS) -> u16 { 0 }
 
@@ -139,11 +140,11 @@ impl SeedChooser for SeedOnlyNoBump {
         } else {
             best_seed_big::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
         };
-        //if best_seed != u16::MAX { // can assign seed to the bucket
+        if best_seed != u16::MAX { // can assign seed to the bucket
             for key in keys {
                 used_values.add(conf.f_nobump(*key, best_seed));
             }
-        //};
+        };
         best_seed
     }
 }

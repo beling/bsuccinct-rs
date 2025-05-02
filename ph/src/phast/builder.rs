@@ -240,7 +240,7 @@ where SC: SeedChooser + Send, BE: BucketToActivateEvaluator + Send + Sync, BE::V
         let prev = next-1;
         for bucket in 0..gap {
             let seed = conf.bits_per_seed.get_seed(&thread_builders[next].seeds, bucket) as u16;
-            if seed == 0 { continue; }
+            if SC::BUMPING && seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
                 thread_builders[prev].used_values.add(SC::f(*key, seed, &builder.conf));
             }

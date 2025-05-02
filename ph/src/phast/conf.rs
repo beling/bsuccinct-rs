@@ -35,6 +35,13 @@ fn wymum(a: u64, b: u64) -> u64 {
     (r >> 64) as u64
 }
 
+#[inline(always)]
+fn wymum_xor(a: u64, b: u64) -> u64 {
+    let r = (a as u128) * (b as u128);
+    ((r >> 64) ^ r) as u64
+    //(r >> 64) as u64
+}
+
 //const SEEDS_MAP: [u64; 256] = std::array::from_fn(|i| mix64(i as u64));
 
 /// Returns bucket size proper for given number of `bits_per_seed`.
@@ -63,6 +70,8 @@ impl<SS: SeedSize> Conf<SS> {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
             1300..1750 => 128,
+            //64..512 => 64,
+            //512..1750 => 128,
             1750..7500 => 256,
             7500..150000 => 512,
             _ if bits_per_seed.into() < 7 => 512,
@@ -107,7 +116,8 @@ impl<SS: SeedSize> Conf<SS> {
 
     #[inline(always)]
     pub(crate) fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
-        (wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        (wymum_xor(wymum_xor(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns seed independent index of `key` in its partition.
