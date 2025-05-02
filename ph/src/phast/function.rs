@@ -66,12 +66,14 @@ impl<SC, SS: SeedSize, CA, S> GetSize for Function<SC, SS, CA, S> where Level<SS
     fn size_bytes_dyn(&self) -> usize {
         self.level0.size_bytes_dyn() +
             self.unassigned.size_bytes_dyn() +
-            self.levels.size_bytes_dyn()
+            self.levels.size_bytes_dyn() +
+            self.last_level.size_bytes_dyn()
     }
     fn size_bytes_content_dyn(&self) -> usize {
         self.level0.size_bytes_content_dyn() +
             self.unassigned.size_bytes_content_dyn() +
-            self.levels.size_bytes_content_dyn()
+            self.levels.size_bytes_content_dyn() +
+            self.last_level.size_bytes_content_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
@@ -222,7 +224,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
                 unassigned.push(last);
             }
         }
-
+        drop(unassigned_values);
         debug_assert!(level0_unassigned.next().is_none());  // TODO
         drop(level0_unassigned);
         Self {
@@ -285,9 +287,9 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         where K: Hash
     {
         let bits_per_seed = Bits8;
-        let len100 = (keys.len()+10)*105;
-        let conf = Conf::new((len100+len100/2)/100,
-            bits_per_seed, 450, 0);
+        let len100 = (keys.len()+10)*120;
+        let conf = Conf::new(dbg!((len100+50)/100),
+            bits_per_seed, 400, 0);
         let evaluator = Weights::new(conf.bits_per_seed(), conf.slice_len());
         loop {
             let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
@@ -298,6 +300,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
                 return (SeedEx::<Bits8>{ seeds, conf }, unassigned_values, unassigned_len);
             }
             *seed += 1;
+            dbg!(*seed);
         }
     }
 

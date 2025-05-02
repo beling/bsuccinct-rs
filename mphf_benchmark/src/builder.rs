@@ -16,7 +16,7 @@ fn warn_size_diff(size_st: usize, size_mt: usize) {
 #[inline(never)]
 fn check_collision(seen: &mut [u64], input_len: usize, index: usize) {
     assert!(index < input_len, "MPHF assigns too large value {}>{}.", index, input_len);
-    assert!(!seen.get_bit(index), "MPHF assigns the same value to two keys of input.");
+    assert!(!seen.get_bit(index), "MPHF assigns the same value {index} to two keys of input.");
     seen.set_bit(index);
 }
 
