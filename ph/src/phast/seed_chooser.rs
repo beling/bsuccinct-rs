@@ -6,8 +6,8 @@ use super::{builder::UsedValues, conf::Conf};
 
 /// Choose best seed in bucket.
 pub trait SeedChooser {
-    const NO_BUMPING: bool = false;
-    const FIRST_SEED: u16 = if Self::NO_BUMPING { 0 } else { 1 };
+    const BUMPING: bool = true;
+    const FIRST_SEED: u16 = if Self::BUMPING { 1 } else { 0 };
 
     /// How much the chooser can add to value over slice length.
     fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16;
@@ -121,7 +121,7 @@ impl SeedChooser for SeedOnly {
 pub struct SeedOnlyNoBump;
 
 impl SeedChooser for SeedOnlyNoBump {
-    const NO_BUMPING: bool = true;
+    const BUMPING: bool = false;
 
     #[inline(always)] fn extra_shift<SS: SeedSize>(_seed_size: SS) -> u16 { 0 }
 

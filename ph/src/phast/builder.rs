@@ -140,7 +140,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize> BuildConf<'k, BE, SS> {
     #[inline]
     pub fn clear_assigned_from_bucket<SC:SeedChooser>(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
         let seed = self.conf.bits_per_seed.get_seed(&seeds, bucket);
-        if !SC::NO_BUMPING && seed == 0 { return; }
+        if SC::BUMPING && seed == 0 { return; }
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
         for key_hash in keys {
             unassigned_values.clear_bit(SC::f(*key_hash, seed, &self.conf));
@@ -388,7 +388,7 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
         //while let Some(best_bucket) = self.extract_best_bucket() {
             self.in_candidates_to_active.remove(best_bucket);
             let best_seed = self.best_seed(best_bucket);
-            if SC::NO_BUMPING && best_seed == u16::MAX { println!("fail {}", self.finished()); return; }
+            if !SC::BUMPING && best_seed == u16::MAX { return; }
             //self.seeds.set_fragment(best_bucket, best_seed as u64, self.conf.conf.bits_per_seed());
             self.conf.conf.bits_per_seed.set_seed(&mut self.seeds, best_bucket, best_seed);
             if best_bucket == self.span_begin {
