@@ -58,27 +58,27 @@ impl CompressedArray for CSeqEliasFano {
     }
 }
 
-/// Represents linear function f(i) = floor((multipler*i + offset) / divider).
+/// Represents linear function f(i) = floor((multiplier*i + offset) / divider).
 pub struct LinearRegression {
-    multipler: isize,   // can be usize
+    multiplier: isize,   // can be usize
     divider: isize, // can be usize
     offset: isize,  // must be isize
 }
 
 impl LinearRegression {
-    /// Constructs `LinearRegression` (with given `multipler/divider` linear coefficient) and possibly small array of corrections
+    /// Constructs `LinearRegression` (with given `multiplier/divider` linear coefficient) and possibly small array of corrections
     /// that can produce given `values`.
-    pub fn new(multipler: usize, divider: usize, values: Vec<usize>) -> (Self, CompactFast) {
+    pub fn new(multiplier: usize, divider: usize, values: Vec<usize>) -> (Self, CompactFast) {
         let mut max_diff = isize::MIN;   // max value - predicted difference = max correction
         let mut min_diff = isize::MAX;   // min value - predicted difference = min correction
         for (i, v) in values.iter().copied().enumerate() {
             if v == usize::MAX { continue; }
-            let diff = (i * multipler) as isize - (v * divider) as isize;   // divide by divider here?
+            let diff = (i * multiplier) as isize - (v * divider) as isize;   // divide by divider here?
             if diff > max_diff { max_diff = diff }
             if diff < min_diff { min_diff = diff }
         }
         let regression = LinearRegression {
-            multipler: multipler as isize,
+            multiplier: multiplier as isize,
             divider: divider as isize,
             offset: min_diff
         };
@@ -111,7 +111,7 @@ impl LinearRegression {
 
     /// Returns the value of function.
     #[inline(always)] pub fn get(&self, i: usize) -> isize {
-        (self.multipler * i as isize - self.offset) / self.divider 
+        (self.multiplier * i as isize - self.offset) / self.divider 
     }
 }
 
@@ -146,16 +146,16 @@ impl LinearRegressionConstructor for LeastSquares {
             xy_sum += (x as u128) * (y as u128);
         }
         if n == 0 { return (1, 1); }
-        let mut multipler = (n * xy_sum).abs_diff(x_sum * y_sum);
+        let mut multiplier = (n * xy_sum).abs_diff(x_sum * y_sum);
         let mut divider = (n * x_sqr_sum).abs_diff(x_sum * x_sum);
         let max_vals = (1<<(isize::BITS-2)) / n;
-        if multipler > max_vals || divider > max_vals {
-            let div = (multipler / max_vals).max(divider / max_vals);
+        if multiplier > max_vals || divider > max_vals {
+            let div = (multiplier / max_vals).max(divider / max_vals);
             let divh = div / 2;
-            multipler = (multipler + divh) / div;
+            multiplier = (multiplier + divh) / div;
             divider = (divider + divh) / div;
         }
-        (multipler as usize, divider as usize)
+        (multiplier as usize, divider as usize)
     }
 }
 
@@ -171,8 +171,8 @@ impl<C: LinearRegressionConstructor> CompressedArray for LinearRegressionArray<C
     const MAX_FOR_UNUSED: bool = true;
     
     fn new(values: Vec<usize>, _last: usize, num_of_keys: usize) -> Self {
-        let (multipler, divider) = C::new(&values, num_of_keys);
-        let (regression, corrections) = LinearRegression::new(multipler, divider, values);
+        let (multiplier, divider) = C::new(&values, num_of_keys);
+        let (regression, corrections) = LinearRegression::new(multiplier, divider, values);
         Self { regression, corrections, constructor: PhantomData }
     }
 
