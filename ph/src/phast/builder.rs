@@ -381,7 +381,7 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
 
     pub(crate) fn build(&mut self) {
         //let mut seeds = vec![0; self.conf.buckets_num].into_boxed_slice();
-        if !self.find_nonempty() { println!("success {}", self.finished()); return; }
+        if !self.find_nonempty() { return; }
         self.value_to_clear = self.slice_begin(self.span_begin); // / 64;
         self.add_candidates_from(self.span_begin);
         while let Some((_, Reverse(best_bucket))) = self.candidates_to_active.pop() {
@@ -398,13 +398,12 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
                     self.span_begin += 1;
                 }
                 if self.span_begin == old_span_end {
-                    if !self.find_nonempty() { println!("success {}", self.finished()); return; }
+                    if !self.find_nonempty() { return; }
                 }
                 self.clear_used();
                 self.add_candidates_from(old_span_end);
             }
         }
-        println!("success {}", self.finished());
     }
 
     #[inline]

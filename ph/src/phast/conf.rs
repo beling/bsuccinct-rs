@@ -121,8 +121,8 @@ impl<SS: SeedSize> Conf<SS> {
     /// Returns seed independent index of `key` in its partition.
     #[inline(always)]
     pub(crate) fn in_slice_noseed(&self, key: u64) -> usize {
-        (wymum_xor(key as u64, 0xe703_7ed1_a0b4_28db) as u16  & self.slice_len_minus_one) as usize
-        //(key as u16 & self.slice_len_minus_one) as usize
+        //(wymum_xor(key as u64, 0xe703_7ed1_a0b4_28db) as u16  & self.slice_len_minus_one) as usize
+        (key as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns the value of the function for given `key` and `seed`.

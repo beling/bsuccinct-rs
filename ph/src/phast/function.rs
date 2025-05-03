@@ -181,13 +181,13 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
 
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
-        while keys.len() > 1024 {
+        while keys.len() > 64 {
             let keys_len = keys.len();
-            println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
-                keys_len as f64 / 100000.0,
-                crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst),
-                crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst) * 100 / keys_len as u64,
-                crate::phast::seed_chooser::SELF_COLLISION_BUCKETS.load(std::sync::atomic::Ordering::SeqCst));
+            //println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
+            //    keys_len as f64 / 100000.0,
+                //crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst),
+                //crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst) * 100 / keys_len as u64,
+                //crate::phast::seed_chooser::SELF_COLLISION_BUCKETS.load(std::sync::atomic::Ordering::SeqCst));
             let (seeds, unassigned_values, _unassigned_len) =
                 build_level(&mut keys, levels.len() as u64+1, &hasher);
             let shift = unassigned.len();
@@ -208,7 +208,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
             }
             levels.push(Level { seeds, shift });
         }
-        dbg!(keys.len());   // TODO keys.len()==0
+        //dbg!(keys.len());   // TODO keys.len()==0
         let mut last_seed = levels.len() as u64+1;
         let (last_seeds, unassigned_values, _unassigned_len) =
             Self::build_last_level(keys, &hasher, &mut last_seed);
@@ -292,7 +292,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     {
         let bits_per_seed = Bits8;
         let len100 = (keys.len()+10)*120;
-        let conf = Conf::new(dbg!((len100+50)/100),
+        let conf = Conf::new((len100+50)/100,
             bits_per_seed, 400, 0);
         let evaluator = Weights::new(conf.bits_per_seed(), conf.slice_len());
         loop {
@@ -304,7 +304,6 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
                 return (SeedEx::<Bits8>{ seeds, conf }, unassigned_values, unassigned_len);
             }
             *seed += 1;
-            dbg!(*seed);
         }
     }
 
