@@ -181,7 +181,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
 
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
-        while keys.len() > 64 {
+        while keys.len() > 2048 {
             let keys_len = keys.len();
             //println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
             //    keys_len as f64 / 100000.0,
@@ -210,25 +210,33 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         }
         //dbg!(keys.len());   // TODO keys.len()==0
         let mut last_seed = levels.len() as u64+1;
-        let (last_seeds, unassigned_values, _unassigned_len) =
-            Self::build_last_level(keys, &hasher, &mut last_seed);
-        let last_shift = unassigned.len();
-        for i in 0..last_seeds.conf.output_range::<SeedOnlyNoBump>() {
-            if CA::MAX_FOR_UNUSED {
-                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
-                    last = level0_unassigned.next().unwrap();
-                    unassigned.push(last);
+        let last_shift;
+        let last_seeds =
+        if keys.is_empty() {
+            last_shift = 0;
+            SeedEx::<Bits8>{ seeds: Box::default(), conf: Conf::<Bits8> { bits_per_seed: Bits8, buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
+        } else {
+            let (last_seeds, unassigned_values, _unassigned_len) =
+                Self::build_last_level(keys, &hasher, &mut last_seed);
+            last_shift = unassigned.len();
+            for i in 0..last_seeds.conf.output_range::<SeedOnlyNoBump>() {
+                if CA::MAX_FOR_UNUSED {
+                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                        last = level0_unassigned.next().unwrap();
+                        unassigned.push(last);
+                    } else {
+                        unassigned.push(usize::MAX);
+                    }
                 } else {
-                    unassigned.push(usize::MAX);
+                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                        last = level0_unassigned.next().unwrap();
+                    }
+                    unassigned.push(last);
                 }
-            } else {
-                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
-                    last = level0_unassigned.next().unwrap();
-                }
-                unassigned.push(last);
             }
-        }
-        drop(unassigned_values);
+            //drop(unassigned_values);
+            last_seeds
+        };
         debug_assert!(level0_unassigned.next().is_none());  // TODO
         drop(level0_unassigned);
         Self {
@@ -304,6 +312,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
                 return (SeedEx::<Bits8>{ seeds, conf }, unassigned_values, unassigned_len);
             }
             *seed += 1;
+            dbg!(*seed);
         }
     }
 

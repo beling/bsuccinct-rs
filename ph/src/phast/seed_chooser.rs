@@ -56,7 +56,7 @@ fn best_seed_big<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_see
             if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
                 //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
                 //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                if SC::BUMPING { return; }
+                //if SC::BUMPING { return; }
                 continue;
             }
             *best_value = seed_value;
@@ -83,7 +83,7 @@ fn best_seed_small<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_s
                 if values_used_by_seed[i-1] == values_used_by_seed[i] {
                     //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
                     //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    if SC::BUMPING { return; }
+                    //if SC::BUMPING { return; }
                     continue 'outer;
                 }
             }
