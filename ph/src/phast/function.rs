@@ -258,7 +258,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_sort();
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
+        let conf = SC::conf(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
             build_st::<SC, _, _>(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()));
         let mut keys_vec = Vec::with_capacity(unassigned_len);
@@ -283,7 +283,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
+        let conf = SC::conf(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
             build_mt::<SC, _, _>(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), threads_num);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
@@ -300,8 +300,8 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     {
         let bits_per_seed = Bits8;
         let len100 = (keys.len()+10)*120;
-        let conf = Conf::new((len100+50)/100,
-            bits_per_seed, 400, 0);
+        let conf = SeedOnly::conf((len100+50)/100,
+            bits_per_seed, 400);
         let evaluator = Weights::new(conf.bits_per_seed(), conf.slice_len());
         loop {
             let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
@@ -323,7 +323,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
+        let conf = SC::conf(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
             build_st::<SC, _, _>(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()));
         keys.retain(|key| {
@@ -347,7 +347,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = Conf::new(hashes.len(), bits_per_seed, bucket_size100, SC::extra_shift(bits_per_seed));
+        let conf = SC::conf(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, unassigned_values, unassigned_len) =
             build_mt::<SC, _, _>(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), threads_num);
         let mut result = Vec::with_capacity(unassigned_len);
