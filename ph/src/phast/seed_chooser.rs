@@ -180,6 +180,7 @@ impl SeedChooser for ShiftOnly {
             1750..7500 => 256,
             _ => 512,
             //7500..150000 => 512,
+            //_ => 1024,
             //150000..250000 => 1024,
             //_ => 2048,
         };
@@ -207,15 +208,15 @@ impl SeedChooser for ShiftOnly {
                 return 0;
             }
         }
-        let seeds_num = conf.seeds_num();
-        for shift in (0..seeds_num).step_by(64) {
+        let last_shift = conf.seeds_num()-1;
+        for shift in (0..last_shift).step_by(64) {
             let mut used = 0;
             for first in &without_shift {
                 used |= used_values.get64(first + shift as usize);
             }
             if used != u64::MAX {
                 let total_shift = shift + used.trailing_ones() as u16;
-                if total_shift == seeds_num { return 0; }   //TODO check
+                if total_shift == last_shift { return 0; }   //total_shift+1 is too large
                 for first in &without_shift {
                     used_values.add(*first + total_shift as usize);
                 }
@@ -237,8 +238,10 @@ impl SeedChooser for ShiftOnlyX2 {
             64..1300 => 64,
             1300..1750 => 128,
             1750..7500 => 256,
-            _ => 512,
-            //7500..150000 => 512,
+            //_ => 256,
+            //_ => 512,
+            7500..150000 => 512,
+            _ => 1024,
             //150000..250000 => 1024,
             //_ => 2048,
         };
@@ -246,8 +249,8 @@ impl SeedChooser for ShiftOnlyX2 {
     }
 
     #[inline(always)] fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16 {
-        let largret_seed = 1 << seed_size.into();
-        2 * (largret_seed - 2)
+        let largest_seed = 1 << seed_size.into();
+        2 * (largest_seed - 2)
     }
 
     #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
@@ -267,17 +270,15 @@ impl SeedChooser for ShiftOnlyX2 {
                 return 0;
             }
         }
-        let seeds_num = conf.seeds_num()<<1;
-        for shift in (0..seeds_num).step_by(64) {
-            let mut used = 0;
+        let last_shift = (conf.seeds_num()<<1)-2;
+        for shift in (0..last_shift).step_by(64) {
+            let mut used = 0xAAAA_AAAA_AAAA_AAAA;
             for first in &without_shift {
                 used |= used_values.get64(first + shift as usize);
             }
-            const MASK: u64 = 0x5555_5555_5555_5555;
-            used &= MASK;
-            if used != MASK {
+            if used != u64::MAX {
                 let total_shift = shift + used.trailing_ones() as u16;
-                if total_shift == seeds_num { return 0; }   //TODO check
+                if total_shift == last_shift { return 0; }   //TODO check
                 for first in &without_shift {
                     used_values.add(*first + total_shift as usize);
                 }
