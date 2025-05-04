@@ -122,6 +122,11 @@ impl<SS: SeedSize> Conf<SS> {
     }
 
     #[inline(always)]
+    pub(crate) fn f_shift0(&self, key: u64) -> usize {
+        self.slice_begin(key) + self.in_slice_noseed(key)
+    }
+
+    #[inline(always)]
     pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
         self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize - 1
     }

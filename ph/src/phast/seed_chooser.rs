@@ -165,6 +165,33 @@ impl SeedChooser for SeedOnlyNoBump {
     }
 }
 
+#[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
+    without_shift.sort_unstable();  // maybe it is better to postpone self-collision test?
+    for i in 1..without_shift.len() {
+        if without_shift[i-1] == without_shift[i] { // self-collision?
+            return true;
+        }
+    }
+    false
+}
+
+#[inline] fn shifts0<'k, 'c, SS: SeedSize>(keys: &'k [u64], conf: &'c Conf<SS>) -> impl Iterator<Item = usize> + use<'k, 'c, SS> {
+    keys.iter().map(|key| conf.f_shift0(*key))
+}
+
+#[inline] fn occupy_sum(mut excluded: u64, used_values: &UsedValues, without_shift: &[usize], shift: u16) -> u64 {
+    for first in without_shift.iter() {
+        excluded |= used_values.get64(*first + shift as usize);
+    }
+    excluded
+}
+
+#[inline] fn mark_used(used_values: &mut UsedValues, without_shift: &[usize], total_shift: u16) {
+    for first in without_shift {
+        used_values.add(*first + total_shift as usize);
+    }
+}
+
 pub struct ShiftOnly;
 
 //pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
@@ -197,29 +224,23 @@ impl SeedChooser for ShiftOnly {
 
     #[inline]
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
-        let mut without_shift: Box<[usize]> = keys.iter()
-            .map(|key| conf.slice_begin(*key) + conf.in_slice_noseed(*key))
-            .collect();
-        without_shift.sort_unstable();  // maybe it is better to postpone self-collision test?
-        for i in 1..without_shift.len() {
-            if without_shift[i-1] == without_shift[i] { // self-collision?
-                //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
-                //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                return 0;
-            }
-        }
+        let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
+        let mut without_shift_box: Box<[usize]>;
+        let without_shift: &mut [usize] = if keys.len() > 16 {
+            without_shift_box = shifts0(keys, conf).collect();
+            &mut without_shift_box
+        } else {
+            without_shift_arrayvec = shifts0(keys, conf).collect();
+            &mut without_shift_arrayvec
+        };
+        if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test?
         let last_shift = conf.seeds_num()-1;
         for shift in (0..last_shift).step_by(64) {
-            let mut used = 0;
-            for first in &without_shift {
-                used |= used_values.get64(first + shift as usize);
-            }
+            let used = occupy_sum(0, used_values, &without_shift, shift);
             if used != u64::MAX {
                 let total_shift = shift + used.trailing_ones() as u16;
                 if total_shift == last_shift { return 0; }   //total_shift+1 is too large
-                for first in &without_shift {
-                    used_values.add(*first + total_shift as usize);
-                }
+                mark_used(used_values, without_shift, total_shift);
                 return total_shift as u16 + 1;
             }
         }
@@ -259,29 +280,24 @@ impl SeedChooser for ShiftOnlyX2 {
 
     #[inline]
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
-        let mut without_shift: Box<[usize]> = keys.iter()
-            .map(|key| conf.slice_begin(*key) + conf.in_slice_noseed(*key))
-            .collect();
+        let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
+        let mut without_shift_box: Box<[usize]>;
+        let without_shift: &mut [usize] = if keys.len() > 16 {
+            without_shift_box = shifts0(keys, conf).collect();
+            &mut without_shift_box
+        } else {
+            without_shift_arrayvec = shifts0(keys, conf).collect();
+            &mut without_shift_arrayvec
+        };
         without_shift.sort_unstable();  // maybe it is better to postpone self-collision test?
-        for i in 1..without_shift.len() {
-            if without_shift[i-1] == without_shift[i] { // self-collision?
-                //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
-                //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                return 0;
-            }
-        }
+        if self_collide(without_shift) { return 0; }
         let last_shift = (conf.seeds_num()<<1)-2;
         for shift in (0..last_shift).step_by(64) {
-            let mut used = 0xAAAA_AAAA_AAAA_AAAA;
-            for first in &without_shift {
-                used |= used_values.get64(first + shift as usize);
-            }
+            let used = occupy_sum(0xAAAA_AAAA_AAAA_AAAA, used_values, &without_shift, shift);
             if used != u64::MAX {
                 let total_shift = shift + used.trailing_ones() as u16;
                 if total_shift == last_shift { return 0; }   //TODO check
-                for first in &without_shift {
-                    used_values.add(*first + total_shift as usize);
-                }
+                mark_used(used_values, without_shift, total_shift);
                 return total_shift as u16 / 2 + 1;
             }
         }
