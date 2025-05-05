@@ -181,7 +181,8 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
 
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
-        while keys.len() > 2048 {
+        //let max_keys = 2048.max(SC::extra_shift(bits_p))
+        while keys.len() > 2048*2 {
             let keys_len = keys.len();
             //println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
             //    keys_len as f64 / 100000.0,

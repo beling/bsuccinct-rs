@@ -102,11 +102,13 @@ impl SeedSize for Bits {
     }
 
     #[inline(always)] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         //vec.set_fragment(index, seed as u64, self.0)
         unsafe { vec.set_fragment_unchecked(index, seed as u64, self.0); }
     }
 
     #[inline(always)] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         unsafe { vec.init_fragment_unchecked(index, seed as u64, self.0) }
     }
 
@@ -172,10 +174,12 @@ impl SeedSize for BitsFast {
     }
 
     #[inline(always)] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         unsafe { bitm::set_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32, (1<<self.0)-1) }
     }
 
     #[inline(always)] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         unsafe { bitm::init_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32) }
     }
 
@@ -220,6 +224,7 @@ impl SeedSize for Bits8 {
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
         //vec[index] = seed as u8
+        debug_assert!(seed < 256);
         unsafe { *vec.get_unchecked_mut(index) = seed as u8 }
     }
 

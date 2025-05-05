@@ -205,9 +205,9 @@ impl SeedChooser for ShiftOnly {
             64..1300 => 64,
             1300..1750 => 128,
             1750..7500 => 256,
-            _ => 512,
-            //7500..150000 => 512,
-            //_ => 1024,
+            _ if bits_per_seed.into() <= 8 => 512,
+            7500..150000 => 512,
+            _ => 1024,
             //150000..250000 => 1024,
             //_ => 2048,
         };
@@ -296,9 +296,9 @@ impl SeedChooser for ShiftOnlyX2 {
             let used = occupy_sum(0xAAAA_AAAA_AAAA_AAAA, used_values, &without_shift, shift);
             if used != u64::MAX {
                 let total_shift = shift + used.trailing_ones() as u16;
-                if total_shift == last_shift { return 0; }   //TODO check
+                if total_shift >= last_shift { return 0; }   //TODO check
                 mark_used(used_values, without_shift, total_shift);
-                return total_shift as u16 / 2 + 1;
+                return (total_shift / 2) as u16 + 1;
             }
         }
         0
