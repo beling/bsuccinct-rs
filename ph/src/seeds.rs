@@ -225,7 +225,6 @@ impl SeedSize for Bits8 {
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
         debug_assert!(seed < 256);
         //vec[index] = seed as u8
-        debug_assert!(seed < 256);
         unsafe { *vec.get_unchecked_mut(index) = seed as u8 }
     }
 

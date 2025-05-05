@@ -9,7 +9,7 @@ pub use builder::MPHFBuilder;
 
 mod stats;
 use ph::phast::compressed_array::{CompactFast, LeastSquares, LinearRegressionArray, Simple};
-use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray, SeedOnly, ShiftOnly, ShiftOnlyX2};
+use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray, SeedOnly, ShiftOnly, ShiftOnlyX2, ShiftOnlyX3};
 pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
 mod inout;
@@ -151,6 +151,8 @@ pub enum Method {
     phaster(PHastConf),
     /// PHaster x2
     phaster2(PHastConf),
+    /// PHaster x3
+    phaster3(PHastConf),
     #[cfg(feature = "boomphf")]
     /// boomphf
     Boomphf {
@@ -315,7 +317,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
         },
         Method::phaster2(ref phast_conf) => {
             println!("PHaster2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-            let mut csv_file = file("phaster", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+            let mut csv_file = file("phaster2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
             if phast_conf.elias_fano() {
                 phast_benchmark::<ShiftOnlyX2, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
             }
@@ -327,6 +329,22 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
             }
             if phast_conf.least_squares {
                 phast_benchmark::<ShiftOnlyX2, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+            }
+        },
+        Method::phaster3(ref phast_conf) => {
+            println!("PHaster3 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+            let mut csv_file = file("phaster3", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+            if phast_conf.elias_fano() {
+                phast_benchmark::<ShiftOnlyX3, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+            }
+            if phast_conf.compact {
+                phast_benchmark::<ShiftOnlyX3, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+            }
+            if phast_conf.linear_simple {
+                phast_benchmark::<ShiftOnlyX3, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+            }
+            if phast_conf.least_squares {
+                phast_benchmark::<ShiftOnlyX3, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
             }
         },
         #[cfg(feature = "boomphf")]
