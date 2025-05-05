@@ -563,11 +563,13 @@ impl BitAccess for [u64] {
     }
 
     #[inline(always)] unsafe fn set_bit_to_unchecked(&mut self, bit_nr: usize, value: bool) {
+        debug_assert!(bit_nr / 64 < self.len());
         set_bit_to(self.get_unchecked_mut(bit_nr / 64), bit_nr % 64, value)
         //if value { self.set_bit_unchecked(bit_nr) } else { self.clear_bit_unchecked(bit_nr) }
     }
 
     #[inline(always)] unsafe fn get_bit_unchecked(&self, bit_nr: usize) -> bool {
+        debug_assert!(bit_nr / 64 < self.len());
         self.get_unchecked(bit_nr / 64) & (1u64 << (bit_nr % 64) as u64) != 0
     }
 
@@ -580,6 +582,8 @@ impl BitAccess for [u64] {
     }
 
     #[inline] unsafe fn init_bit_unchecked(&mut self, bit_nr: usize, value: bool) {
+        //debug_assert!({let current = self.get_bit(bit_nr); current == false || current == value});
+        debug_assert!(bit_nr / 64 < self.len());
         *self.get_unchecked_mut(bit_nr / 64) |= (value as u64) << (bit_nr % 64);
     }
 
@@ -588,6 +592,7 @@ impl BitAccess for [u64] {
     }
 
     #[inline(always)] unsafe fn set_bit_unchecked(&mut self, bit_nr: usize) {
+        debug_assert!(bit_nr / 64 < self.len());
         *self.get_unchecked_mut(bit_nr / 64) |= 1u64 << (bit_nr % 64)
     }
 
@@ -596,6 +601,7 @@ impl BitAccess for [u64] {
     }
 
     #[inline(always)] unsafe fn clear_bit_unchecked(&mut self, bit_nr: usize) {
+        debug_assert!(bit_nr / 64 < self.len());
         *self.get_unchecked_mut(bit_nr / 64) &= !((1u64) << (bit_nr % 64))
     }
 
@@ -642,9 +648,11 @@ impl BitAccess for [u64] {
 
     #[inline] unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64 {
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
+        debug_assert!(segment < self.len());
         let w1 = self.get_unchecked(segment) >> offset;
         if offset+len > 64 /*len > bits_in_w1*/ { // do we need more bits (from next segment)?
             let bits_in_w1 = 64-offset; // w1 has bits_in_w1 lowest bit set (copied from index_segment)
+            debug_assert!(segment+1 < self.len());
             w1 | (self.get_unchecked(segment+1) << bits_in_w1)
         } else {
             w1
@@ -685,8 +693,10 @@ impl BitAccess for [u64] {
         let v_mask = n_lowest_bits(len);
         if offset + len > 64 {
             let shift = 64-offset; //lo_bit_len
+            debug_assert!(segment+1 < self.len());
             set_bits_to(self.get_unchecked_mut(segment+1), v>>shift, v_mask>>shift);
         }
+        debug_assert!(segment < self.len());
         set_bits_to(self.get_unchecked_mut(segment), v<<offset, v_mask<<offset);
     }
 
@@ -763,9 +773,11 @@ impl BitAccess for [u64] {
 
     unsafe fn find_bit_one_unchecked(&self, start_index: usize) -> usize {
         let mut word_index = start_index / 64;
+        debug_assert!(word_index < self.len());
         let mut bits = self.get_unchecked(word_index) & !n_lowest_bits((start_index % 64) as u8);
         while bits == 0 {
             word_index += 1;
+            debug_assert!(word_index < self.len());
             bits = *self.get_unchecked(word_index);
         }
         word_index * 64 + bits.trailing_zeros() as usize
@@ -773,9 +785,11 @@ impl BitAccess for [u64] {
 
     unsafe fn rfind_bit_one_unchecked(&self, start_index: usize) -> usize {
         let mut word_index = start_index / 64;
+        debug_assert!(word_index < self.len());
         let mut bits = self.get_unchecked(word_index) & n_lowest_bits_1_64((start_index % 64) as u8 + 1);
         while bits == 0 {
             word_index -= 1;
+            debug_assert!(word_index < self.len());
             bits = *self.get_unchecked(word_index);
         }
         word_index * 64 + bits.ilog2() as usize
