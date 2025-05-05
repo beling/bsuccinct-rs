@@ -223,6 +223,7 @@ impl SeedSize for Bits8 {
     }
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < 256);
         //vec[index] = seed as u8
         debug_assert!(seed < 256);
         unsafe { *vec.get_unchecked_mut(index) = seed as u8 }
@@ -292,6 +293,7 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
     }
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<Self::BITS));
         //let v = &mut vec[index / Self::VALUES_PER_64 as usize];
         let v = unsafe { vec.get_unchecked_mut(index / Self::VALUES_PER_64 as usize) };
         let s = Self::shift_for(index);
@@ -300,6 +302,7 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
     }
 
     #[inline] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<Self::BITS));
         //vec[index / Self::VALUES_PER_64 as usize] |= (seed as u64) << Self::shift_for(index);
         unsafe{ *vec.get_unchecked_mut(index / Self::VALUES_PER_64 as usize) |= (seed as u64) << Self::shift_for(index); }
     }
