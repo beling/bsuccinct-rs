@@ -102,11 +102,13 @@ impl SeedSize for Bits {
     }
 
     #[inline(always)] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         //vec.set_fragment(index, seed as u64, self.0)
         unsafe { vec.set_fragment_unchecked(index, seed as u64, self.0); }
     }
 
     #[inline(always)] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         unsafe { vec.init_fragment_unchecked(index, seed as u64, self.0) }
     }
 
@@ -172,10 +174,12 @@ impl SeedSize for BitsFast {
     }
 
     #[inline(always)] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         unsafe { bitm::set_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32, (1<<self.0)-1) }
     }
 
     #[inline(always)] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<self.0));
         unsafe { bitm::init_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32) }
     }
 
@@ -219,6 +223,7 @@ impl SeedSize for Bits8 {
     }
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < 256);
         //vec[index] = seed as u8
         unsafe { *vec.get_unchecked_mut(index) = seed as u8 }
     }
@@ -287,6 +292,7 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
     }
 
     #[inline] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<Self::BITS));
         //let v = &mut vec[index / Self::VALUES_PER_64 as usize];
         let v = unsafe { vec.get_unchecked_mut(index / Self::VALUES_PER_64 as usize) };
         let s = Self::shift_for(index);
@@ -295,6 +301,7 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
     }
 
     #[inline] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
+        debug_assert!(seed < (1<<Self::BITS));
         //vec[index / Self::VALUES_PER_64 as usize] |= (seed as u64) << Self::shift_for(index);
         unsafe{ *vec.get_unchecked_mut(index / Self::VALUES_PER_64 as usize) |= (seed as u64) << Self::shift_for(index); }
     }
