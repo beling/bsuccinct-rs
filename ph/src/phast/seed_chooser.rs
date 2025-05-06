@@ -204,9 +204,9 @@ const fn zero_at_each(multiplier: u8) -> u64 {
     result
 }
 
-pub struct ShiftOnly<const MULTIPLIER: u8, const L: u16 = 1024>;
+pub struct ShiftOnly<const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
 
-impl<const MULTIPLIER: u8, const L: u16> ShiftOnly<MULTIPLIER, L> {
+impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> ShiftOnly<MULTIPLIER, L, L_LARGE_SEEDS> {
     const MASK: u64 = zero_at_each(MULTIPLIER);
     const STEP: usize = 64 - 64 % MULTIPLIER as usize;
 }
@@ -214,7 +214,7 @@ impl<const MULTIPLIER: u8, const L: u16> ShiftOnly<MULTIPLIER, L> {
 //pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
 //pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
 
-impl<const MULTIPLIER: u8, const L: u16> SeedChooser for ShiftOnly<MULTIPLIER, L> {
+impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftOnly<MULTIPLIER, L, L_LARGE_SEEDS> {
     fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
         let max_shift = Self::extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
@@ -222,12 +222,10 @@ impl<const MULTIPLIER: u8, const L: u16> SeedChooser for ShiftOnly<MULTIPLIER, L
             64..1300 => 64,
             1300..1750 => 128,
             1750..7500 => 256,
-            _ if bits_per_seed.into() <= 8 => 512,
             7500..150000 => 512,
-            //_ => 1024,
             150000..250000 => 1024,
             _ => 2048,
-        }.min(L);
+        }.min(if bits_per_seed.into() <= 8 { L } else { L_LARGE_SEEDS });
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
     }
 
@@ -236,7 +234,7 @@ impl<const MULTIPLIER: u8, const L: u16> SeedChooser for ShiftOnly<MULTIPLIER, L
     }
 
     #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
-        conf.slice_begin(primary_code) + conf.in_slice_noseed(primary_code) + (seed-1) as usize*MULTIPLIER as usize
+        conf.f_shift0(primary_code) + (seed-1) as usize*MULTIPLIER as usize
     }
 
     #[inline]
@@ -265,7 +263,7 @@ impl<const MULTIPLIER: u8, const L: u16> SeedChooser for ShiftOnly<MULTIPLIER, L
     }
 }
 
-pub type ShiftOnlyX1 = ShiftOnly<1, 1024>;
-pub type ShiftOnlyX2 = ShiftOnly<2, 1024>;
-pub type ShiftOnlyX3 = ShiftOnly<3, 1024>;
-pub type ShiftOnlyX4 = ShiftOnly<4, 1024>;
+pub type ShiftOnlyX1 = ShiftOnly<1, 512, 1024>;
+pub type ShiftOnlyX2 = ShiftOnly<2>;
+pub type ShiftOnlyX3 = ShiftOnly<3>;
+pub type ShiftOnlyX4 = ShiftOnly<4>;

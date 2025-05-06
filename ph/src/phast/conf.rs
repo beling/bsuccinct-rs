@@ -126,10 +126,10 @@ impl<SS: SeedSize> Conf<SS> {
         self.slice_begin(key) + self.in_slice_noseed(key)
     }
 
-    #[inline(always)]
+    /*#[inline(always)]
     pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
         self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize - 1
-    }
+    }*/
 
     #[inline(always)]
     pub(crate) fn f_nobump(&self, key: u64, seed: u16) -> usize {
