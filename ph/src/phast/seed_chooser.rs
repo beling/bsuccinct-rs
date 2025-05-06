@@ -1,3 +1,5 @@
+use std::u64;
+
 use crate::seeds::SeedSize;
 
 use super::{builder::UsedValues, conf::Conf};
@@ -192,12 +194,27 @@ impl SeedChooser for SeedOnlyNoBump {
     }
 }
 
-pub struct ShiftOnly;
+const fn zero_at_each(multiplier: u8) -> u64 {
+    let mut result = u64::MAX;
+    let mut i = 0;
+    while i < 64 {
+        result ^= 1<<i;
+        i += multiplier;
+    }
+    result
+}
+
+pub struct ShiftOnly<const MULTIPLIER: u8, const L: u16 = 1024>;
+
+impl<const MULTIPLIER: u8, const L: u16> ShiftOnly<MULTIPLIER, L> {
+    const MASK: u64 = zero_at_each(MULTIPLIER);
+    const STEP: usize = 64 - 64 % MULTIPLIER as usize;
+}
 
 //pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
 //pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
 
-impl SeedChooser for ShiftOnly {
+impl<const MULTIPLIER: u8, const L: u16> SeedChooser for ShiftOnly<MULTIPLIER, L> {
     fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
         let max_shift = Self::extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
@@ -207,19 +224,19 @@ impl SeedChooser for ShiftOnly {
             1750..7500 => 256,
             _ if bits_per_seed.into() <= 8 => 512,
             7500..150000 => 512,
-            _ => 1024,
-            //150000..250000 => 1024,
-            //_ => 2048,
-        };
+            //_ => 1024,
+            150000..250000 => 1024,
+            _ => 2048,
+        }.min(L);
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
     }
 
     #[inline(always)] fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16 {
-        (1 << seed_size.into()) - 2
+        (1 << seed_size.into()) * MULTIPLIER as u16 - 2*MULTIPLIER as u16
     }
 
     #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
-        conf.f_shift(primary_code, seed)
+        conf.slice_begin(primary_code) + conf.in_slice_noseed(primary_code) + (seed-1) as usize*MULTIPLIER as usize
     }
 
     #[inline]
@@ -234,126 +251,21 @@ impl SeedChooser for ShiftOnly {
             &mut without_shift_arrayvec
         };
         if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test?
-        let last_shift = conf.seeds_num()-1;
-        for shift in (0..last_shift).step_by(64) {
-            let used = occupy_sum(0, used_values, &without_shift, shift);
+        let last_shift = (1u16 << conf.bits_per_seed.into()) * MULTIPLIER as u16 - MULTIPLIER as u16;
+        for shift in (0..last_shift).step_by(Self::STEP) {
+            let used = occupy_sum(Self::MASK, used_values, &without_shift, shift);
             if used != u64::MAX {
                 let total_shift = shift + used.trailing_ones() as u16;
                 if total_shift >= last_shift { return 0; }   //total_shift+1 is too large
                 mark_used(used_values, without_shift, total_shift);
-                return total_shift as u16 + 1;
+                return total_shift / MULTIPLIER as u16 + 1;
             }
         }
         0
     }
 }
 
-
-pub struct ShiftOnlyX2;
-
-impl SeedChooser for ShiftOnlyX2 {
-    fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
-        let max_shift = Self::extra_shift(bits_per_seed);
-        let slice_len = match output_range.saturating_sub(max_shift as usize) {
-            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-            64..1300 => 64,
-            1300..1750 => 128,
-            1750..7500 => 256,
-            //_ => 256,
-            //_ => 512,
-            7500..150000 => 512,
-            _ => 1024,
-            //150000..250000 => 1024,
-            //_ => 2048,
-        };
-        Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
-    }
-
-    #[inline(always)] fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16 {
-        (2 << seed_size.into()) - 4
-    }
-
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
-        conf.slice_begin(primary_code) + conf.in_slice_noseed(primary_code) + (seed-1) as usize*2
-    }
-
-    #[inline]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
-        let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
-        let mut without_shift_box: Box<[usize]>;
-        let without_shift: &mut [usize] = if keys.len() > 16 {
-            without_shift_box = shifts0(keys, conf).collect();
-            &mut without_shift_box
-        } else {
-            without_shift_arrayvec = shifts0(keys, conf).collect();
-            &mut without_shift_arrayvec
-        };
-        if self_collide(without_shift) { return 0; }  // maybe it is better to postpone self-collision test?
-        let last_shift = (2 << conf.bits_per_seed.into()) - 2;
-        for shift in (0..last_shift).step_by(64) {
-            let used = occupy_sum(0xAAAA_AAAA_AAAA_AAAA, used_values, &without_shift, shift);
-            if used != u64::MAX {
-                let total_shift = shift + used.trailing_ones() as u16;
-                if total_shift >= last_shift { return 0; }   //TODO check
-                mark_used(used_values, without_shift, total_shift);
-                return (total_shift / 2) as u16 + 1;
-            }
-        }
-        0
-    }
-}
-
-
-pub struct ShiftOnlyX3;
-
-impl SeedChooser for ShiftOnlyX3 {
-    fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
-        let max_shift = Self::extra_shift(bits_per_seed);
-        let slice_len = match output_range.saturating_sub(max_shift as usize) {
-            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-            64..1300 => 64,
-            1300..1750 => 128,
-            1750..7500 => 256,
-            //_ => 256,
-            //_ => 512,
-            7500..150000 => 512,
-            _ => 1024,
-            //150000..250000 => 1024,
-            //_ => 2048,
-        };
-        Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
-    }
-
-    #[inline(always)] fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16 {
-        (1 << seed_size.into()) * 3 - 6
-    }
-
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
-        conf.slice_begin(primary_code) + conf.in_slice_noseed(primary_code) + (seed-1) as usize*3
-    }
-
-    #[inline]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
-        let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
-        let mut without_shift_box: Box<[usize]>;
-        let without_shift: &mut [usize] = if keys.len() > 16 {
-            without_shift_box = shifts0(keys, conf).collect();
-            &mut without_shift_box
-        } else {
-            without_shift_arrayvec = shifts0(keys, conf).collect();
-            &mut without_shift_arrayvec
-        };
-        if self_collide(without_shift) { return 0; }  // maybe it is better to postpone self-collision test?
-        let last_shift = (1 << conf.bits_per_seed.into()) * 3 - 3;
-        for shift in (0..last_shift).step_by(63) {
-            let used = occupy_sum(0xedb6_db6_db6_db6_db6, used_values, &without_shift, shift);
-            if used != u64::MAX {
-                let total_shift = shift + used.trailing_ones() as u16;
-                if total_shift >= last_shift { return 0; }   //TODO check
-                mark_used(used_values, without_shift, total_shift);
-                return (total_shift / 3) as u16 + 1;
-            }
-        }
-        0
-    }
-}
+pub type ShiftOnlyX1 = ShiftOnly<1, 1024>;
+pub type ShiftOnlyX2 = ShiftOnly<2, 1024>;
+pub type ShiftOnlyX3 = ShiftOnly<3, 1024>;
+pub type ShiftOnlyX4 = ShiftOnly<4, 1024>;
