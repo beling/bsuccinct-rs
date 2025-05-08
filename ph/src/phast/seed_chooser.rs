@@ -337,7 +337,7 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
         let mut best_total_shift = u16::MAX;
         loop {  // while total_last_shift > 0
             let max_sh0 = without_shift.iter().map(|(_, sh0)| *sh0).max().unwrap();
-            let mut shift_end = conf.slice_len_minus_one - max_sh0;
+            let mut shift_end = slice_len - max_sh0;
             if MULTIPLIER != 1 {
                 let r = shift_end % MULTIPLIER as u16;
                 if r != 0 {
