@@ -151,7 +151,9 @@ pub enum Method {
     phaster(PHastConf),
     /// PHaster x2
     phaster2(PHastConf),
-    /// PHaster x3
+    /// PHaster x2 wrapped
+    phaster2wrap(PHastConf),
+    /// PHaster x3 wrapped
     phaster3wrap(PHastConf),
     #[cfg(feature = "boomphf")]
     /// boomphf
@@ -329,6 +331,13 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                     }
                     if phast_conf.least_squares {
                         phast_benchmark::<ShiftOnlyX2, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                    }
+                },
+        Method::phaster2wrap(ref phast_conf) => {
+                    println!("PHaster2wrap {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                    let mut csv_file = file("phaster2wrap", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                    if phast_conf.elias_fano() {
+                        phast_benchmark::<ShiftOnlyWrapped<2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
                     }
                 },
         Method::phaster3wrap(ref phast_conf) => {
