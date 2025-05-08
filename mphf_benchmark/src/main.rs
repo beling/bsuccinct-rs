@@ -339,12 +339,30 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                     if phast_conf.elias_fano() {
                         phast_benchmark::<ShiftOnlyWrapped<2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
                     }
+                    if phast_conf.compact {
+                        phast_benchmark::<ShiftOnlyWrapped<2>, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                    }
+                    if phast_conf.linear_simple {
+                        phast_benchmark::<ShiftOnlyWrapped<2>, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                    }
+                    if phast_conf.least_squares {
+                        phast_benchmark::<ShiftOnlyWrapped<2>, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                    }
                 },
         Method::phaster3wrap(ref phast_conf) => {
                     println!("PHaster3wrap {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
                     let mut csv_file = file("phaster3wrap", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
                     if phast_conf.elias_fano() {
                         phast_benchmark::<ShiftOnlyWrapped<3>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    }
+                    if phast_conf.compact {
+                        phast_benchmark::<ShiftOnlyWrapped<3>, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                    }
+                    if phast_conf.linear_simple {
+                        phast_benchmark::<ShiftOnlyWrapped<3>, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                    }
+                    if phast_conf.least_squares {
+                        phast_benchmark::<ShiftOnlyWrapped<3>, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
                     }
                 },
         #[cfg(feature = "boomphf")]
