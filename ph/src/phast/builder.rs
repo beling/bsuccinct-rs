@@ -11,7 +11,7 @@ pub type UsedValues = CyclicSet<{MAX_VALUES/64}>;
 #[inline]
 fn bucket_sizes_st<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>) -> Box<[usize]> {
     let mut buckets = vec![0; conf.buckets_num + 1].into_boxed_slice();
-    for key in keys.iter() { unsafe{ *buckets.get_unchecked_mut(conf.bucket_for(*key)) += 1 } }
+    for key in keys.iter() { unsafe{ *buckets.get_unchecked_mut(conf.bucket_for_key(*key)) += 1 } }
     buckets
 }
 
@@ -26,12 +26,12 @@ fn bucket_sizes_mt<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>, mut threads_num:
     let mut key_idx = 0;
     while key_idx < keys.len() {
         let mut new_key_idx = key_idx + (keys.len() - key_idx) / threads_num;
-        if let Some(mut last_bucket_for_thread) = keys.get(new_key_idx).map(|key| conf.bucket_for(*key)) {
+        if let Some(mut last_bucket_for_thread) = keys.get(new_key_idx).map(|key| conf.bucket_for_key(*key)) {
             let keys_for_thread = &keys[key_idx..new_key_idx];
             unsafe{ *remaining_buckets.get_unchecked_mut(last_bucket_for_thread-remaining_first) += 1 };
             new_key_idx += 1;
             while new_key_idx < keys.len() {
-                let b = conf.bucket_for(keys[new_key_idx]);
+                let b = conf.bucket_for_key(keys[new_key_idx]);
                 unsafe{ *remaining_buckets.get_unchecked_mut(b-remaining_first) += 1 };
                 new_key_idx += 1;
                 if b != last_bucket_for_thread { break; }
@@ -50,7 +50,7 @@ fn bucket_sizes_mt<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>, mut threads_num:
     threads.push((&keys[key_idx..], remaining_buckets, remaining_first));
     threads.into_par_iter().for_each(|(keys, buckets, first)| {
         for key in keys.iter() {
-            unsafe{ *buckets.get_unchecked_mut(conf.bucket_for(*key)-first) += 1 };
+            unsafe{ *buckets.get_unchecked_mut(conf.bucket_for_key(*key)-first) += 1 };
         }
     });
     buckets

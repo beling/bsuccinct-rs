@@ -64,13 +64,13 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 
 impl<SS: SeedSize> Conf<SS> {
 
-    pub(crate) fn new(output_range: usize, bits_per_seed: SS, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
-        let bucket_size_100 = bucket_size_100 as usize;
+    pub(crate) fn new(output_range: usize, bits_per_seed: SS, _bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
+        let num_of_slices = output_range + 1 - slice_len as usize - max_shift as usize;
         Self {
             bits_per_seed,
-            buckets_num: 1.max((output_range * 100 + bucket_size_100/2) / bucket_size_100),
+            buckets_num: (num_of_slices-1)/4+1,
             slice_len_minus_one: slice_len - 1,
-            num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
+            num_of_slices,
         }
     }
 
@@ -79,10 +79,16 @@ impl<SS: SeedSize> Conf<SS> {
         self.num_of_slices + self.slice_len_minus_one as usize + SC::extra_shift(self.bits_per_seed) as usize
     }
 
+    /// Returns bucket assigned to the `slice_begin`.
+    #[inline(always)]
+    pub(crate) fn bucket_for_slice(&self, slice_begin: usize) -> usize {
+        slice_begin / 4
+    }
+
     /// Returns bucket assigned to the `key`.
     #[inline(always)]
-    pub(crate) fn bucket_for(&self, key: u64) -> usize {
-        map64_to_64(key, self.buckets_num as u64) as usize
+    pub(crate) fn bucket_for_key(&self, key: u64) -> usize {
+        self.bucket_for_slice(self.slice_begin(key))
     }
 
     /// Returns first value of slice assigned to the `key`.

@@ -16,7 +16,7 @@ struct SeedEx<SS: SeedSize> {
 
 impl<SS: SeedSize> SeedEx<SS> {
     #[inline]
-    fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
+    fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for_key(key) }
 
     #[inline]
     fn seed_for(&self, key: u64) -> u16 {
@@ -264,7 +264,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
             build_st::<SC, _, _>(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()));
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.extend(keys.into_iter().filter(|key| {
-            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+            bits_per_seed.get_seed(&seeds, conf.bucket_for_key(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
         (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
     }
@@ -289,7 +289,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
             build_mt::<SC, _, _>(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), threads_num);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
-            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+            bits_per_seed.get_seed(&seeds, conf.bucket_for_key(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
         (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
     }
@@ -328,7 +328,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         let (seeds, unassigned_values, unassigned_len) =
             build_st::<SC, _, _>(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()));
         keys.retain(|key| {
-            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+            bits_per_seed.get_seed(&seeds, conf.bucket_for_key(hasher.hash_one(key, level_nr))) == 0
         });
         (SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
     }
@@ -354,7 +354,7 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
         let mut result = Vec::with_capacity(unassigned_len);
         std::mem::swap(keys, &mut result);
         keys.par_extend(result.into_par_iter().filter(|key| {
-            bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
+            bits_per_seed.get_seed(&seeds, conf.bucket_for_key(hasher.hash_one(key, level_nr))) == 0
         }));
         (SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
     }
