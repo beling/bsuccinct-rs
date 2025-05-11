@@ -15,13 +15,18 @@ struct SeedEx<SS: SeedSize> {
 }
 
 impl<SS: SeedSize> SeedEx<SS> {
-    #[inline]
-    fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for_key(key) }
+    #[inline(always)]
+    fn slice_begin(&self, key: u64) -> usize {
+        self.conf.slice_begin(key)
+    }
 
-    #[inline]
-    fn seed_for(&self, key: u64) -> u16 {
+    //#[inline]
+    //fn bucket_for_slice(&self, slice: usize) -> usize { self.conf.bucket_for_slice(slice) }
+
+    #[inline(always)]
+    fn seed_for_slice(&self, slice: usize) -> u16 {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
-        self.conf.bits_per_seed.get_seed(&self.seeds, self.bucket_for(key))
+        self.conf.bits_per_seed.get_seed(&self.seeds, self.conf.bucket_for_slice(slice))
     }
 }
 
@@ -87,21 +92,24 @@ impl<SC, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher> Function<SC, S
     #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
-        let seed = self.level0.seed_for(key_hash);
-        if seed != 0 { return SC::f(key_hash, seed, &self.level0.conf); }
+        let slice_begin = self.level0.slice_begin(key_hash);
+        let seed = self.level0.seed_for_slice(slice_begin);
+        if seed != 0 { return SC::f_slice(key_hash, slice_begin, seed, &self.level0.conf); }
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
             let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
-            let seed = l.seeds.seed_for(key_hash);
+            let slice_begin = l.seeds.slice_begin(key_hash);
+            let seed = l.seeds.seed_for_slice(slice_begin);
             if seed != 0 {
-                return self.unassigned.get(SC::f(key_hash, seed, &l.seeds.conf) + l.shift)
+                return self.unassigned.get(SC::f_slice(key_hash, slice_begin, seed, &l.seeds.conf) + l.shift)
             }
         }
 
         let key_hash = self.hasher.hash_one(key, self.last_level_seed);
-        let seed = self.last_level.seeds.seed_for(key_hash);
-        return self.unassigned.get(SeedOnlyNoBump::f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
+        let slice_begin = self.last_level.seeds.slice_begin(key_hash);
+        let seed = self.last_level.seeds.seed_for_slice(slice_begin);
+        return self.unassigned.get(SeedOnlyNoBump::f_slice(key_hash, slice_begin, seed, &self.last_level.seeds.conf) + self.last_level.shift)
     }
 
     /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:

@@ -26,6 +26,8 @@ pub trait SeedChooser {
 
     /// Returns function value for given primary code and seed.
     fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize;
+
+    fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize;
     
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16;
@@ -117,6 +119,10 @@ impl SeedChooser for SeedOnly {
         conf.f(primary_code, seed)
     }
 
+    #[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {
+        slice_begin + conf.in_slice(primary_code, seed)
+    }
+
     #[inline(always)]
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         let mut best_seed = 0;
@@ -144,6 +150,10 @@ impl SeedChooser for SeedOnlyNoBump {
 
     #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.f_nobump(primary_code, seed)
+    }
+
+    #[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {
+        slice_begin + conf.in_slice_nobump(primary_code, seed)
     }
 
     #[inline]
@@ -236,6 +246,10 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
         conf.f_shift0(primary_code) + (seed-1) as usize*MULTIPLIER as usize
     }
 
+    #[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {
+        slice_begin + conf.in_slice_noseed(primary_code) + (seed-1) as usize*MULTIPLIER as usize
+    }
+
     #[inline]
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
@@ -315,6 +329,10 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
 
     #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add((seed-1) as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
+    }
+
+    #[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {
+        slice_begin + ((primary_code as usize).wrapping_add((seed-1) as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
 
     #[inline]
