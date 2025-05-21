@@ -299,8 +299,8 @@ pub type ArrayWithRank101111 = RankSelect101111<BinaryRankSearch, BinaryRankSear
 /// Usually [`RankSelect101111`] should be preferred to [`ArrayWithRankSimple`].
 #[derive(Clone)]
 pub struct RankSimple<BV = Box<[u64]>> {
-    pub content: BV,
-    pub ranks: Box<[u32]>,
+    content: BV,
+    ranks: Box<[u32]>,
 }
 
 impl<BV: GetSize> GetSize for RankSimple<BV> {
