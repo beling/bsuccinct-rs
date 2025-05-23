@@ -15,7 +15,7 @@ pub trait SeedChooser {
             1300..1750 => 128,
             1750..7500 => 256,
             7500..150000 => 512,
-            _ if bits_per_seed.into() < 7 => 512,
+            _ if bits_per_seed.into() < 6 => 512,
             _ => 1024
         };
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
