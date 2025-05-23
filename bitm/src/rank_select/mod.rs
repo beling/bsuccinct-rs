@@ -212,7 +212,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
         // we start from access to content, as if given index of content is not out of bounds,
         // then corresponding indices l1ranks and l2ranks are also not out of bound
         let mut r = (self.content.get(word_idx)? & n_lowest_bits(index as u8 % 64)).count_ones() as usize;
-        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };
+        let block_content = *unsafe{ self.l2ranks.get_unchecked(index/2048) };  // sound after returning Some by content.get(word_idx)
         #[cfg(target_pointer_width = "64")] { r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; } // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
         #[cfg(target_pointer_width = "32")] { r += (block_content & 0xFFFFFFFFu64) as usize; }
 
@@ -332,9 +332,9 @@ impl<BV: Deref<Target = [u64]>> RankSimple<BV> {
         let word_offset = index as u8 % 64;
         let block = index / 512;
         let mut r = (self.content.get(word_idx)? & n_lowest_bits(word_offset)).count_ones() as u32;
-        r += unsafe{self.ranks.get_unchecked(block)};
+        r += unsafe{self.ranks.get_unchecked(block)};   // sound after returning Some by content.get(word_idx)
         for w in block * (512 / 64)..word_idx {
-            r += unsafe{self.content.get_unchecked(w)}.count_ones();
+            r += unsafe{self.content.get_unchecked(w)}.count_ones();    // sound after returning Some by content.get(word_idx)
         }
         Some(r)
     }
