@@ -62,7 +62,7 @@ impl<SS: SeedSize> Conf<SS> {
             1300..1750 => 128,
             1750..7500 => 256,
             7500..150000 => 512,
-            _ if bits_per_seed.into() < 7 => 512,
+            _ if bits_per_seed.into() < 6 => 512,
             _ => 1024
         };
         let bucket_size_100 = bucket_size_100 as usize;
