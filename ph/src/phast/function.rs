@@ -15,16 +15,16 @@ struct SeedEx<SS: SeedSize> {
 }
 
 impl<SS: SeedSize> SeedEx<SS> {
-    #[inline]
+    #[inline(always)]
     fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
 
-    #[inline]
+    #[inline(always)]
     fn seed_for(&self, key: u64) -> u16 {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
         self.conf.bits_per_seed.get_seed(&self.seeds, self.bucket_for(key))
     }
 
-    #[inline]
+    #[inline(always)]
     fn get(&self, key: u64, seed: u16) -> usize {
         self.conf.f(key, seed)
     }
