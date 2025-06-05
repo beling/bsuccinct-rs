@@ -28,8 +28,9 @@ fn mix16fast(mut x: u16) -> u16 {
     x
 }*/
 
+/// Returns most significant 64-bit half of `a*b`.
 #[inline(always)]
-fn wymum(a: u64, b: u64) -> u64 {
+pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
     let r = (a as u128) * (b as u128);
     //((r >> 64) ^ r) as u64
     (r >> 64) as u64
@@ -94,7 +95,7 @@ impl<SS: SeedSize> Conf<SS> {
     /// Returns index of `key` in its slice.
     #[inline(always)]
     pub(crate) fn in_slice(&self, key: u64, seed: u16) -> usize {
-        (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        (mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_mul(0x1d8e_4e27_c47d_124f).wrapping_add(seed as u64)) as u16 & self.slice_len_minus_one) as usize
         /*const P: u16 = 0;
@@ -105,7 +106,7 @@ impl<SS: SeedSize> Conf<SS> {
     /// Returns index of `key` in its slice.
     #[inline(always)]
     pub(crate) fn in_slice_seed_shift(&self, key: u64, seed: u16, shift: u16) -> usize {
-        ((wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 + shift as u16) & self.slice_len_minus_one) as usize
+        ((mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 + shift as u16) & self.slice_len_minus_one) as usize
         //0x51_7c_c1_b7_27_22_0a_95
     }
 
