@@ -37,6 +37,11 @@ pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
 }
 
 #[inline(always)]
+pub(crate) fn mix_key_seed(key: u64, seed: u16) -> u16 {
+    mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16
+}
+
+#[inline(always)]
 fn wymum_xor(a: u64, b: u64) -> u64 {
     let r = (a as u128) * (b as u128);
     ((r >> 64) ^ r) as u64

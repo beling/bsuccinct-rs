@@ -1,4 +1,4 @@
-use crate::seeds::SeedSize;
+use crate::{phast::conf::mix_key_seed, seeds::SeedSize};
 
 use super::{builder::UsedValues, conf::Conf};
 
@@ -389,9 +389,9 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
 }
 
 
-pub struct ShiftSeedWrapped<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
+pub struct ShiftSeedWrapped<const BITS_PER_SHIFT: u8, const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
 
-impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftSeedWrapped<BITS_PER_SEED, MULTIPLIER, L, L_LARGE_SEEDS> {
+impl<const BITS_PER_SHIFT: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftSeedWrapped<BITS_PER_SHIFT, MULTIPLIER, L, L_LARGE_SEEDS> {
     fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
         let max_shift = Self::extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
@@ -411,30 +411,38 @@ impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_
     }
 
     #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
-        //h_L(s, c) = ( hi(lo((s>>O) · 2129725606500045391) · c)+s ) & (L-1)
         conf.slice_begin(primary_code) +
-            ((primary_code>>BITS_PER_SEED as usize).wrapping_add((seed-1) as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
+            ((mix_key_seed(primary_code, (seed>>BITS_PER_SHIFT) + 1)
+             + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one) as usize
     }
 
     #[inline]
     fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
-        for seed in 0..1<<BITS_PER_SEED {
+        //TODO check; what with seed=0, shift=0?
+        let bits_per_seed = conf.bits_per_seed.into() - BITS_PER_SHIFT;
+        let mut best_score = usize::MAX;
+        let mut best_total_shift = u16::MAX;
+        let mut best_seed = u16::MAX;
+        for seed in 0..1<<bits_per_seed {
             let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;
             let mut without_shift_box: Box<[(usize, u16)]>;
             let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {
-                without_shift_box = keys.iter().map(|key| (conf.slice_begin(*key), *key as u16 & conf.slice_len_minus_one)).collect();
+                without_shift_box = keys.iter().map(|key| (
+                    conf.slice_begin(*key), // TODO do not recalculate
+                    (mix_key_seed(*key, seed+1) + (MULTIPLIER as u16*seed) << BITS_PER_SHIFT) & conf.slice_len_minus_one)
+                ).collect();
                 &mut without_shift_box
             } else {
-                without_shift_arrayvec = keys.iter().map(|key| (conf.slice_begin(*key), *key as u16 & conf.slice_len_minus_one)).collect();
+                without_shift_arrayvec = keys.iter().map(|key| (
+                    conf.slice_begin(*key), // TODO do not recalculate
+                    (mix_key_seed(*key, seed+1) + (MULTIPLIER as u16*seed) << BITS_PER_SHIFT) & conf.slice_len_minus_one)
+                ).collect();
                 &mut without_shift_arrayvec
             };
-
             let slice_len = conf.slice_len();
-            let mut score_without_shift: usize = 1<<20;
-            let mut best_score = usize::MAX;
-            let mut total_last_shift = (1u16 << conf.bits_per_seed.into()) * MULTIPLIER as u16 - MULTIPLIER as u16;
+            let mut score_without_shift: usize = without_shift.iter().map(|(sb, is)| *sb + *is as usize).sum();
+            let mut total_last_shift = (1u16 << BITS_PER_SHIFT) * MULTIPLIER as u16 - MULTIPLIER as u16;
             let mut shift_sum = 0;
-            let mut best_total_shift = u16::MAX;
             loop {  // while total_last_shift > 0
                 let max_sh0 = without_shift.iter().map(|(_, sh0)| *sh0).max().unwrap();
                 let mut shift_end = slice_len - max_sh0;
@@ -452,6 +460,7 @@ impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_
                         let new_score = score_without_shift + best_shift as usize * keys.len();
                         if new_score < best_score {
                             best_total_shift = shift_sum + best_shift;
+                            best_seed = seed;
                             best_score = new_score;
                         }
                     }
@@ -468,14 +477,18 @@ impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_
                 total_last_shift -= shift_end;
                 shift_sum += shift_end;
             }
-            if best_total_shift == u16::MAX {
-                0
-            } else {
-                for key in keys {
-                    used_values.add(conf.slice_begin(*key) + ((*key as usize).wrapping_add(best_total_shift as usize)&conf.slice_len_minus_one as usize));
-                }
-                best_total_shift / MULTIPLIER as u16 + 1 
+        }
+        if best_total_shift == u16::MAX {
+            0
+        } else {
+            let result = (best_seed << BITS_PER_SHIFT) | (best_total_shift / MULTIPLIER as u16);
+            for key in keys {
+                used_values.add(conf.slice_begin(*key) +
+                    ((mix_key_seed(*key, best_seed + 1)
+                    + MULTIPLIER as u16 * result) & conf.slice_len_minus_one) as usize
+                );
             }
+            result
         }
     }
 }
