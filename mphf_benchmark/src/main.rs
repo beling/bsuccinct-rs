@@ -9,7 +9,7 @@ pub use builder::MPHFBuilder;
 
 mod stats;
 use ph::phast::compressed_array::{CompactFast, LeastSquares, LinearRegressionArray, Simple};
-use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray, SeedOnly, ShiftOnlyWrapped, ShiftOnlyX1, ShiftOnlyX2};
+use ph::phast::{bits_per_seed_to_100_bucket_size, DefaultCompressedArray, SeedOnly, ShiftOnlyWrapped, ShiftOnlyX1, ShiftOnlyX2, ShiftSeedWrapped};
 pub use stats::{SearchStats, BuildStats, BenchmarkResult, file, print_input_stats};
 
 mod inout;
@@ -155,6 +155,34 @@ pub enum Method {
     phaster2wrap(PHastConf),
     /// PHaster x3 wrapped
     phaster3wrap(PHastConf),
+    /// PHaster with shift and (1 bit) seed
+    phaster1s1(PHastConf),
+    /// PHaster with shift and (2 bits) seed
+    phaster2s1(PHastConf),
+    /// PHaster with shift and (3 bits) seed
+    phaster3s1(PHastConf),
+    /// PHaster with shift and (4 bits) seed
+    phaster4s1(PHastConf),
+    /// PHaster with shift and (5 bits) seed
+    phaster5s1(PHastConf),
+    /// PHaster with shift and (6 bits) seed
+    phaster6s1(PHastConf),
+    /// PHaster with shift and (7 bits) seed
+    phaster7s1(PHastConf),
+    /// PHaster with shift and (1 bit) seed, multiplier 2
+    phaster1s2(PHastConf),
+    /// PHaster with shift and (2 bits) seed, multiplier 2
+    phaster2s2(PHastConf),
+    /// PHaster with shift and (3 bits) seed, multiplier 2
+    phaster3s2(PHastConf),
+    /// PHaster with shift and (4 bits) seed, multiplier 2
+    phaster4s2(PHastConf),
+    /// PHaster with shift and (5 bits) seed, multiplier 2
+    phaster5s2(PHastConf),
+    /// PHaster with shift and (6 bits) seed, multiplier 2
+    phaster6s2(PHastConf),
+    /// PHaster with shift and (7 bits) seed, multiplier 2
+    phaster7s2(PHastConf),
     #[cfg(feature = "boomphf")]
     /// boomphf
     Boomphf {
@@ -251,149 +279,219 @@ pub struct Conf {
 fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
     match conf.method {
         #[cfg(feature = "fmph")] Method::FMPHGO_all =>
-                    fmphgo_benchmark_all(file("FMPHGO_all", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER),
-                        &i, &conf, KeyAccess::Indices8),
+                        fmphgo_benchmark_all(file("FMPHGO_all", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER),
+                            &i, &conf, KeyAccess::Indices8),
         #[cfg(feature = "fmph")] Method::FMPHGO(ref fmphgo_conf) => {
-                    let mut file = file("FMPHGO", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER);
-                    println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.cache_threshold);
-                    let mut p = FMPHGOBuildParams {
-                        relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
-                        cache_threshold: fmphgo_conf.cache_threshold,
-                        key_access: fmphgo_conf.key_access,
-                    };
-                    match (fmphgo_conf.bits_per_group_seed, fmphgo_conf.group_size) {
-                        (None, None) => {
-                            for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
-                                fmphgo_run(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p);
+                        let mut file = file("FMPHGO", &conf, i.0.len(), i.1.len(), FMPHGO_HEADER);
+                        println!("FMPHGO hash caching threshold={}: s b gamma results...", fmphgo_conf.cache_threshold);
+                        let mut p = FMPHGOBuildParams {
+                            relative_level_size: fmphgo_conf.level_size.unwrap_or(0),
+                            cache_threshold: fmphgo_conf.cache_threshold,
+                            key_access: fmphgo_conf.key_access,
+                        };
+                        match (fmphgo_conf.bits_per_group_seed, fmphgo_conf.group_size) {
+                            (None, None) => {
+                                for (bits_per_group_seed, bits_per_group) in [(1, 8), (2, 16), (4, 16), (8, 32)] {
+                                    fmphgo_run(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p);
+                                }
+                            },
+                            (Some(bits_per_group_seed), Some(bits_per_group)) => fmphgo_run(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p),
+                            (Some(1), None) | (None, Some(8)) => fmphgo_run(&mut file, i, conf, 1, 8, &mut p),
+                            (Some(2), None) => fmphgo_run(&mut file, i, conf, 2, 16, &mut p),
+                            (Some(4), None) => fmphgo_run(&mut file, i, conf, 4, 16, &mut p),
+                            (None, Some(16)) => {
+                                fmphgo_run(&mut file, i, conf, 2, 16, &mut p);
+                                fmphgo_run(&mut file, i, conf, 4, 16, &mut p);
                             }
-                        },
-                        (Some(bits_per_group_seed), Some(bits_per_group)) => fmphgo_run(&mut file, i, conf, bits_per_group_seed, bits_per_group, &mut p),
-                        (Some(1), None) | (None, Some(8)) => fmphgo_run(&mut file, i, conf, 1, 8, &mut p),
-                        (Some(2), None) => fmphgo_run(&mut file, i, conf, 2, 16, &mut p),
-                        (Some(4), None) => fmphgo_run(&mut file, i, conf, 4, 16, &mut p),
-                        (None, Some(16)) => {
-                            fmphgo_run(&mut file, i, conf, 2, 16, &mut p);
-                            fmphgo_run(&mut file, i, conf, 4, 16, &mut p);
+                            (Some(8), None) | (None, Some(32)) => fmphgo_run(&mut file, i, conf, 8, 32, &mut p),
+                            _ => eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
                         }
-                        (Some(8), None) | (None, Some(32)) => fmphgo_run(&mut file, i, conf, 8, 32, &mut p),
-                        _ => eprintln!("Cannot deduce for which pairs of (bits per group seed, group size) calculate.")
                     }
-                }
         #[cfg(feature = "fmph")] Method::FMPH(ref fmph_conf) => {
-                    match conf.key_source {
-                        KeySource::xs32 | KeySource::xs64 => fmph_benchmark(i, conf, fmph_conf.level_size, Some((IntHasher::default(), fmph_conf))),
-                        _ => fmph_benchmark(i, conf, fmph_conf.level_size, Some((StrHasher::default(), fmph_conf)))
-                    }
-                },
+                        match conf.key_source {
+                            KeySource::xs32 | KeySource::xs64 => fmph_benchmark(i, conf, fmph_conf.level_size, Some((IntHasher::default(), fmph_conf))),
+                            _ => fmph_benchmark(i, conf, fmph_conf.level_size, Some((StrHasher::default(), fmph_conf)))
+                        }
+                    },
         Method::phast(ref phast_conf) => {
-                    println!("PHast {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-                    let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
-                    if phast_conf.elias_fano() {
-                        phast_benchmark::<SeedOnly, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
-                    }
-                    if phast_conf.compact {
-                        phast_benchmark::<SeedOnly, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
-                    }
-                    if phast_conf.linear_simple {
-                        phast_benchmark::<SeedOnly, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
-                    }
-                    if phast_conf.least_squares {
-                        phast_benchmark::<SeedOnly, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
-                    }
-                },
+                        println!("PHast {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phast", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        if phast_conf.elias_fano() {
+                            phast_benchmark::<SeedOnly, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                        }
+                        if phast_conf.compact {
+                            phast_benchmark::<SeedOnly, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                        }
+                        if phast_conf.linear_simple {
+                            phast_benchmark::<SeedOnly, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                        }
+                        if phast_conf.least_squares {
+                            phast_benchmark::<SeedOnly, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                        }
+                    },
         Method::phaster(ref phast_conf) => {
-                    println!("PHaster {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-                    let mut csv_file = file("phaster", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
-                    if phast_conf.elias_fano() {
-                        phast_benchmark::<ShiftOnlyX1, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
-                    }
-                    if phast_conf.compact {
-                        phast_benchmark::<ShiftOnlyX1, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
-                    }
-                    if phast_conf.linear_simple {
-                        phast_benchmark::<ShiftOnlyX1, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
-                    }
-                    if phast_conf.least_squares {
-                        phast_benchmark::<ShiftOnlyX1, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
-                    }
-                },
+                        println!("PHaster {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        if phast_conf.elias_fano() {
+                            phast_benchmark::<ShiftOnlyX1, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                        }
+                        if phast_conf.compact {
+                            phast_benchmark::<ShiftOnlyX1, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                        }
+                        if phast_conf.linear_simple {
+                            phast_benchmark::<ShiftOnlyX1, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                        }
+                        if phast_conf.least_squares {
+                            phast_benchmark::<ShiftOnlyX1, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                        }
+                    },
         Method::phaster2(ref phast_conf) => {
-                    println!("PHaster2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-                    let mut csv_file = file("phaster2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
-                    if phast_conf.elias_fano() {
-                        phast_benchmark::<ShiftOnlyX2, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
-                    }
-                    if phast_conf.compact {
-                        phast_benchmark::<ShiftOnlyX2, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
-                    }
-                    if phast_conf.linear_simple {
-                        phast_benchmark::<ShiftOnlyX2, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
-                    }
-                    if phast_conf.least_squares {
-                        phast_benchmark::<ShiftOnlyX2, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
-                    }
-                },
+                        println!("PHaster2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        if phast_conf.elias_fano() {
+                            phast_benchmark::<ShiftOnlyX2, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                        }
+                        if phast_conf.compact {
+                            phast_benchmark::<ShiftOnlyX2, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                        }
+                        if phast_conf.linear_simple {
+                            phast_benchmark::<ShiftOnlyX2, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                        }
+                        if phast_conf.least_squares {
+                            phast_benchmark::<ShiftOnlyX2, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                        }
+                    },
         Method::phaster2wrap(ref phast_conf) => {
-                    println!("PHaster2wrap {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-                    let mut csv_file = file("phaster2wrap", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
-                    if phast_conf.elias_fano() {
-                        phast_benchmark::<ShiftOnlyWrapped<2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
-                    }
-                    if phast_conf.compact {
-                        phast_benchmark::<ShiftOnlyWrapped<2>, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
-                    }
-                    if phast_conf.linear_simple {
-                        phast_benchmark::<ShiftOnlyWrapped<2>, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
-                    }
-                    if phast_conf.least_squares {
-                        phast_benchmark::<ShiftOnlyWrapped<2>, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
-                    }
-                },
+                        println!("PHaster2wrap {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster2wrap", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        if phast_conf.elias_fano() {
+                            phast_benchmark::<ShiftOnlyWrapped<2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                        }
+                        if phast_conf.compact {
+                            phast_benchmark::<ShiftOnlyWrapped<2>, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                        }
+                        if phast_conf.linear_simple {
+                            phast_benchmark::<ShiftOnlyWrapped<2>, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                        }
+                        if phast_conf.least_squares {
+                            phast_benchmark::<ShiftOnlyWrapped<2>, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                        }
+                    },
         Method::phaster3wrap(ref phast_conf) => {
-                    println!("PHaster3wrap {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-                    let mut csv_file = file("phaster3wrap", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
-                    if phast_conf.elias_fano() {
-                        phast_benchmark::<ShiftOnlyWrapped<3>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
-                    }
-                    if phast_conf.compact {
-                        phast_benchmark::<ShiftOnlyWrapped<3>, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
-                    }
-                    if phast_conf.linear_simple {
-                        phast_benchmark::<ShiftOnlyWrapped<3>, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
-                    }
-                    if phast_conf.least_squares {
-                        phast_benchmark::<ShiftOnlyWrapped<3>, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
-                    }
-                },
+                        println!("PHaster3wrap {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster3wrap", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        if phast_conf.elias_fano() {
+                            phast_benchmark::<ShiftOnlyWrapped<3>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                        }
+                        if phast_conf.compact {
+                            phast_benchmark::<ShiftOnlyWrapped<3>, CompactFast, _>(&mut csv_file, i, conf, phast_conf, "C");
+                        }
+                        if phast_conf.linear_simple {
+                            phast_benchmark::<ShiftOnlyWrapped<3>, LinearRegressionArray<Simple>, _>(&mut csv_file, i, conf, phast_conf, "LSimp");
+                        }
+                        if phast_conf.least_squares {
+                            phast_benchmark::<ShiftOnlyWrapped<3>, LinearRegressionArray<LeastSquares>, _>(&mut csv_file, i, conf, phast_conf, "LSqr");
+                        }
+                    },
         #[cfg(feature = "boomphf")]
-                Method::Boomphf{level_size} => {
-                    match conf.key_source {
-                        KeySource::xs32 | KeySource::xs64 => fmph_benchmark::<IntHasher, _>(i, conf, level_size, None),
-                        _ => fmph_benchmark::<StrHasher, _>(i, conf, level_size, None)
+                    Method::Boomphf{level_size} => {
+                        match conf.key_source {
+                            KeySource::xs32 | KeySource::xs64 => fmph_benchmark::<IntHasher, _>(i, conf, level_size, None),
+                            _ => fmph_benchmark::<StrHasher, _>(i, conf, level_size, None)
+                        }
                     }
-                }
         #[cfg(feature = "cmph-sys")] Method::CHD{lambda} => {
-                    /*if conf.key_source == KeySource::stdin || conf.key_source == KeySource::stdinz {
+                        /*if conf.key_source == KeySource::stdin || conf.key_source == KeySource::stdinz {
                 eprintln!("Benchmarking CHD with keys from stdin is not supported.")
             } else {*/
-                        println!("CHD: lambda results...");
-                        let mut csv = file("CHD", &conf, i.0.len(), i.1.len(), "lambda");
-                        if let Some(lambda) = lambda {
-                            chd_benchmark(&mut csv, i, conf, lambda);
-                        } else {
-                            for lambda in 1..=6 { chd_benchmark(&mut csv, i, conf, lambda); }
-                        }
-                    //}
-                }
-        #[cfg(feature = "ptr_hash")] Method::PtrHash{ speed } => {
-                    println!("PtrHash: results...");
-                    let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "speed");
-                    match conf.key_source {
-                        KeySource::xs32 | KeySource::xs64 => ptrhash_benchmark::<ptr_hash::hash::FxHash, _>(&mut csv_file, i, conf, speed),
-                        _ => ptrhash_benchmark::<ptrhash::StrHasherForPtr, _>(&mut csv_file, i, conf, speed),
+                            println!("CHD: lambda results...");
+                            let mut csv = file("CHD", &conf, i.0.len(), i.1.len(), "lambda");
+                            if let Some(lambda) = lambda {
+                                chd_benchmark(&mut csv, i, conf, lambda);
+                            } else {
+                                for lambda in 1..=6 { chd_benchmark(&mut csv, i, conf, lambda); }
+                            }
+                        //}
                     }
-                },
-        Method::None => {}
+        #[cfg(feature = "ptr_hash")] Method::PtrHash{ speed } => {
+                        println!("PtrHash: results...");
+                        let mut csv_file = file("PtrHash", &conf, i.0.len(), i.1.len(), "speed");
+                        match conf.key_source {
+                            KeySource::xs32 | KeySource::xs64 => ptrhash_benchmark::<ptr_hash::hash::FxHash, _>(&mut csv_file, i, conf, speed),
+                            _ => ptrhash_benchmark::<ptrhash::StrHasherForPtr, _>(&mut csv_file, i, conf, speed),
+                        }
+                    },
+        Method::None => {},
+        Method::phaster1s1(ref phast_conf) => {
+                        println!("phaster1s1 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster1s1", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<1, 1>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster2s1(ref phast_conf) => {
+                        println!("phaster2s1 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster2s1", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<2, 1>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster3s1(ref phast_conf) => {
+                        println!("phaster3s1 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster3s1", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<3, 1>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster4s1(ref phast_conf) => {
+                        println!("phaster4s1 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster4s1", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<4, 1>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster5s1(ref phast_conf) => {
+                        println!("phaster5s1 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster5s1", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<5, 1>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster6s1(ref phast_conf) => {
+                        println!("phaster6s1 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster6s1", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<6, 1>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster7s1(ref phast_conf) => {
+                        println!("phaster7s1 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster7s1", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<7, 1>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster1s2(ref phast_conf) => {
+                        println!("phaster1s2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster1s2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<1, 2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster2s2(ref phast_conf) => {
+                        println!("phaster2s2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster2s2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<2, 2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster3s2(ref phast_conf) => {
+                        println!("phaster3s2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster3s2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<3, 2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster4s2(ref phast_conf) => {
+                        println!("phaster4s2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster4s2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<4, 2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster5s2(ref phast_conf) => {
+                        println!("phaster5s2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster5s2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<5, 2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster6s2(ref phast_conf) => {
+                        println!("phaster6s2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster6s2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<6, 2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
+        Method::phaster7s2(ref phast_conf) => {
+                        println!("phaster7s2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
+                        let mut csv_file = file("phaster7s2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
+                        phast_benchmark::<ShiftSeedWrapped<7, 2>, DefaultCompressedArray, _>(&mut csv_file, i, conf, phast_conf, "EF");
+                    },
     }
 }
 

@@ -107,10 +107,10 @@ fn best_seed_small<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_s
     }
 }
 
+const SMALL_BUCKET_LIMIT: usize = 8;
+
 /// Choose best seed without shift component.
 pub struct SeedOnly;
-
-const SMALL_BUCKET_LIMIT: usize = 8;
 
 impl SeedChooser for SeedOnly {
     #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
@@ -389,7 +389,7 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
 }
 
 
-/*pub struct ShiftSeedWrapped<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
+pub struct ShiftSeedWrapped<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
 
 impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftSeedWrapped<BITS_PER_SEED, MULTIPLIER, L, L_LARGE_SEEDS> {
     fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
@@ -477,5 +477,32 @@ impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_
                 best_total_shift / MULTIPLIER as u16 + 1 
             }
         }
+    }
+}
+
+/*pub struct ShiftSeedWrapped<const BITS_PER_SEED: u8, const MULTIPLIER: u8>;
+
+impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<BITS_PER_SEED, MULTIPLIER> {
+    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+        let shift  = (seed >> BITS_PER_SEED) * MULTIPLIER as u16;
+        let seed = (seed & ((1<<BITS_PER_SEED)-1)) + 1;
+        conf.slice_begin(primary_code) + conf.in_slice_seed_shift(primary_code, seed, shift)
+    }
+
+    #[inline(always)]
+    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
+        let mut best_seed = 0;
+        let mut best_value = usize::MAX;
+        if keys.len() <= SMALL_BUCKET_LIMIT {
+            best_seed_small::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
+        } else {
+            best_seed_big::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
+        };
+        if best_seed != 0 { // can assign seed to the bucket
+            for key in keys {
+                used_values.add(Self::f(*key, best_seed, conf));
+            }
+        };
+        best_seed
     }
 }*/
