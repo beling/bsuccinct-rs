@@ -26,8 +26,9 @@ fn mix16fast(mut x: u16) -> u16 {
     x
 }*/
 
+/// Returns most significant 64-bit half of `a*b`.
 #[inline(always)]
-fn wymum(a: u64, b: u64) -> u64 {
+pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
     let r = (a as u128) * (b as u128);
     //((r >> 64) ^ r) as u64
     (r >> 64) as u64
@@ -90,7 +91,7 @@ impl<SS: SeedSize> Conf<SS> {
     #[inline]
     pub(crate) fn in_slice(&self, key: u64, seed: u16) -> usize {
         //(wymum(wymum(seed as u64, 0xe703_7ed1_a0b4_28db), key) as u16 & self.slice_len_minus_one) as usize
-        (wymum((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        (mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns the value of the function for given `key` and `seed`.
