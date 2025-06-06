@@ -155,33 +155,33 @@ pub enum Method {
     phaster2wrap(PHastConf),
     /// PHaster x3 wrapped
     phaster3wrap(PHastConf),
-    /// PHaster with shift and (1 bit) seed
+    /// PHaster with (1 bit) shift and seed
     phaster1s1(PHastConf),
-    /// PHaster with shift and (2 bits) seed
+    /// PHaster with (2 bits) shift and seed
     phaster2s1(PHastConf),
-    /// PHaster with shift and (3 bits) seed
+    /// PHaster with (3 bits) shift and seed
     phaster3s1(PHastConf),
-    /// PHaster with shift and (4 bits) seed
+    /// PHaster with (4 bits) shift and seed
     phaster4s1(PHastConf),
-    /// PHaster with shift and (5 bits) seed
+    /// PHaster with (5 bits) shift and seed
     phaster5s1(PHastConf),
-    /// PHaster with shift and (6 bits) seed
+    /// PHaster with (6 bits) shift and seed
     phaster6s1(PHastConf),
-    /// PHaster with shift and (7 bits) seed
+    /// PHaster with (7 bits) shift and seed
     phaster7s1(PHastConf),
-    /// PHaster with shift and (1 bit) seed, multiplier 2
+    /// PHaster with (1 bit) shift and seed, multiplier 2
     phaster1s2(PHastConf),
-    /// PHaster with shift and (2 bits) seed, multiplier 2
+    /// PHaster with (2 bits) shift and seed, multiplier 2
     phaster2s2(PHastConf),
-    /// PHaster with shift and (3 bits) seed, multiplier 2
+    /// PHaster with (3 bits) shift and seed, multiplier 2
     phaster3s2(PHastConf),
-    /// PHaster with shift and (4 bits) seed, multiplier 2
+    /// PHaster with (4 bits) shift and seed, multiplier 2
     phaster4s2(PHastConf),
-    /// PHaster with shift and (5 bits) seed, multiplier 2
+    /// PHaster with (5 bits) shift and seed, multiplier 2
     phaster5s2(PHastConf),
-    /// PHaster with shift and (6 bits) seed, multiplier 2
+    /// PHaster with (6 bits) shift and seed, multiplier 2
     phaster6s2(PHastConf),
-    /// PHaster with shift and (7 bits) seed, multiplier 2
+    /// PHaster with (7 bits) shift and seed, multiplier 2
     phaster7s2(PHastConf),
     #[cfg(feature = "boomphf")]
     /// boomphf

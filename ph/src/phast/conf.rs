@@ -109,11 +109,11 @@ impl<SS: SeedSize> Conf<SS> {
     }
 
     /// Returns index of `key` in its slice.
-    #[inline(always)]
+    /*#[inline(always)]
     pub(crate) fn in_slice_seed_shift(&self, key: u64, seed: u16, shift: u16) -> usize {
         ((mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 + shift as u16) & self.slice_len_minus_one) as usize
         //0x51_7c_c1_b7_27_22_0a_95
-    }
+    }*/
 
     #[inline(always)]
     pub(crate) fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
