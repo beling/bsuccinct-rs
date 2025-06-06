@@ -119,22 +119,22 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOConf<GS, SS, S> {
     }
 
     /// Returns array index for given `hash` of key, size of level in groups, and group seed provided by `group_seed`.
-    #[inline(always)] pub fn hash_index<GetGroupSeed>(&self, hash: u64, level_size_groups: u64, group_seed: GetGroupSeed) -> usize
-        where GetGroupSeed: FnOnce(u64) -> u16  // returns group seed for group with given index
+    #[inline(always)] pub fn hash_index<GetGroupSeed>(&self, hash: u64, level_size_groups: usize, group_seed: GetGroupSeed) -> usize
+        where GetGroupSeed: FnOnce(usize) -> u16  // returns group seed for group with given index
     {
         let group = group_nr(hash, level_size_groups);
         self.bits_per_group.bit_index_for_seed(hash, group_seed(group), group)
     }
 
     /// Returns array index for given `key`, seed and size (in groups) of level, and group seed provided by `group_seed`.
-    #[inline(always)] pub fn key_index<GetGroupSeed, K>(&self, key: &K, level_seed: u64, level_size_groups: u64, group_seed: GetGroupSeed) -> usize
-        where GetGroupSeed: FnOnce(u64) -> u16, K: Hash
+    #[inline(always)] pub fn key_index<GetGroupSeed, K>(&self, key: &K, level_seed: u64, level_size_groups: usize, group_seed: GetGroupSeed) -> usize
+        where GetGroupSeed: FnOnce(usize) -> u16, K: Hash
     {
         self.hash_index(self.hash_builder.hash_one(key, level_seed), level_size_groups, group_seed)
     }
 
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
-    fn build_array_for_hashes(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u64, group_seed: u16) -> LevelArray
+    fn build_array_for_hashes(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: usize, group_seed: u16) -> LevelArray
     {
         let mut result = level_array_for(level_size_segments);
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
@@ -148,7 +148,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOConf<GS, SS, S> {
 
 impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOConf<GS, SS, S> {
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
-    fn build_array_for_hashes_mt(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: u64, group_seed: u16) -> LevelArray
+    fn build_array_for_hashes_mt(&self, key_hashes: &[u64], level_size_segments: usize, level_size_groups: usize, group_seed: u16) -> LevelArray
     {
         let mut result = level_array_for(level_size_segments);
         let result_atom = from_mut_slice(&mut result);
@@ -256,12 +256,12 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuildCon
     #[inline(always)] fn last_seed(&self) -> u16 { ((1u32 << self.goconf.bits_per_seed.into())-1) as u16 }
 
     /// Update `best_array` and `best_seeds` copying groups that are better (have more ones in `array`) from `array` and `array_seed`.
-    fn update_best<GetGroupSeed>(&self, level_size_groups: u64, best_array: &mut [u64], best_seeds: &mut [SS::VecElement], array: &[u64], array_seed: GetGroupSeed)
-        where GetGroupSeed: Fn(u64) -> u16
+    fn update_best<GetGroupSeed>(&self, level_size_groups: usize, best_array: &mut [u64], best_seeds: &mut [SS::VecElement], array: &[u64], array_seed: GetGroupSeed)
+        where GetGroupSeed: Fn(usize) -> u16
     {
         for group_index in 0..level_size_groups {
-            self.goconf.bits_per_group.copy_group_if_better(best_array, array, group_index as usize,
-                || self.goconf.bits_per_seed.set_seed(best_seeds, group_index as usize, array_seed(group_index))
+            self.goconf.bits_per_group.copy_group_if_better(best_array, array, group_index,
+                || self.goconf.bits_per_seed.set_seed(best_seeds, group_index, array_seed(group_index))
             )
         }
     }
@@ -269,11 +269,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuildCon
     /// Build (by calling `build_for_group`) arrays for all group seeds sequentially and select best groups and seeds (which are returned).
     /// `build_for_group` can use multiple threads internally to build each array.
     #[inline(always)]
-    fn best_array<AB>(&self, build_for_group: AB, level_size_groups: u64) -> (LevelArray, Box<[SS::VecElement]>)
+    fn best_array<AB>(&self, build_for_group: AB, level_size_groups: usize) -> (LevelArray, Box<[SS::VecElement]>)
         where AB: Fn(u16) -> LevelArray // build array for given group nr
     {
         let mut best_array = build_for_group(0);
-        let mut best_seeds = self.goconf.bits_per_seed.new_zeroed_seed_vec(level_size_groups as usize);
+        let mut best_seeds = self.goconf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
         for group_seed in 1..=self.last_seed() {
             let with_new_seed = build_for_group(group_seed);
             self.update_best(level_size_groups, &mut best_array, &mut best_seeds, &with_new_seed, |_| group_seed);
@@ -284,7 +284,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuildCon
 
 /// Helper structure for building fingerprinting-based minimal perfect hash function with group optimization (FMPHGO, [`GOFunction`]).
 pub struct GOBuilder<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
-    level_sizes: Vec::<u64>,
+    level_sizes: Vec::<usize>,
     arrays: Vec::<LevelArray>,
     group_seeds: Vec::<Box<[SS::VecElement]>>,
     conf: GOBuildConf<GS, SS, S>
@@ -296,21 +296,21 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         conf.goconf.validate();
         if conf.use_multiple_threads { conf.use_multiple_threads = rayon::current_num_threads() > 1; }
         Self {
-            level_sizes: Vec::<u64>::new(),
+            level_sizes: Vec::<usize>::new(),
             arrays: Vec::<LevelArray>::new(),
             group_seeds: Vec::<Box<[SS::VecElement]>>::new(),
             conf
         }
     }
 
-    fn push(&mut self, array: LevelArray, seeds: Box<[SS::VecElement]>, size_groups: u64) {
+    fn push(&mut self, array: LevelArray, seeds: Box<[SS::VecElement]>, size_groups: usize) {
         self.arrays.push(array);
         self.group_seeds.push(seeds);
         self.level_sizes.push(size_groups);
     }
 
     /// Returns number the level about to build (number of levels built so far).
-    #[inline(always)] fn level_nr(&self) -> u64 { self.level_sizes.len() as u64 }
+    #[inline(always)] fn level_nr(&self) -> usize { self.level_sizes.len() }
 
     /// Returns whether `key` is retained (`false` if it is already hashed at the levels built so far).
     fn retained<K>(&self, key: &K) -> bool where K: Hash {
@@ -323,13 +323,13 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
 
     /// Returns fingerprint array for given keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     #[inline(always)]
-    fn build_array<KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u64, group_seed: u16) -> LevelArray
+    fn build_array<KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: usize, group_seed: u16) -> LevelArray
         where   // returns group seed for group with given index
             K: Hash, KS: KeySet<K>
     {
         let mut result = level_array_for(level_size_segments);
         let mut collision = vec![0u64; level_size_segments].into_boxed_slice();
-        let level_seed = self.level_nr();
+        let level_seed = self.level_nr() as u64;
         keys.for_each_key(|key| fphash_add_bit(&mut result, &mut collision, self.conf.goconf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
                           |key| self.retained(key));
         fphash_remove_collided(&mut result, &collision);
@@ -338,7 +338,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
 
     /// Returns fingerprint array for given hashes of keys, level size, and group seeds (given as a function that returns seeds for provided group indices).
     #[inline(always)]
-    fn build_array_mt<KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: u64, group_seed: u16) -> LevelArray
+    fn build_array_mt<KS, K>(&self, keys: &KS, level_size_segments: usize, level_size_groups: usize, group_seed: u16) -> LevelArray
         where K: Hash, KS: KeySet<K>  // returns group seed for group with given index
     {
         if !keys.has_par_for_each_key() {
@@ -347,7 +347,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         let mut result = level_array_for(level_size_segments);
         let result_atom = from_mut_slice(&mut result);
         let mut collision: Box<[AtomicU64]> = (0..level_size_segments).map(|_| AtomicU64::default()).collect();
-        let level_seed = self.level_nr();
+        let level_seed = self.level_nr() as u64;
         keys.par_for_each_key(
             |key| fphash_sync_add_bit(&result_atom, &collision, self.conf.goconf.key_index(key, level_seed, level_size_groups, |_| group_seed)),
             |key| self.retained(key)
@@ -356,10 +356,10 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         result
     }
 
-    fn build_next_level_with_cache<KS, K>(&mut self, keys: &mut KS, level_size_groups: u64, level_size_segments: usize)
+    fn build_next_level_with_cache<KS, K>(&mut self, keys: &mut KS, level_size_groups: usize, level_size_segments: usize)
         where K: Hash + Sync, KS: KeySet<K> + Sync
     {
-        let level_seed = self.level_nr();
+        let level_seed = self.level_nr() as u64;
         let key_hashes = keys.maybe_par_map_each_key(
             |k| self.conf.goconf.hash_builder.hash_one(k, level_seed),
             |key| self.retained(key),
@@ -397,7 +397,6 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
                 ceiling_div(input_size * self.conf.relative_level_size as usize, 100));
             //let seed = level_nr;
             stats.level(input_size, level_size_segments * 64);
-            let level_size_groups = level_size_groups as u64;
             if input_size < self.conf.cache_threshold {
                 self.build_next_level_with_cache(keys, level_size_groups, level_size_segments);
             } else {
@@ -410,7 +409,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
                 let level_nr = self.level_nr();
                 keys.maybe_par_retain_keys(
                     |key| {
-                        let hash = self.conf.goconf.hash_builder.hash_one(key, level_nr);
+                        let hash = self.conf.goconf.hash_builder.hash_one(key, level_nr as u64);
                         let group = group_nr(hash, level_size_groups);
                         let bit_index = self.conf.goconf.bits_per_group.bit_index_for_seed(
                             hash,
@@ -464,7 +463,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
 pub struct GOFunction<GS: GroupSize = TwoToPowerBitsStatic::<4>, SS: SeedSize = TwoToPowerBitsStatic<2>, S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
-    level_sizes: Box<[u64]>, // number of groups
+    level_sizes: Box<[usize]>, // number of groups
     conf: GOConf<GS, SS, S>
     // 0..01..1 mask with number of ones = group size (in bits)
     //group_size_mask: u8,
@@ -489,7 +488,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     /// If the `key` was not in the input key collection given during construction,
     /// either [`None`] or an undetermined value from the specified range is returned.
     #[inline(always)] pub fn get_stats<K: Hash + ?Sized, A: stats::AccessStatsCollector>(&self, key: &K, access_stats: &mut A) -> Option<u64> {
-        let mut groups_before = 0u64;
+        let mut groups_before = 0usize;
         let mut level_nr = 0usize;
         loop {
             let level_size_groups = *self.level_sizes.get(level_nr)?;
@@ -498,7 +497,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
             ); // wrong as bit_index_for_seed is called with wrong group */
             let hash = self.conf.hash_builder.hash_one(key, level_nr as u64);
             let group = groups_before + group_nr(hash, level_size_groups);
-            let seed = self.conf.bits_per_seed.get_seed(&self.group_seeds, group as usize);
+            let seed = self.conf.bits_per_seed.get_seed(&self.group_seeds, group);
             let bit_index = self.conf.bits_per_group.bit_index_for_seed(hash, seed, group);
             if self.array.content.get_bit(bit_index) {
                 access_stats.found_on_level(level_nr);
@@ -578,7 +577,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
     }
 
     /// Returns sizes of the successive levels.
-    pub fn level_sizes(&self) -> &[u64] {
+    pub fn level_sizes(&self) -> &[usize] {
         &self.level_sizes
     }
 }

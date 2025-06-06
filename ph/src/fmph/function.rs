@@ -340,7 +340,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
     }
 
     pub fn finish(self) -> Function<S> {
-        let level_sizes = self.arrays.iter().map(|l| l.len() as u64).collect();
+        let level_sizes = self.arrays.iter().map(|l| l.len()).collect();
         //let (array, _)  = ArrayWithRank::build(self.arrays.concat().into_boxed_slice());
         let (array, _)  = ArrayWithRank::build(concat_level_arrays(self.arrays));
         Function::<S> {
@@ -393,7 +393,7 @@ impl<S: BuildSeededHasher + Sync> Builder<S> {
 #[derive(Clone)]
 pub struct Function<S = BuildDefaultSeededHasher> {
     array: ArrayWithRank,
-    level_sizes: Box<[u64]>,
+    level_sizes: Box<[usize]>,
     hash_builder: S
 }
 
@@ -421,7 +421,7 @@ impl<S: BuildSeededHasher> Function<S> {
         let mut array_begin_index = 0usize;
         let mut level_nr = 0usize;
         loop {
-            let level_size = (*self.level_sizes.get(level_nr)? as usize) << 6;
+            let level_size = (*self.level_sizes.get(level_nr)?) << 6;
             let i = array_begin_index + self.index(key, level_nr as u64, level_size);
             if self.array.content.get_bit(i) {
                 access_stats.found_on_level(level_nr);
@@ -482,7 +482,7 @@ impl<S: BuildSeededHasher> Function<S> {
     }
 
     /// Returns sizes of the successive levels.
-    pub fn level_sizes(&self) -> &[u64] {
+    pub fn level_sizes(&self) -> &[usize] {
         &self.level_sizes
     }
 }
