@@ -446,7 +446,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
 
     pub fn finish(self) -> GOFunction<GS, SS, S> {
         let (array, _)  = ArrayWithRank::build(concat_level_arrays(self.arrays));
-        let group_seeds_concatenated = self.conf.goconf.bits_per_seed.concatenate_seed_vecs(&self.level_sizes, self.group_seeds);
+        let group_seeds_concatenated = self.conf.goconf.bits_per_seed.concatenate_seed_vecs(|| self.level_sizes.iter().copied(), self.group_seeds);
         GOFunction::<GS, SS, S> {
             array,
             group_seeds: group_seeds_concatenated,

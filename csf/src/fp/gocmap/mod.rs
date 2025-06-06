@@ -192,7 +192,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             level_nr += 1;
         }
         let (array, out_fragments_num) = ArrayWithRank::build(arrays.concat().into_boxed_slice());
-        let group_seeds = conf.goconf.bits_per_seed.concatenate_seed_vecs(&level_size, group_seeds);
+        let group_seeds = conf.goconf.bits_per_seed.concatenate_seed_vecs(|| level_size.iter().copied(), group_seeds);
         let mut output_value_fragments = Box::<[u64]>::with_zeroed_bits(out_fragments_num as usize * value_coding.bits_per_fragment() as usize);
         for input_index in 0..keys.len() {
             let mut groups_before = 0usize;
