@@ -38,8 +38,8 @@ pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
 
 #[inline(always)]
 pub(crate) fn mix_key_seed(key: u64, seed: u16) -> u16 {
-    mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16
-}
+    mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16
+}   // 0x51_7c_c1_b7_27_22_0a_95 is from FXHash
 
 #[inline(always)]
 fn wymum_xor(a: u64, b: u64) -> u64 {
@@ -100,7 +100,7 @@ impl<SS: SeedSize> Conf<SS> {
     /// Returns index of `key` in its slice.
     #[inline(always)]
     pub(crate) fn in_slice(&self, key: u64, seed: u16) -> usize {
-        (mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_mul(0x1d8e_4e27_c47d_124f).wrapping_add(seed as u64)) as u16 & self.slice_len_minus_one) as usize
         /*const P: u16 = 0;
