@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, evaluator::Weights, function::{Level, SeedEx}, SeedChooser, SeedOnly, WINDOW_SIZE}, seeds::{Bits8, SeedSize}};
 
-/// PHast (Perfect Hashing with fast evaluation) Perfect Hash Function.
+/// PHast (Perfect Hashing with fast evaluation) Perfect (not necessary minimal) Hash Function.
 /// Experimental.
 /// 
 /// Perfect Hash Function with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -55,7 +55,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         unreachable!("phast::Perfect::get called for key not included in the input set")
     }
 
-    /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
+    /// Constructs [`Perfect`] function for given `keys`, using a single thread and given parameters:
     /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
@@ -69,7 +69,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         }, hasher, seed_chooser)
     }
 
-    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
+    /// Constructs [`Perfect`] function for given `keys`, using multiple (given number of) threads and given parameters:
     /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
@@ -86,7 +86,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
 
-    /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
+    /// Constructs [`Perfect`] function for given `keys`, using a single thread and given parameters:
     /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
@@ -100,7 +100,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
 
-    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
+    /// Constructs [`Perfect`] function for given `keys`, using multiple (given number of) threads and given parameters:
     /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
