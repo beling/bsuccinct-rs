@@ -13,6 +13,9 @@ mod evaluator;
 mod function;
 pub use function::Function;
 
+mod perfect;
+pub use perfect::Perfect;
+
 mod seed_chooser;
 mod seed_chooser_k;
 pub use seed_chooser::{SeedChooser, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftOnlyX1, ShiftOnlyX2, ShiftOnlyX3, ShiftOnlyX4, ShiftSeedWrapped};

@@ -1,6 +1,6 @@
 use std::{hash::Hash, usize};
 
-use crate::{phast::seed_chooser::SeedOnlyNoBump, seeds::{Bits8, SeedSize}};
+use crate::{phast::{seed_chooser::SeedOnlyNoBump}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_last_level, build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -9,17 +9,17 @@ use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
 /// Represents map-or-bump function.
-struct SeedEx<SS: SeedSize> {
-    seeds: Box<[SS::VecElement]>,
-    conf: Conf<SS>,
+pub(crate) struct SeedEx<SS: SeedSize> {
+    pub(crate) seeds: Box<[SS::VecElement]>,
+    pub(crate) conf: Conf<SS>,
 }
 
 impl<SS: SeedSize> SeedEx<SS> {
     #[inline(always)]
-    fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
+    pub(crate) fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
 
     #[inline(always)]
-    fn seed_for(&self, key: u64) -> u16 {
+    pub(crate) fn seed_for(&self, key: u64) -> u16 {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
         self.conf.bits_per_seed.get_seed(&self.seeds, self.bucket_for(key))
     }
@@ -32,9 +32,9 @@ impl<SS: SeedSize> GetSize for SeedEx<SS> {
 }
 
 
-struct Level<SS: SeedSize> {
-    seeds: SeedEx<SS>,
-    shift: usize
+pub(crate) struct Level<SS: SeedSize> {
+    pub(crate) seeds: SeedEx<SS>,
+    pub(crate) shift: usize
 }
 
 impl<SS: SeedSize> GetSize for Level<SS> {
@@ -43,9 +43,10 @@ impl<SS: SeedSize> GetSize for Level<SS> {
     const USES_DYN_MEM: bool = true;
 }
 
-/// PHast (Perfect Hashing with fast evaluation). Experimental.
+/// PHast (Perfect Hashing with fast evaluation) Minimal Perfect Hash Function.
+/// Experimental.
 /// 
-/// Perfect hash function with very fast evaluation and size below 2 bits/key
+/// Minimal Perfect Hash Function with very fast evaluation and size below 2 bits/key
 /// developed by Piotr Beling and Peter Sanders.
 /// 
 /// See:
@@ -260,8 +261,10 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_sort();
         let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
-        let (seeds, unassigned_values, unassigned_len) =
+        let (seeds, builder) =
             build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
+        let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+        drop(builder);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.extend(keys.into_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
@@ -285,8 +288,10 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
-        let (seeds, unassigned_values, unassigned_len) =
+        let (seeds, builder) =
             build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+        let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+        drop(builder);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
@@ -325,8 +330,10 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
         let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
-        let (seeds, unassigned_values, unassigned_len) =
+        let (seeds, builder) =
             build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
+        let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+        drop(builder);
         keys.retain(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         });
@@ -349,8 +356,10 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
-        let (seeds, unassigned_values, unassigned_len) =
+        let (seeds, builder) =
             build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+        let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+        drop(builder);
         let mut result = Vec::with_capacity(unassigned_len);
         std::mem::swap(keys, &mut result);
         keys.par_extend(result.into_par_iter().filter(|key| {

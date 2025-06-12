@@ -103,7 +103,7 @@ pub fn bucket_begin_mt<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>, threads_num:
 }*/
 
 //// Read-only data shared by all threads.
-struct BuildConf<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> {
+pub(crate) struct BuildConf<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> {
     conf: Conf<SS>,
     span_limit: u16,
     evaluator: BE,
@@ -157,6 +157,17 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
         }
         (unassigned_values, unassigned_len)
     }
+
+    /// Calculates number of unassigned values.
+    pub fn unassigned_len(&self, seeds: &[SS::VecElement]) -> usize {
+        let mut unassigned_len = self.conf.output_range(self.seed_chooser);
+        for bucket in 0..self.bucket_begin.len()-1 {
+            let seed = self.conf.bits_per_seed.get_seed(&seeds, bucket);
+            if SC::BUMPING && seed == 0 { continue; }
+            unassigned_len -= self.bucket_begin[bucket+1] - self.bucket_begin[bucket];
+        }
+        unassigned_len
+    }
 }
 
 /*#[inline]
@@ -190,17 +201,17 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 
 #[inline(always)]
 pub(crate) fn build_st<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE, seed_chooser: SC)
--> (Box<[SS::VecElement]>, Box<[u64]>, usize)
+-> (Box<[SS::VecElement]>, BuildConf<'k, BE, SS, SC>)
 where SC: SeedChooser, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
     let (builder, mut seeds) = BuildConf::new(keys, conf, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), seed_chooser);
     ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
-    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
-    (seeds, unassigned_values, unassigned_len)
+    //let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    (seeds, builder)
 }
 
 pub(crate) fn build_mt<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, seed_chooser: SC, threads_num: usize)
- -> (Box<[SS::VecElement]>, Box<[u64]>, usize)
+ -> (Box<[SS::VecElement]>, BuildConf<'k, BE, SS, SC>)
 where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
     //let threads_num = rayon::current_num_threads();
@@ -208,8 +219,8 @@ where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Send + Sync, BE::V
     if threads_num == 1 {
         let (builder, mut seeds) = BuildConf::new(keys, conf, span_limit, evaluator, bucket_begin_st(keys, &conf), seed_chooser);
         ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
-        let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
-        return (seeds, unassigned_values, unassigned_len);
+        //let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+        return (seeds, builder);
         //return build_st(keys, conf, span_limit, evaluator);
     }
     let bucket_begin = bucket_begin_mt(keys, &conf, threads_num);   // moving down makes program slower
@@ -249,8 +260,8 @@ where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Send + Sync, BE::V
         thread_builders[prev].build();
     }
     drop(thread_builders);
-    let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
-    (seeds, unassigned_values, unassigned_len)
+    //let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
+    (seeds, builder)
 }
 
 /// Data stored by each thread.
