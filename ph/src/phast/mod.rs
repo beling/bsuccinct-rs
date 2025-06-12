@@ -14,7 +14,9 @@ mod function;
 pub use function::Function;
 
 mod seed_chooser;
+mod seed_chooser_k;
 pub use seed_chooser::{SeedChooser, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftOnlyX1, ShiftOnlyX2, ShiftOnlyX3, ShiftOnlyX4, ShiftSeedWrapped};
+pub use seed_chooser_k::{SeedOnlyK};
 
 /// Power of two grater or equal than `WINDOW_SIZE`.
 const MAX_WINDOW_SIZE: usize = 256;

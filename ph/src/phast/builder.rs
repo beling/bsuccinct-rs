@@ -3,10 +3,8 @@ use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::seeds::SeedSize;
-use super::{conf::Conf, cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_VALUES, MAX_WINDOW_SIZE, WINDOW_SIZE};
+use super::{conf::Conf, cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
-
-pub type UsedValues = CyclicSet<{MAX_VALUES/64}>;
 
 #[inline]
 fn bucket_sizes_st<SS: SeedSize>(keys: &[u64], conf: &Conf<SS>) -> Box<[usize]> {
@@ -353,7 +351,7 @@ struct ThreadBuilder<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: See
     buckets_num: usize,
 
     /// Values used by committed choices.
-    used_values: UsedValues,
+    used_values: SC::UsedValues,
     /// Next value to remove from `used_values`.
     value_to_clear: usize,
 
@@ -366,7 +364,7 @@ struct ThreadBuilder<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: See
 impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, SC, BE, SS> {
     pub(crate) fn new(conf: &'k BuildConf<'k, BE, SS, SC>, buckets: Range<usize>, gap: usize, seeds: &'k mut [SS::VecElement]) -> Self {
         Self {
-            used_values: UsedValues::default(),
+            used_values: SC::UsedValues::default(),
             conf,
             span_begin: 0,
             buckets_num: buckets.len()-gap,
