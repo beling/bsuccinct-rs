@@ -31,7 +31,7 @@ fxhash = "0.2"
 seedable_hash = { version="0.2", path="../seedable_hash", default-features = false }
 
 [features]
-default = ["sux", "gxhash", "ptr_hash"]
+default = ["sux"] # "gxhash", "ptr_hash"
 fmph = []   # Allow testing FMPH and FMPHGO
 fmph-key-access = ["fmph"]    # Allows a choice of multiple methods of accessing keys by FMPH(GO).
 gxhash = ["ph/gxhash"]

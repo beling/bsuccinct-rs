@@ -3,12 +3,15 @@ use crate::{phast::conf::mix_key_seed, seeds::SeedSize};
 use super::{builder::UsedValues, conf::Conf};
 
 /// Choose best seed in bucket.
-pub trait SeedChooser {
+pub trait SeedChooser: Copy {
+    /// Specifies whether bumping is allowed.
     const BUMPING: bool = true;
+
+    /// The lowest seed that does not indicate bumping.
     const FIRST_SEED: u16 = if Self::BUMPING { 1 } else { 0 };
 
-    fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
-        let max_shift = Self::extra_shift(bits_per_seed);
+    fn conf<SS: SeedSize>(self, output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
+        let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
@@ -22,17 +25,17 @@ pub trait SeedChooser {
     }
 
     /// How much the chooser can add to value over slice length.
-    #[inline(always)] fn extra_shift<SS: SeedSize>(_seed_size: SS) -> u16 { 0 }
+    #[inline(always)] fn extra_shift<SS: SeedSize>(self, _seed_size: SS) -> u16 { 0 }
 
     /// Returns function value for given primary code and seed.
-    fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize;
+    fn f<SS: SeedSize>(self, primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize;
     
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16;
+    fn best_seed<SS: SeedSize>(self, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16;
 }
 
 #[inline(always)]
-fn best_seed_big<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) {
+fn best_seed_big<SC: SeedChooser, SS: SeedSize>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let simd_keys = keys.len() / 4 * 4;
     //assert!(simd_keys <= keys.len());
@@ -40,10 +43,10 @@ fn best_seed_big<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_see
         values_used_by_seed.clear();
         for i in (0..simd_keys).step_by(4) {
             let values = [
-                SC::f(keys[i], seed, conf),
-                SC::f(keys[i+1], seed, conf),
-                SC::f(keys[i+2], seed, conf),
-                SC::f(keys[i+3], seed, conf),
+                seed_chooser.f(keys[i], seed, conf),
+                seed_chooser.f(keys[i+1], seed, conf),
+                seed_chooser.f(keys[i+2], seed, conf),
+                seed_chooser.f(keys[i+3], seed, conf),
             ];
             let contains = [
                 used_values.contain(values[0]),
@@ -60,7 +63,7 @@ fn best_seed_big<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_see
         }
         //assert!(keys.len() - simd_keys < 4);
         for i in simd_keys..keys.len() {
-            let value = SC::f(keys[i], seed, conf);
+            let value = seed_chooser.f(keys[i], seed, conf);
             if used_values.contain(value) { continue 'outer; }
             values_used_by_seed.push(value);
         }
@@ -80,13 +83,13 @@ fn best_seed_big<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_see
 }
 
 #[inline(always)]
-fn best_seed_small<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) {
+fn best_seed_small<SC: SeedChooser, SS: SeedSize>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) {
     assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     'outer: for seed in SC::FIRST_SEED..conf.seeds_num() {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
-            let value = SC::f(key, seed, conf);
+            let value = seed_chooser.f(key, seed, conf);
             if used_values.contain(value) { continue 'outer; }
             values_used_by_seed.push(value);
         }
@@ -110,21 +113,22 @@ fn best_seed_small<SC: SeedChooser, SS: SeedSize>(best_value: &mut usize, best_s
 const SMALL_BUCKET_LIMIT: usize = 8;
 
 /// Choose best seed without shift component.
+#[derive(Clone, Copy)]
 pub struct SeedOnly;
 
 impl SeedChooser for SeedOnly {
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+    #[inline(always)] fn f<SS: SeedSize>(self, primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.f(primary_code, seed)
     }
 
     #[inline(always)]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
+    fn best_seed<SS: SeedSize>(self, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         let mut best_seed = 0;
         let mut best_value = usize::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
+            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf)
         } else {
-            best_seed_big::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
+            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf)
         };
         if best_seed != 0 { // can assign seed to the bucket
             for key in keys {
@@ -136,25 +140,26 @@ impl SeedChooser for SeedOnly {
 }
 
 /// Choose best seed without shift component.
+#[derive(Clone, Copy)]
 pub struct SeedOnlyNoBump;
 
 impl SeedChooser for SeedOnlyNoBump {
     const BUMPING: bool = false;
     const FIRST_SEED: u16 = 0;
 
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+    #[inline(always)] fn f<SS: SeedSize>(self, primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.f_nobump(primary_code, seed)
     }
 
     #[inline]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
+    fn best_seed<SS: SeedSize>(self, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         //let _: [(); Self::FIRST_SEED as usize] = [];
         let mut best_seed = u16::MAX;
         let mut best_value = usize::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
+            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf)
         } else {
-            best_seed_big::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
+            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf)
         };
         if best_seed != u16::MAX { // can assign seed to the bucket
             for key in keys {
@@ -251,14 +256,15 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
     }
 }
 
+#[derive(Clone, Copy, Default)]
 pub struct ShiftOnly<const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
 
 //pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
 //pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
 
 impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftOnly<MULTIPLIER, L, L_LARGE_SEEDS> {
-    fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
-        let max_shift = Self::extra_shift(bits_per_seed);
+    fn conf<SS: SeedSize>(self, output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
+        let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
@@ -271,16 +277,16 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
     }
 
-    #[inline(always)] fn extra_shift<SS: SeedSize>(seed_size: SS) -> u16 {
+    #[inline(always)] fn extra_shift<SS: SeedSize>(self, seed_size: SS) -> u16 {
         (1 << seed_size.into()) * MULTIPLIER as u16 - 2*MULTIPLIER as u16
     }
 
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+    #[inline(always)] fn f<SS: SeedSize>(self, primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.f_shift0(primary_code) + (seed-1) as usize*MULTIPLIER as usize
     }
 
     #[inline]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
+    fn best_seed<SS: SeedSize>(self, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
         let mut without_shift_box: Box<[usize]>;
         let without_shift: &mut [usize] = if keys.len() > 16 {
@@ -311,12 +317,12 @@ pub type ShiftOnlyX3 = ShiftOnly<3>;
 pub type ShiftOnlyX4 = ShiftOnly<4>;
 
 
-
+#[derive(Clone, Copy)]
 pub struct ShiftOnlyWrapped<const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
 
 impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftOnlyWrapped<MULTIPLIER, L, L_LARGE_SEEDS> {
-    fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
-        let max_shift = Self::extra_shift(bits_per_seed);
+    fn conf<SS: SeedSize>(self, output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
+        let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
@@ -329,16 +335,16 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
     }
 
-    #[inline(always)] fn extra_shift<SS: SeedSize>(_seed_size: SS) -> u16 {
+    #[inline(always)] fn extra_shift<SS: SeedSize>(self, _seed_size: SS) -> u16 {
         0
     }
 
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+    #[inline(always)] fn f<SS: SeedSize>(self, primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add((seed-1) as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
 
     #[inline]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
+    fn best_seed<SS: SeedSize>(self, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;
         let mut without_shift_box: Box<[(usize, u16)]>;
         let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {
@@ -393,12 +399,13 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
     }
 }
 
+/// ShiftSeedWrapped with given number of bits per shift.
+#[derive(Clone, Copy)]
+pub struct ShiftSeedWrapped<const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>(pub u8);
 
-pub struct ShiftSeedWrapped<const BITS_PER_SHIFT: u8, const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
-
-impl<const BITS_PER_SHIFT: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftSeedWrapped<BITS_PER_SHIFT, MULTIPLIER, L, L_LARGE_SEEDS> {
-    fn conf<SS: SeedSize>(output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
-        let max_shift = Self::extra_shift(bits_per_seed);
+impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftSeedWrapped<MULTIPLIER, L, L_LARGE_SEEDS> {
+    fn conf<SS: SeedSize>(self, output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
+        let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
@@ -411,18 +418,18 @@ impl<const BITS_PER_SHIFT: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
     }
 
-    #[inline(always)] fn extra_shift<SS: SeedSize>(_seed_size: SS) -> u16 {
+    #[inline(always)] fn extra_shift<SS: SeedSize>(self, _seed_size: SS) -> u16 {
         0
     }
 
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
+    #[inline(always)] fn f<SS: SeedSize>(self, primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.slice_begin(primary_code) +
-            ((mix_key_seed(primary_code, (seed>>BITS_PER_SHIFT) + 1)
+            ((mix_key_seed(primary_code, (seed>>self.0) + 1)
              + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one) as usize
     }
 
     #[inline]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
+    fn best_seed<SS: SeedSize>(self, used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
         //TODO check; what with seed=0, shift=0?
         let slice_len = conf.slice_len();
         let mut best_score = usize::MAX;
@@ -438,15 +445,15 @@ impl<const BITS_PER_SHIFT: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE
             &mut without_shift_arrayvec
         };
 
-        for seed in 0..1<<(conf.bits_per_seed.into() - BITS_PER_SHIFT) {
+        for seed in 0..1<<(conf.bits_per_seed.into() - self.0) {
             for ((slice_begin, in_slice), key) in without_shift.iter_mut().zip(keys) {
                 *slice_begin = conf.slice_begin(*key);
-                *in_slice = mix_key_seed(*key, seed+1).wrapping_add((MULTIPLIER as u16*seed) << BITS_PER_SHIFT);
+                *in_slice = mix_key_seed(*key, seed+1).wrapping_add((MULTIPLIER as u16*seed) << self.0);
                 if seed == 0 { *in_slice = in_slice.wrapping_add(MULTIPLIER as u16); }   // minimal shift for seed = 0 is 1
                 *in_slice &= conf.slice_len_minus_one;
             }
             let mut score_without_shift: usize = without_shift.iter().map(|(sb, is)| *sb + *is as usize).sum();
-            let mut total_end_shift = (1u16 << BITS_PER_SHIFT) * MULTIPLIER as u16;
+            let mut total_end_shift = (1u16 << self.0) * MULTIPLIER as u16;
             if seed == 0 { total_end_shift -= MULTIPLIER as u16; }
             let mut shift_sum = 0; //if seed == 0 { MULTIPLIER as u16 } else { 0 };
             loop {  // while total_last_shift > 0
@@ -481,7 +488,7 @@ impl<const BITS_PER_SHIFT: u8, const MULTIPLIER: u8, const L: u16, const L_LARGE
         if best_total_shift == u16::MAX {
             0
         } else {
-            let result = (best_seed << BITS_PER_SHIFT) | (best_total_shift / MULTIPLIER as u16);
+            let result = (best_seed << self.0) | (best_total_shift / MULTIPLIER as u16);
             for key in keys {
                 used_values.add(conf.slice_begin(*key) +
                     ((mix_key_seed(*key, best_seed + 1)

@@ -7,5 +7,4 @@ resolver = "2"
 dyn_size_of = { version=">=0.1", path="dyn_size_of" }
 
 [profile.release]
-#lto = true
-codegen-units = 1
+#codegen-units = 1

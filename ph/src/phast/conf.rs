@@ -81,8 +81,8 @@ impl<SS: SeedSize> Conf<SS> {
     }
 
     /// Returns outpu range of the function.
-    #[inline] pub fn output_range<SC: SeedChooser>(&self) -> usize {
-        self.num_of_slices + self.slice_len_minus_one as usize + SC::extra_shift(self.bits_per_seed) as usize
+    #[inline] pub fn output_range<SC: SeedChooser>(&self, seed_chooser: SC) -> usize {
+        self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(self.bits_per_seed) as usize
     }
 
     /// Returns bucket assigned to the `key`.
