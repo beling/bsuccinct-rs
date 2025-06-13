@@ -2,7 +2,7 @@ use crate::{phast::{conf::mix_key_seed, cyclic::{GenericUsedValue, UsedValueSet}
 
 use super::conf::Conf;
 
-/*fn slice_len(output_without_shift_range: usize, bits_per_seed: u8) -> u16 {
+pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8) -> u16 {
     match output_without_shift_range {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
@@ -12,7 +12,7 @@ use super::conf::Conf;
             _ if bits_per_seed < 6 => 512,
             _ => 1024
         }
-}*/
+}
 
 /// Choose best seed in bucket.
 pub trait SeedChooser: Copy {
@@ -26,15 +26,7 @@ pub trait SeedChooser: Copy {
 
     fn conf<SS: SeedSize>(self, output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
         let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = match output_range.saturating_sub(max_shift as usize) {
-            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-            64..1300 => 64,
-            1300..1750 => 128,
-            1750..7500 => 256,
-            7500..150000 => 512,
-            _ if bits_per_seed.into() < 6 => 512,
-            _ => 1024
-        };
+        let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into());
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
     }
 
