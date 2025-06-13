@@ -43,7 +43,7 @@ impl SeedChooser for SeedOnlyK {
         let mut best_value = usize::MAX;
         best_seed_k(self.0, self, &mut best_value, &mut best_seed, used_values, keys, conf);
         if best_seed != 0 { // can assign seed to the bucket
-            for key in keys {
+            for key in keys {               
                 used_values.add(conf.f(*key, best_seed));
             }
         };

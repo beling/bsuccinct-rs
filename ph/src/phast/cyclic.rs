@@ -114,4 +114,4 @@ impl<const SIZE_64: usize> GenericUsedValue for CyclicArray<u8, SIZE_64> {
     }
 }
 
-pub type UsedValueMultiSetU8 = CyclicArray<u8, {MAX_VALUES/64}>;
+pub type UsedValueMultiSetU8 = CyclicArray<u8, MAX_VALUES>;

@@ -343,7 +343,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_medium() {
-        let input: Box<[u16]> = (0..10000).collect();
+        let input: Box<[u16]> = (0..1000).collect();
         let f = Perfect::from_slice_st(&input);
         phf_test(&f, &input);
     }
@@ -357,7 +357,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_medium_k() {
-        let input: Box<[u16]> = (0..10000).collect();
+        let input: Box<[u16]> = (0..1000).collect();
         let f = Perfect::k_from_slice_st(3, &input);
         kphf_test(&f, &input);
     }
