@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, evaluator::Weights, function::{Level, SeedEx}, SeedChooser, SeedOnly, WINDOW_SIZE}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, evaluator::Weights, function::{Level, SeedEx}, SeedChooser, SeedOnly, SeedOnlyK, WINDOW_SIZE}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing with fast evaluation) Perfect (not necessary minimal) Hash Function.
 /// Experimental.
@@ -224,7 +224,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
 }
 
 impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
-    /// Constructs [`Function`] for given `keys`, using a single thread.
+    /// Constructs [`Perfect`] function for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_st<K>(keys: Vec::<K>) -> Self where K: Hash {
@@ -232,7 +232,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
         BuildDefaultSeededHasher::default(), SeedOnly)
     }
 
-    /// Constructs [`Function`] for given `keys`, using multiple threads.
+    /// Constructs [`Perfect`] function for given `keys`, using multiple threads.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_mt<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
@@ -240,7 +240,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
     }
 
-    /// Constructs [`Function`] for given `keys`, using a single thread.
+    /// Constructs [`Perfect`] function for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K]) -> Self where K: Hash+Clone {
@@ -248,7 +248,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
         BuildDefaultSeededHasher::default(), SeedOnly)
     }
 
-    /// Constructs [`Function`] for given `keys`, using multiple threads.
+    /// Constructs [`Perfect`] function for given `keys`, using multiple threads.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
@@ -256,6 +256,50 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
     }
 }
+
+impl<SS: SeedSize, S: BuildSeededHasher> Perfect<SS, SeedOnlyK, S> {
+    /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
+    pub fn k(&self) -> u8 { self.seed_chooser.0 }
+}
+
+impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_vec_st<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash {
+        Self::with_vec_bps_bs_hash_sc(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+    }
+
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_vec_mt<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
+        Self::with_vec_bps_bs_threads_hash_sc(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+    }
+
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_slice_st<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone {
+        Self::with_slice_bps_bs_hash_sc(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+    }
+
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_slice_mt<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
+        Self::with_slice_bps_bs_threads_hash_sc(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+    }
+}
+
 
 #[cfg(test)]
 pub(crate) mod tests {
@@ -277,11 +321,44 @@ pub(crate) mod tests {
             seen_values.set_bit(v as usize);
         }
     }
+
+    fn kphf_test<K: Display+Hash, SS: SeedSize, S: BuildSeededHasher>(f: &Perfect<SS, SeedOnlyK, S>, keys: &[K]) {
+        let k = f.k();
+        let expected_range = 8 * keys.len() / k as usize;
+        let mut seen_values = vec![0; expected_range];
+        for key in keys {
+            let v = f.get(&key);
+            assert!(v < expected_range, "f({key})={v} exceeds 8*number of keys = {}", expected_range-1);
+            assert!(seen_values[v as usize] < k, "f returned the same value {v} for {key} and {k} another keys");
+            seen_values[v as usize] += 1;
+        }
+    }
     
     #[test]
     fn test_small() {
         let input = [1, 2, 3, 4, 5];
         let f = Perfect::from_slice_st(&input);
         phf_test(&f, &input);
+    }
+
+    #[test]
+    fn test_medium() {
+        let input: Box<[u16]> = (0..10000).collect();
+        let f = Perfect::from_slice_st(&input);
+        phf_test(&f, &input);
+    }
+
+    #[test]
+    fn test_small_k() {
+        let input = [1, 2, 3, 4, 5];
+        let f = Perfect::k_from_slice_st(3, &input);
+        kphf_test(&f, &input);
+    }
+
+    #[test]
+    fn test_medium_k() {
+        let input: Box<[u16]> = (0..10000).collect();
+        let f = Perfect::k_from_slice_st(3, &input);
+        kphf_test(&f, &input);
     }
 }
