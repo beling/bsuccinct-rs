@@ -1,6 +1,6 @@
 use ph::{fmph::TwoToPowerBitsStatic, phast::{CompressedArray, DefaultCompressedArray, SeedChooser}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
 
-use crate::{builder::TypeToQuery, BenchmarkResult, Conf, IntHasher, KeySource, MPHFBuilder, PHastConf, StrHasher};
+use crate::{builder::{benchmark, TypeToQuery}, BenchmarkResult, Conf, IntHasher, KeySource, MPHFBuilder, PHastConf, StrHasher};
 use std::{fs::File, hash::Hash, io::Write};
 
 #[derive(Default)]
@@ -57,9 +57,9 @@ impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
 pub fn benchmark_with<SC, S, SS, AC, K>(bits_per_seed: SS, bucket_size_100: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, seed_chooser: SC) -> BenchmarkResult
 where SC: SeedChooser + Sync, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
 {
-    PHastBencher { hash: std::marker::PhantomData::<S>::default(),
+    benchmark(PHastBencher { hash: std::marker::PhantomData::<S>::default(),
          array_compression: std::marker::PhantomData::<AC>::default(), bits_per_seed, bucket_size_100,
-        seed_chooser }.benchmark(i, conf)
+        seed_chooser }, i, conf)
 }
 
 pub fn phast_benchmark_enc<SC, H, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, seed_chooser: SC, phast_conf: &PHastConf, encoder: &str)
