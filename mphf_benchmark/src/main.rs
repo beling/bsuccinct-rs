@@ -408,7 +408,6 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                                 _ => ptrhash_benchmark::<ptrhash::StrHasherForPtr, _>(&mut csv_file, i, conf, speed),
                             }
                         },
-        Method::None => {},
         Method::phasterss1 { bits_per_shift, ref phast_conf } => {
                             println!("phasterss1 {}+{bits_per_shift} {}: encoder results...", phast_conf.bits_per_seed-bits_per_shift, phast_conf.bucket_size());
                             let mut csv_file = file(&format!("phasters{bits_per_shift}s1"), &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
@@ -424,7 +423,7 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
                             let mut csv_file = file(&format!("phasters{bits_per_shift}s3"), &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
                             phast_benchmark::<DefaultCompressedArray, _, _>(&mut csv_file, i, conf, ShiftSeedWrapped::<3>(bits_per_shift), phast_conf, "EF");
                         },
-
+        Method::None => {},
     }
 }
 
