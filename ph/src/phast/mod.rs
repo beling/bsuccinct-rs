@@ -13,6 +13,9 @@ mod evaluator;
 mod function;
 pub use function::Function;
 
+mod function2;
+pub use function2::Function2;
+
 mod perfect;
 pub use perfect::Perfect;
 
