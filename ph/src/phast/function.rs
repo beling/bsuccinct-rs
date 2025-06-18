@@ -400,27 +400,13 @@ impl Function<Bits8, DefaultCompressedArray, BuildDefaultSeededHasher> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::fmt::Display;
-
-    use bitm::{BitAccess, BitVec};
-
     use super::*;
+    use crate::utils::tests::test_mphf;
 
-    fn mphf_test<K: Display+Hash, SS: SeedSize, CA: CompressedArray, S: BuildSeededHasher>(f: &Function<SS, CA, S>, keys: &[K]) {
-        let expected_range = keys.len();
-        let mut seen_values = Box::with_zeroed_bits(expected_range);
-        for key in keys {
-            let v = f.get(&key);
-            assert!(v < expected_range, "f({key})={v} exceeds maximum value {}", expected_range-1);
-            assert!(!seen_values.get_bit(v as usize), "f returned the same value {v} for {key} and another key");
-            seen_values.set_bit(v as usize);
-        }
-    }
-    
     #[test]
     fn test_small() {
         let input = [1, 2, 3, 4, 5];
         let f = Function::from_slice_st(&input);
-        mphf_test(&f, &input);
+        test_mphf(&input, |key| Some(f.get(key) as u64));
     }
 }

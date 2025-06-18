@@ -754,7 +754,7 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for GOFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fmph::function::tests::{test_mphf, test_mphf_iter};
+    use crate::utils::tests::{test_mphf, test_phf};
     use crate::fmph::TwoToPowerBits;
     use std::fmt::{Debug, Display};
     use crate::seeds::Bits;
@@ -876,7 +876,7 @@ mod tests {
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, usize::MAX),
             GOConf::default_biggest().into(),
             &mut crate::stats::BuildStatsPrinter::stdout());
-        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.57);
     }
 

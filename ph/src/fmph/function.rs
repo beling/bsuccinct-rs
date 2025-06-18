@@ -652,23 +652,7 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for Function {
 pub(crate) mod tests {
     use super::*;
     use std::fmt::Display;
-
-    pub fn test_mphf_iter<K: std::fmt::Display, G: Fn(&K)->Option<u64>>(len: usize, keys: impl IntoIterator<Item=K>, mphf: G) {
-        use bitm::BitVec;
-        let mut seen = Box::<[u64]>::with_zeroed_bits(len);
-        for key in keys {
-            let index = mphf(&key);
-            assert!(index.is_some(), "MPHF does not assign the value for the key {} which is in the input", key);
-            let index = index.unwrap() as usize;
-            assert!(index < len, "MPHF assigns too large value for the key {}: {}>{}.", key, index, len);
-            assert!(!seen.get_bit(index), "MPHF assigns {} to {} and some other key included in the input", index, key);
-            seen.set_bit(index);
-        }
-    }
-
-    pub fn test_mphf<K: std::fmt::Display+Clone, G: Fn(&K)->Option<u64>>(mphf_keys: &[K], mphf: G) {
-        test_mphf_iter(mphf_keys.len(), mphf_keys.iter().cloned(), mphf);
-    }
+    use crate::utils::tests::{test_mphf, test_phf};
 
     fn test_read_write(h: &Function) {
         let mut buff = Vec::new();
@@ -705,7 +689,7 @@ pub(crate) mod tests {
         const LEN: u64 = 50_000;
         let f = Function::new(
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, 10_000));
-        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
     }
 
@@ -714,7 +698,7 @@ pub(crate) mod tests {
         const LEN: u64 = 50_000;
         let f = Function::new(
             crate::fmph::keyset::CachedKeySet::dynamic((|| 0..LEN, || (0..LEN).into_par_iter()), 10_000));
-        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
     }
 
@@ -725,7 +709,7 @@ pub(crate) mod tests {
         let f = Function::with_stats(
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, usize::MAX/*1_000_000_000*/),
             &mut crate::stats::BuildStatsPrinter::stdout());
-        test_mphf_iter(LEN as usize, 0..LEN, |key| f.get(key));
+        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
     }
 
