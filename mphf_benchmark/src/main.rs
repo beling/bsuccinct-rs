@@ -148,9 +148,9 @@ pub enum Method {
     /// PHast
     phast(PHastConf),
     /// PHaster
-    phaster(PHastConf),
+    phaster(PHastConf), // TODO use Function2
     /// PHaster x2
-    phaster2(PHastConf),
+    phaster2(PHastConf),     // TODO use Function2
     /// PHaster x2 wrapped
     phaster2wrap(PHastConf),
     /// PHaster x3 wrapped

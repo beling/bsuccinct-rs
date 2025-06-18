@@ -1,6 +1,6 @@
 use std::{hash::Hash, usize};
 
-use crate::{phast::{seed_chooser::SeedOnlyNoBump}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{seed_chooser::SeedOnlyNoBump, ShiftOnlyX2}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_last_level, build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -46,12 +46,14 @@ impl<SS: SeedSize> GetSize for Level<SS> {
 /// PHast (Perfect Hashing with fast evaluation) Minimal Perfect Hash Function.
 /// Experimental.
 /// 
+/// To use with `ShiftOnly` non-wrapping seed choosers.
+/// 
 /// Minimal Perfect Hash Function with very fast evaluation and size below 2 bits/key
-/// developed by Piotr Beling and Peter Sanders.
+/// developed by Piotr Beling and Peter Sanders.,
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function2<SS, SC = SeedOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
+pub struct Function2<SS, SC = ShiftOnlyX2, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
     level0: SeedEx<SS>,
