@@ -1,7 +1,7 @@
 use std::{hash::Hash, usize};
 
-use crate::{phast::{seed_chooser::SeedOnlyNoBump}, seeds::{Bits8, SeedSize}};
-use super::{bits_per_seed_to_100_bucket_size, builder::{build_last_level, build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use crate::seeds::{Bits8, SeedSize};
+use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -58,8 +58,6 @@ pub struct Function<SS, SC = SeedOnly, CA = DefaultCompressedArray, S = BuildDef
     unassigned: CA,
     levels: Box<[Level<SS>]>,
     hasher: S,
-    last_level: Level<Bits8>,
-    last_level_seed: u64,
     seed_chooser: SC
 }
 
@@ -67,14 +65,12 @@ impl<SC, SS: SeedSize, CA, S> GetSize for Function<SS, SC, CA, S> where Level<SS
     fn size_bytes_dyn(&self) -> usize {
         self.level0.size_bytes_dyn() +
             self.unassigned.size_bytes_dyn() +
-            self.levels.size_bytes_dyn() +
-            self.last_level.size_bytes_dyn()
+            self.levels.size_bytes_dyn()
     }
     fn size_bytes_content_dyn(&self) -> usize {
         self.level0.size_bytes_content_dyn() +
             self.unassigned.size_bytes_content_dyn() +
-            self.levels.size_bytes_content_dyn() +
-            self.last_level.size_bytes_content_dyn()
+            self.levels.size_bytes_content_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
@@ -99,10 +95,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
             }
         }
-
-        let key_hash = self.hasher.hash_one(key, self.last_level_seed);
-        let seed = self.last_level.seeds.seed_for(key_hash);
-        return self.unassigned.get(SeedOnlyNoBump.f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
+        unreachable!()
     }
 
     /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
@@ -182,8 +175,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
 
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
-        //let max_keys = 2048.max(SC::extra_shift(bits_p))
-        while keys.len() > 2048*2 {
+        while !keys.is_empty() {
             let keys_len = keys.len();
             //println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
             //    keys_len as f64 / 100000.0,
@@ -210,36 +202,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             }
             levels.push(Level { seeds, shift });
         }
-        //dbg!(keys.len());   // TODO keys.len()==0
-        let mut last_seed = levels.len() as u64+1;
-        let last_shift;
-        let last_seeds =
-        if keys.is_empty() {
-            last_shift = 0;
-            SeedEx::<Bits8>{ seeds: Box::default(), conf: Conf::<Bits8> { bits_per_seed: Bits8, buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
-        } else {
-            let (last_seeds, unassigned_values, _unassigned_len) =
-                Self::build_last_level(keys, &hasher, &mut last_seed);
-            last_shift = unassigned.len();
-            for i in 0..last_seeds.conf.output_range(SeedOnlyNoBump) {
-                if CA::MAX_FOR_UNUSED {
-                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
-                        last = level0_unassigned.next().unwrap();
-                        unassigned.push(last);
-                    } else {
-                        unassigned.push(usize::MAX);
-                    }
-                } else {
-                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
-                        last = level0_unassigned.next().unwrap();
-                    }
-                    unassigned.push(last);
-                }
-            }
-            //drop(unassigned_values);
-            last_seeds
-        };
-        debug_assert!(level0_unassigned.next().is_none());  // TODO
+        debug_assert!(level0_unassigned.next().is_none());
         drop(level0_unassigned);
         Self {
             level0,
@@ -247,8 +210,6 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             levels: levels.into_boxed_slice(),
             hasher,
             seed_chooser,
-            last_level: Level { seeds: last_seeds, shift: last_shift },
-            last_level_seed: last_seed,
         }
     }
 
@@ -297,29 +258,6 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
         (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
-    }
-
-    #[inline(always)]
-    fn build_last_level<K>(keys: Vec::<K>, hasher: &S, seed: &mut u64)
-        -> (SeedEx<Bits8>, Box<[u64]>, usize)
-        where K: Hash
-    {
-        let bits_per_seed = Bits8;
-        let len100 = (keys.len()+10)*120;
-        let conf = SeedOnly.conf((len100+50)/100,
-            bits_per_seed, 400);
-        let evaluator = Weights::new(conf.bits_per_seed(), conf.slice_len());
-        loop {
-            let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
-            hashes.voracious_sort();    // maybe standard sort here?
-            if let Some((seeds, unassigned_values, unassigned_len)) =
-                build_last_level(&hashes, conf, evaluator.clone())
-            {
-                return (SeedEx::<Bits8>{ seeds, conf }, unassigned_values, unassigned_len);
-            }
-            *seed += 1;
-            dbg!(*seed);
-        }
     }
 
     #[inline(always)]
