@@ -29,7 +29,7 @@ pub struct GOCMap<C = minimum_redundancy::Coding<u8>, GS: GroupSize = TwoToPower
     array: ArrayWithRank,
     value_fragments: Box<[u64]>,    // BitVec
     group_seeds: Box<[SS::VecElement]>,   //  Box<[u8]>,
-    level_size: Box<[u64]>, // number of groups
+    level_size: Box<[usize]>, // number of groups
     value_coding: C,
     goconf: GOConf<GS, SS, S>,
 }
@@ -50,9 +50,9 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
     /// Maps value of each key to code fragment, and adds the fragment to collision solver.
     fn consider_all<K, LSC, GetGroupSeed, CS, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                                   keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
-                                                  level_size_groups: u64, level_nr: u64,
+                                                  level_size_groups: usize, level_nr: u64,
                                                   group_seed: GetGroupSeed, collision_solver: &mut CS)
-        where K: Hash, GetGroupSeed: Fn(u64) -> u16, CS: CollisionSolver  // returns group seed for group with given index
+        where K: Hash, GetGroupSeed: Fn(usize) -> u16, CS: CollisionSolver  // returns group seed for group with given index
     {
         let bits_per_fragment = coding.bits_per_fragment();
         for i in 0..keys.len() {
@@ -69,7 +69,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
     /// Counts number of positive collisions in each group.
     fn count_collisions_in_groups<K, LSC, BC>(conf: &GOCMapConf<BC, LSC, GS, SS, S>, coding: &C,
                                               keys: &[K], values: &[C::Codeword], value_rev_indices: &[u8],
-                                              level_size_groups: u64, level_nr: u64, group_seed: u16) -> Box<[u8]>
+                                              level_size_groups: usize, level_nr: u64, group_seed: u16) -> Box<[u8]>
         where K: Hash
     {
         let mut collision_solver = CountPositiveCollisions::new(conf.goconf.bits_per_group * (level_size_groups as usize));
@@ -125,7 +125,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
               BS: stats::BuildStatsCollector
     {
         conf.goconf.validate();
-        let mut level_size = Vec::<u64>::new();
+        let mut level_size = Vec::<usize>::new();
         let mut arrays = Vec::<Box<[u64]>>::new();
         let mut group_seeds = Vec::<Box<[SS::VecElement]>>::new();
         let mut input_size = keys.len();
@@ -145,11 +145,11 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             stats.level(input_size, level_size_segments * 64);
             let mut best_seeds = conf.goconf.bits_per_seed.new_zeroed_seed_vec(level_size_groups);
             let mut best_counts = Self::count_collisions_in_groups(&conf, &value_coding, in_keys, in_values, in_value_rev_indices,
-                                                                   level_size_groups as u64,
+                                                                   level_size_groups,
                                                                    level_nr, 0);
             for new_seed in 1u16..=((1u32 << conf.goconf.bits_per_seed.into())-1) as u16 {
                 let with_new_seed = Self::count_collisions_in_groups(&conf, &value_coding, in_keys, in_values, in_value_rev_indices,
-                                                                     level_size_groups as u64, level_nr, new_seed);
+                                                                     level_size_groups, level_nr, new_seed);
                 for group_index in 0..level_size_groups {
                     let new = with_new_seed[group_index];
                     let best = &mut best_counts[group_index];
@@ -161,14 +161,14 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             }
             let mut collision_solver = LoMemAcceptEqualsSolver::new(level_size_segments, value_coding.bits_per_fragment());
             Self::consider_all(&conf, &value_coding, in_keys, in_values, in_value_rev_indices,
-                               level_size_groups as u64, level_nr,
+                               level_size_groups, level_nr,
                                |group_index| conf.goconf.bits_per_seed.get_seed(&best_seeds, group_index as usize),
                                &mut collision_solver);
             let current_array = collision_solver.to_collision_array();
             let mut i = 0usize;
             while i < input_size {
                 let hash = conf.goconf.hash_builder.hash_one(&keys[i], level_nr);
-                let group = group_nr(hash, level_size_groups as u64);
+                let group = group_nr(hash, level_size_groups);
                 let bit_index = conf.goconf.bits_per_group.bit_index_for_seed(hash, conf.goconf.bits_per_seed.get_seed(&best_seeds, group as usize), group);
                 if current_array.get_bit(bit_index) { // no collision
                     let rev_index = &mut value_rev_indices[i];
@@ -187,15 +187,15 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
                 }
             }
             arrays.push(current_array);
-            level_size.push(level_size_groups as u64);
+            level_size.push(level_size_groups);
             group_seeds.push(best_seeds);
             level_nr += 1;
         }
         let (array, out_fragments_num) = ArrayWithRank::build(arrays.concat().into_boxed_slice());
-        let group_seeds = conf.goconf.bits_per_seed.concatenate_seed_vecs(&level_size, group_seeds);
+        let group_seeds = conf.goconf.bits_per_seed.concatenate_seed_vecs(|| level_size.iter().copied(), group_seeds);
         let mut output_value_fragments = Box::<[u64]>::with_zeroed_bits(out_fragments_num as usize * value_coding.bits_per_fragment() as usize);
         for input_index in 0..keys.len() {
-            let mut groups_before = 0u64;
+            let mut groups_before = 0usize;
             let mut level_nr = 0u64;
             loop {
                 let level_size_groups = level_size[level_nr as usize];

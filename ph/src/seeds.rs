@@ -32,11 +32,13 @@ pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
         self.set_seed(vec, index, seed)
     }
 
-    fn concatenate_seed_vecs(&self, level_sizes: &[u64], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
-        let mut group_seeds_concatenated = self.new_zeroed_seed_vec(level_sizes.iter().map(|v| *v as usize).sum::<usize>());
+    fn concatenate_seed_vecs<LSI, LS>(&self, level_sizes: LS, seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> 
+        where LSI: IntoIterator<Item = usize>, LS: Fn() -> LSI
+    {
+        let mut group_seeds_concatenated = self.new_zeroed_seed_vec(level_sizes().into_iter().sum::<usize>());
         let mut dst_group = 0;
-        for (l_size, l_seeds) in level_sizes.iter().zip(group_seeds.into_iter()) {
-            for index in 0..*l_size {
+        for (l_size, l_seeds) in level_sizes().into_iter().zip(seeds.into_iter()) {
+            for index in 0..l_size {
                 self.init_seed(&mut group_seeds_concatenated, dst_group, self.get_seed(&l_seeds, index as usize));
                 dst_group += 1;
             }
@@ -238,7 +240,9 @@ impl SeedSize for Bits8 {
         AsIs::write_all(output, seeds)
     }
 
-    fn concatenate_seed_vecs(&self, _level_sizes: &[u64], group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> {
+    fn concatenate_seed_vecs<LSI, LS>(&self, _level_sizes: LS, group_seeds: Vec<Box<[Self::VecElement]>>) -> Box<[Self::VecElement]> 
+        where LSI: IntoIterator<Item = usize>, LS: Fn() -> LSI
+    {
         group_seeds.concat().into_boxed_slice()
     }
 }

@@ -10,11 +10,11 @@ use crate::utils::{map32_to_32, map64_to_64};
 /// Calculates group number for a given `key` at level of the size `level_size_groups` groups, whose number is already hashed in `hasher`.
 /// Modifies `hasher`, which can be farther used to calculate index in the group by just writing to it the seed of the group.
 #[inline(always)]
-pub fn group_nr(hash: u64, level_size_groups: u64) -> u64 {
+pub fn group_nr(hash: u64, level_size_groups: usize) -> usize {
     //map64_to_32(hash, level_size_groups)
     //map32_to_32((hash >> 32) as u32, level_size_groups as u32) as u64
     //map48_to_64(hash >> 16, level_size_groups)
-    map64_to_64(hash, level_size_groups)    // note that the lowest x bits of hash are ignored by map64_to_64 if level_size_groups < 2^(64-x) and it is save to use the lowest bits by in_group_index
+    map64_to_64(hash, level_size_groups as u64) as usize    // note that the lowest x bits of hash are ignored by map64_to_64 if level_size_groups < 2^(64-x) and it is save to use the lowest bits by in_group_index
 }
 
 /*#[inline]
@@ -73,7 +73,7 @@ pub trait GroupSize: Sized + Mul<usize, Output=usize> + Copy + Into<u8> + TryFro
     /// Returns bit index inside the group with number `group` and seed `group_seed`,
     /// assigned to the key hashed by the `hasher`.
     #[inline]
-    fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: u64) -> usize {
+    fn bit_index_for_seed(&self, hash: u64, group_seed: u16, group: usize) -> usize {
         (*self * group as usize) + self.in_group_index(hash, group_seed) as usize
     }
 
