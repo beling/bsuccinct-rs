@@ -1,0 +1,38 @@
+[package]
+name = "phast"
+version = "0.0.0"
+authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+license = "MIT OR Apache-2.0"
+description = "Internal BSuccinct program that helps develop the phast algorithm"
+edition = "2021"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "data-structures", "algorithms", "compression", "science" ]
+keywords = [ "perfect", "hashing", "minimal", "mphf" ]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitm = { version="0.5", path="../../bitm" }
+butils = { version="0.1", path="../../butils" }
+rayon = "1.5"
+dyn_size_of = { version="0.4", path="../../dyn_size_of" }
+ph = { version="0.9", path="../../ph" }
+clap = { version="4.0", features = ["derive"] }
+fxhash = "0.2"
+seedable_hash = { version="0.2", path="../../seedable_hash", default-features = false }
+
+[features]
+default = ["sux"]
+gxhash = ["ph/gxhash"]
+rapidhash = ["ph/rapidhash"]
+wyhash = ["ph/wyhash"]
+xxhash-rust = ["ph/xxhash-rust"]
+sip13 = ["ph/sip13"]  # if enabled, makes available BuildSip13 that uses Sip13 from compiler internals
+fnv = ["ph/fnv"]
+sux = ["ph/sux"]
+
+#[profile.release]
+#lto = true
+#codegen-units = 1

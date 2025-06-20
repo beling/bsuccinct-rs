@@ -4,7 +4,7 @@ use crate::{phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8},
 
 /// Choose best seed without shift component.
 #[derive(Clone, Copy)]
-pub struct SeedOnlyK(pub(crate) u8);
+pub struct SeedOnlyK(pub u8);
 
 #[inline(always)]
 fn best_seed_k<SC: SeedChooser, SS: SeedSize>(k: u8, seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], conf: &Conf<SS>) {

@@ -1,0 +1,1 @@
+`phast` is an internal BSuccinct program (by Piotr Beling) that helps develop the PHast algorithm.

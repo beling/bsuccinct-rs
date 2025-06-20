@@ -1,6 +1,6 @@
 [workspace]
 members = ["ph", "csf", "cseq", "minimum_redundancy", "dyn_size_of", "fsum", "bitm", "binout", "butils",
-           "mphf_benchmark", "csf_benchmark", "cseq_benchmark", "coding_benchmark"]
+           "mphf_benchmark", "csf_benchmark", "cseq_benchmark", "coding_benchmark", "internal/*"]
 resolver = "2"
 
 [patch.crates-io]
