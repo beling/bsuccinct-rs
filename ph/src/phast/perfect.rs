@@ -146,7 +146,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_sort();
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
             build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
         let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
@@ -169,7 +169,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
             build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
         let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
@@ -186,7 +186,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, _) =
             build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
         keys.retain(|key| {
@@ -210,7 +210,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
             build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
         let mut result = Vec::with_capacity(builder.unassigned_len(&seeds));
@@ -221,6 +221,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         }));
         SeedEx::<SS>{ seeds, conf }
     }
+
+    /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
+    pub fn k(&self) -> u8 { self.seed_chooser.k() }
 }
 
 impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
@@ -255,11 +258,6 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
         Self::with_slice_bps_bs_threads_hash_sc(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
     }
-}
-
-impl<SS: SeedSize, S: BuildSeededHasher> Perfect<SS, SeedOnlyK, S> {
-    /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
-    pub fn k(&self) -> u8 { self.seed_chooser.0 }
 }
 
 impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {

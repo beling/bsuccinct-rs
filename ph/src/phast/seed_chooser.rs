@@ -24,10 +24,20 @@ pub trait SeedChooser: Copy {
 
     type UsedValues: GenericUsedValue;
 
+    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
+    #[inline(always)] fn k(self) -> u8 { 1 }
+
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
+    #[inline(always)] fn minimal_output_range(self, num_of_keys: usize) -> usize { num_of_keys }
+
     fn conf<SS: SeedSize>(self, output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into());
         Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, max_shift)
+    }
+
+    #[inline(always)] fn conf_for_minimal<SS: SeedSize>(self, num_of_keys: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
+        self.conf(self.minimal_output_range(num_of_keys), bits_per_seed, bucket_size_100)
     }
 
     /// How much the chooser can add to value over slice length.
