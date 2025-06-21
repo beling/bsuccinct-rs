@@ -158,15 +158,21 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
         (unassigned_values, unassigned_len)
     }
 
-    /// Calculates number of unassigned values.
+    /// Calculates number of unassigned keys.
     pub fn unassigned_len(&self, seeds: &[SS::VecElement]) -> usize {
-        let mut unassigned_len = self.conf.output_range(self.seed_chooser);
+        if !SC::BUMPING { return 0; }
+        (0..self.bucket_begin.len()-1)
+            .filter(|bucket| self.conf.bits_per_seed.get_seed(&seeds, *bucket) == 0)
+            .map(|bucket| self.bucket_begin[bucket+1] - self.bucket_begin[bucket])
+            .sum()
+
+        /*let mut unassigned_len = 0;
         for bucket in 0..self.bucket_begin.len()-1 {
-            let seed = self.conf.bits_per_seed.get_seed(&seeds, bucket);
-            if SC::BUMPING && seed == 0 { continue; }
-            unassigned_len -= self.bucket_begin[bucket+1] - self.bucket_begin[bucket];
+            if self.conf.bits_per_seed.get_seed(&seeds, bucket) == 0 {
+                unassigned_len += self.bucket_begin[bucket+1] - self.bucket_begin[bucket];
+            }
         }
-        unassigned_len
+        unassigned_len*/
     }
 }
 
