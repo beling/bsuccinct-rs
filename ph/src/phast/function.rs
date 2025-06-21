@@ -221,7 +221,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_sort();
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
             build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
@@ -248,7 +248,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
             build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
@@ -267,7 +267,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
             build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
@@ -293,7 +293,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = seed_chooser.conf(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
             build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);

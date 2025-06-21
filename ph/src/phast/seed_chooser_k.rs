@@ -1,6 +1,6 @@
 use bitm::ceiling_div;
 
-use crate::{phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}, seed_chooser::slice_len, SeedChooser}, seeds::SeedSize};
+use crate::{phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}, SeedChooser}, seeds::SeedSize};
 
 /// Choose best seed without shift component.
 #[derive(Clone, Copy)]
@@ -35,10 +35,11 @@ fn best_seed_k<SC: SeedChooser, SS: SeedSize>(k: u8, seed_chooser: SC, best_valu
 impl SeedChooser for SeedOnlyK {
     type UsedValues = UsedValueMultiSetU8;
 
-    fn conf<SS: SeedSize>(self, output_range: usize, bits_per_seed: SS, bucket_size_100: u16) -> Conf<SS> {
-        let slice_len = slice_len(ceiling_div(output_range, self.0 as usize), bits_per_seed.into());
-        Conf::<SS>::new(output_range, bits_per_seed, bucket_size_100, slice_len, 0)
-    }
+    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
+    #[inline(always)] fn k(self) -> u8 { self.0 }
+
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
+    #[inline(always)] fn minimal_output_range(self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.k() as usize) }
 
     #[inline(always)] fn f<SS: SeedSize>(self, primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
         conf.f(primary_code, seed)
