@@ -80,6 +80,22 @@ impl Executor {
     fn keys(&self) -> Box<[u64]> {
         self.conf.keys_for_seed(self.try_nr as u64)
     }
+
+    fn run<F, B, L>(&self, build: B, lookup: L)
+        where F: GetSize, B: FnOnce(&[u64]) -> F, L: Fn(&F, u64) -> usize
+    {
+        let keys = self.keys();
+        let f = build(&keys);
+        let mut max_value = 0;
+        for key in keys {
+            let v = lookup(&f, key);
+            if v > max_value { max_value = v; }
+        }
+        println!("{} bits/key, max value = {max_value} = {}%n",
+            (8*f.size_bytes()) as f64 / self.conf.keys_num as f64,
+            max_value * 100 / self.conf.keys_num
+        );
+    }
 }
 
 impl From<Conf> for Executor {
@@ -100,13 +116,11 @@ fn main() {
     }
     match executor.conf.method {
         Method::perfect => {
-            let keys = executor.keys();
             if executor.conf.k == 1 {
-                let f = perfect(&keys, SeedOnly);
-                println!("{}", (8*f.size_bytes()) as f64 / executor.conf.keys_num as f64)
+                executor.run(|keys| perfect(&keys, SeedOnly), |f, key| f.get(&key));
             } else {
-                let f = perfect(&keys, SeedOnlyK(executor.conf.k));
-                println!("{}", (8*f.size_bytes()) as f64 / executor.conf.keys_num as f64);
+                executor.run(|keys| perfect(&keys, SeedOnlyK(executor.conf.k)),
+                    |f, key| f.get(&key));
             }
         },
     };
