@@ -1,17 +1,21 @@
 #![doc = include_str!("../README.md")]
 
+mod function;
+
 use clap::{Parser, Subcommand};
 
-use ph::{fmph::Bits8, phast::{bits_per_seed_to_100_bucket_size, Perfect, SeedChooser, SeedOnly, SeedOnlyK}, GetSize};
+use ph::{seeds::{Bits8, BitsFast}, phast::{SeedOnly, SeedOnlyK}};
 use rayon::current_num_threads;
 
-type Hasher = ph::Seedable<fxhash::FxBuildHasher>;
-//type StrHasher = ph::BuildDefaultSeededHasher;
+use crate::function::{perfect, phast, Function};
 
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand)]
 pub enum Method {
+    // PHast
+    phast,
+
     // k-perfect PHast
     perfect,
 }
@@ -62,7 +66,7 @@ pub struct Conf {
 }
 
 impl Conf {
-    fn bucket_size(&self) -> u16 {
+    fn bucket_size_100(&self) -> u16 {
         self.bucket_size.unwrap_or_else(|| ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed))
     }
 
@@ -73,7 +77,8 @@ impl Conf {
 
 struct Executor {
     conf: Conf,
-    try_nr: u32
+    try_nr: u32,
+    threads_num: usize
 }
 
 impl Executor {
@@ -81,46 +86,68 @@ impl Executor {
         self.conf.keys_for_seed(self.try_nr as u64)
     }
 
-    fn run<F, B, L>(&self, build: B, lookup: L)
-        where F: GetSize, B: FnOnce(&[u64]) -> F, L: Fn(&F, u64) -> usize
+    fn run<F, B>(&self, build: B)
+        where F: Function, B: FnOnce(&[u64]) -> F
     {
         let keys = self.keys();
         let f = build(&keys);
         let mut max_value = 0;
         for key in keys {
-            let v = lookup(&f, key);
-            if v > max_value { max_value = v; }
+            let v = f.get(key);
+            if let Some(v) = v {
+                if v > max_value { max_value = v; }
+            }
         }
-        println!("{} bits/key, max value = {max_value} = {}%n",
+        let range = f.output_range();
+        let minimal = f.minimal_output_range(self.conf.keys_num);
+        print!("{:.3} bits/key, output range = {range} = {:.1}% over the minimum",
             (8*f.size_bytes()) as f64 / self.conf.keys_num as f64,
-            max_value * 100 / self.conf.keys_num
+            (range - minimal) as f64 * 100.0 / minimal as f64
         );
+        if max_value+1 != range {
+            print!(", real range = {}", max_value+1)
+        }
+        println!()
     }
+
+    #[inline] fn bucket_size_100(&self) -> u16 { self.conf.bucket_size_100() }
 }
 
 impl From<Conf> for Executor {
     fn from(conf: Conf) -> Self {
-        Self { conf, try_nr: 1 }
+        let threads_num = if conf.multiple_threads { current_num_threads() } else { 1 };
+        Self { conf, try_nr: 1, threads_num }
     }
-}
-
-fn perfect<SC: SeedChooser>(keys: &[u64], seed_chooser: SC) -> Perfect<Bits8, SC, Hasher>
-{
-    Perfect::with_slice_bps_bs_hash_sc(keys, Bits8::default(), bits_per_seed_to_100_bucket_size(8), Hasher::default(), seed_chooser)
 }
 
 fn main() {
     let executor: Executor = Conf::parse().into();
-    if executor.conf.multiple_threads {
-        println!("multi-threaded calculations use {} threads (to set by the RAYON_NUM_THREADS environment variable)", current_num_threads());
-    }
+    println!("n={} bits/seed={} lambda={:.2} threads={}", executor.conf.keys_num, executor.conf.bits_per_seed,
+        executor.bucket_size_100() as f64/100 as f64, executor.threads_num);
     match executor.conf.method {
+        Method::phast => {
+            let bucket_size = executor.bucket_size_100();
+            match executor.conf.bits_per_seed {
+                8 => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
+                //4 => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
+                b => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
+            };
+        },
         Method::perfect => {
+            let bucket_size = executor.bucket_size_100();
             if executor.conf.k == 1 {
-                executor.run(|keys| perfect(&keys, SeedOnly), |f, key| f.get(&key));
+                match executor.conf.bits_per_seed {
+                    8 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
+                    //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
+                    b => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
+                };
             } else {
-                executor.run(|keys| perfect(&keys, SeedOnlyK(executor.conf.k)),
-                    |f, key| f.get(&key));
+                let sc = SeedOnlyK(executor.conf.k);
+                match executor.conf.bits_per_seed {
+                    8 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, sc)),
+                    //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, sc)),
+                    b => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), sc)),
+                };
             }
         },
     };

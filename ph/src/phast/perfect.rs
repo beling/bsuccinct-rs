@@ -223,7 +223,20 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
     /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
-    pub fn k(&self) -> u8 { self.seed_chooser.k() }
+    #[inline(always)] pub fn k(&self) -> u8 { self.seed_chooser.k() }
+
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys,
+    /// i.e. 1 + maximum value that minimal function can return.
+    #[inline(always)] pub fn minimal_output_range(&self, num_of_keys: usize) -> usize { self.seed_chooser.minimal_output_range(num_of_keys) }
+
+    /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
+    pub fn output_range(&self) -> usize {
+        if let Some(last_level) = self.levels.last() {
+            last_level.shift + last_level.seeds.conf.output_range(self.seed_chooser)
+        } else {
+            self.level0.conf.output_range(self.seed_chooser)
+        }
+    }
 }
 
 impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
