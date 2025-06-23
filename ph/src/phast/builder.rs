@@ -148,7 +148,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
         *unassigned_len -= keys.len();
     }
 
-    /// Calculates bitmap of unassigned values and number of unassigned values.
+    /// Calculates bitmap of unassigned values and number of unassigned values of 1-perfect function.
     pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
         let mut unassigned_len = self.conf.output_range(self.seed_chooser);
         let mut unassigned_values = construct_unassigned(unassigned_len);
@@ -208,7 +208,7 @@ where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 #[inline(always)]
 pub(crate) fn build_st<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, evaluator: BE, seed_chooser: SC)
 -> (Box<[SS::VecElement]>, BuildConf<'k, BE, SS, SC>)
-where SC: SeedChooser, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
+where SC: SeedChooser, BE: BucketToActivateEvaluator
 {
     let (builder, mut seeds) = BuildConf::new(keys, conf, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), seed_chooser);
     ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
@@ -218,7 +218,7 @@ where SC: SeedChooser, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: S
 
 pub(crate) fn build_mt<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf<SS>, bucket_size100: u16, span_limit: u16, evaluator: BE, seed_chooser: SC, threads_num: usize)
  -> (Box<[SS::VecElement]>, BuildConf<'k, BE, SS, SC>)
-where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
+where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Sync, BE::Value: Send
 {
     //let threads_num = rayon::current_num_threads();
     let threads_num = threads_num.min(rayon::current_num_threads()).min(conf.buckets_num / 4096).max(1);

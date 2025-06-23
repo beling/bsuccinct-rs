@@ -1,36 +1,12 @@
 use std::{hash::Hash, usize};
 
-use crate::{phast::{seed_chooser::SeedOnlyNoBump, ShiftOnlyX2}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{function::SeedEx, seed_chooser::SeedOnlyNoBump, ShiftOnlyX2}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_last_level, build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
-
-/// Represents map-or-bump function.
-pub(crate) struct SeedEx<SS: SeedSize> {
-    pub(crate) seeds: Box<[SS::VecElement]>,
-    pub(crate) conf: Conf<SS>,
-}
-
-impl<SS: SeedSize> SeedEx<SS> {
-    #[inline(always)]
-    pub(crate) fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
-
-    #[inline(always)]
-    pub(crate) fn seed_for(&self, key: u64) -> u16 {
-        //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
-        self.conf.bits_per_seed.get_seed(&self.seeds, self.bucket_for(key))
-    }
-}
-
-impl<SS: SeedSize> GetSize for SeedEx<SS> {
-    fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
-    fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
-    const USES_DYN_MEM: bool = true;
-}
-
 
 pub(crate) struct Level<SS: SeedSize> {
     pub(crate) seeds: SeedEx<SS>,

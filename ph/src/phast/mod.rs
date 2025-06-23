@@ -19,6 +19,9 @@ pub use function2::Function2;
 mod perfect;
 pub use perfect::Perfect;
 
+//mod partial;
+//pub use partial::Partial;
+
 mod seed_chooser;
 mod seed_chooser_k;
 pub use seed_chooser::{SeedChooser, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftOnlyX1, ShiftOnlyX2, ShiftOnlyX3, ShiftOnlyX4, ShiftSeedWrapped};

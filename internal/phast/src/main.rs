@@ -41,8 +41,8 @@ pub struct Conf {
     pub lookup_runs: u32,
 
     /// Number of times to perform the construction
-    #[arg(short='t', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
-    pub build_runs: u32,
+    #[arg(short='t', long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(1..))]
+    pub build_runs: u64,
 
     /// Whether to check the validity of built MPHFs
     #[arg(short='v', long, default_value_t = false)]
@@ -63,6 +63,10 @@ pub struct Conf {
     /// Cooling time before measuring construction or query time, in milliseconds
     #[arg(short='c', long, default_value_t = 200)]
     pub cooling: u16,
+
+    /// Build and test only the first level
+    #[arg(short='1', long, default_value_t = false)]
+    pub first: bool,
 }
 
 impl Conf {
@@ -73,71 +77,57 @@ impl Conf {
     fn keys_for_seed(&self, seed: u64) -> Box<[u64]> {
         butils::XorShift64(seed).take(self.keys_num as usize).collect()
     }
-}
-
-struct Executor {
-    conf: Conf,
-    try_nr: u32,
-    threads_num: usize
-}
-
-impl Executor {
-    fn keys(&self) -> Box<[u64]> {
-        self.conf.keys_for_seed(self.try_nr as u64)
-    }
 
     fn run<F, B>(&self, build: B)
-        where F: Function, B: FnOnce(&[u64]) -> F
+        where F: Function, B: Fn(&[u64]) -> F
     {
-        let keys = self.keys();
-        let f = build(&keys);
-        let mut max_value = 0;
-        for key in keys {
-            let v = f.get(key);
-            if let Some(v) = v {
-                if v > max_value { max_value = v; }
+        for try_nr in 1..=self.build_runs {
+            if self.build_runs > 1 { print!("{try_nr}: "); }
+            let keys = self.keys_for_seed(try_nr);
+            let f = build(&keys);
+            let mut max_value = 0;
+            for key in keys {
+                let v = f.get(key);
+                if let Some(v) = v {
+                    if v > max_value { max_value = v; }
+                }
             }
+            let range = f.output_range();
+            let minimal = f.minimal_output_range(self.keys_num);
+            print!("{:.3} bits/key, output range = {range} = {:.1}% over the minimum",
+                (8*f.size_bytes()) as f64 / self.keys_num as f64,
+                (range - minimal) as f64 * 100.0 / minimal as f64
+            );
+            if max_value+1 != range {
+                print!(", real range = {}", max_value+1)
+            }
+            println!()
         }
-        let range = f.output_range();
-        let minimal = f.minimal_output_range(self.conf.keys_num);
-        print!("{:.3} bits/key, output range = {range} = {:.1}% over the minimum",
-            (8*f.size_bytes()) as f64 / self.conf.keys_num as f64,
-            (range - minimal) as f64 * 100.0 / minimal as f64
-        );
-        if max_value+1 != range {
-            print!(", real range = {}", max_value+1)
-        }
-        println!()
-    }
-
-    #[inline] fn bucket_size_100(&self) -> u16 { self.conf.bucket_size_100() }
-}
-
-impl From<Conf> for Executor {
-    fn from(conf: Conf) -> Self {
-        let threads_num = if conf.multiple_threads { current_num_threads() } else { 1 };
-        Self { conf, try_nr: 1, threads_num }
     }
 }
 
 fn main() {
-    let executor: Executor = Conf::parse().into();
-    let bucket_size = executor.bucket_size_100();
-    println!("n={} k={} bits/seed={} lambda={:.2} threads={}", executor.conf.keys_num, executor.conf.k,
-        executor.conf.bits_per_seed, bucket_size as f64/100 as f64, executor.threads_num);
-    match (executor.conf.method, executor.conf.k, executor.conf.bits_per_seed) {
-        (Method::phast, 1, 8) =>
-            executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
-        (Method::phast, 1, b) =>
-            executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
-        (Method::perfect, 1, 8) =>
-            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
-        (Method::perfect, 1, b) =>
-            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
-        (Method::perfect, k, 8) =>
-            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnlyK(k))),
-        (Method::perfect, k, b) =>
-            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnlyK(k))),
+    let conf = Conf::parse();
+    let threads_num = if conf.multiple_threads { current_num_threads() } else { 1 };
+    let bucket_size = conf.bucket_size_100();
+    println!("n={} k={} bits/seed={} lambda={:.2} threads={} first={}", conf.keys_num, conf.k,
+        conf.bits_per_seed, bucket_size as f64/100 as f64, threads_num, conf.first);
+    match (conf.method, conf.first, conf.k, conf.bits_per_seed) {
+        (Method::phast, false, 1, 8) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
+        (Method::phast, false, 1, b) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
+        (Method::perfect, false, 1, 8) =>
+            conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
+        (Method::perfect, false, 1, b) =>
+            conf.run(|keys| perfect(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
+        (Method::perfect, false, k, 8) =>
+            conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnlyK(k))),
+        (Method::perfect, false, k, b) =>
+            conf.run(|keys| perfect(&keys, bucket_size, threads_num, BitsFast(b), SeedOnlyK(k))),
+        (Method::perfect, true, k, 8) => {
+
+        }
         _ => eprintln!("Unsupported configuration")
     };
 }

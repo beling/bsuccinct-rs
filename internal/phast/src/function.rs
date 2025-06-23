@@ -31,6 +31,7 @@ pub fn perfect<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], bucket_size_100
      threads_num, Hasher::default(), seed_chooser)
 }
 
+
 impl<SS: SeedSize, SC: SeedChooser> Function for ph::phast::Function<SS, SC, DefaultCompressedArray, Hasher> {
     #[inline(always)] fn get(&self, key: u64) -> Option<usize> {
         Some(self.get(&key))

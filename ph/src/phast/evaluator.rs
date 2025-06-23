@@ -1,5 +1,5 @@
 /// Evaluate bucket to be activate.
-pub(crate) trait BucketToActivateEvaluator {
+pub trait BucketToActivateEvaluator {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord;
 
@@ -64,7 +64,7 @@ impl BucketToActivateEvaluator for Quadric {
 }*/
 
 #[derive(Clone)]
-pub(crate) struct Weights(pub [i32; 7]);
+pub struct Weights(pub [i32; 7]);
 
 impl Weights {
     pub fn new(bits_per_seed: u8, slice_len: u16) -> Self {
