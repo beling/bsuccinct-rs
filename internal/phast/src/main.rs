@@ -128,17 +128,14 @@ fn main() {
     match (executor.conf.method, executor.conf.k, executor.conf.bits_per_seed) {
         (Method::phast, 1, 8) =>
             executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
-            //4 => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
         (Method::phast, 1, b) =>
             executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
         (Method::perfect, 1, 8) =>
             executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
         (Method::perfect, 1, b) =>
-            //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
             executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
         (Method::perfect, k, 8) =>
             executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnlyK(k))),
-                //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, sc)),
         (Method::perfect, k, b) =>
             executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnlyK(k))),
         _ => eprintln!("Unsupported configuration")
