@@ -125,25 +125,22 @@ fn main() {
     let bucket_size = executor.bucket_size_100();
     println!("n={} k={} bits/seed={} lambda={:.2} threads={}", executor.conf.keys_num, executor.conf.k,
         executor.conf.bits_per_seed, bucket_size as f64/100 as f64, executor.threads_num);
-    match (executor.conf.method, executor.conf.k) {
-        (Method::phast, 1) => match executor.conf.bits_per_seed {
-            8 => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
+    match (executor.conf.method, executor.conf.k, executor.conf.bits_per_seed) {
+        (Method::phast, 1, 8) =>
+            executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
             //4 => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
-            b => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
-        },
-        (Method::perfect, 1) => match executor.conf.bits_per_seed {
-            8 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
+        (Method::phast, 1, b) =>
+            executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
+        (Method::perfect, 1, 8) =>
+            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
+        (Method::perfect, 1, b) =>
             //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
-            b => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
-        },
-        (Method::perfect, k) => {
-            let sc = SeedOnlyK(k);
-            match executor.conf.bits_per_seed {
-                8 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, sc)),
+            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
+        (Method::perfect, k, 8) =>
+            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnlyK(k))),
                 //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, sc)),
-                b => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), sc)),
-            };
-        },
+        (Method::perfect, k, b) =>
+            executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnlyK(k))),
         _ => eprintln!("Unsupported configuration")
     };
 }
