@@ -11,7 +11,7 @@ use crate::function::{perfect, phast, Function};
 
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone, Copy)]
 pub enum Method {
     // PHast
     phast,
@@ -122,33 +122,28 @@ impl From<Conf> for Executor {
 
 fn main() {
     let executor: Executor = Conf::parse().into();
-    println!("n={} bits/seed={} lambda={:.2} threads={}", executor.conf.keys_num, executor.conf.bits_per_seed,
-        executor.bucket_size_100() as f64/100 as f64, executor.threads_num);
-    match executor.conf.method {
-        Method::phast => {
-            let bucket_size = executor.bucket_size_100();
-            match executor.conf.bits_per_seed {
+    let bucket_size = executor.bucket_size_100();
+    println!("n={} k={} bits/seed={} lambda={:.2} threads={}", executor.conf.keys_num, executor.conf.k,
+        executor.conf.bits_per_seed, bucket_size as f64/100 as f64, executor.threads_num);
+    match (executor.conf.method, executor.conf.k) {
+        (Method::phast, 1) => match executor.conf.bits_per_seed {
                 8 => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
                 //4 => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
                 b => executor.run(|keys| phast(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
-            };
         },
-        Method::perfect => {
-            let bucket_size = executor.bucket_size_100();
-            if executor.conf.k == 1 {
-                match executor.conf.bits_per_seed {
+        (Method::perfect, 1) => match executor.conf.bits_per_seed {
                     8 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, SeedOnly)),
                     //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, SeedOnly)),
                     b => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), SeedOnly)),
-                };
-            } else {
-                let sc = SeedOnlyK(executor.conf.k);
+        },
+        (Method::perfect, k) => {
+                let sc = SeedOnlyK(k);
                 match executor.conf.bits_per_seed {
                     8 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, Bits8, sc)),
                     //4 => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, TwoToPowerBitsStatic::<2>, sc)),
                     b => executor.run(|keys| perfect(&keys, bucket_size, executor.threads_num, BitsFast(b), sc)),
                 };
-            }
         },
+        _ => eprintln!("Unsupported configuration")
     };
 }
