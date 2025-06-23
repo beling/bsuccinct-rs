@@ -9,35 +9,35 @@ use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
 /// Represents map-or-bump function.
-pub(crate) struct SeedEx<SS: SeedSize> {
-    pub(crate) seeds: Box<[SS::VecElement]>,
-    pub(crate) conf: Conf<SS>,
+pub(crate) struct SeedEx<SSVecElement> {
+    pub(crate) seeds: Box<[SSVecElement]>,
+    pub(crate) conf: Conf,
 }
 
-impl<SS: SeedSize> SeedEx<SS> {
+impl<SSVecElement> SeedEx<SSVecElement> {
     #[inline(always)]
     pub(crate) fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
 
     #[inline(always)]
-    pub(crate) fn seed_for(&self, key: u64) -> u16 {
+    pub(crate) fn seed_for<SS>(&self, seed_size: SS, key: u64) -> u16 where SS: SeedSize<VecElement=SSVecElement> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
-        self.conf.bits_per_seed.get_seed(&self.seeds, self.bucket_for(key))
+        seed_size.get_seed(&self.seeds, self.bucket_for(key))
     }
 }
 
-impl<SS: SeedSize> GetSize for SeedEx<SS> {
+impl<SSVecElement: GetSize> GetSize for SeedEx<SSVecElement> {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
 
-pub(crate) struct Level<SS: SeedSize> {
-    pub(crate) seeds: SeedEx<SS>,
+pub(crate) struct Level<SSVecElement> {
+    pub(crate) seeds: SeedEx<SSVecElement>,
     pub(crate) shift: usize
 }
 
-impl<SS: SeedSize> GetSize for Level<SS> {
+impl<SSVecElement: GetSize> GetSize for Level<SSVecElement> {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
@@ -54,11 +54,12 @@ impl<SS: SeedSize> GetSize for Level<SS> {
 pub struct Function<SS, SC = SeedOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
-    level0: SeedEx<SS>,
+    level0: SeedEx<SS::VecElement>,
     unassigned: CA,
-    levels: Box<[Level<SS>]>,
+    levels: Box<[Level<SS::VecElement>]>,
     hasher: S,
-    seed_chooser: SC
+    seed_chooser: SC,
+    seed_size: SS,  // seed size, K=2**bits_per_seed
 }
 
 impl<SC, SS: SeedSize, CA, S> GetSize for Function<SS, SC, CA, S> where Level<SS>: GetSize, CA: GetSize {
@@ -84,13 +85,13 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
-        let seed = self.level0.seed_for(key_hash);
+        let seed = self.level0.seed_for(self.seed_size, key_hash);
         if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
             let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
-            let seed = l.seeds.seed_for(key_hash);
+            let seed = l.seeds.seed_for(self.seed_size, key_hash);
             if seed != 0 {
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
             }
@@ -111,7 +112,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             (keys, level0, unassigned_values, unassigned_len)
         }, |keys, level_nr, h| {
             Self::build_level_st(keys, bits_per_seed, bucket_size100, h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, number_of_keys)
+        }, hasher, seed_chooser, bits_per_seed, number_of_keys)
     }
 
     /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
@@ -129,7 +130,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             (keys, level0, unassigned_values, unassigned_len)
         }, |keys, level_nr, h| {
             Self::build_level_mt(keys, bits_per_seed, bucket_size100, threads_num, &h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, number_of_keys)
+        }, hasher, seed_chooser, bits_per_seed, number_of_keys)
     }
 
 
@@ -143,7 +144,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             Self::build_level_from_slice_st(keys, bits_per_seed, bucket_size100, h, seed_chooser, 0)
         }, |keys, level_nr, h| {
             Self::build_level_st(keys, bits_per_seed, bucket_size100, &h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, keys.len())
+        }, hasher, seed_chooser, bits_per_seed, keys.len())
     }
 
 
@@ -159,13 +160,13 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             Self::build_level_from_slice_mt(keys, bits_per_seed, bucket_size100, threads_num, h, seed_chooser, 0)
         }, |keys, level_nr, h| {
             Self::build_level_mt(keys, bits_per_seed, bucket_size100, threads_num, &h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, keys.len())
+        }, hasher, seed_chooser, bits_per_seed, keys.len())
     }
 
     #[inline]
-    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, seed_chooser: SC, number_of_keys: usize) -> Self
-        where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS>, Box<[u64]>, usize),
-            BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS>, Box<[u64]>, usize),
+    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, seed_chooser: SC, seed_size: SS, number_of_keys: usize) -> Self
+        where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS::VecElement>, Box<[u64]>, usize),
+            BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS::VecElement>, Box<[u64]>, usize),
             K: Hash
         {
         let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
@@ -210,12 +211,13 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             levels: levels.into_boxed_slice(),
             hasher,
             seed_chooser,
+            seed_size
         }
     }
 
     #[inline]
     fn build_level_from_slice_st<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, hasher: &S, seed_chooser: SC, level_nr: u64)
-        -> (Vec<K>, SeedEx<SS>, Box<[u64]>, usize)
+        -> (Vec<K>, SeedEx<SS::VecElement>, Box<[u64]>, usize)
         where K: Hash+Clone
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
@@ -223,19 +225,19 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         hashes.voracious_sort();
         let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
-            build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
+            build_st(&hashes, conf, bits_per_seed, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
         drop(builder);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.extend(keys.into_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
-        (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+        (keys_vec, SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
     }
 
     #[inline]
     fn build_level_from_slice_mt<K>(keys: &[K], bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
-        -> (Vec<K>, SeedEx<SS>, Box<[u64]>, usize)
+        -> (Vec<K>, SeedEx<SS::VecElement>, Box<[u64]>, usize)
         where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync
     {
         let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
@@ -250,37 +252,37 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         hashes.voracious_mt_sort(threads_num);
         let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
-            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+            build_mt(&hashes, conf, bits_per_seed, bucket_size100, WINDOW_SIZE, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser, threads_num);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
         drop(builder);
         let mut keys_vec = Vec::with_capacity(unassigned_len);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
-        (keys_vec, SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+        (keys_vec, SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
     }
 
     #[inline(always)]
     fn build_level_st<K>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, hasher: &S, seed_chooser: SC, level_nr: u64)
-        -> (SeedEx<SS>, Box<[u64]>, usize)
+        -> (SeedEx<SS::VecElement>, Box<[u64]>, usize)
         where K: Hash
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
         let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
-            build_st(&hashes, conf, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser);
+            build_st(&hashes, conf, bits_per_seed, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
         drop(builder);
         keys.retain(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         });
-        (SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+        (SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
     }
 
     #[inline]
     fn build_level_mt<K>(keys: &mut Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
-        -> (SeedEx<SS>, Box<[u64]>, usize)
+        -> (SeedEx<SS::VecElement>, Box<[u64]>, usize)
         where K: Hash+Sync+Send, S: Sync, SC: Sync
     {
         let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
@@ -295,7 +297,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         hashes.voracious_mt_sort(threads_num);
         let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
         let (seeds, builder) =
-            build_mt(&hashes, conf, bucket_size100, WINDOW_SIZE, Weights::new(conf.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+            build_mt(&hashes, conf, bits_per_seed, bucket_size100, WINDOW_SIZE, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser, threads_num);
         let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
         drop(builder);
         let mut result = Vec::with_capacity(unassigned_len);
@@ -303,7 +305,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         keys.par_extend(result.into_par_iter().filter(|key| {
             bits_per_seed.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }));
-        (SeedEx::<SS>{ seeds, conf }, unassigned_values, unassigned_len)
+        (SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
     }
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys,
@@ -312,7 +314,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.level0.conf.output_range(self.seed_chooser)
+        self.level0.conf.output_range(self.seed_chooser, self.seed_size)
     }
 
     /*#[inline(always)]

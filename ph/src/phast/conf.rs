@@ -1,13 +1,12 @@
 use seedable_hash::map64_to_64;
 
-use crate::seeds::{Bits, SeedSize};
+use crate::seeds::SeedSize;
 
 use super::SeedChooser;
 
 /// PHast map-or-bump function configuration.
 #[derive(Clone, Copy)]
-pub struct Conf<SS: SeedSize = Bits> {
-    pub(crate) bits_per_seed: SS,  // seed size, K=2**bits_per_seed
+pub struct Conf {
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) slice_len_minus_one: u16,  // slice length L
     pub(crate) num_of_slices: usize,   // m-P
@@ -68,21 +67,20 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
     }
 }
 
-impl<SS: SeedSize> Conf<SS> {
+impl Conf {
 
-    pub(crate) fn new(output_range: usize, bits_per_seed: SS, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
+    pub(crate) fn new(output_range: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
         let bucket_size_100 = bucket_size_100 as usize;
         Self {
-            bits_per_seed,
             buckets_num: 1.max((output_range * 100 + bucket_size_100/2) / bucket_size_100),
             slice_len_minus_one: slice_len - 1,
             num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
         }
     }
 
-    /// Returns outpu range of the function.
-    #[inline] pub fn output_range<SC: SeedChooser>(&self, seed_chooser: SC) -> usize {
-        self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(self.bits_per_seed) as usize
+    /// Returns output range of the function.
+    #[inline] pub fn output_range<SC: SeedChooser, SS: SeedSize>(&self, seed_chooser: SC, seed_size: SS) -> usize {
+        self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(seed_size) as usize
     }
 
     /// Returns bucket assigned to the `key`.
@@ -149,19 +147,18 @@ impl<SS: SeedSize> Conf<SS> {
         self.slice_begin(key) + self.in_slice_nobump(key, seed)
     }
 
-    #[inline] pub(crate) fn seeds_num(&self) -> u16 {
-        1<<self.bits_per_seed.into()
-    }
+
 
     #[inline] pub(crate) fn slice_len(&self) -> u16 {
         self.slice_len_minus_one + 1
     }
 
-    #[inline(always)] pub(crate) fn bits_per_seed(&self) -> u8 {
-        self.bits_per_seed.into()
-    }
-
-    #[inline] pub(crate) fn new_seeds_vec(&self) -> Box<[SS::VecElement]> {
-        self.bits_per_seed.new_zeroed_seed_vec(self.buckets_num)
+    #[inline] pub(crate) fn new_seeds_vec<SS: SeedSize>(&self, seed_size: SS) -> Box<[SS::VecElement]> {
+        seed_size.new_zeroed_seed_vec(self.buckets_num)
     }
 }
+
+#[inline] pub(crate) fn seeds_num<SS: SeedSize>(seed_size: SS) -> u16 {
+    1<<seed_size.into()
+}
+

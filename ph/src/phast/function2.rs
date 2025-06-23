@@ -1,23 +1,12 @@
 use std::{hash::Hash, usize};
 
-use crate::{phast::{function::SeedEx, seed_chooser::SeedOnlyNoBump, ShiftOnlyX2}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{function::{Level, SeedEx}, seed_chooser::SeedOnlyNoBump, ShiftOnlyX2}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_last_level, build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
-
-pub(crate) struct Level<SS: SeedSize> {
-    pub(crate) seeds: SeedEx<SS>,
-    pub(crate) shift: usize
-}
-
-impl<SS: SeedSize> GetSize for Level<SS> {
-    fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
-    fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
-    const USES_DYN_MEM: bool = true;
-}
 
 /// PHast (Perfect Hashing with fast evaluation) Minimal Perfect Hash Function.
 /// Experimental.
@@ -32,16 +21,17 @@ impl<SS: SeedSize> GetSize for Level<SS> {
 pub struct Function2<SS, SC = ShiftOnlyX2, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
-    level0: SeedEx<SS>,
+    level0: SeedEx<SS::VecElement>,
     unassigned: CA,
-    levels: Box<[Level<SS>]>,
+    levels: Box<[Level<SS::VecElement>]>,
     hasher: S,
-    last_level: Level<Bits8>,
+    last_level: Level<<Bits8 as SeedSize>::VecElement>,
     last_level_seed: u64,
-    seed_chooser: SC
+    seed_chooser: SC,
+    seed_size: SS,
 }
 
-impl<SC, SS: SeedSize, CA, S> GetSize for Function2<SS, SC, CA, S> where Level<SS>: GetSize, CA: GetSize {
+impl<SC, SS: SeedSize, CA, S> GetSize for Function2<SS, SC, CA, S> where Level<SS::VecElement>: GetSize, CA: GetSize {
     fn size_bytes_dyn(&self) -> usize {
         self.level0.size_bytes_dyn() +
             self.unassigned.size_bytes_dyn() +
@@ -66,20 +56,20 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
-        let seed = self.level0.seed_for(key_hash);
+        let seed = self.level0.seed_for(self.seed_size, key_hash);
         if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
             let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
-            let seed = l.seeds.seed_for(key_hash);
+            let seed = l.seeds.seed_for(self.seed_size, key_hash);
             if seed != 0 {
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
             }
         }
 
         let key_hash = self.hasher.hash_one(key, self.last_level_seed);
-        let seed = self.last_level.seeds.seed_for(key_hash);
+        let seed = self.last_level.seeds.seed_for(Bits8, key_hash);
         return self.unassigned.get(SeedOnlyNoBump.f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
     }
 
@@ -194,7 +184,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let last_seeds =
         if keys.is_empty() {
             last_shift = 0;
-            SeedEx::<Bits8>{ seeds: Box::default(), conf: Conf::<Bits8> { bits_per_seed: Bits8, buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
+            SeedEx::<Bits8>{ seeds: Box::default(), conf: Conf { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
         } else {
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
