@@ -12,7 +12,7 @@ pub struct Partial<SS, SC = SeedOnly, S = BuildDefaultSeededHasher> where SS: Se
     seed_chooser: SC
 }
 
-impl<SC, SS: SeedSize, S> GetSize for Partial<SS, SC, S> where SeedEx<SS>: GetSize {
+impl<SC, SS: SeedSize, S> GetSize for Partial<SS, SC, S> where SeedEx<SS::VecElement>: GetSize {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
