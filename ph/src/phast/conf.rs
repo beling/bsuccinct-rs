@@ -157,8 +157,3 @@ impl Conf {
         seed_size.new_zeroed_seed_vec(self.buckets_num)
     }
 }
-
-#[inline] pub(crate) fn seeds_num<SS: SeedSize>(seed_size: SS) -> u16 {
-    1<<seed_size.into()
-}
-

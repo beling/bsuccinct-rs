@@ -1,4 +1,4 @@
-use crate::{phast::{conf::{mix_key_seed, seeds_num}, cyclic::{GenericUsedValue, UsedValueSet}}, seeds::SeedSize};
+use crate::{phast::{conf::mix_key_seed, cyclic::{GenericUsedValue, UsedValueSet}}, seeds::SeedSize};
 
 use super::conf::Conf;
 

@@ -1,7 +1,7 @@
 use std::{hash::Hash, usize};
 
 use crate::{phast::{function::{build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st, Level, SeedEx}, seed_chooser::SeedOnlyNoBump, ShiftOnlyX2}, seeds::{Bits8, SeedSize}};
-use super::{bits_per_seed_to_100_bucket_size, builder::{build_last_level, build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use super::{bits_per_seed_to_100_bucket_size, builder::build_last_level, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
