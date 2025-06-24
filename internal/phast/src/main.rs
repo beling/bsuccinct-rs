@@ -18,6 +18,9 @@ pub enum Method {
 
     // k-perfect PHast
     perfect,
+
+    // build only one level
+    one
 }
 
 #[derive(Parser)]
@@ -63,10 +66,6 @@ pub struct Conf {
     /// Cooling time before measuring construction or query time, in milliseconds
     #[arg(short='c', long, default_value_t = 200)]
     pub cooling: u16,
-
-    /// Build and test only the first level
-    #[arg(short='1', long, default_value_t = false)]
-    pub first: bool,
 }
 
 impl Conf {
@@ -110,22 +109,22 @@ fn main() {
     let conf = Conf::parse();
     let threads_num = if conf.multiple_threads { current_num_threads() } else { 1 };
     let bucket_size = conf.bucket_size_100();
-    println!("n={} k={} bits/seed={} lambda={:.2} threads={} first={}", conf.keys_num, conf.k,
-        conf.bits_per_seed, bucket_size as f64/100 as f64, threads_num, conf.first);
-    match (conf.method, conf.first, conf.k, conf.bits_per_seed) {
-        (Method::phast, false, 1, 8) =>
+    println!("n={} k={} bits/seed={} lambda={:.2} threads={threads_num}", conf.keys_num, conf.k,
+        conf.bits_per_seed, bucket_size as f64/100 as f64);
+    match (conf.method, conf.k, conf.bits_per_seed) {
+        (Method::phast, 1, 8) =>
             conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
-        (Method::phast, false, 1, b) =>
+        (Method::phast, 1, b) =>
             conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
-        (Method::perfect, false, 1, 8) =>
+        (Method::perfect, 1, 8) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
-        (Method::perfect, false, 1, b) =>
+        (Method::perfect, 1, b) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
-        (Method::perfect, false, k, 8) =>
+        (Method::perfect, k, 8) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnlyK(k))),
-        (Method::perfect, false, k, b) =>
+        (Method::perfect, k, b) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, BitsFast(b), SeedOnlyK(k))),
-        (Method::perfect, true, k, 8) => {
+        (Method::one, k, 8) => {
 
         }
         _ => eprintln!("Unsupported configuration")

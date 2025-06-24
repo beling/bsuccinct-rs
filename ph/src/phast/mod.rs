@@ -19,8 +19,8 @@ pub use function2::Function2;
 mod perfect;
 pub use perfect::Perfect;
 
-//mod partial;
-//pub use partial::Partial;
+mod partial;
+pub use partial::Partial;
 
 mod seed_chooser;
 mod seed_chooser_k;
