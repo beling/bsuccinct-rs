@@ -79,25 +79,25 @@ impl Conf {
     }
 
     /// Returns output range of the function.
-    #[inline] pub fn output_range<SC: SeedChooser, SS: SeedSize>(&self, seed_chooser: SC, seed_size: SS) -> usize {
-        self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(seed_size) as usize
+    #[inline] pub fn output_range<SC: SeedChooser>(&self, seed_chooser: SC, bits_per_seed: u8) -> usize {
+        self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(bits_per_seed) as usize
     }
 
     /// Returns bucket assigned to the `key`.
     #[inline(always)]
-    pub(crate) fn bucket_for(&self, key: u64) -> usize {
+    pub fn bucket_for(&self, key: u64) -> usize {
         map64_to_64(key, self.buckets_num as u64) as usize
     }
 
     /// Returns first value of slice assigned to the `key`.
     #[inline(always)]
-    pub(crate) fn slice_begin(&self, key: u64) -> usize {
+    pub fn slice_begin(&self, key: u64) -> usize {
         map64_to_64(key, self.num_of_slices as u64) as usize
     }
 
     /// Returns index of `key` in its slice.
     #[inline(always)]
-    pub(crate) fn in_slice(&self, key: u64, seed: u16) -> usize {
+    pub fn in_slice(&self, key: u64, seed: u16) -> usize {
         (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_mul(0x1d8e_4e27_c47d_124f).wrapping_add(seed as u64)) as u16 & self.slice_len_minus_one) as usize
@@ -128,7 +128,7 @@ impl Conf {
 
     /// Returns the value of the function for given `key` and `seed`.
     #[inline(always)]
-    pub(crate) fn f(&self, key: u64, seed: u16) -> usize {
+    pub fn f(&self, key: u64, seed: u16) -> usize {
         self.slice_begin(key) + self.in_slice(key, seed)
     }
 

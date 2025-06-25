@@ -123,11 +123,11 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
             K: Hash
         {
         let (mut keys, level0) = build_first(&hasher);
-        let mut shift = level0.conf.output_range(seed_chooser, seed_size);
+        let mut shift = level0.conf.output_range(seed_chooser, seed_size.into());
         let mut levels = Vec::with_capacity(16);
         while !keys.is_empty() {
             let seeds = build_level(&mut keys, levels.len() as u64+1, &hasher);
-            let out_range = seeds.conf.output_range(seed_chooser, seed_size);
+            let out_range = seeds.conf.output_range(seed_chooser, seed_size.into());
             levels.push(Level { seeds, shift });
             shift += out_range;
         }
@@ -148,7 +148,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_sort();
-        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
         let (seeds, builder) =
             build_st(&hashes, conf, bits_per_seed, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser);
         let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
@@ -171,7 +171,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
         let (seeds, builder) =
             build_mt(&hashes, conf, bits_per_seed, bucket_size100, WINDOW_SIZE, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser, threads_num);
         let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
@@ -188,7 +188,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
-        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
         let (seeds, _) =
             build_st(&hashes, conf, bits_per_seed, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser);
         keys.retain(|key| {
@@ -212,7 +212,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+        let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
         let (seeds, builder) =
             build_mt(&hashes, conf, bits_per_seed, bucket_size100, WINDOW_SIZE, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser, threads_num);
         let mut result = Vec::with_capacity(builder.unassigned_len(&seeds));
@@ -234,9 +234,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
         if let Some(last_level) = self.levels.last() {
-            last_level.shift + last_level.seeds.conf.output_range(self.seed_chooser, self.seed_size)
+            last_level.shift + last_level.seeds.conf.output_range(self.seed_chooser, self.seed_size.into())
         } else {
-            self.level0.conf.output_range(self.seed_chooser, self.seed_size)
+            self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
         }
     }
 }

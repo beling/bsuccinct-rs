@@ -152,7 +152,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
 
     /// Calculates bitmap of unassigned values and number of unassigned values of 1-perfect function.
     pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
-        let mut unassigned_len = self.conf.output_range(self.seed_chooser, self.seed_size);
+        let mut unassigned_len = self.conf.output_range(self.seed_chooser, self.seed_size.into());
         let mut unassigned_values = construct_unassigned(unassigned_len);
         for bucket in 0..self.bucket_begin.len()-1 {
             self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut unassigned_len);

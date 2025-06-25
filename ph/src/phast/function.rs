@@ -51,7 +51,7 @@ pub(crate) fn build_level_from_slice_st<K, SS, SC, S>(keys: &[K], bits_per_seed:
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_sort();
-    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
     let (seeds, builder) =
         build_st(&hashes, conf, bits_per_seed, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
@@ -78,7 +78,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, SC, S>(keys: &[K], bits_per_seed:
     };
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
-    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
     let (seeds, builder) =
         build_mt(&hashes, conf, bits_per_seed, bucket_size100, WINDOW_SIZE, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
@@ -97,7 +97,7 @@ pub(crate) fn build_level_st<K, SS, SC, S>(keys: &mut Vec::<K>, bits_per_seed: S
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     hashes.voracious_sort();
-    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
     let (seeds, builder) =
         build_st(&hashes, conf, bits_per_seed, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
@@ -123,7 +123,7 @@ pub(crate) fn build_level_mt<K, SS, SC, S>(keys: &mut Vec::<K>, bits_per_seed: S
     };
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
-    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed, bucket_size100);
+    let conf = seed_chooser.conf_for_minimal(hashes.len(), bits_per_seed.into(), bucket_size100);
     let (seeds, builder) =
         build_mt(&hashes, conf, bits_per_seed, bucket_size100, WINDOW_SIZE, Weights::new(bits_per_seed.into(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
@@ -315,7 +315,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.level0.conf.output_range(self.seed_chooser, self.seed_size)
+        self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
     }
 
     /*#[inline(always)]

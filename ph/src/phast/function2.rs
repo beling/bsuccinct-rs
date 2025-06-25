@@ -188,7 +188,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
             last_shift = unassigned.len();
-            for i in 0..last_seeds.conf.output_range(SeedOnlyNoBump, Bits8) {
+            for i in 0..last_seeds.conf.output_range(SeedOnlyNoBump, Bits8.into()) {
                 if CA::MAX_FOR_UNUSED {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
@@ -228,7 +228,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let bits_per_seed = Bits8;
         let len100 = (keys.len()+10)*120;
         let conf = SeedOnly.conf_for_minimal((len100+50)/100,
-            bits_per_seed, 400);
+            bits_per_seed.into(), 400);
         let evaluator = Weights::new(bits_per_seed.into(), conf.slice_len());
         loop {
             let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
