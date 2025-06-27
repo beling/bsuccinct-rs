@@ -69,10 +69,10 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 
 impl Conf {
 
-    pub(crate) fn new(output_range: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
+    pub(crate) fn new(output_range: usize, input_size: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
         let bucket_size_100 = bucket_size_100 as usize;
         Self {
-            buckets_num: 1.max((output_range * 100 + bucket_size_100/2) / bucket_size_100),
+            buckets_num: 1.max((input_size * 100 + bucket_size_100/2) / bucket_size_100),
             slice_len_minus_one: slice_len - 1,
             num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
         }
