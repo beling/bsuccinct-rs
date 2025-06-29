@@ -186,7 +186,7 @@ fn main() {
                 3 => conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
                 _ => unreachable!("multiplier must be 1, 2, or 3")
             }
-        }
+        },
         (Method::pluswrap { multiplier }, b, 8) => {
             match multiplier {
                 1 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
@@ -194,7 +194,7 @@ fn main() {
                 3 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
                 _ => unreachable!("multiplier must be 1, 2, or 3")
             }
-        }
+        },
         (Method::pluswrap2 { multiplier }, 1, 8) => {
             match multiplier {
                 1 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
@@ -202,7 +202,7 @@ fn main() {
                 3 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
                 _ => unreachable!("multiplier must be 1, 2, or 3")
             }
-        }
+        },
         (Method::pluswrap2 { multiplier }, b, 8) => {
             match multiplier {
                 1 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
@@ -210,7 +210,7 @@ fn main() {
                 3 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
                 _ => unreachable!("multiplier must be 1, 2, or 3")
             }
-        }
+        },
         (Method::perfect, 1, 8) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
         (Method::perfect, 1, b) =>
