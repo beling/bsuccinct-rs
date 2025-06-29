@@ -20,7 +20,7 @@ rayon = "1.5"
 dyn_size_of = { version="0.4", path="../../dyn_size_of" }
 ph = { version="0.9", path="../../ph" }
 clap = { version="4.0", features = ["derive"] }
-fxhash = "0.2"
+fxhash = { version="0.2", optional = true }
 seedable_hash = { version="0.2", path="../../seedable_hash", default-features = false }
 
 [features]

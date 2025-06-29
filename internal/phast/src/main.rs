@@ -7,14 +7,18 @@ mod perfect;
 use crate::perfect::perfect;
 
 mod phast;
-use crate::phast::phast;
+use crate::phast::{phast, phast2};
 
 mod partial;
 use crate::partial::partial;
 
+mod stats;
+use crate::stats::{benchmark, Stats};
+
 
 use clap::{Parser, Subcommand};
 
+use ph::phast::ShiftOnlyWrapped;
 use ph::{seeds::{Bits8, BitsFast}, phast::{SeedOnly, SeedOnlyK}};
 use rayon::current_num_threads;
 
@@ -26,6 +30,21 @@ use rayon::current_num_threads;
 pub enum Method {
     // PHast
     phast,
+
+    // PHast
+    phast2,
+
+    // PHast+ with wrapping
+    pluswrap {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
+
+    // PHast+ with wrapping and building last level with regular PHast
+    pluswrap2 {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
 
     // k-perfect PHast
     perfect,
@@ -91,30 +110,35 @@ impl Conf {
     fn run<F, B>(&self, build: B)
         where F: Function, B: Fn(&[u64]) -> F
     {
+        let mut total = Stats::default();
         for try_nr in 1..=self.build_runs {
             if self.build_runs > 1 { print!("{try_nr}: "); }
             let keys = self.keys_for_seed(try_nr);
-            let f = build(&keys);
+            let (f, build_time) = benchmark(|| build(&keys));
             /*for key in keys {
                 let v = f.get(key);
             }*/
             let range = f.output_range();
             let minimal = f.minimal_output_range(self.keys_num);
-            print!("{:.3} bits/key, output range = {range} = {:.1}% over the minimum",
+            print!("{:.3} bits/key, {:#.2?} build, output range = {range} = {:.1}% over the minimum",
                 (8*f.size_bytes()) as f64 / self.keys_num as f64,
+                build_time,
                 (range - minimal) as f64 * 100.0 / minimal as f64
             );
-            println!()
+            println!();
+            total.add(f.size_bytes(), build_time);
         }
+        total.print(self.build_runs, self.keys_num);
     }
 
     fn runp<F, B>(&self, build: B)
         where F: PartialFunction, B: Fn(&[u64]) -> F
     {
+        let mut total = Stats::default();
         for try_nr in 1..=self.build_runs {
             if self.build_runs > 1 { print!("{try_nr}: "); }
             let keys = self.keys_for_seed(try_nr);
-            let f = build(&keys);
+            let (f, build_time) = benchmark(|| build(&keys));
             let mut max_value = 0;
             let mut assigned_keys = 0;
             for key in keys {
@@ -125,15 +149,18 @@ impl Conf {
                 }
             }
             let range = f.output_range();
-            print!("{:.3} bits/key, {:.2}% bumped",
+            print!("{:.3} bits/key, {:.2}% bumped, {:#.2?} build",
                 (8*f.size_bytes()) as f64 / self.keys_num as f64,
-                (self.keys_num-assigned_keys) as f64 * 100.0 / self.keys_num as f64
+                (self.keys_num-assigned_keys) as f64 * 100.0 / self.keys_num as f64,
+                build_time
             );
             if max_value+1 != range {
                 print!(", real range = {}", max_value+1)
             }
-            println!()
+            println!();
+            total.add(f.size_bytes(), build_time);
         }
+        total.print(self.build_runs, self.keys_num);
     }
 }
 
@@ -148,6 +175,42 @@ fn main() {
             conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
         (Method::phast, 1, b) =>
             conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
+        (Method::phast2, 1, 8) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
+        (Method::phast2, 1, b) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
+        (Method::pluswrap { multiplier }, 1, 8) => {
+            match multiplier {
+                1 => conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
+                2 => conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
+                3 => conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
+                _ => unreachable!("multiplier must be 1, 2, or 3")
+            }
+        }
+        (Method::pluswrap { multiplier }, b, 8) => {
+            match multiplier {
+                1 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
+                2 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
+                3 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+                _ => unreachable!("multiplier must be 1, 2, or 3")
+            }
+        }
+        (Method::pluswrap2 { multiplier }, 1, 8) => {
+            match multiplier {
+                1 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
+                2 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
+                3 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
+                _ => unreachable!("multiplier must be 1, 2, or 3")
+            }
+        }
+        (Method::pluswrap2 { multiplier }, b, 8) => {
+            match multiplier {
+                1 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
+                2 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
+                3 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+                _ => unreachable!("multiplier must be 1, 2, or 3")
+            }
+        }
         (Method::perfect, 1, 8) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
         (Method::perfect, 1, b) =>

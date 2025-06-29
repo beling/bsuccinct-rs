@@ -23,3 +23,27 @@ pub fn phast<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], bucket_size_100: 
      bucket_size_100,
      threads_num, Hasher::default(), seed_chooser)
 }
+
+
+impl<SS: SeedSize, SC: SeedChooser> OutputRange for ph::phast::Function2<SS, SC, DefaultCompressedArray, Hasher> {
+    #[inline(always)] fn minimal_output_range(&self, keys_num: usize) -> usize {
+        self.minimal_output_range(keys_num)
+    }
+
+    #[inline(always)] fn output_range(&self) -> usize {
+        self.output_range()
+    }
+}
+
+impl<SS: SeedSize, SC: SeedChooser> Function for ph::phast::Function2<SS, SC, DefaultCompressedArray, Hasher> {
+    #[inline(always)] fn get(&self, key: u64) -> usize {
+        self.get(&key)
+    }
+}
+
+pub fn phast2<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], bucket_size_100: u16, threads_num: usize, seed_size: SS, seed_chooser: SC) -> ph::phast::Function2<SS, SC, DefaultCompressedArray, Hasher>
+{
+    ph::phast::Function2::with_slice_bps_bs_threads_hash_sc(keys, seed_size,
+     bucket_size_100,
+     threads_num, Hasher::default(), seed_chooser)
+}

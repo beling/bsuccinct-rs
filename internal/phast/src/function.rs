@@ -1,6 +1,10 @@
 use ph::GetSize;
 
-pub type Hasher = ph::Seedable<fxhash::FxBuildHasher>;
+#[cfg(feature = "fxhash")]
+pub type Hasher = seedable_hash::Seedable<fxhash::FxBuildHasher>;
+
+#[cfg(not(feature = "fxhash"))]
+pub type Hasher = seedable_hash::BuildDefaultSeededHasher;
 
 pub trait OutputRange: GetSize {
     fn minimal_output_range(&self, keys_num: usize) -> usize;

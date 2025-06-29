@@ -243,6 +243,15 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         }
     }
 
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys,
+    /// i.e. 1 + maximum value that minimal function can return.
+    #[inline(always)] pub fn minimal_output_range(&self, num_of_keys: usize) -> usize { self.seed_chooser.minimal_output_range(num_of_keys) }
+
+    /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
+    pub fn output_range(&self) -> usize {
+        self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
+    }
+
     /*#[inline(always)]
     fn finish_building<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S, level0: SeedEx<SS>, unassigned_values: Box<[u64]>, unassigned_len: usize) -> Self where K: Hash+Sync+Send, S: Sync {
         let mut level0_unassigned = unassigned_values.bit_ones();
