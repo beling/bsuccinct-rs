@@ -30,14 +30,14 @@ pub trait SeedChooser: Copy {
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(self, num_of_keys: usize) -> usize { num_of_keys }
 
-    fn conf(self, output_range: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
+    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into());
-        Conf::new(output_range, bucket_size_100, slice_len, max_shift)
+        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
     }
 
     #[inline(always)] fn conf_for_minimal(self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
-        self.conf(self.minimal_output_range(num_of_keys), bits_per_seed, bucket_size_100)
+        self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100)
     }
 
     /// How much the chooser can add to value over slice length.
@@ -285,7 +285,7 @@ pub struct ShiftOnly<const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SE
 impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftOnly<MULTIPLIER, L, L_LARGE_SEEDS> {
     type UsedValues = UsedValueSet;
 
-    fn conf(self, output_range: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
+    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
@@ -296,7 +296,7 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
             150000..250000 => 1024,
             _ => 2048,
         }.min(if bits_per_seed <= 8 { L } else { L_LARGE_SEEDS });
-        Conf::new(output_range, bucket_size_100, slice_len, max_shift)
+        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
     }
 
     #[inline(always)] fn extra_shift(self, bits_per_seed: u8) -> u16 {
@@ -345,7 +345,7 @@ pub struct ShiftOnlyWrapped<const MULTIPLIER: u8, const L: u16 = 1024, const L_L
 impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftOnlyWrapped<MULTIPLIER, L, L_LARGE_SEEDS> {
     type UsedValues = UsedValueSet;
 
-    fn conf(self, output_range: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
+    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
@@ -356,7 +356,7 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
             150000..250000 => 1024,
             _ => 2048,
         }.min(if bits_per_seed <= 8 { L } else { L_LARGE_SEEDS });
-        Conf::new(output_range, bucket_size_100, slice_len, max_shift)
+        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
     }
 
     #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
@@ -426,7 +426,7 @@ pub struct ShiftSeedWrapped<const MULTIPLIER: u8, const L: u16 = 1024, const L_L
 impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftSeedWrapped<MULTIPLIER, L, L_LARGE_SEEDS> {
     type UsedValues = UsedValueSet;
 
-    fn conf(self, output_range: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
+    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
@@ -437,7 +437,7 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
             150000..250000 => 1024,
             _ => 2048,
         }.min(if bits_per_seed <= 8 { L } else { L_LARGE_SEEDS });
-        Conf::new(output_range, bucket_size_100, slice_len, max_shift)
+        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
     }
 
     #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
