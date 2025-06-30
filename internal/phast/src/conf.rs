@@ -1,31 +1,42 @@
 use clap::{Parser, Subcommand};
+use ph::{phast::{Partial, SeedChooser}, seeds::BitsFast};
 
-use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}};
+use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
+
+use optimize::{Minimizer, NelderMeadBuilder};
+use ndarray::{Array, ArrayView1};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand, Clone, Copy)]
 pub enum Method {
-    // PHast
+    /// PHast
     phast,
 
-    // PHast
+    /// PHast
     phast2,
 
-    // PHast+ with wrapping
+    /// PHast+ with wrapping
     pluswrap {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
         multiplier: u8
     },
 
-    // PHast+ with wrapping and building last level with regular PHast
+    /// PHast+ with wrapping and building last level with regular PHast
     pluswrap2 {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
         multiplier: u8
     },
 
-    // k-perfect PHast
+    /// k-perfect PHast
     perfect,
+
+    /// Optimize weights in PHast
+    optphast,
+
+    /// Optimize weights for PHast+ with wrapping
+    optpluswrap,
 }
 
 #[derive(Parser)]
@@ -75,6 +86,10 @@ pub struct Conf {
     /// Whether to build only one level
     #[arg(short='1', long, default_value_t = false)]
     pub one: bool,
+
+    /// Number of iterations done by optimization commands (ignored by the rest)
+    #[arg(default_value_t = 50)]
+    iters: u16
 }
 
 impl Conf {
@@ -147,5 +162,30 @@ impl Conf {
             total += result;
         }
         total.print_avg(self);
+    }
+
+    pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
+        let bucket_size = self.bucket_size_100();
+        let minimizer = NelderMeadBuilder::default()
+            .maxiter(self.iters as usize) 
+            .build()
+            .unwrap();
+        let conf = seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size);
+        let args = Array::from_vec(WeightsF::new(self.bits_per_seed, conf.slice_len()).size_weights.into_vec());
+
+        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
+            let evaluator = WeightsF{ size_weights: x.as_slice().unwrap().try_into().unwrap() };
+
+            let key_sets_num: u32 = 96;
+            let unassigned_keys: usize = (0..key_sets_num).into_par_iter().map(|i| {
+                let mut keys = self.keys_for_seed(200+i);
+                Partial::with_hashes_bps_conf_sc_be_u(&mut keys, BitsFast(self.bits_per_seed),
+                    conf,
+                    seed_chooser, &evaluator).1
+            }).sum();
+            println!("{unassigned_keys} {:.2}% {x:.0}", unassigned_keys as f64 * 100.0 / (key_sets_num as f64 * self.keys_num as f64));
+            unassigned_keys as f64
+        }, args.view());
+        println!("Optimal weights: {ans:.0}");
     }
 }

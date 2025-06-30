@@ -9,6 +9,7 @@ pub use conf::bits_per_seed_to_100_bucket_size;
 
 mod cyclic;
 mod evaluator;
+pub use evaluator::{BucketToActivateEvaluator, Weights};
 
 mod function;
 pub use function::Function;

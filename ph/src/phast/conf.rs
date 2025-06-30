@@ -149,7 +149,7 @@ impl Conf {
 
 
 
-    #[inline] pub(crate) fn slice_len(&self) -> u16 {
+    #[inline] pub fn slice_len(&self) -> u16 {
         self.slice_len_minus_one + 1
     }
 

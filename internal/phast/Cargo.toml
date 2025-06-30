@@ -22,6 +22,8 @@ ph = { version="0.9", path="../../ph" }
 clap = { version="4.0", features = ["derive"] }
 fxhash = { version="0.2", optional = true }
 seedable_hash = { version="0.2", path="../../seedable_hash", default-features = false }
+optimize = "0.1.0"
+ndarray = "0.11"
 
 [features]
 default = ["sux", "gxhash"]

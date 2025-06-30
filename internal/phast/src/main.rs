@@ -14,6 +14,8 @@ use crate::phast::{phast, phast2};
 mod partial;
 use crate::partial::partial;
 
+mod optim;
+
 mod benchmark;
 
 use clap::Parser;
@@ -95,6 +97,11 @@ fn main() {
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
         (Method::pluswrap { multiplier: 3 }| Method::pluswrap2 { multiplier: 3 }, 1, b, true) =>
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+
+        (Method::optphast, 1, _, _) => conf.optimize_weights(SeedOnly),
+        (Method::optphast, k, _, _) => conf.optimize_weights(SeedOnlyK(k)),
+
+        (Method::optpluswrap, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
 
         _ => eprintln!("Unsupported configuration.")
     };
