@@ -24,7 +24,7 @@ fxhash = { version="0.2", optional = true }
 seedable_hash = { version="0.2", path="../../seedable_hash", default-features = false }
 
 [features]
-default = ["sux"]
+default = ["sux", "gxhash"]
 gxhash = ["ph/gxhash"]
 rapidhash = ["ph/rapidhash"]
 wyhash = ["ph/wyhash"]

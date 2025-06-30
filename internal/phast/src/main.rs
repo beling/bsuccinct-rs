@@ -48,9 +48,6 @@ pub enum Method {
 
     // k-perfect PHast
     perfect,
-
-    // build only one level
-    one
 }
 
 #[derive(Parser)]
@@ -96,6 +93,10 @@ pub struct Conf {
     /// Cooling time before measuring construction or query time, in milliseconds
     #[arg(short='c', long, default_value_t = 200)]
     pub cooling: u16,
+
+    /// Whether to build only one level
+    #[arg(short='1', long, default_value_t = false)]
+    pub one: bool,
 }
 
 impl Conf {
@@ -177,61 +178,74 @@ fn main() {
     let bucket_size = conf.bucket_size_100();
     println!("n={} k={} bits/seed={} lambda={:.2} threads={threads_num}", conf.keys_num, conf.k,
         conf.bits_per_seed, bucket_size as f64/100 as f64);
-    match (conf.method, conf.k, conf.bits_per_seed) {
-        (Method::phast, 1, 8) =>
+    match (conf.method, conf.k, conf.bits_per_seed, conf.one) {
+        (Method::phast, 1, 8, false) =>
             conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
-        (Method::phast, 1, b) =>
+        (Method::phast, 1, b, false) =>
             conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
 
-        (Method::phast2, 1, 8) =>
+        (Method::phast2, 1, 8, false) =>
             conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
-        (Method::phast2, 1, b) =>
+        (Method::phast2, 1, b, false) =>
             conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
 
-        (Method::pluswrap { multiplier: 1 }, 1, 8) =>
-            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap { multiplier: 2 }, 1, 8) =>
-            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap { multiplier: 3 }, 1, 8) =>
-            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap { multiplier: 1 }, b, 8) =>
-            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap { multiplier: 2 }, b, 8) =>
-            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap { multiplier: 3 }, b, 8) =>
-            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
-
-        (Method::pluswrap2 { multiplier: 1 }, 1, 8) =>
-            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap2 { multiplier: 2 }, 1, 8) =>
-            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap2 { multiplier: 3 }, 1, 8) =>
-            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap2 { multiplier: 1 }, b, 8) => 
-            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap2 { multiplier: 2 }, b, 8) => 
-            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap2 { multiplier: 3 }, b, 8) => 
-            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
-
-        (Method::perfect, 1, 8) =>
+        (Method::perfect, 1, 8, false) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
-        (Method::perfect, 1, b) =>
+        (Method::perfect, 1, b, false) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
-        (Method::perfect, k, 8) =>
+        (Method::perfect, k, 8, false) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnlyK(k))),
-        (Method::perfect, k, b) =>
+        (Method::perfect, k, b, false) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, BitsFast(b), SeedOnlyK(k))),
 
-        (Method::one, 1, 8) =>
+        (Method::phast|Method::phast2|Method::perfect, 1, 8, true) =>
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
-        (Method::one, 1, b) =>
+        (Method::phast|Method::phast2|Method::perfect, 1, b, true) =>
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
-        (Method::one, k, 8) =>
+        (Method::phast|Method::phast2|Method::perfect, k, 8, true) =>
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, Bits8, SeedOnlyK(k))),
-        (Method::one, k, b) =>
+        (Method::phast|Method::phast2|Method::perfect, k, b, true) =>
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), SeedOnlyK(k))),
-            
-        _ => eprintln!("Unsupported configuration")
+
+        (Method::pluswrap { multiplier: 1 }, 1, 8, false) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }, 1, 8, false) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }, 1, 8, false) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap { multiplier: 1 }, 1, b, false) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }, 1, b, false) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }, 1, b, false) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+
+        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap2 { multiplier: 1 }, 1, b, false) => 
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap2 { multiplier: 2 }, 1, b, false) => 
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap2 { multiplier: 3 }, 1, b, false) => 
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+
+        (Method::pluswrap { multiplier: 1 } | Method::pluswrap2 { multiplier: 1 }, 1, 8, true) =>
+            conf.runp(|keys| partial(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 } | Method::pluswrap2 { multiplier: 2 }, 1, 8, true) =>
+            conf.runp(|keys| partial(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 } | Method::pluswrap2 { multiplier: 3 }, 1, 8, true) =>
+            conf.runp(|keys| partial(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap { multiplier: 1 }| Method::pluswrap2 { multiplier: 1 }, 1, b, true) =>
+            conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }| Method::pluswrap2 { multiplier: 2 }, 1, b, true) =>
+            conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }| Method::pluswrap2 { multiplier: 3 }, 1, b, true) =>
+            conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+
+        _ => eprintln!("Unsupported configuration.")
     };
 }
