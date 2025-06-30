@@ -159,8 +159,8 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
 impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys,
     /// i.e. 1 + maximum value that minimal function can return.
-    #[inline(always)] pub fn minimal_output_range(&self, num_of_keys: usize) -> usize {
-        self.seed_chooser.minimal_output_range(num_of_keys)
+    #[inline(always)] pub fn minimal_output_range(&self, num_of_keys: u32) -> usize {
+        self.seed_chooser.minimal_output_range(num_of_keys as usize)
     }
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.

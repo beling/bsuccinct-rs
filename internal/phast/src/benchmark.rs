@@ -1,0 +1,68 @@
+use std::time::{Duration, Instant};
+
+use crate::Conf;
+
+#[derive(Default)]
+pub struct Result {
+    /// Total size
+    pub size_bytes: usize,
+
+    /// Total building time
+    pub build_time: Duration,
+
+    /// Total query time
+    pub evaluation_time: Duration,
+
+    /// Total number of bumped keys
+    pub bumped_keys: usize,
+
+    /// Total output range
+    pub range: usize,
+}
+
+impl std::ops::AddAssign for Result {
+    fn add_assign(&mut self, rhs: Self) {
+        self.size_bytes += rhs.size_bytes;
+        self.build_time += rhs.build_time;
+        self.evaluation_time += rhs.evaluation_time;
+        self.bumped_keys += rhs.bumped_keys;
+        self.range += rhs.range;
+    }
+}
+
+impl Result {
+    pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32) {
+        let total_keys = tries as usize * key_num as usize;
+        print!("{:.3} bits/key", (8*self.size_bytes) as f64 / total_keys as f64);
+        if self.bumped_keys != 0 {
+            print!(", {:#.2?}% bumped", (self.bumped_keys * 100) as f64 / total_keys as f64);
+        }
+        let minimum_range = minimum_range as usize * tries as usize;
+        if self.range != minimum_range {
+            print!(", {:.2}% over the minimum range", ((self.range - minimum_range) * 100) as f64 / minimum_range as f64)
+        }
+        print!(", {:#.2?} build", self.build_time / tries as u32);
+        if evals_per_try != 0 {
+            print!(", {:#.2?} evaluation", self.evaluation_time / (tries * evals_per_try) as u32)
+        }
+        println!();
+    }
+
+    pub fn print_try(&self, try_nr: u32, conf: &Conf) {
+        if conf.build_runs > 1 { print!("{try_nr}: "); }
+        self.print(1, conf.keys_num, conf.lookup_runs, conf.minimum_range());
+    }
+
+    pub fn print_avg(&self, conf: &Conf) {
+        if conf.build_runs == 1 { return; }
+        print!("Average: ");
+        self.print(conf.build_runs, conf.keys_num, conf.lookup_runs, conf.minimum_range());
+    }
+}
+
+pub fn benchmark<R, F: FnOnce() -> R>(f: F) -> (R, Duration) {
+    let start_moment = Instant::now();
+    let r = f();
+    let time = start_moment.elapsed();
+    (r, time)
+}

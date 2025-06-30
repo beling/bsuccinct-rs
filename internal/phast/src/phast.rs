@@ -2,10 +2,6 @@ use ph::{phast::{DefaultCompressedArray, SeedChooser}, seeds::SeedSize};
 use crate::function::{Function, Hasher, OutputRange};
 
 impl<SS: SeedSize, SC: SeedChooser> OutputRange for ph::phast::Function<SS, SC, DefaultCompressedArray, Hasher> {
-    #[inline(always)] fn minimal_output_range(&self, keys_num: usize) -> usize {
-        self.minimal_output_range(keys_num)
-    }
-
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
     }
@@ -26,10 +22,6 @@ pub fn phast<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], bucket_size_100: 
 
 
 impl<SS: SeedSize, SC: SeedChooser> OutputRange for ph::phast::Function2<SS, SC, DefaultCompressedArray, Hasher> {
-    #[inline(always)] fn minimal_output_range(&self, keys_num: usize) -> usize {
-        self.minimal_output_range(keys_num)
-    }
-
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
     }

@@ -12,8 +12,8 @@ use crate::phast::{phast, phast2};
 mod partial;
 use crate::partial::partial;
 
-mod stats;
-use crate::stats::{benchmark, Stats};
+mod benchmark;
+use crate::benchmark::{benchmark, Result};
 
 
 use clap::{Parser, Subcommand};
@@ -74,8 +74,8 @@ pub struct Conf {
     pub lookup_runs: u32,
 
     /// Number of times to perform the construction
-    #[arg(short='t', long, default_value_t = 1, value_parser = clap::value_parser!(u64).range(1..))]
-    pub build_runs: u64,
+    #[arg(short='t', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
+    pub build_runs: u32,
 
     /// Whether to check the validity of built MPHFs
     #[arg(short='v', long, default_value_t = false)]
@@ -83,7 +83,7 @@ pub struct Conf {
 
     /// The number of random keys to use
     #[arg(short='n', long, default_value_t = 1_000_000)]
-    pub keys_num: usize,
+    pub keys_num: u32,
 
     /// Whether to use multiple threads
     #[arg(short='j', long, default_value_t = false)]
@@ -99,68 +99,75 @@ pub struct Conf {
 }
 
 impl Conf {
+    fn minimum_range(&self) -> u32 {
+        self.keys_num.div_ceil(self.k as u32)
+    }
+
     fn bucket_size_100(&self) -> u16 {
         self.bucket_size.unwrap_or_else(|| ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed))
     }
 
-    fn keys_for_seed(&self, seed: u64) -> Box<[u64]> {
-        butils::XorShift64(seed).take(self.keys_num as usize).collect()
+    fn keys_for_seed(&self, seed: u32) -> Box<[u64]> {
+        butils::XorShift64(seed as u64).take(self.keys_num as usize).collect()
     }
 
     fn run<F, B>(&self, build: B)
         where F: Function, B: Fn(&[u64]) -> F
     {
-        let mut total = Stats::default();
+        let mut total = Result::default();
         for try_nr in 1..=self.build_runs {
-            if self.build_runs > 1 { print!("{try_nr}: "); }
             let keys = self.keys_for_seed(try_nr);
             let (f, build_time) = benchmark(|| build(&keys));
-            /*for key in keys {
-                let v = f.get(key);
-            }*/
-            let range = f.output_range();
-            let minimal = f.minimal_output_range(self.keys_num);
-            print!("{:.3} bits/key, {:#.2?} build, output range = {range} = {:.1}% over the minimum",
-                (8*f.size_bytes()) as f64 / self.keys_num as f64,
+            let evaluation_time = if self.lookup_runs > 0 {
+                benchmark(|| for _ in 0..self.lookup_runs { f.get_all(&keys) }).1
+            } else { Default::default() };
+            let result = Result {
+                size_bytes: f.size_bytes(),
                 build_time,
-                (range - minimal) as f64 * 100.0 / minimal as f64
-            );
-            println!();
-            total.add(f.size_bytes(), build_time);
+                evaluation_time,
+                bumped_keys: 0,
+                range: f.output_range()
+            };
+            result.print_try(try_nr, self);
+            total += result;
         }
-        total.print(self.build_runs, self.keys_num);
+        total.print_avg(self);
     }
 
     fn runp<F, B>(&self, build: B)
         where F: PartialFunction, B: Fn(&[u64]) -> F
     {
-        let mut total = Stats::default();
+        let mut total = Result::default();
         for try_nr in 1..=self.build_runs {
-            if self.build_runs > 1 { print!("{try_nr}: "); }
             let keys = self.keys_for_seed(try_nr);
             let (f, build_time) = benchmark(|| build(&keys));
-            let mut max_value = 0;
+            let evaluation_time = if self.lookup_runs > 0 {
+                benchmark(|| for _ in 0..self.lookup_runs { f.get_all(&keys) }).1
+            } else { Default::default() };
+            //let mut max_value = 0;
             let mut assigned_keys = 0;
             for key in keys {
                 let v = f.get(key);
-                if let Some(v) = v {
+                if let Some(_) = v {
                     assigned_keys += 1;
-                    if v > max_value { max_value = v; }
+                    //if v > max_value { max_value = v; }
                 }
             }
-            let range = f.output_range();
-            print!("{:.3} bits/key, {:.2}% bumped, {:#.2?} build",
-                (8*f.size_bytes()) as f64 / self.keys_num as f64,
-                (self.keys_num-assigned_keys) as f64 * 100.0 / self.keys_num as f64,
-                build_time
-            );
+            let result = Result {
+                size_bytes: f.size_bytes(),
+                build_time,
+                evaluation_time,
+                bumped_keys: self.keys_num as usize - assigned_keys,
+                range: f.output_range(),
+            };
+            result.print_try(try_nr, self);
+            /*let range = f.output_range();
             if max_value+1 != range {
                 print!(", real range = {}", max_value+1)
-            }
-            println!();
-            total.add(f.size_bytes(), build_time);
+            }*/
+            total += result;
         }
-        total.print(self.build_runs, self.keys_num);
+        total.print_avg(self);
     }
 }
 
@@ -175,42 +182,38 @@ fn main() {
             conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
         (Method::phast, 1, b) =>
             conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
+
         (Method::phast2, 1, 8) =>
             conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
         (Method::phast2, 1, b) =>
             conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), SeedOnly)),
-        (Method::pluswrap { multiplier }, 1, 8) => {
-            match multiplier {
-                1 => conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
-                2 => conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
-                3 => conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
-                _ => unreachable!("multiplier must be 1, 2, or 3")
-            }
-        },
-        (Method::pluswrap { multiplier }, b, 8) => {
-            match multiplier {
-                1 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
-                2 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
-                3 => conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
-                _ => unreachable!("multiplier must be 1, 2, or 3")
-            }
-        },
-        (Method::pluswrap2 { multiplier }, 1, 8) => {
-            match multiplier {
-                1 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
-                2 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
-                3 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
-                _ => unreachable!("multiplier must be 1, 2, or 3")
-            }
-        },
-        (Method::pluswrap2 { multiplier }, b, 8) => {
-            match multiplier {
-                1 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
-                2 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
-                3 => conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
-                _ => unreachable!("multiplier must be 1, 2, or 3")
-            }
-        },
+
+        (Method::pluswrap { multiplier: 1 }, 1, 8) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }, 1, 8) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }, 1, 8) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap { multiplier: 1 }, b, 8) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }, b, 8) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }, b, 8) =>
+            conf.run(|keys| phast(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+
+        (Method::pluswrap2 { multiplier: 1 }, 1, 8) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap2 { multiplier: 2 }, 1, 8) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap2 { multiplier: 3 }, 1, 8) =>
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, Bits8, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap2 { multiplier: 1 }, b, 8) => 
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap2 { multiplier: 2 }, b, 8) => 
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap2 { multiplier: 3 }, b, 8) => 
+            conf.run(|keys| phast2(&keys, bucket_size, threads_num, BitsFast(b), ShiftOnlyWrapped::<3>)),
+
         (Method::perfect, 1, 8) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
         (Method::perfect, 1, b) =>
@@ -219,6 +222,7 @@ fn main() {
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, Bits8, SeedOnlyK(k))),
         (Method::perfect, k, b) =>
             conf.run(|keys| perfect(&keys, bucket_size, threads_num, BitsFast(b), SeedOnlyK(k))),
+
         (Method::one, 1, 8) =>
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, Bits8, SeedOnly)),
         (Method::one, 1, b) =>
@@ -227,6 +231,7 @@ fn main() {
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, Bits8, SeedOnlyK(k))),
         (Method::one, k, b) =>
             conf.runp(|keys| partial(&keys, bucket_size, threads_num, BitsFast(b), SeedOnlyK(k))),
+            
         _ => eprintln!("Unsupported configuration")
     };
 }

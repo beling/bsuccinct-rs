@@ -2,10 +2,6 @@ use ph::{seeds::SeedSize, phast::{Perfect, SeedChooser}};
 use crate::function::{Function, Hasher, OutputRange};
 
 impl<SS: SeedSize, SC: SeedChooser> OutputRange for Perfect<SS, SC, Hasher> {
-    #[inline(always)] fn minimal_output_range(&self, keys_num: usize) -> usize {
-        self.minimal_output_range(keys_num)
-    }
-
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
     }
