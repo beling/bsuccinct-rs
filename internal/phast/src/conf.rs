@@ -88,7 +88,7 @@ pub struct Conf {
     pub one: bool,
 
     /// Number of iterations done by optimization commands (ignored by the rest)
-    #[arg(default_value_t = 50)]
+    #[arg(short='i', long, default_value_t = 50)]
     iters: u16
 }
 
