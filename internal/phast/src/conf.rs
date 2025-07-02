@@ -92,7 +92,7 @@ pub struct Conf {
     iters: u16,
 
     /// Slice length or 0 for auto
-    #[arg(short='P', long, default_value_t = 0, value_parser = clap::builder::PossibleValuesParser::new(["0", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"]))]
+    #[arg(short='P', long, default_value_t = 0)]
     slice_len: u16,
     
 }
