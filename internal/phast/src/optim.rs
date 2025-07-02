@@ -1,4 +1,4 @@
-use ph::phast::{BucketToActivateEvaluator, Weights};
+use ph::phast::BucketToActivateEvaluator;
 
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
@@ -18,14 +18,9 @@ impl Ord for F {
     #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
 }
 
+/// Weights version that uses f64 and works well with numerical optimization.
 pub struct WeightsF {
     pub size_weights: Box<[f64]>,
-}
-
-impl WeightsF {
-    pub fn new(bits_per_seed: u8, slice_len: u16) -> Self {
-        Weights::new(bits_per_seed, slice_len).into()
-    }
 }
 
 impl From<ph::phast::Weights> for WeightsF {

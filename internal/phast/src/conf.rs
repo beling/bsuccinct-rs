@@ -188,7 +188,7 @@ impl Conf {
             .build()
             .unwrap();
         let conf = seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len);
-        let args = Array::from_vec(WeightsF::new(self.bits_per_seed, conf.slice_len()).size_weights.into_vec());
+        let args = Array::from_vec(WeightsF::from(seed_chooser.bucket_evaluator(self.bits_per_seed, conf.slice_len())).size_weights.into_vec());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let evaluator = WeightsF{ size_weights: x.as_slice().unwrap().try_into().unwrap() };
