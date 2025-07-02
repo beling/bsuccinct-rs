@@ -49,14 +49,14 @@ impl Result {
     }
 
     pub fn print_try(&self, try_nr: u32, conf: &Conf) {
-        if conf.build_runs > 1 { print!("{try_nr}: "); }
-        self.print(1, conf.keys_num, conf.lookup_runs, conf.minimum_range());
+        if conf.many_tries() { print!("{try_nr}: "); }
+        self.print(1, conf.keys_num, conf.evaluations, conf.minimum_range());
     }
 
     pub fn print_avg(&self, conf: &Conf) {
-        if conf.build_runs == 1 { return; }
+        if !conf.many_tries() { return; }
         print!("Average: ");
-        self.print(conf.build_runs, conf.keys_num, conf.lookup_runs, conf.minimum_range());
+        self.print(conf.tries(), conf.keys_num, conf.evaluations, conf.minimum_range());
     }
 }
 

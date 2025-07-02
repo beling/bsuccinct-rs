@@ -55,13 +55,9 @@ pub struct Conf {
     #[arg(short='b')]
     pub bucket_size: Option<u16>,
 
-    /// Number of times to perform the lookup test
-    #[arg(short='l', long, default_value_t = 1)]
-    pub lookup_runs: u32,
-
-    /// Number of times to perform the construction
-    #[arg(short='t', long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
-    pub build_runs: u32,
+    /// Number of times to perform evaluation (over all keys) test
+    #[arg(short='e', long, default_value_t = 1)]
+    pub evaluations: u32,
 
     /// Whether to check the validity of built MPHFs
     #[arg(short='v', long, default_value_t = false)]
@@ -87,17 +83,29 @@ pub struct Conf {
     #[arg(short='1', long, default_value_t = false)]
     pub one: bool,
 
-    /// Number of iterations done by optimization commands (ignored by the rest)
-    #[arg(short='i', long, default_value_t = 50)]
-    iters: u16,
+    /// Number of iterations done by optimization (50 if 0) commands or number of times to perform the construction (1 if 0)
+    #[arg(short='i', long, default_value_t = 0)]
+    pub iters: u32,
 
     /// Slice length or 0 for auto
-    #[arg(short='P', long, default_value_t = 0)]
-    slice_len: u16,
+    #[arg(short='l', long, default_value_t = 0)]
+    pub slice_len: u16,
     
 }
 
 impl Conf {
+    pub fn optimization_iters(&self) -> u32 {
+        if self.iters == 0 { 50 } else { self.iters }
+    }
+
+    pub fn tries(&self) -> u32 {
+        if self.iters == 0 { 1 } else { self.iters }
+    }
+
+    pub fn many_tries(&self) -> bool {
+        self.iters > 1
+    }
+
     pub fn minimum_range(&self) -> u32 {
         self.keys_num.div_ceil(self.k as u32)
     }
@@ -118,11 +126,11 @@ impl Conf {
         where F: Function, B: Fn(&[u64]) -> F
     {
         let mut total = Result::default();
-        for try_nr in 1..=self.build_runs {
+        for try_nr in 1..=self.tries() {
             let keys = self.keys_for_seed(try_nr);
             let (f, build_time) = benchmark(|| build(&keys));
-            let evaluation_time = if self.lookup_runs > 0 {
-                benchmark(|| for _ in 0..self.lookup_runs { f.get_all(&keys) }).1
+            let evaluation_time = if self.evaluations > 0 {
+                benchmark(|| for _ in 0..self.evaluations { f.get_all(&keys) }).1
             } else { Default::default() };
             let result = Result {
                 size_bytes: f.size_bytes(),
@@ -141,11 +149,11 @@ impl Conf {
         where F: PartialFunction, B: Fn(&[u64]) -> F
     {
         let mut total = Result::default();
-        for try_nr in 1..=self.build_runs {
+        for try_nr in 1..=self.tries() {
             let keys = self.keys_for_seed(try_nr);
             let (f, build_time) = benchmark(|| build(&keys));
-            let evaluation_time = if self.lookup_runs > 0 {
-                benchmark(|| for _ in 0..self.lookup_runs { f.get_all(&keys) }).1
+            let evaluation_time = if self.evaluations > 0 {
+                benchmark(|| for _ in 0..self.evaluations { f.get_all(&keys) }).1
             } else { Default::default() };
             //let mut max_value = 0;
             let mut assigned_keys = 0;
@@ -176,7 +184,7 @@ impl Conf {
     pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
         let bucket_size = self.bucket_size_100();
         let minimizer = NelderMeadBuilder::default()
-            .maxiter(self.iters as usize) 
+            .maxiter(self.optimization_iters() as usize) 
             .build()
             .unwrap();
         let conf = seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len);
