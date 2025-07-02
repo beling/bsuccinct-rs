@@ -1,4 +1,4 @@
-use ph::{seeds::SeedSize, phast::{Partial, SeedChooser}};
+use ph::{phast::{Params, Partial, SeedChooser}, seeds::SeedSize};
 use crate::function::{OutputRange, PartialFunction};
 
 impl<SS: SeedSize, SC: SeedChooser> OutputRange for Partial<SS, SC, ()> {
@@ -13,9 +13,8 @@ impl<SS: SeedSize, SC: SeedChooser> PartialFunction for Partial<SS, SC, ()> {
     }
 }
 
-pub fn partial<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], bucket_size_100: u16, threads_num: usize, seed_size: SS, seed_chooser: SC) -> Partial<SS, SC, ()>
+pub fn partial<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], params: Params<SS>, threads_num: usize, seed_chooser: SC) -> Partial<SS, SC, ()>
 {
-    Partial::with_hashes_bps_bs_threads_sc(keys.to_owned().as_mut_slice(), seed_size,
-     bucket_size_100,
+    Partial::with_hashes_p_threads_sc(keys.to_owned().as_mut_slice(), &params,
      threads_num, seed_chooser)
 }

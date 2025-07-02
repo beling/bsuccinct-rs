@@ -1,4 +1,4 @@
-use ph::{phast::{DefaultCompressedArray, SeedChooser}, seeds::SeedSize};
+use ph::{phast::{DefaultCompressedArray, Params, SeedChooser}, seeds::SeedSize};
 use crate::function::{Function, Hasher, OutputRange};
 
 impl<SS: SeedSize, SC: SeedChooser> OutputRange for ph::phast::Function<SS, SC, DefaultCompressedArray, Hasher> {
@@ -13,10 +13,9 @@ impl<SS: SeedSize, SC: SeedChooser> Function for ph::phast::Function<SS, SC, Def
     }
 }
 
-pub fn phast<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], bucket_size_100: u16, threads_num: usize, seed_size: SS, seed_chooser: SC) -> ph::phast::Function<SS, SC, DefaultCompressedArray, Hasher>
+pub fn phast<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], params: Params<SS>, threads_num: usize, seed_chooser: SC) -> ph::phast::Function<SS, SC, DefaultCompressedArray, Hasher>
 {
-    ph::phast::Function::with_slice_bps_bs_threads_hash_sc(keys, seed_size,
-     bucket_size_100,
+    ph::phast::Function::with_slice_bps_bs_threads_hash_sc(keys, &params,
      threads_num, Hasher::default(), seed_chooser)
 }
 
@@ -33,9 +32,8 @@ impl<SS: SeedSize, SC: SeedChooser> Function for ph::phast::Function2<SS, SC, De
     }
 }
 
-pub fn phast2<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], bucket_size_100: u16, threads_num: usize, seed_size: SS, seed_chooser: SC) -> ph::phast::Function2<SS, SC, DefaultCompressedArray, Hasher>
+pub fn phast2<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], params: Params<SS>, threads_num: usize, seed_chooser: SC) -> ph::phast::Function2<SS, SC, DefaultCompressedArray, Hasher>
 {
-    ph::phast::Function2::with_slice_bps_bs_threads_hash_sc(keys, seed_size,
-     bucket_size_100,
+    ph::phast::Function2::with_slice_bps_bs_threads_hash_sc(keys, &params,
      threads_num, Hasher::default(), seed_chooser)
 }

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use ph::{phast::{Partial, SeedChooser}, seeds::BitsFast};
+use ph::{phast::{Params, Partial, SeedChooser}, seeds::BitsFast};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
 
@@ -89,7 +89,12 @@ pub struct Conf {
 
     /// Number of iterations done by optimization commands (ignored by the rest)
     #[arg(short='i', long, default_value_t = 50)]
-    iters: u16
+    iters: u16,
+
+    /// Slice length or 0 for auto
+    #[arg(short='P', long, default_value_t = 0, value_parser = clap::builder::PossibleValuesParser::new(["0", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"]))]
+    slice_len: u16,
+    
 }
 
 impl Conf {
@@ -103,6 +108,10 @@ impl Conf {
 
     pub fn keys_for_seed(&self, seed: u32) -> Box<[u64]> {
         butils::XorShift64(seed as u64).take(self.keys_num as usize).collect()
+    }
+
+    pub fn params<SS>(&self, seed_size: SS) -> Params<SS> {
+        Params { seed_size, bucket_size100: self.bucket_size_100(), preferred_slice_len: self.slice_len }
     }
 
     pub fn run<F, B>(&self, build: B)
@@ -170,7 +179,7 @@ impl Conf {
             .maxiter(self.iters as usize) 
             .build()
             .unwrap();
-        let conf = seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size);
+        let conf = seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len);
         let args = Array::from_vec(WeightsF::new(self.bits_per_seed, conf.slice_len()).size_weights.into_vec());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
