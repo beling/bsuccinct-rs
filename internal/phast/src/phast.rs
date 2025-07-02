@@ -15,7 +15,7 @@ impl<SS: SeedSize, SC: SeedChooser> Function for ph::phast::Function<SS, SC, Def
 
 pub fn phast<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], params: Params<SS>, threads_num: usize, seed_chooser: SC) -> ph::phast::Function<SS, SC, DefaultCompressedArray, Hasher>
 {
-    ph::phast::Function::with_slice_bps_bs_threads_hash_sc(keys, &params,
+    ph::phast::Function::with_slice_p_threads_hash_sc(keys, &params,
      threads_num, Hasher::default(), seed_chooser)
 }
 
@@ -34,6 +34,6 @@ impl<SS: SeedSize, SC: SeedChooser> Function for ph::phast::Function2<SS, SC, De
 
 pub fn phast2<SS: SeedSize, SC: SeedChooser+Sync>(keys: &[u64], params: Params<SS>, threads_num: usize, seed_chooser: SC) -> ph::phast::Function2<SS, SC, DefaultCompressedArray, Hasher>
 {
-    ph::phast::Function2::with_slice_bps_bs_threads_hash_sc(keys, &params,
+    ph::phast::Function2::with_slice_p_threads_hash_sc(keys, &params,
      threads_num, Hasher::default(), seed_chooser)
 }

@@ -61,7 +61,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_bps_bs_hash_sc<K>(mut keys: Vec::<K>, params: &Params<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash {
+    pub fn with_vec_p_hash_sc<K>(mut keys: Vec::<K>, params: &Params<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash {
         Self::_new(|h| {
             let level0 = Self::build_level_st(&mut keys, params, h, seed_chooser, 0);
             (keys, level0)
@@ -75,9 +75,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_bps_bs_threads_hash_sc<K>(mut keys: Vec::<K>, params: &Params<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+    pub fn with_vec_p_threads_hash_sc<K>(mut keys: Vec::<K>, params: &Params<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send, S: Sync, SC: Sync {
-        if threads_num == 1 { return Self::with_vec_bps_bs_hash_sc(keys, params, hasher, seed_chooser); }
+        if threads_num == 1 { return Self::with_vec_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
             let level0 = Self::build_level_mt(&mut keys, params, threads_num, &h, seed_chooser, 0);
             (keys, level0)
@@ -92,7 +92,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_bps_bs_hash_sc<K>(keys: &[K], params: &Params<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash+Clone {
+    pub fn with_slice_p_hash_sc<K>(keys: &[K], params: &Params<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash+Clone {
         Self::_new(|h| {
             Self::build_level_from_slice_st(keys, params, h, seed_chooser, 0)
         }, |keys, level_nr, h| {
@@ -106,9 +106,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_bps_bs_threads_hash_sc<K>(keys: &[K], params: &Params<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+    pub fn with_slice_p_threads_hash_sc<K>(keys: &[K], params: &Params<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync {
-        if threads_num == 1 { return Self::with_slice_bps_bs_hash_sc(keys, params, hasher, seed_chooser); }
+        if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
             Self::build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser, 0)
         }, |keys, level_nr, h| {
@@ -246,7 +246,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_st<K>(keys: Vec::<K>) -> Self where K: Hash {
-        Self::with_vec_bps_bs_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_vec_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         BuildDefaultSeededHasher::default(), SeedOnly)
     }
 
@@ -254,7 +254,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_mt<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
-        Self::with_vec_bps_bs_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_vec_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
     }
 
@@ -262,7 +262,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K]) -> Self where K: Hash+Clone {
-        Self::with_slice_bps_bs_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_slice_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         BuildDefaultSeededHasher::default(), SeedOnly)
     }
 
@@ -270,7 +270,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
-        Self::with_slice_bps_bs_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_slice_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
     }
 }
@@ -281,7 +281,7 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_vec_st<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash {
-        Self::with_vec_bps_bs_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_vec_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         BuildDefaultSeededHasher::default(), SeedOnlyK(k))
     }
 
@@ -290,7 +290,7 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_vec_mt<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
-        Self::with_vec_bps_bs_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_vec_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK(k))
     }
 
@@ -299,7 +299,7 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_slice_st<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone {
-        Self::with_slice_bps_bs_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_slice_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         BuildDefaultSeededHasher::default(), SeedOnlyK(k))
     }
 
@@ -308,7 +308,7 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_slice_mt<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
-        Self::with_slice_bps_bs_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        Self::with_slice_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK(k))
     }
 }

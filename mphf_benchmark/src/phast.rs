@@ -21,13 +21,13 @@ impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         if use_multiple_threads {
-            Self::MPHF::with_slice_bps_bs_threads_hash_sc(keys, 
+            Self::MPHF::with_slice_p_threads_hash_sc(keys, 
                 &Params::new(self.bits_per_seed, self.bucket_size_100),
                 std::thread::available_parallelism().map_or(1, |v| v.into()),
                 S::default(), self.seed_chooser
             )
         } else {
-            Self::MPHF::with_slice_bps_bs_hash_sc(keys,
+            Self::MPHF::with_slice_p_hash_sc(keys,
                 &Params::new(self.bits_per_seed, self.bucket_size_100), S::default(), self.seed_chooser
             )
         }

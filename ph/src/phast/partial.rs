@@ -177,7 +177,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildHasher> Partial<SS, SC, S> {
 
     /// Returns [`Partial`] function and number of keys with unassigned values for given `keys`,
     /// using a single thread and given parameters.
-    pub fn with_keys_bps_bs_hash_sc_be_u<'k, K, BE>(keys: impl Iterator<Item = K>, params: &Params<SS>, hasher: S, seed_chooser: SC, bucket_evaluator: BE)
+    pub fn with_keys_p_hash_sc_be_u<'k, K, BE>(keys: impl Iterator<Item = K>, params: &Params<SS>, hasher: S, seed_chooser: SC, bucket_evaluator: BE)
      -> (Self, usize)
         where K: Hash, BE: BucketToActivateEvaluator
     {
