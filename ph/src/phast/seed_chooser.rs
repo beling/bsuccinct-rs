@@ -281,12 +281,12 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct ShiftOnly<const MULTIPLIER: u8, const L: u16 = 1024, const L_LARGE_SEEDS: u16 = 1024>;
+pub struct ShiftOnly<const MULTIPLIER: u8>;
 
 //pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
 //pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
 
-impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser for ShiftOnly<MULTIPLIER, L, L_LARGE_SEEDS> {
+impl<const MULTIPLIER: u8> SeedChooser for ShiftOnly<MULTIPLIER> {
     type UsedValues = UsedValueSet;
 
     fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
@@ -298,8 +298,27 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
             1750..7500 => 256,
             7500..150000 => 512,
             150000..250000 => 1024,
-            _ => if preferred_slice_len == 0 { 2048 } else { preferred_slice_len },
-        }.min(if bits_per_seed <= 8 { L } else { L_LARGE_SEEDS });
+            _ => 2048,
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER { // TODO tune
+            1 => match bits_per_seed {
+                1..=5 => 256,
+                6..=7 => 512,
+                8..=9 => 1024,
+                _ => 2048
+            },
+            2 => match bits_per_seed {
+                1..=5 => 256,
+                6..=7 => 512,
+                8 => 1024,
+                _ => 2048
+            },
+            _ => match bits_per_seed {
+                1..=4 => 256,
+                5..=7 => 512,
+                8 => 1024,
+                _ => 2048
+            },
+        }});
         Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
     }
 
@@ -337,12 +356,6 @@ impl<const MULTIPLIER: u8, const L: u16, const L_LARGE_SEEDS: u16> SeedChooser f
     }
 }
 
-pub type ShiftOnlyX1 = ShiftOnly<1, 512, 1024>;
-pub type ShiftOnlyX2 = ShiftOnly<2>;
-pub type ShiftOnlyX3 = ShiftOnly<3>;
-pub type ShiftOnlyX4 = ShiftOnly<4>;
-
-
 #[derive(Clone, Copy)]
 pub struct ShiftOnlyWrapped<const MULTIPLIER: u8>;
 
@@ -373,7 +386,6 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
                 _ => 2048
             },
             _ => match bits_per_seed {
-                7 => 1024,
                 1..=4 => 256,
                 5..=7 => 512,
                 8 => 1024,
