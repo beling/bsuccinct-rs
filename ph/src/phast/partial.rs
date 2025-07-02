@@ -1,7 +1,7 @@
 use dyn_size_of::GetSize;
 use voracious_radix_sort::RadixSort;
 
-use crate::{phast::{builder::{build_mt, build_st, BuildConf}, conf::Conf, evaluator::{BucketToActivateEvaluator, Weights}, function::SeedEx, Params, SeedChooser, SeedOnly, WINDOW_SIZE}, seeds::SeedSize};
+use crate::{phast::{builder::{build_mt, build_st, BuildConf}, conf::Conf, evaluator::BucketToActivateEvaluator, function::SeedEx, Params, SeedChooser, SeedOnly, WINDOW_SIZE}, seeds::SeedSize};
 use std::hash::{BuildHasher, Hash, RandomState};
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
@@ -83,7 +83,7 @@ impl<SS: SeedSize, SC: SeedChooser> Partial<SS, SC, ()> {
         where BE: BucketToActivateEvaluator
     {
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
-        let bucket_evaluator = Weights::new(params.bits_per_seed(), conf.slice_len());
+        let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_sc_be_u(hashes, params.seed_size, conf, seed_chooser, bucket_evaluator)
     }
 
@@ -91,7 +91,7 @@ impl<SS: SeedSize, SC: SeedChooser> Partial<SS, SC, ()> {
         where BE: BucketToActivateEvaluator + Sync, SC: Sync, BE::Value: Send
     {
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
-        let bucket_evaluator = Weights::new(params.bits_per_seed(), conf.slice_len());
+        let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_bs_threads_sc_be_u(hashes, params.seed_size, conf, params.bucket_size100, threads_num, seed_chooser, bucket_evaluator)
     }
 
@@ -99,7 +99,7 @@ impl<SS: SeedSize, SC: SeedChooser> Partial<SS, SC, ()> {
     pub fn with_hashes_p_sc<'k>(hashes: &'k mut [u64], params: &Params<SS>, seed_chooser: SC) -> Self
     {
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
-        let bucket_evaluator = Weights::new(params.bits_per_seed(), conf.slice_len());
+        let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_sc_be(hashes, params.seed_size, conf, seed_chooser, bucket_evaluator)
     }
 
@@ -107,7 +107,7 @@ impl<SS: SeedSize, SC: SeedChooser> Partial<SS, SC, ()> {
         where SC: Sync
     {
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
-        let bucket_evaluator = Weights::new(params.bits_per_seed(), conf.slice_len());
+        let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_bs_threads_sc_be(hashes, params.seed_size, conf, params.bucket_size100, threads_num, seed_chooser, bucket_evaluator)
     }
 }

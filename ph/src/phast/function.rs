@@ -1,7 +1,7 @@
 use std::{hash::Hash, usize};
 
 use crate::{phast::Params, seeds::{Bits8, SeedSize}};
-use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, evaluator::Weights, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -53,7 +53,7 @@ pub(crate) fn build_level_from_slice_st<K, SS, SC, S>(keys: &[K], params: &Param
     hashes.voracious_sort();
     let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
-        build_st(&hashes, conf, params.seed_size, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser);
+        build_st(&hashes, conf, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(unassigned_len);
@@ -80,7 +80,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, SC, S>(keys: &[K], params: &Param
     hashes.voracious_mt_sort(threads_num);
     let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
-        build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+        build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(unassigned_len);
@@ -99,7 +99,7 @@ pub(crate) fn build_level_st<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
     hashes.voracious_sort();
     let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
-        build_st(&hashes, conf, params.seed_size, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser);
+        build_st(&hashes, conf, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     keys.retain(|key| {
@@ -125,7 +125,7 @@ pub(crate) fn build_level_mt<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
     hashes.voracious_mt_sort(threads_num);
     let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
-        build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+        build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut result = Vec::with_capacity(unassigned_len);

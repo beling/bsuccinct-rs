@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, evaluator::Weights, function::{Level, SeedEx}, Params, SeedChooser, SeedOnly, SeedOnlyK, WINDOW_SIZE}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, function::{Level, SeedEx}, Params, SeedChooser, SeedOnly, SeedOnlyK, WINDOW_SIZE}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing with fast evaluation) Perfect (not necessary minimal) Hash Function.
 /// Experimental.
@@ -150,7 +150,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         hashes.voracious_sort();
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (seeds, builder) =
-            build_st(&hashes, conf, params.seed_size, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser);
+            build_st(&hashes, conf, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser);
         let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
         drop(builder);
         keys_vec.extend(keys.into_iter().filter(|key| {
@@ -173,7 +173,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         hashes.voracious_mt_sort(threads_num);
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (seeds, builder) =
-            build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+            build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
         let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
         drop(builder);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
@@ -190,7 +190,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         hashes.voracious_sort();
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (seeds, _) =
-            build_st(&hashes, conf, params.seed_size, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser);
+            build_st(&hashes, conf, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser);
         keys.retain(|key| {
             params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         });
@@ -214,7 +214,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         hashes.voracious_mt_sort(threads_num);
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (seeds, builder) =
-            build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, Weights::new(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+            build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
         let mut result = Vec::with_capacity(builder.unassigned_len(&seeds));
         drop(builder);
         std::mem::swap(keys, &mut result);

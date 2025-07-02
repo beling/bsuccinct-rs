@@ -1,4 +1,4 @@
-use crate::phast::{conf::mix_key_seed, cyclic::{GenericUsedValue, UsedValueSet}, Params};
+use crate::phast::{conf::mix_key_seed, cyclic::{GenericUsedValue, UsedValueSet}, Params, Weights};
 
 use super::conf::Conf;
 
@@ -29,6 +29,10 @@ pub trait SeedChooser: Copy {
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(self, num_of_keys: usize) -> usize { num_of_keys }
+
+    #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights::new(bits_per_seed, slice_len)
+    }
 
     fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
