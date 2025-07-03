@@ -101,7 +101,9 @@ fn main() {
         (Method::optphast, 1, _, _) => conf.optimize_weights(SeedOnly),
         (Method::optphast, k, _, _) => conf.optimize_weights(SeedOnlyK(k)),
 
-        (Method::optpluswrap, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
+        (Method::optpluswrap { multiplier: 1 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
+        (Method::optpluswrap { multiplier: 2 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<2>),
+        (Method::optpluswrap { multiplier: 3 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<3>),
 
         _ => eprintln!("Unsupported configuration.")
     };

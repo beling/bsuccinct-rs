@@ -36,7 +36,10 @@ pub enum Method {
     optphast,
 
     /// Optimize weights for PHast+ with wrapping
-    optpluswrap,
+    optpluswrap {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
 }
 
 #[derive(Parser)]
