@@ -23,8 +23,14 @@ pub enum Method {
         multiplier: u8
     },
 
-    /// PHast+ with wrapping and building last level with regular PHast
+    /// PHast+ with wrapping and building last level using regular PHast
     pluswrap2 {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
+
+    /// PHast+ with building last level using regular PHast
+    plus {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
         multiplier: u8
     },
@@ -32,11 +38,17 @@ pub enum Method {
     /// k-perfect PHast
     perfect,
 
-    /// Optimize weights in PHast
+    /// Optimize weights for selecting buckets by PHast
     optphast,
 
-    /// Optimize weights for PHast+ with wrapping
+    /// Optimize weights for selecting buckets by PHast+ with wrapping
     optpluswrap {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
+
+    /// Optimize weights for selecting buckets by PHast+
+    optplus {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
         multiplier: u8
     },

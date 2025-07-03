@@ -4,14 +4,14 @@ use super::conf::Conf;
 
 pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
     match output_without_shift_range {
-            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-            64..1300 => 64,
-            1300..1750 => 128,
-            1750..7500 => 256,
-            7500..150000 => 512,
-            _ if bits_per_seed < 6 => if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
-            _ => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len }
-        }
+        n @ 0..64 => (n/2+1).next_power_of_two() as u16,
+        64..1300 => 64,
+        1300..1750 => 128,
+        1750..7500 => 256,
+        7500..150000 => 512,
+        _ if bits_per_seed < 6 => if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
+        _ => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len }
+    }
 }
 
 /// Choose best seed in bucket.
@@ -293,6 +293,25 @@ pub struct ShiftOnly<const MULTIPLIER: u8>;
 impl<const MULTIPLIER: u8> SeedChooser for ShiftOnly<MULTIPLIER> {
     type UsedValues = UsedValueSet;
 
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights(match (bits_per_seed, slice_len) {  // TODO copied from wrapped, MULTIPLIER=1
+            (0..=6, ..=256) => [-76632, 59701, 89939, 103115, 111040, 117906, 283652], // 6, 3.0, slice=256
+            (0..=6, _) => [-102171, 30195, 95877, 122987, 138980, 152173, 206055],  // 6, 3.0, slice=512
+            (7, ..=256) => [-84425, 81165, 96951, 106065, 112137, 117421, 122309],  // 3.5, slice=256
+            (7, _) => [-69271, 61152, 101770, 119869, 132454, 141236, 148273],  // 3.5, slice=512
+            (8, ..=512) => [-66903, 81776, 107154, 122354, 132033, 140641, 146584], // 4.1, slice=512
+            (8, _) => [-50666, 55977, 116129, 145446, 164172, 180129, 192120],  // 4.1, slice=1024
+            (9, ..=512) => [-45845, 91690, 122225, 138169, 149160, 155706, 164757],  // 5.1, slice=512
+            (9, _) => [-51695, 68190, 121468, 146481, 164082, 178054, 186488],  // 5.1, slice=1024
+            (10, ..=1024) => [-4011, 15045, 106558, 112844, 133305, 145623, 154991], // 5.7, slice=1024
+            (10, _) => [-3301, 12449, 83323, 139924, 169323, 198105, 212187],   // 5.7, slice=2048
+            (11, ..=1024) => [-1524, 23928, 115028, 153353, 187370, 191075, 197861],    // 6.3, slice=1024
+            (11, _) => [-1777, 22788, 106158, 139632, 174143, 200775, 214797],  // 6.3, slice=2048
+            (_, ..=1024) => [-2190, 30393, 114587, 141471, 162103, 177602, 183787], // 12, 6.8, slice=1024
+            (_, _) => [-2355, 16099, 113987, 153868, 183912, 213486, 226897],   // 12, 6.8, slice=2048
+        })
+    }
+
     fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
@@ -303,22 +322,25 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnly<MULTIPLIER> {
             7500..150000 => 512,
             150000..250000 => 1024,
             _ => 2048,
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER { // TODO tune
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER {
             1 => match bits_per_seed {
-                1..=5 => 256,
-                6..=7 => 512,
-                8..=9 => 1024,
+                ..=4 => 128,
+                ..=7 => 256,
+                8 => 512,
+                9 => 1024,
                 _ => 2048
             },
             2 => match bits_per_seed {
-                1..=5 => 256,
-                6..=7 => 512,
-                8 => 1024,
+                ..=4 => 128,
+                ..=6 => 256,
+                7 => 512,
+                8..=9 => 1024,
                 _ => 2048
             },
             _ => match bits_per_seed {
-                1..=4 => 256,
-                5..=7 => 512,
+                ..=4 => 128,
+                ..=6 => 256,
+                7 => 512,
                 8 => 1024,
                 _ => 2048
             },
@@ -397,20 +419,20 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
             _ => 2048,
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER {
             1 => match bits_per_seed {
-                1..=5 => 256,
-                6..=7 => 512,   // or 6 => 256 for smaller size
-                8..=9 => 1024,   // or 8 => 512 for smaller size
+                ..=5 => 256,
+                ..=7 => 512,   // or 6 => 256 for smaller size
+                ..=9 => 1024,   // or 8 => 512 for smaller size
                 _ => 2048   // or 10 => 1024 for smaller size
             },
             2 => match bits_per_seed {
-                1..=5 => 256,
-                6..=7 => 512,
+                ..=5 => 256,
+                ..=7 => 512,
                 8 => 1024,
                 _ => 2048
             },
             _ => match bits_per_seed {
-                1..=4 => 256,
-                5..=7 => 512,
+                ..=4 => 256,
+                ..=7 => 512,
                 8 => 1024,
                 _ => 2048
             },

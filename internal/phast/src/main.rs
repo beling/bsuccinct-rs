@@ -21,7 +21,7 @@ mod benchmark;
 use clap::Parser;
 
 use ph::seeds::{Bits8, BitsFast};
-use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnlyWrapped};
+use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped};
 use rayon::current_num_threads;
 
 fn main() {
@@ -98,12 +98,42 @@ fn main() {
         (Method::pluswrap { multiplier: 3 }| Method::pluswrap2 { multiplier: 3 }, 1, b, true) =>
             conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<3>)),
 
+        (Method::plus { multiplier: 1 }, 1, 8, false) =>
+            conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly::<1>)),
+        (Method::plus { multiplier: 2 }, 1, 8, false) =>
+            conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly::<2>)),
+        (Method::plus { multiplier: 3 }, 1, 8, false) =>
+            conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly::<3>)),
+        (Method::plus { multiplier: 1 }, 1, b, false) =>
+            conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<1>)),
+        (Method::plus { multiplier: 2 }, 1, b, false) =>
+            conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<2>)),
+        (Method::plus { multiplier: 3 }, 1, b, false) =>
+            conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<3>)),
+
+        (Method::plus { multiplier: 1 }, 1, 8, true) =>
+            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnly::<1>)),
+        (Method::plus { multiplier: 2 }, 1, 8, true) =>
+            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnly::<2>)),
+        (Method::plus { multiplier: 3 }, 1, 8, true) =>
+            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnly::<3>)),
+        (Method::plus { multiplier: 1 }, 1, b, true) =>
+            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<1>)),
+        (Method::plus { multiplier: 2 }, 1, b, true) =>
+            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<2>)),
+        (Method::plus { multiplier: 3 }, 1, b, true) =>
+            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<3>)),
+
         (Method::optphast, 1, _, _) => conf.optimize_weights(SeedOnly),
         (Method::optphast, k, _, _) => conf.optimize_weights(SeedOnlyK(k)),
 
         (Method::optpluswrap { multiplier: 1 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
         (Method::optpluswrap { multiplier: 2 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<2>),
         (Method::optpluswrap { multiplier: 3 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<3>),
+
+        (Method::optplus { multiplier: 1 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<1>),
+        (Method::optplus { multiplier: 2 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<2>),
+        (Method::optplus { multiplier: 3 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<3>),
 
         _ => eprintln!("Unsupported configuration.")
     };
