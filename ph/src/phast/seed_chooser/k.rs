@@ -1,6 +1,7 @@
 use bitm::ceiling_div;
 
-use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}, SeedChooser};
+use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
+use super::SeedChooser;
 
 /// Choose best seed without shift component.
 #[derive(Clone, Copy)]

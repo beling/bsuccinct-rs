@@ -1,202 +1,5 @@
-use crate::phast::{conf::mix_key_seed, cyclic::{GenericUsedValue, UsedValueSet}, Params, Weights};
-
-use super::conf::Conf;
-
-pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-    match output_without_shift_range {
-        n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-        64..1300 => 64,
-        1300..1750 => 128,
-        1750..7500 => 256,
-        7500..150000 => 512,
-        _ if bits_per_seed < 6 => if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
-        _ => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len }
-    }
-}
-
-/// Choose best seed in bucket.
-pub trait SeedChooser: Copy {
-    /// Specifies whether bumping is allowed.
-    const BUMPING: bool = true;
-
-    /// The lowest seed that does not indicate bumping.
-    const FIRST_SEED: u16 = if Self::BUMPING { 1 } else { 0 };
-
-    type UsedValues: GenericUsedValue;
-
-    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(self) -> u8 { 1 }
-
-    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
-    #[inline(always)] fn minimal_output_range(self, num_of_keys: usize) -> usize { num_of_keys }
-
-    #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        Weights::new(bits_per_seed, slice_len)
-    }
-
-    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into(), preferred_slice_len);
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
-    }
-
-    #[inline(always)] fn conf_for_minimal(self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
-    }
-
-    #[inline(always)] fn conf_for_minimal_p<SS: Copy+Into<u8>>(self, num_of_keys: usize, params: &Params<SS>) -> Conf {
-        self.conf_for_minimal(num_of_keys, params.seed_size.into(), params.bucket_size100, params.preferred_slice_len)
-    }
-
-    /// How much the chooser can add to value over slice length.
-    #[inline(always)] fn extra_shift(self, _bits_per_seed: u8) -> u16 { 0 }
-
-    /// Returns function value for given primary code and seed.
-    fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize;
-    
-    /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16;
-}
-
-#[inline(always)]
-fn best_seed_big<SC: SeedChooser>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &Conf, seeds_num: u16) {
-    let mut values_used_by_seed = Vec::with_capacity(keys.len());
-    let simd_keys = keys.len() / 4 * 4;
-    //assert!(simd_keys <= keys.len());
-    'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
-        values_used_by_seed.clear();
-        for i in (0..simd_keys).step_by(4) {
-            let values = [
-                seed_chooser.f(keys[i], seed, conf),
-                seed_chooser.f(keys[i+1], seed, conf),
-                seed_chooser.f(keys[i+2], seed, conf),
-                seed_chooser.f(keys[i+3], seed, conf),
-            ];
-            let contains = [
-                used_values.contain(values[0]),
-                used_values.contain(values[1]),
-                used_values.contain(values[2]),
-                used_values.contain(values[3]),
-            ];
-            if contains.iter().any(|b| *b) { continue 'outer; }
-            //if contains[0] || contains[1] || contains[2] || contains[3] { continue 'outer; }
-            values_used_by_seed.push(values[0]);
-            values_used_by_seed.push(values[1]);
-            values_used_by_seed.push(values[2]);
-            values_used_by_seed.push(values[3]);
-        }
-        //assert!(keys.len() - simd_keys < 4);
-        for i in simd_keys..keys.len() {
-            let value = seed_chooser.f(keys[i], seed, conf);
-            if used_values.contain(value) { continue 'outer; }
-            values_used_by_seed.push(value);
-        }
-        let seed_value = values_used_by_seed.iter().sum();
-        if seed_value < *best_value {
-            values_used_by_seed.sort();
-            if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
-                //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
-                //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                //if SC::BUMPING { return; }
-                continue;
-            }
-            *best_value = seed_value;
-            *best_seed = seed;
-        }
-    }
-}
-
-#[inline(always)]
-fn best_seed_small<SC: SeedChooser>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &Conf, seeds_num: u16) {
-    assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
-    let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
-    'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
-        values_used_by_seed.clear();
-        for key in keys.iter().copied() {
-            let value = seed_chooser.f(key, seed, conf);
-            if used_values.contain(value) { continue 'outer; }
-            values_used_by_seed.push(value);
-        }
-        let seed_value = values_used_by_seed.iter().sum();
-        if seed_value < *best_value {
-            values_used_by_seed.sort_unstable();
-            for i in 1..values_used_by_seed.len() {
-                if values_used_by_seed[i-1] == values_used_by_seed[i] {
-                    //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
-                    //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    //if SC::BUMPING { return; }
-                    continue 'outer;
-                }
-            }
-            *best_value = seed_value;
-            *best_seed = seed;
-        }
-    }
-}
-
-const SMALL_BUCKET_LIMIT: usize = 8;
-
-/// Choose best seed without shift component.
-#[derive(Clone, Copy)]
-pub struct SeedOnly;
-
-impl SeedChooser for SeedOnly {
-    type UsedValues = UsedValueSet;
-    
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.f(primary_code, seed)
-    }
-
-    #[inline(always)]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
-        let mut best_seed = 0;
-        let mut best_value = usize::MAX;
-        if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
-        } else {
-            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
-        };
-        if best_seed != 0 { // can assign seed to the bucket
-            for key in keys {
-                used_values.add(conf.f(*key, best_seed));
-            }
-        };
-        best_seed
-    }
-}
-
-/// Choose best seed without shift component.
-#[derive(Clone, Copy)]
-pub struct SeedOnlyNoBump;
-
-impl SeedChooser for SeedOnlyNoBump {
-    const BUMPING: bool = false;
-    const FIRST_SEED: u16 = 0;
-
-    type UsedValues = UsedValueSet;
-
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.f_nobump(primary_code, seed)
-    }
-
-    #[inline]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
-        //let _: [(); Self::FIRST_SEED as usize] = [];
-        let mut best_seed = u16::MAX;
-        let mut best_value = usize::MAX;
-        if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
-        } else {
-            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
-        };
-        if best_seed != u16::MAX { // can assign seed to the bucket
-            for key in keys {
-                used_values.add(conf.f_nobump(*key, best_seed));
-            }
-        };
-        best_seed
-    }
-}
+use crate::phast::{conf::{mix_key_seed, Conf}, cyclic::{GenericUsedValue, UsedValueSet}, Weights};
+use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
     without_shift.sort_unstable();  // maybe it is better to postpone self-collision test?
@@ -294,21 +97,39 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnly<MULTIPLIER> {
     type UsedValues = UsedValueSet;
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        Weights(match (bits_per_seed, slice_len) {
-            (..=6, ..=256) => [-81980, 50520, 90817, 106897, 116472, 123937, 287280], // 6, 3.0, slice=256
-            (_, ..=256) => [-85977, 81531, 98837, 107586, 113333, 117710, 120656],  // 7, 3.5, slice=256
-            (..=7, ..=512) => [-95834, 38499, 103035, 124756, 137603, 147839, 155448],  // 7, 3.5, slice=512
-            (_, ..=512) => [-68137, 80516, 110189, 123629, 132794, 140850, 145685], // 8, 4.1, slice=512
-            (..=8, ..=1024) => [-49776, 28610, 120514, 154976, 177328, 193499, 204936],  // 8, 4.1, slice=1024
-            (..=8, _) => [-14014, -11926, 63698, 144877, 194056, 353593, 360338],  // 8, 4.1, slice=2048
-            (9, ..=1024) => [-60439, 49207, 121850, 149181, 166713, 179181, 187815],  // 5.1, slice=1024
-            (9, _) => [48168, 48328, 132443, 197796, 234543, 260358, 279164],  // 5.1, slice=2048
-            (10, ..=1024) => [-4759, 9930, 87924, 125082, 143308, 165460, 165095], // 5.7, slice=1024
-            (10, _) => [-3419, 8042, 98860, 145429, 176433, 198538, 214441],   // 5.7, slice=2048
-            (11, ..=1024) => [-1560, 25555, 96323, 156791, 189688, 201315, 198828],    // 6.3, slice=1024
-            (11, _) => [-294, 2300, 161956, 227418, 278332, 344537, 342726],  // 6.3, slice=2048
-            (_, ..=1024) => [-4990, 23096, -60766, 148667, 192850, 217777, 214747], // 12, 6.8, slice=1024
-            (_, _) => [-1914, 10973, 70225, 173122, 240880, 305750, 293320],   // 12, 6.8, slice=2048
+        Weights(match MULTIPLIER {  // TODO optimize 4 128
+            1 => match (bits_per_seed, slice_len) {
+                (..=6, ..=256) => [-81980, 50520, 90817, 106897, 116472, 123937, 287280], // 6, 3.0, slice=256
+                (_, ..=256) => [-85977, 81531, 98837, 107586, 113333, 117710, 120656],  // 7, 3.5, slice=256
+                (..=7, ..=512) => [-95834, 38499, 103035, 124756, 137603, 147839, 155448],  // 7, 3.5, slice=512
+                (_, ..=512) => [-68137, 80516, 110189, 123629, 132794, 140850, 145685], // 8, 4.1, slice=512
+                (..=8, ..=1024) => [-49776, 28610, 120514, 154976, 177328, 193499, 204936],  // 8, 4.1, slice=1024
+                (..=8, _) => [-14014, -11926, 63698, 144877, 194056, 353593, 360338],  // 8, 4.1, slice=2048
+                (9, ..=1024) => [-60439, 49207, 121850, 149181, 166713, 179181, 187815],  // 5.1, slice=1024
+                (9, _) => [48168, 48328, 132443, 197796, 234543, 260358, 279164],  // 5.1, slice=2048
+                (10, ..=1024) => [-4759, 9930, 87924, 125082, 143308, 165460, 165095], // 5.7, slice=1024
+                (10, _) => [-3419, 8042, 98860, 145429, 176433, 198538, 214441],   // 5.7, slice=2048
+                (11, ..=1024) => [-1560, 25555, 96323, 156791, 189688, 201315, 198828],    // 6.3, slice=1024
+                (11, _) => [-294, 2300, 161956, 227418, 278332, 344537, 342726],  // 6.3, slice=2048
+                (_, ..=1024) => [-4990, 23096, -60766, 148667, 192850, 217777, 214747], // 12, 6.8, slice=1024
+                (_, _) => [-1914, 10973, 70225, 173122, 240880, 305750, 293320],   // 12, 6.8, slice=2048
+            },
+            _ => match (bits_per_seed, slice_len) {
+                (..=6, ..=256) => [-115873, 67318, 91593, 101415, 109433, 114568, 118100], // 6, 3.0, slice=256
+                (_, ..=256) => [-83435, 78758, 97979, 107759, 114723, 120029, 124071],  // 7, 3.5, slice=256
+                (..=7, ..=512) => [-68902, 66418, 102860, 120541, 131314, 141179, 146993],  // 7, 3.5, slice=512
+                (_, ..=512) => [-69259, 68202, 106995, 125358, 137996, 147309, 153416], // 8, 4.1, slice=512
+                (..=8, ..=1024) => [-61818, 63888, 120146, 148699, 166377, 182094, 192529],  // 8, 4.1, slice=1024
+                (..=8, _) => [-11265, -3609, 98176, 161487, 203684, 362099, 424579],  // 8, 4.1, slice=2048
+                (9, ..=1024) => [-64174, 1575, 129667, 173689, 195108, 206753, 210827],  // 5.1, slice=1024
+                (9, _) => [40622, 47541, 152267, 207384, 240842, 267175, 286192],  // 5.1, slice=2048
+                (10, ..=1024) => [-4917, 9392, 71117, 135275, 160314, 167119, 166593], // 5.7, slice=1024
+                (10, _) => [470, 3610, 158817, 228496, 259877, 277325, 288015],   // 5.7, slice=2048
+                (11, ..=1024) => [-2775, 21749, -46062, 167191, 209130, 225950, 225267],    // 6.3, slice=1024
+                (11, _) => [-329, 2456, 101429, 227303, 292154, 361298, 352134],  // 6.3, slice=2048
+                (_, ..=1024) => [-5686, 25837, -33718, -1789, 19954, 231032, 475063], // 12, 6.8, slice=1024
+                (_, _) => [-2348, 10665, 53981, 67995, 242406, 278044, 488961],   // 12, 6.8, slice=2048
+            }
         })
     }
 
@@ -334,8 +155,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnly<MULTIPLIER> {
                 ..=4 => 128,
                 ..=6 => 256,
                 7 => 512,
-                8..=9 => 1024,
-                _ => 2048
+                8 => 1024,
+                _ => 2048   // TODO check 9
             },
             _ => match bits_per_seed {
                 ..=4 => 128,

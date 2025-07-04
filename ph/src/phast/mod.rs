@@ -24,9 +24,7 @@ mod partial;
 pub use partial::Partial;
 
 mod seed_chooser;
-mod seed_chooser_k;
-pub use seed_chooser::{SeedChooser, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftSeedWrapped};
-pub use seed_chooser_k::{SeedOnlyK};
+pub use seed_chooser::{SeedChooser, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftSeedWrapped, SeedOnlyK};
 
 /// Power of two grater or equal than `WINDOW_SIZE`.
 const MAX_WINDOW_SIZE: usize = 256;
