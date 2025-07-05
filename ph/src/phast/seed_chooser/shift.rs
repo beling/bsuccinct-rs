@@ -285,8 +285,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
             2 => match bits_per_seed {
                 ..=5 => 256,
                 ..=7 => 512,
-                8|9 => 1024,    // TODO check 9
-                _ => 2048
+                8 => 1024,
+                _ => 2048   // for 9, 1024 is also a good choice
             },
             _ => match bits_per_seed {
                 ..=4 => 256,
