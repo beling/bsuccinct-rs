@@ -5,7 +5,7 @@ use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::{current_num_threads, iter::{IntoParallelIterator, ParallelIterator}};
 
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -53,6 +53,24 @@ pub enum Method {
         multiplier: u8
     },
 }
+
+impl std::fmt::Display for Method {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Method::phast => write!(f, "PHast"),
+            Method::phast2 => write!(f, "PHast2"),
+            Method::pluswrap { multiplier } => write!(f, "PHast+wrap {multiplier}"),
+            Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
+            Method::plus { multiplier } => write!(f, "PHast+ {multiplier}"),
+            Method::perfect => write!(f, "Perfect"),
+            Method::optphast => write!(f, "Optimize PHast weights"),
+            Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
+            Method::optplus { multiplier } => write!(f, "Optimize PHast+ {multiplier} weights"),
+        }
+    }
+}
+
+pub const CSV_HEADER: &'static str = "keys num, method, k, bits/seed, bucket_size100, slice, threads, seed, bits/key, bumped %, range overhead %, build ns/key, query ns/key";
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -105,7 +123,10 @@ pub struct Conf {
     /// Slice length or 0 for auto
     #[arg(short='l', long, default_value_t = 0)]
     pub slice_len: u16,
-    
+
+    /// Print output in CSV format
+    #[arg(long, default_value_t = false)]
+    pub csv: bool,
 }
 
 impl Conf {
@@ -137,6 +158,21 @@ impl Conf {
         Params { seed_size, bucket_size100: self.bucket_size_100(), preferred_slice_len: self.slice_len }
     }
 
+    pub fn threads(&self) -> usize { if self.multiple_threads { current_num_threads() } else { 1 } }
+
+    /// Whether the configuration supports CSV output
+    pub fn support_csv(&self) -> bool {
+        match self.method {
+            Method::optphast|Method::optplus { multiplier: _ }|Method::optpluswrap { multiplier: _ } => false,
+            _ => true
+        }
+    }
+
+    pub fn print_csv(&self) {
+        print!("{}, {}, {}, {}, {}, {}, {}",
+            self.keys_num, self.method, self.k, self.bits_per_seed, self.bucket_size_100(), self.slice_len, self.threads())
+    }
+
     pub fn run<F, B>(&self, build: B)
         where F: Function, B: Fn(&[u64]) -> F
     {
@@ -154,10 +190,14 @@ impl Conf {
                 bumped_keys: 0,
                 range: f.output_range()
             };
-            result.print_try(try_nr, self);
-            total += result;
+            if self.csv {
+                result.print_csv(try_nr, self);
+            } else {
+                result.print_try(try_nr, self);
+                total += result;
+            }
         }
-        total.print_avg(self);
+        if !self.csv { total.print_avg(self); }
     }
 
     pub fn runp<F, B>(&self, build: B)
@@ -186,14 +226,18 @@ impl Conf {
                 bumped_keys: self.keys_num as usize - assigned_keys,
                 range: f.output_range(),
             };
-            result.print_try(try_nr, self);
             /*let range = f.output_range();
             if max_value+1 != range {
                 print!(", real range = {}", max_value+1)
             }*/
-            total += result;
+            if self.csv {
+                result.print_csv(try_nr, self);
+            } else {
+                result.print_try(try_nr, self);
+                total += result;
+            }
         }
-        total.print_avg(self);
+        if !self.csv { total.print_avg(self); }
     }
 
     pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {

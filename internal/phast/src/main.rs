@@ -22,14 +22,17 @@ use clap::Parser;
 
 use ph::seeds::{Bits8, BitsFast};
 use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped};
-use rayon::current_num_threads;
 
 fn main() {
     let conf = Conf::parse();
-    let threads_num = if conf.multiple_threads { current_num_threads() } else { 1 };
+    let threads_num = conf.threads();
     let bucket_size = conf.bucket_size_100();
-    println!("n={} k={} bits/seed={} lambda={:.2} slice={} threads={threads_num}", conf.keys_num, conf.k,
-        conf.bits_per_seed, bucket_size as f64/100 as f64, conf.slice_len);
+    if conf.csv && conf.support_csv() {
+        println!("{}", conf::CSV_HEADER);
+    } else {
+        println!("{} n={} k={} bits/seed={} lambda={:.2} slice={} threads={threads_num}",
+        conf.method, conf.keys_num, conf.k, conf.bits_per_seed, bucket_size as f64/100 as f64, conf.slice_len);
+    }
     match (conf.method, conf.k, conf.bits_per_seed, conf.one) {
         (Method::phast, 1, 8, false) =>
             conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, SeedOnly)),

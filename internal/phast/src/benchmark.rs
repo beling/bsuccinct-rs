@@ -1,5 +1,7 @@
 use std::time::{Duration, Instant};
 
+use butils::UnitPrefix;
+
 use crate::Conf;
 
 #[derive(Default)]
@@ -35,7 +37,7 @@ impl Result {
         let total_keys = tries as usize * key_num as usize;
         print!("{:.3} bits/key", (8*self.size_bytes) as f64 / total_keys as f64);
         if self.bumped_keys != 0 {
-            print!(", {:#.2?}% bumped", (self.bumped_keys * 100) as f64 / total_keys as f64);
+            print!(", {:.2}% bumped", (self.bumped_keys * 100) as f64 / total_keys as f64);
         }
         let minimum_range = minimum_range as usize * tries as usize;
         if self.range != minimum_range {
@@ -46,6 +48,19 @@ impl Result {
             print!(", {:#.2?} evaluation", self.evaluation_time / (total_keys as u32 * evals_per_try))
         }
         println!();
+    }
+
+    pub fn print_csv(&self, try_nr: u32, conf: &Conf) {
+        conf.print_csv();
+        let keys = conf.keys_num as f64;
+        let minimum_range = conf.minimum_range() as usize;
+        print!(", {try_nr}, {:.3}, {:.2}, {:.2}, {:.2}, {:.2}",
+            (8*self.size_bytes) as f64 / keys,
+            (self.bumped_keys * 100) as f64 / keys,
+            ((self.range - minimum_range) * 100) as f64 / minimum_range as f64,
+            (self.build_time.as_secs_f64() / keys).as_nanos(),
+            (self.evaluation_time.as_secs_f64() / keys).as_nanos()
+        );
     }
 
     pub fn print_try(&self, try_nr: u32, conf: &Conf) {
