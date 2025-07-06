@@ -177,6 +177,10 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     /// `key` must come from the input key collection given during construction.
     #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
+        /* TODO turbo support: let slice_begin = self.level0.slice_begin(key_hash);
+        let seed = self.level0.seed_for_slice(slice_begin);
+        if seed != 0 { return SC::f_slice(key_hash, slice_begin, seed, &self.level0.conf); } */
+
         let key_hash = self.hasher.hash_one(key, 0);
         let seed = self.level0.seed_for(self.seed_size, key_hash);
         if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }

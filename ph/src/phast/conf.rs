@@ -78,6 +78,16 @@ impl Conf {
         }
     }
 
+    // configuration for "turbo" function that ussume that input=output range and bucket_size_100 is about 400.
+    /*pub(crate) fn turbo_new(output_range: usize, slice_len: u16, max_shift: u16) -> Self {
+        let num_of_slices = output_range + 1 - slice_len as usize - max_shift as usize;
+        Self {
+            buckets_num: (num_of_slices-1)/4+1,
+            slice_len_minus_one: slice_len - 1,
+            num_of_slices,
+        }
+    }*/
+
     /// Returns output range of the function.
     #[inline] pub fn output_range<SC: SeedChooser>(&self, seed_chooser: SC, bits_per_seed: u8) -> usize {
         self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(bits_per_seed) as usize
@@ -156,6 +166,21 @@ impl Conf {
     #[inline] pub(crate) fn new_seeds_vec<SS: SeedSize>(&self, seed_size: SS) -> Box<[SS::VecElement]> {
         seed_size.new_zeroed_seed_vec(self.buckets_num)
     }
+
+    // Returns bucket assigned to the `slice_begin` by "turbo" configuration.
+    /*#[inline(always)]
+    pub(crate) fn turbo_bucket_for_slice(&self, slice_begin: usize) -> usize {
+        slice_begin / 4
+    }*/
+
+    // Returns bucket assigned to the `key` by "turbo" configuration, using `turbo_bucket_for_slice`.
+    // It can be faster than bucket_for only if `slice_begin` is called near this call
+    // and compiler optime out redundant `slice_begin` calculation.
+    /*#[inline(always)]
+    pub(crate) fn turbo_bucket_for_key(&self, key: u64) -> usize {
+        self.turbo_bucket_for_slice(self.slice_begin(key))
+    }*/
+
 }
 
 #[derive(Clone, Copy)]

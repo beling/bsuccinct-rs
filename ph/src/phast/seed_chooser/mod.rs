@@ -154,6 +154,10 @@ impl SeedChooser for SeedOnly {
         conf.f(primary_code, seed)
     }
 
+    /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
+        slice_begin + conf.in_slice(primary_code, seed)
+    }*/
+
     #[inline(always)]
     fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
         let mut best_seed = 0;
