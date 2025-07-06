@@ -45,7 +45,7 @@ impl Result {
         }
         print!(", {:#.2?} build", self.build_time / tries as u32);
         if evals_per_try != 0 {
-            print!(", {:#.2?} evaluation", self.evaluation_time / (total_keys as u32 * evals_per_try))
+            print!(", {:#.2?}/key evaluation", self.evaluation_time / (total_keys as u32 * evals_per_try))
         }
         println!();
     }

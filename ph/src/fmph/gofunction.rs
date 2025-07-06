@@ -754,7 +754,7 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for GOFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::{test_mphf, test_phf};
+    use crate::utils::{tests::test_mphf_u64, verify_phf};
     use crate::fmph::TwoToPowerBits;
     use std::fmt::{Debug, Display};
     use crate::seeds::Bits;
@@ -781,7 +781,7 @@ mod tests {
         let goconf = GOConf::bps_bpg(Bits(3), bits_per_group);
         let h = GOFunction::from_slice_with_conf(to_hash, GOBuildConf::with_mt(goconf, false));
         //dbg!(h.size_bytes() as f64 * 8.0/to_hash.len() as f64);
-        test_mphf(to_hash, |key| h.get(key));
+        test_mphf_u64(to_hash, |key| h.get(key));
         test_hash2_invariants(&h);
         test_read_write(&h);
         assert_eq!(h.len(), to_hash.len());
@@ -876,7 +876,7 @@ mod tests {
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, usize::MAX),
             GOConf::default_biggest().into(),
             &mut crate::stats::BuildStatsPrinter::stdout());
-        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
+        verify_phf(LEN as usize, 0..LEN, |key| f.get(key).map(|v| v as usize));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.57);
     }
 
@@ -895,7 +895,7 @@ mod tests {
             assert_eq!(initial_len, expected_initial_len);
             remaining.sort();
             assert_eq!(remaining, vec![1, 1]);
-            test_mphf(&[2, 3, 4], |key| mphf.get(key));
+            test_mphf_u64(&[2, 3, 4], |key| mphf.get(key));
         } else {
             assert!(false)
         }

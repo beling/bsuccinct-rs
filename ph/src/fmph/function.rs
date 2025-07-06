@@ -652,7 +652,7 @@ impl<K: Hash + Sync + Send> From<Vec<K>> for Function {
 pub(crate) mod tests {
     use super::*;
     use std::fmt::Display;
-    use crate::utils::tests::{test_mphf, test_phf};
+    use crate::utils::{tests::test_mphf_u64, verify_phf};
 
     fn test_read_write(h: &Function) {
         let mut buff = Vec::new();
@@ -665,7 +665,7 @@ pub(crate) mod tests {
 
     fn test_with_input<K: Hash + Clone + Display + Sync>(to_hash: &[K]) {
         let h = Function::from_slice_with_conf(to_hash, BuildConf::mt(false));
-        test_mphf(to_hash, |key| h.get(key));
+        test_mphf_u64(to_hash, |key| h.get(key));
         test_read_write(&h);
         assert_eq!(h.len(), to_hash.len());
     }
@@ -689,7 +689,7 @@ pub(crate) mod tests {
         const LEN: u64 = 50_000;
         let f = Function::new(
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, 10_000));
-        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
+        verify_phf(LEN as usize, 0..LEN, |key| f.get(key).map(|v| v as usize));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
     }
 
@@ -698,7 +698,7 @@ pub(crate) mod tests {
         const LEN: u64 = 50_000;
         let f = Function::new(
             crate::fmph::keyset::CachedKeySet::dynamic((|| 0..LEN, || (0..LEN).into_par_iter()), 10_000));
-        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
+        verify_phf(LEN as usize, 0..LEN, |key| f.get(key).map(|v| v as usize));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
     }
 
@@ -709,7 +709,7 @@ pub(crate) mod tests {
         let f = Function::with_stats(
             crate::fmph::keyset::CachedKeySet::dynamic(|| 0..LEN, usize::MAX/*1_000_000_000*/),
             &mut crate::stats::BuildStatsPrinter::stdout());
-        test_phf(LEN as usize, 0..LEN, |key| f.get(key));
+        verify_phf(LEN as usize, 0..LEN, |key| f.get(key).map(|v| v as usize));
         assert!(f.size_bytes() as f64 * (8.0/LEN as f64) < 2.9);
     }
 
@@ -728,7 +728,7 @@ pub(crate) mod tests {
             assert_eq!(initial_len, expected_initial_len);
             remaining.sort();
             assert_eq!(remaining, vec![1, 1]);
-            test_mphf(&[2, 3, 4], |key| mphf.get(key));
+            test_mphf_u64(&[2, 3, 4], |key| mphf.get(key));
         } else {
             assert!(false)
         }

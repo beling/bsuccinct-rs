@@ -369,6 +369,6 @@ pub(crate) mod tests {
     fn test_small() {
         let input = [1, 2, 3, 4, 5];
         let f = Function2::from_slice_st(&input);
-        test_mphf(&input, |key| Some(f.get(key) as u64));
+        test_mphf(&input, |key| Some(f.get(key)));
     }
 }
