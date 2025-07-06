@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use ph::{phast::{Params, Partial, SeedChooser}, seeds::BitsFast};
+use ph::{phast::{Params, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
 
@@ -180,6 +180,9 @@ impl Conf {
         for try_nr in 1..=self.tries() {
             let keys = self.keys_for_seed(try_nr);
             let (f, build_time) = benchmark(|| build(&keys));
+            if self.verify {
+                verify_partial_kphf(self.k, f.output_range(), &keys, |key| Some(f.get(**key)));
+            }
             let evaluation_time = if self.evaluations > 0 {
                 benchmark(|| for _ in 0..self.evaluations { f.get_all(&keys) }).1
             } else { Default::default() };
@@ -207,6 +210,9 @@ impl Conf {
         for try_nr in 1..=self.tries() {
             let keys = self.keys_for_seed(try_nr);
             let (f, build_time) = benchmark(|| build(&keys));
+            if self.verify {
+                verify_partial_kphf(self.k, f.output_range(), &keys, |key| f.get(**key));
+            }
             let evaluation_time = if self.evaluations > 0 {
                 benchmark(|| for _ in 0..self.evaluations { f.get_all(&keys) }).1
             } else { Default::default() };
