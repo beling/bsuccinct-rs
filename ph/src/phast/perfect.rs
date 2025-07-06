@@ -318,33 +318,18 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
 pub(crate) mod tests {
     use std::fmt::Display;
 
-    use bitm::{BitAccess, BitVec};
+    use crate::utils::{verify_partial_kphf, verify_partial_phf};
 
     use super::*;
 
-    fn phf_test<SC, K: Display+Hash, SS: SeedSize, S: BuildSeededHasher>(f: &Perfect<SS, SC, S>, keys: &[K])
-        where SC: SeedChooser
+    fn phf_test<SC, K, SS, S>(f: &Perfect<SS, SC, S>, keys: &[K])
+        where K: Display+Hash, SC: SeedChooser, SS: SeedSize, S: BuildSeededHasher
     {
-        let expected_range = 8 * keys.len();
-        let mut seen_values = Box::with_zeroed_bits(expected_range);
-        for key in keys {
-            let v = f.get(&key);
-            assert!(v < expected_range, "f({key})={v} exceeds 8*number of keys = {}", expected_range-1);
-            assert!(!seen_values.get_bit(v as usize), "f returned the same value {v} for {key} and another key");
-            seen_values.set_bit(v as usize);
-        }
+        verify_partial_phf(f.output_range(), keys, |key| Some(f.get(key)));
     }
 
     fn kphf_test<K: Display+Hash, SS: SeedSize, S: BuildSeededHasher>(f: &Perfect<SS, SeedOnlyK, S>, keys: &[K]) {
-        let k = f.k();
-        let expected_range = 8 * keys.len() / k as usize;
-        let mut seen_values = vec![0; expected_range];
-        for key in keys {
-            let v = f.get(&key);
-            assert!(v < expected_range, "f({key})={v} exceeds 8*number of keys = {}", expected_range-1);
-            assert!(seen_values[v as usize] < k, "f returned the same value {v} for {key} and {k} another keys");
-            seen_values[v as usize] += 1;
-        }
+        verify_partial_kphf(f.k(), f.output_range(), keys, |key| Some(f.get(key)));
     }
     
     #[test]
