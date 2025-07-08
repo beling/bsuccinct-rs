@@ -62,7 +62,7 @@ impl Result {
             (self.bumped_keys * 100) as f64 / total_keys,
             ((self.range - minimum_range) * 100) as f64 / minimum_range as f64,
             (self.build_time.as_secs_f64() / total_keys).as_nanos(),
-            (self.evaluation_time.as_secs_f64() / total_keys).as_nanos()
+            (self.evaluation_time.as_secs_f64() / (total_keys * conf.evaluations as f64)).as_nanos()
         );
     }
 
