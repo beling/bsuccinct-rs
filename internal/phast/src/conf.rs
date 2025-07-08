@@ -171,7 +171,7 @@ impl Conf {
     /// Whether the configuration supports CSV output
     pub fn support_csv(&self) -> bool {
         match self.method {
-            Method::optphast|Method::optplus { multiplier: _ }|Method::optpluswrap { multiplier: _ }|Method::none => false,
+            Method::optphast|Method::optplus { multiplier: _ }|Method::optpluswrap { multiplier: _ } => false,
             _ => true
         }
     }
