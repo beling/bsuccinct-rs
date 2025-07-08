@@ -52,6 +52,9 @@ pub enum Method {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
         multiplier: u8
     },
+
+    /// Do nothing
+    none
 }
 
 impl std::fmt::Display for Method {
@@ -66,6 +69,7 @@ impl std::fmt::Display for Method {
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus { multiplier } => write!(f, "Optimize PHast+ {multiplier} weights"),
+            Method::none => write!(f, "Do nothing"),
         }
     }
 }
@@ -127,6 +131,10 @@ pub struct Conf {
     /// Print output in CSV format
     #[arg(long, default_value_t = false)]
     pub csv: bool,
+
+    /// Print CSV header
+    #[arg(long, default_value_t = false)]
+    pub head: bool,
 }
 
 impl Conf {
@@ -163,7 +171,7 @@ impl Conf {
     /// Whether the configuration supports CSV output
     pub fn support_csv(&self) -> bool {
         match self.method {
-            Method::optphast|Method::optplus { multiplier: _ }|Method::optpluswrap { multiplier: _ } => false,
+            Method::optphast|Method::optplus { multiplier: _ }|Method::optpluswrap { multiplier: _ }|Method::none => false,
             _ => true
         }
     }
@@ -193,14 +201,10 @@ impl Conf {
                 bumped_keys: 0,
                 range: f.output_range()
             };
-            if self.csv {
-                result.print_csv(try_nr, self);
-            } else {
-                result.print_try(try_nr, self);
-                total += result;
-            }
+            result.print_try(try_nr, self);
+            total += result;
         }
-        if !self.csv { total.print_avg(self); }
+        total.print_avg(self);
     }
 
     pub fn runp<F, B>(&self, build: B)
@@ -236,14 +240,10 @@ impl Conf {
             if max_value+1 != range {
                 print!(", real range = {}", max_value+1)
             }*/
-            if self.csv {
-                result.print_csv(try_nr, self);
-            } else {
-                result.print_try(try_nr, self);
-                total += result;
-            }
+            result.print_try(try_nr, self);
+            total += result;
         }
-        if !self.csv { total.print_avg(self); }
+        total.print_avg(self);
     }
 
     pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {

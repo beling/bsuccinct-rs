@@ -33,6 +33,7 @@ impl std::ops::AddAssign for Result {
 }
 
 impl Result {
+    #[inline(never)]
     pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32) {
         let total_keys = tries as usize * key_num as usize;
         print!("{:.3} bits/key", (8*self.size_bytes) as f64 / total_keys as f64);
@@ -50,7 +51,22 @@ impl Result {
         println!();
     }
 
-    pub fn print_csv(&self, try_nr: u32, conf: &Conf) {
+    #[inline(never)]
+    pub fn print_avg_csv(&self, conf: &Conf) {
+        conf.print_csv();
+        let tries = conf.tries();
+        let total_keys = tries as f64 * conf.keys_num as f64;
+        let minimum_range = conf.minimum_range() as usize * tries as usize;
+        println!(", {tries}, {:.3}, {:.2}, {:.2}, {:.2}, {:.2}",
+            (8*self.size_bytes) as f64 / total_keys,
+            (self.bumped_keys * 100) as f64 / total_keys,
+            ((self.range - minimum_range) * 100) as f64 / minimum_range as f64,
+            (self.build_time.as_secs_f64() / total_keys).as_nanos(),
+            (self.evaluation_time.as_secs_f64() / total_keys).as_nanos()
+        );
+    }
+
+    /*pub fn print_csv(&self, try_nr: u32, conf: &Conf) {
         conf.print_csv();
         let keys = conf.keys_num as f64;
         let minimum_range = conf.minimum_range() as usize;
@@ -61,14 +77,18 @@ impl Result {
             (self.build_time.as_secs_f64() / keys).as_nanos(),
             (self.evaluation_time.as_secs_f64() / keys).as_nanos()
         );
-    }
+    }*/
 
+    #[inline(never)]
     pub fn print_try(&self, try_nr: u32, conf: &Conf) {
+        if conf.csv { return; }
         if conf.many_tries() { print!("{try_nr}: "); }
         self.print(1, conf.keys_num, conf.evaluations, conf.minimum_range());
     }
 
+    #[inline(never)]
     pub fn print_avg(&self, conf: &Conf) {
+        if conf.csv { self.print_avg_csv(conf); return; }
         if !conf.many_tries() { return; }
         print!("Average: ");
         self.print(conf.tries(), conf.keys_num, conf.evaluations, conf.minimum_range());

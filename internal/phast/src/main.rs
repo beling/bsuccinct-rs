@@ -28,7 +28,7 @@ fn main() {
     let threads_num = conf.threads();
     let bucket_size = conf.bucket_size_100();
     if conf.csv && conf.support_csv() {
-        println!("{}", conf::CSV_HEADER);
+        if conf.head { println!("{}", conf::CSV_HEADER); }
     } else {
         println!("{} n={} k={} bits/seed={} lambda={:.2} slice={} threads={threads_num}",
         conf.method, conf.keys_num, conf.k, conf.bits_per_seed, bucket_size as f64/100 as f64, conf.slice_len);
@@ -138,6 +138,7 @@ fn main() {
         (Method::optplus { multiplier: 2 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<2>),
         (Method::optplus { multiplier: 3 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<3>),
 
+        (Method::none, _, _, _) => {},
         _ => eprintln!("Unsupported configuration.")
     };
 }
