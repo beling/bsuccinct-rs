@@ -74,7 +74,7 @@ impl std::fmt::Display for Method {
     }
 }
 
-pub const CSV_HEADER: &'static str = "keys num, method, k, bits/seed, bucket_size100, slice, threads, seed, bits/key, bumped %, range overhead %, build ns/key, query ns/key";
+pub const CSV_HEADER: &'static str = "keys_num method k bits/seed bucket_size100 slice threads seed bits/key bumped_% range_overhead_% build_ns/key query_ns/key";
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -177,8 +177,9 @@ impl Conf {
     }
 
     pub fn print_csv(&self) {
-        print!("{}, {}, {}, {}, {}, {}, {}",
-            self.keys_num, self.method, self.k, self.bits_per_seed, self.bucket_size_100(), self.slice_len, self.threads())
+        print!("{} {} {} {} {} {} {}",
+            self.keys_num, self.method.to_string().replace(" ", "_"),
+            self.k, self.bits_per_seed, self.bucket_size_100(), self.slice_len, self.threads())
     }
 
     pub fn run<F, B>(&self, build: B)

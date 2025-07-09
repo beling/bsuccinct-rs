@@ -57,7 +57,7 @@ impl Result {
         let tries = conf.tries();
         let total_keys = tries as f64 * conf.keys_num as f64;
         let minimum_range = conf.minimum_range() as usize * tries as usize;
-        println!(", {tries}, {:.3}, {:.2}, {:.2}, {:.2}, {:.2}",
+        println!(" {tries} {} {} {} {} {}",
             (8*self.size_bytes) as f64 / total_keys,
             (self.bumped_keys * 100) as f64 / total_keys,
             ((self.range - minimum_range) * 100) as f64 / minimum_range as f64,
