@@ -135,6 +135,10 @@ pub struct Conf {
     /// Print CSV header
     #[arg(long, default_value_t = false)]
     pub head: bool,
+
+    /// Print less, only average.
+    #[arg(long, default_value_t = false)]
+    pub less: bool,
 }
 
 impl Conf {

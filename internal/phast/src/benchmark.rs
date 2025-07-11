@@ -81,7 +81,7 @@ impl Result {
 
     #[inline(never)]
     pub fn print_try(&self, try_nr: u32, conf: &Conf) {
-        if conf.csv { return; }
+        if conf.csv || conf.less { return; }
         if conf.many_tries() { print!("{try_nr}: "); }
         self.print(1, conf.keys_num, conf.evaluations, conf.minimum_range());
     }

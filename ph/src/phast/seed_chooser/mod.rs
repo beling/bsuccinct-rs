@@ -12,9 +12,9 @@ pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, pr
     match output_without_shift_range {
         n @ 0..64 => (n/2+1).next_power_of_two() as u16,
         64..1300 => 64,
-        1300..1750 => 128,
-        1750..7500 => 256,
-        7500..150000 => 512,
+        1300..9500 => 128,
+        9500..12000 => 256,
+        12000..140000 => 512,
         _ if bits_per_seed < 6 => if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
         _ if bits_per_seed < 12 => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
         _ => if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
