@@ -2,7 +2,10 @@ mod k;
 pub use k::SeedOnlyK;
 
 mod shift;
-pub use shift::{ShiftOnly, ShiftOnlyWrapped, ShiftSeedWrapped};
+pub use shift::{ShiftOnly};
+
+mod shift_wrap;
+pub use shift_wrap::{ShiftOnlyWrapped, ShiftSeedWrapped};
 
 use crate::phast::{cyclic::{GenericUsedValue, UsedValueSet}, Params, Weights};
 
