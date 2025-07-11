@@ -1,4 +1,4 @@
-use crate::phast::{conf::{mix_key_seed, Conf}, cyclic::{GenericUsedValue, UsedValueSet}, Weights};
+use crate::phast::{conf::{mix_key_seed, Conf}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}, Weights};
 use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
@@ -15,14 +15,14 @@ use super::SeedChooser;
     keys.iter().map(|key| conf.f_shift0(*key))
 }
 
-#[inline] fn occupy_sum(mut excluded: u64, used_values: &UsedValueSet, without_shift: &[usize], shift: u16) -> u64 {
+#[inline] fn occupy_sum<const UVS: usize>(mut excluded: u64, used_values: &CyclicSet<UVS>, without_shift: &[usize], shift: u16) -> u64 {
     for first in without_shift.iter() {
         excluded |= used_values.get64(*first + shift as usize);
     }
     excluded
 }
 
-#[inline] fn mark_used(used_values: &mut UsedValueSet, without_shift: &[usize], total_shift: u16) {
+#[inline] fn mark_used<const UVS: usize>(used_values: &mut CyclicSet<UVS>, without_shift: &[usize], total_shift: u16) {
     for first in without_shift {
         used_values.add(*first + total_shift as usize);
     }
@@ -56,7 +56,7 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
      * `used_values` shows values already used by the keys from other buckets.
      */
     #[inline]
-    fn best_in_range(shift_end: u16, without_shift: &mut [(usize, u16)], used_values: &UsedValueSet) -> Option<u16> {
+    fn best_in_range<const UVS: usize>(shift_end: u16, without_shift: &mut [(usize, u16)], used_values: &CyclicSet<UVS>) -> Option<u16> {
         without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
         if without_shift.windows(2).any(|v| v[0].0+v[0].1 as usize==v[1].0+v[1].1 as usize) {
             return None;
@@ -239,7 +239,11 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnly<MULTIPLIER> {
 pub struct ShiftOnlyWrapped<const MULTIPLIER: u8>;
 
 impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
+
     type UsedValues = UsedValueSet;
+
+    //type UsedValues = UsedValueSetLarge;
+    //const FUNCTION2_THRESHOLD: usize = 4096*2;
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights(match MULTIPLIER {
@@ -280,7 +284,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
                 (11, _) => [-4045, 8964, 9362, 21128, 86855, 136683, 166640],   // 11, 6.3, slice=4096
                 (_, ..=1024) => [-2244, 32777, 107196, 142051, 161424, 177763, 183475], // 12, 6.8, slice=1024 USELESS
                 (_, ..=2048) => [-2808, 16026, 90346, 150206, 185508, 214963, 227887],   // 12, 6.8, slice=2048 USELESS
-                (_, _) => [-4044, 7164, 10158, 22096, 92563, 142914, 171123]    // 12, 6.8, slice=4096  USELESS?? pure performance
+                (_, _ /*..=4096*/) => [-4044, 7164, 10158, 22096, 92563, 142914, 171123],    // 12, 6.8, slice=4096  USELESS?? pure performance
+                //(_, _) => [-4849, 12371, 19420, 27337, 28560, 51301, 103428]    // 12, 6.8, slice=8192, TODO optimize
             },
             _ => match (bits_per_seed, slice_len) { // multiplier=3, almost the same result as for multiplier=2 weights
                 (..=6, ..=256) => [-143420, 70364, 89794, 100431, 107778, 113842, 253543], // 6, 3.0, slice=256
@@ -314,7 +319,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
             7500..150000 => 512,
             150000..250000 => 1024,*/
             //_ => 2048,
-            _ => 4096,
+            _ => /* 2* */ 4096,
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER {
             1 => match bits_per_seed {
                 ..=5 => 256,
@@ -322,6 +327,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
                 ..=9 => 1024,   // or 8 => 512 for smaller size
                 ..=11 => 2048,   // or 10 => 1024 for smaller size
                 _ => 4096,
+                //_ => 2*4096
             },
             2 => match bits_per_seed {
                 ..=5 => 256,
@@ -329,6 +335,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
                 8 => 1024,
                 ..=10 => 2048,   // for 9, 1024 is also a good choice
                 _ => 4096
+                //_ => 2*4096
             },
             _ => match bits_per_seed {
                 ..=4 => 256,

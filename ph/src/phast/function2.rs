@@ -150,7 +150,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
         //let max_keys = 2048.max(SC::extra_shift(bits_p))
-        while keys.len() > 2048*2 {
+        while keys.len() > SC::FUNCTION2_THRESHOLD /*2048*2*/ {
             let keys_len = keys.len();
             //println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
             //    keys_len as f64 / 100000.0,

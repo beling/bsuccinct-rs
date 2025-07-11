@@ -29,6 +29,8 @@ pub trait SeedChooser: Copy {
     /// The lowest seed that does not indicate bumping.
     const FIRST_SEED: u16 = if Self::BUMPING { 1 } else { 0 };
 
+    const FUNCTION2_THRESHOLD: usize = 2048*2;
+
     type UsedValues: GenericUsedValue;
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
