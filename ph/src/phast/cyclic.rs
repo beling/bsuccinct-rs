@@ -72,7 +72,7 @@ impl<const SIZE_64: usize> Default for CyclicSet<SIZE_64> {
 }
 
 pub type UsedValueSet = CyclicSet<{MAX_VALUES/64}>; // support slices up to 4096
-//pub type UsedValueSetLarge = CyclicSet<{MAX_VALUES*2/64}>;  // support slices up to 8192
+pub type UsedValueSetLarge = CyclicSet<{MAX_VALUES*2/64}>;  // support slices up to 8192
 
 /// SIZE must be the power of 2
 pub struct CyclicArray<T, const SIZE: usize = MAX_WINDOW_SIZE>(pub [T; SIZE]);

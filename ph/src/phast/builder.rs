@@ -240,7 +240,7 @@ where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Sync, BE::Value: S
     let mut thread_builders = Vec::with_capacity(threads_num);
     let mut bucket_begin = 0;
     let mut remaining_seeds = &mut seeds[..];
-    let gap = gap_for(conf.slice_len(), bucket_size100);
+    let gap = gap_for(conf.slice_len() + seed_chooser.extra_shift(seed_size.into()), bucket_size100);
     //dbg!(conf.slice_len(), bucket_size100, gap);
     for _ in 0..threads_num-1 {
         let seeds;

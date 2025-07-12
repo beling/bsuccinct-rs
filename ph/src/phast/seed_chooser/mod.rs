@@ -32,7 +32,8 @@ pub trait SeedChooser: Copy {
     /// The lowest seed that does not indicate bumping.
     const FIRST_SEED: u16 = if Self::BUMPING { 1 } else { 0 };
 
-    const FUNCTION2_THRESHOLD: usize = 2048*2;
+    /// Size of last level of Function2. Important when `extra_shift()>0` (i.e. for `ShiftOnly`).
+    const FUNCTION2_THRESHOLD: usize = 4096;
 
     type UsedValues: GenericUsedValue;
 
