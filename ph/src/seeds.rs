@@ -129,32 +129,36 @@ impl SeedSize for Bits {
 /// 
 /// Uses unaligned reads/writes to access data in SeedSize implementation.
 #[derive(Copy, Clone)]
-pub struct BitsFast(pub u8);
+pub struct BitsFast { bits: u8, mask: u16 }
 
 impl Mul<usize> for BitsFast {
     type Output = usize;
 
     #[inline(always)] fn mul(self, rhs: usize) -> Self::Output {
-        self.0 as usize * rhs
+        self.bits as usize * rhs
     }
 }
 
 impl Into<u8> for BitsFast {
-    #[inline(always)] fn into(self) -> u8 { self.0 }
+    #[inline(always)] fn into(self) -> u8 { self.bits }
 }
 
 impl TryFrom<u8> for BitsFast {
     type Error = &'static str;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Ok(Self(value))
+        Ok(Self::new(value))
     }
 }
 
 impl BitsFast {
+    pub fn new(bits: u8) -> Self {
+        Self { bits, mask: ((1u32<<bits)-1) as u16 }
+    }
+
     #[inline]
     fn vec_len(&self, number_of_seeds: usize) -> usize {
-        ceiling_div(number_of_seeds * self.0 as usize, 8) + 3
+        ceiling_div(number_of_seeds * self.bits as usize, 8) + 3
     }
 }
 
@@ -172,17 +176,17 @@ impl SeedSize for BitsFast {
     }
 
     #[inline(always)] fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16 {
-        (unsafe{ bitm::get_bits25(vec.as_ptr(), index * self.0 as usize) } & ((1<<self.0)-1)) as u16
+        (unsafe{ bitm::get_bits25(vec.as_ptr(), index * self.bits as usize) } as u16) & self.mask
     }
 
     #[inline(always)] fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
-        debug_assert!(seed < (1<<self.0));
-        unsafe { bitm::set_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32, (1<<self.0)-1) }
+        debug_assert!(seed <= self.mask);
+        unsafe { bitm::set_bits25(vec.as_mut_ptr(), index * self.bits as usize, seed as u32, self.mask as u32) }
     }
 
     #[inline(always)] fn init_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
-        debug_assert!(seed < (1<<self.0));
-        unsafe { bitm::init_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32) }
+        debug_assert!(seed <= self.mask);
+        unsafe { bitm::init_bits25(vec.as_mut_ptr(), index * self.bits as usize, seed as u32) }
     }
 
     fn write_seed_vec(&self, output: &mut dyn Write, seeds: &[Self::VecElement]) -> std::io::Result<()> {

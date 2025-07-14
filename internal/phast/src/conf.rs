@@ -266,7 +266,7 @@ impl Conf {
             let key_sets_num: u32 = 96;
             let unassigned_keys: usize = (0..key_sets_num).into_par_iter().map(|i| {
                 let mut keys = self.keys_for_seed(200+i);
-                Partial::with_hashes_bps_conf_sc_be_u(&mut keys, BitsFast(self.bits_per_seed),
+                Partial::with_hashes_bps_conf_sc_be_u(&mut keys, BitsFast::new(self.bits_per_seed),
                     conf,
                     seed_chooser, &evaluator).1
             }).sum();

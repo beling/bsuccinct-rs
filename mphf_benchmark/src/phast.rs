@@ -69,7 +69,7 @@ pub fn phast_benchmark_enc<SC, H, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K
     let b = match phast_conf.bits_per_seed {
         8 => benchmark_with::<SC, H, _, AC, _>(Bits8, bucket_size_100, i, conf, seed_chooser),
         4 => benchmark_with::<SC, H, _, AC, _>(TwoToPowerBitsStatic::<2>, bucket_size_100, i, conf, seed_chooser),
-        b => benchmark_with::<SC, H, _, AC, _>(BitsFast(b), bucket_size_100, i, conf, seed_chooser),
+        b => benchmark_with::<SC, H, _, AC, _>(BitsFast::new(b), bucket_size_100, i, conf, seed_chooser),
     };
     if let Some(ref mut f) = csv_file { writeln!(f, "{} {bucket_size_100} {encoder} {}", phast_conf.bits_per_seed, b.all()).unwrap(); }
     println!(" {encoder}\t{}", b);
