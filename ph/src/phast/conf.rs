@@ -196,6 +196,11 @@ impl<SS> Params<SS> {
         Self { seed_size, bucket_size100, preferred_slice_len: 0 }
     }
 
+    #[inline]
+    pub fn new_psl(seed_size: SS, bucket_size100: u16, preferred_slice_len: u16) -> Self {
+        Self { seed_size, bucket_size100, preferred_slice_len }
+    }
+
     /*#[inline]
     pub fn slice_len(&self, default: u16) -> u16 {
         if self.preferred_slice_len == 0 { default } else { self.preferred_slice_len }
