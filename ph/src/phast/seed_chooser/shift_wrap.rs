@@ -133,7 +133,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
     }
 
     #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add((seed-1) as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
+        conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
 
     /*#[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {
@@ -145,15 +145,15 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;
         let mut without_shift_box: Box<[(usize, u16)]>;
         let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {
-            without_shift_box = keys.iter().map(|key| (conf.slice_begin(*key), *key as u16 & conf.slice_len_minus_one)).collect();
+            without_shift_box = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one)).collect();
             &mut without_shift_box
         } else {
-            without_shift_arrayvec = keys.iter().map(|key| (conf.slice_begin(*key), *key as u16 & conf.slice_len_minus_one)).collect();
+            without_shift_arrayvec = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one)).collect();
             &mut without_shift_arrayvec
         };
 
         let slice_len = conf.slice_len();
-        let mut score_without_shift: usize = 1<<20;
+        let mut score_without_shift: usize = 1<<20; // this is not real score as we only need relative scores
         let mut best_score = usize::MAX;
         let mut total_end_shift = ((MULTIPLIER as u16) << bits_per_seed) - MULTIPLIER as u16;
         // note that total_last_shift itself is not allowed
@@ -188,10 +188,11 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         if best_total_shift == u16::MAX {
             0
         } else {
+            let best_plus_multiplier = best_total_shift as usize + MULTIPLIER as usize;
             for key in keys {
-                used_values.add(conf.slice_begin(*key) + ((*key as usize).wrapping_add(best_total_shift as usize)&conf.slice_len_minus_one as usize));
+                used_values.add(conf.slice_begin(*key) + ((*key as usize).wrapping_add(best_plus_multiplier)&conf.slice_len_minus_one as usize));
             }
-            best_total_shift / MULTIPLIER as u16 + 1 
+            (best_plus_multiplier / MULTIPLIER as usize) as u16
         }
     }
 }
