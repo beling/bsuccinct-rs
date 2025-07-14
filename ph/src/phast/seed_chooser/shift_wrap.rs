@@ -144,7 +144,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
     fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;
         let mut without_shift_box: Box<[(usize, u16)]>;
-        let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {
+        let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {   // we add MULTIPLIER to key as shift=0 is invalid (reserved for bumping)
             without_shift_box = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one)).collect();
             &mut without_shift_box
         } else {
@@ -153,7 +153,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         };
 
         let slice_len = conf.slice_len();
-        let mut score_without_shift: usize = 1<<20; // this is not real score as we only need relative scores
+        let mut score_without_shift: usize = 1<<20; // this is not a real score as we only need relative scores
         let mut best_score = usize::MAX;
         let mut total_end_shift = ((MULTIPLIER as u16) << bits_per_seed) - MULTIPLIER as u16;
         // note that total_last_shift itself is not allowed
