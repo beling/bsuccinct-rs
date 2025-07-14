@@ -46,7 +46,7 @@ impl Result {
         }
         print!(", {:#.2?} build", self.build_time / tries as u32);
         if evals_per_try != 0 {
-            print!(", {:#.2?}ns/key evaluation", self.evaluation_time.as_secs_f64().as_nanos() / (total_keys as u32 * evals_per_try) as f64)
+            print!(", {:.2?}ns/key evaluation", self.evaluation_time.as_secs_f64().as_nanos() / (total_keys * evals_per_try as usize) as f64)
         }
         println!();
     }
