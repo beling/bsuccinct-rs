@@ -133,7 +133,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
     }
 
     #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
+        conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one) as usize
+        //conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
 
     /*#[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {
