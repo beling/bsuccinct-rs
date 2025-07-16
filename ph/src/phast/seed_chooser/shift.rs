@@ -57,10 +57,10 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
      */
     #[inline]
     pub(crate) fn best_in_range<const UVS: usize>(shift_end: u16, without_shift: &mut [(usize, u16)], used_values: &CyclicSet<UVS>) -> Option<u16> {
-        without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
+        /*without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
         if without_shift.windows(2).any(|v| v[0].0+v[0].1 as usize==v[1].0+v[1].1 as usize) {
             return None;
-        }
+        }*/
         for shift in (0..shift_end).step_by(Self::STEP) {
             let mut used = Self::MASK;
             for &(sb, sh0) in without_shift.iter() {
@@ -69,6 +69,12 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
             if used != u64::MAX {
                 let total_shift = shift + used.trailing_ones() as u16;
                 if total_shift >= shift_end { return None; }
+
+                without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
+                if without_shift.windows(2).any(|v| v[0].0+v[0].1 as usize==v[1].0+v[1].1 as usize) {
+                    return None;
+                }
+
                 return Some(total_shift);
             }
         }
@@ -213,13 +219,15 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnly<MULTIPLIER> {
             without_shift_arrayvec = shifts0(keys, conf).collect();
             &mut without_shift_arrayvec
         };
-        if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test?
+        //if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test? 4.51 6.85 9.10
         let last_shift = ((MULTIPLIER as u16) << bits_per_seed) - MULTIPLIER as u16;
         for shift in (0..last_shift).step_by(Multiplier::<MULTIPLIER>::STEP) {
             let used = occupy_sum(Multiplier::<MULTIPLIER>::MASK, used_values, &without_shift, shift);
             if used != u64::MAX {
+                if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test? 4.46 6.76 9.02
                 let total_shift = shift + used.trailing_ones() as u16;
-                if total_shift >= last_shift { return 0; }   //total_shift+1 is too large
+                if total_shift >= last_shift /*|| self_collide(without_shift)*/ { return 0; }   //total_shift+1 is too large
+                //if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test? 4.43 6.77
                 mark_used(used_values, without_shift, total_shift);
                 return total_shift / MULTIPLIER as u16 + 1;
             }
