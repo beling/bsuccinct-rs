@@ -110,31 +110,11 @@ fn main() {
         (Method::pluswrap { multiplier:11 }| Method::pluswrap2 { multiplier:11 }, 1, b, true) =>
             conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<11>)),
 
-        (Method::plus { multiplier: 1 }, 1, 8, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly::<1>)),
-        (Method::plus { multiplier: 2 }, 1, 8, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly::<2>)),
-        (Method::plus { multiplier: 3 }, 1, 8, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly::<3>)),
-        (Method::plus { multiplier: 1 }, 1, b, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<1>)),
-        (Method::plus { multiplier: 2 }, 1, b, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<2>)),
-        (Method::plus { multiplier: 3 }, 1, b, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<3>)),
+        (Method::plus, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly)),
+        (Method::plus, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly)),
 
-        (Method::plus { multiplier: 1 }, 1, 8, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnly::<1>)),
-        (Method::plus { multiplier: 2 }, 1, 8, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnly::<2>)),
-        (Method::plus { multiplier: 3 }, 1, 8, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnly::<3>)),
-        (Method::plus { multiplier: 1 }, 1, b, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<1>)),
-        (Method::plus { multiplier: 2 }, 1, b, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<2>)),
-        (Method::plus { multiplier: 3 }, 1, b, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly::<3>)),
+        (Method::plus, 1, 8, true) => conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnly)),
+        (Method::plus, 1, b, true) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly)),
 
         (Method::optphast, 1, _, _) => conf.optimize_weights(SeedOnly),
         (Method::optphast, k, _, _) => conf.optimize_weights(SeedOnlyK(k)),
@@ -147,9 +127,7 @@ fn main() {
         (Method::optpluswrap { multiplier: 9 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<9>),
         (Method::optpluswrap { multiplier:11 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<11>),
 
-        (Method::optplus { multiplier: 1 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<1>),
-        (Method::optplus { multiplier: 2 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<2>),
-        (Method::optplus { multiplier: 3 }, 1, _, _) => conf.optimize_weights(ShiftOnly::<3>),
+        (Method::optplus, 1, _, _) => conf.optimize_weights(ShiftOnly),
 
         (Method::none, _, _, _) => {},
         _ => eprintln!("Unsupported configuration.")

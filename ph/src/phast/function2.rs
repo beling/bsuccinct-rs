@@ -17,7 +17,7 @@ use voracious_radix_sort::RadixSort;
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function2<SS, SC = ShiftOnly<2>, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
+pub struct Function2<SS, SC = ShiftOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
     level0: SeedEx<SS::VecElement>,

@@ -30,10 +30,7 @@ pub enum Method {
     },
 
     /// PHast+ with building last level using regular PHast
-    plus {
-        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
-        multiplier: u8
-    },
+    plus,
 
     /// k-perfect PHast
     perfect,
@@ -48,10 +45,7 @@ pub enum Method {
     },
 
     /// Optimize weights for selecting buckets by PHast+
-    optplus {
-        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
-        multiplier: u8
-    },
+    optplus,
 
     /// Do nothing
     none
@@ -64,11 +58,11 @@ impl std::fmt::Display for Method {
             Method::phast2 => write!(f, "PHast2"),
             Method::pluswrap { multiplier } => write!(f, "PHast+wrap {multiplier}"),
             Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
-            Method::plus { multiplier } => write!(f, "PHast+ {multiplier}"),
+            Method::plus => write!(f, "PHast+"),
             Method::perfect => write!(f, "Perfect"),
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
-            Method::optplus { multiplier } => write!(f, "Optimize PHast+ {multiplier} weights"),
+            Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::none => write!(f, "Do nothing"),
         }
     }
@@ -175,7 +169,7 @@ impl Conf {
     /// Whether the configuration supports CSV output
     pub fn support_csv(&self) -> bool {
         match self.method {
-            Method::optphast|Method::optplus { multiplier: _ }|Method::optpluswrap { multiplier: _ } => false,
+            Method::optphast|Method::optplus|Method::optpluswrap { multiplier: _ } => false,
             _ => true
         }
     }
