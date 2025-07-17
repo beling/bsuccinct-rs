@@ -57,10 +57,10 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
      */
     #[inline]
     pub(crate) fn best_in_range<const UVS: usize>(shift_end: u16, without_shift: &mut [(usize, u16)], used_values: &CyclicSet<UVS>) -> Option<u16> {
-        /*without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
+        without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
         if without_shift.windows(2).any(|v| v[0].0+v[0].1 as usize==v[1].0+v[1].1 as usize) {
             return None;
-        }*/
+        }
         for shift in (0..shift_end).step_by(Self::STEP) {
             let mut used = Self::MASK;
             for &(sb, sh0) in without_shift.iter() {
@@ -70,10 +70,10 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
                 let total_shift = shift + used.trailing_ones() as u16;
                 if total_shift >= shift_end { return None; }
 
-                without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
+                /*without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
                 if without_shift.windows(2).any(|v| v[0].0+v[0].1 as usize==v[1].0+v[1].1 as usize) {
                     return None;
-                }
+                }*/
 
                 return Some(total_shift);
             }
