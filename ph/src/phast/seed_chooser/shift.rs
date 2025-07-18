@@ -110,7 +110,7 @@ impl SeedChooser for ShiftOnly {
         };
         //if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test? 4.51 6.85 9.10
         let last_shift = (1 << bits_per_seed) - 1;
-        for shift in 0..last_shift {
+        for shift in (0..last_shift).step_by(64) {
             let used = occupy_sum(0, used_values, &without_shift, shift);
             if used != u64::MAX {
                 if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test? 4.46 6.76 9.02
