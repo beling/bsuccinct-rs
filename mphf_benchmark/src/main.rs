@@ -149,8 +149,6 @@ pub enum Method {
     phast(PHastConf),
     /// PHaster
     phaster(PHastConf), // TODO use Function2
-    /// PHaster x2
-    phaster2(PHastConf),     // TODO use Function2
     /// PHaster x2 wrapped
     phaster2wrap(PHastConf),
     /// PHaster x3 wrapped
@@ -320,32 +318,16 @@ fn run<K: CanBeKey>(conf: &Conf, i: &(Vec<K>, Vec<K>)) {
             println!("PHaster {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
             let mut csv_file = file("phaster", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
             if phast_conf.elias_fano() {
-                phast_benchmark::<DefaultCompressedArray, _, _>(&mut csv_file, i, conf, ShiftOnly::<1>::default(), phast_conf, "EF");
+                phast_benchmark::<DefaultCompressedArray, _, _>(&mut csv_file, i, conf, ShiftOnly::default(), phast_conf, "EF");
             }
             if phast_conf.compact {
-                phast_benchmark::<CompactFast, _, _>(&mut csv_file, i, conf, ShiftOnly::<1>::default(), phast_conf, "C");
+                phast_benchmark::<CompactFast, _, _>(&mut csv_file, i, conf, ShiftOnly::default(), phast_conf, "C");
             }
             if phast_conf.linear_simple {
-                phast_benchmark::<LinearRegressionArray<Simple>, _, _>(&mut csv_file, i, conf, ShiftOnly::<1>::default(), phast_conf, "LSimp");
+                phast_benchmark::<LinearRegressionArray<Simple>, _, _>(&mut csv_file, i, conf, ShiftOnly::default(), phast_conf, "LSimp");
             }
             if phast_conf.least_squares {
-                phast_benchmark::<LinearRegressionArray<LeastSquares>, _, _>(&mut csv_file, i, conf, ShiftOnly::<1>::default(), phast_conf, "LSqr");
-            }
-        },
-        Method::phaster2(ref phast_conf) => {
-            println!("PHaster2 {} {}: encoder results...", phast_conf.bits_per_seed, phast_conf.bucket_size());
-            let mut csv_file = file("phaster2", &conf, i.0.len(), i.1.len(), "bits_per_seed bucket_size100 encoder");
-            if phast_conf.elias_fano() {
-                phast_benchmark::<DefaultCompressedArray, _, _>(&mut csv_file, i, conf, ShiftOnly::<2>, phast_conf, "EF");
-            }
-            if phast_conf.compact {
-                phast_benchmark::<CompactFast, _, _>(&mut csv_file, i, conf, ShiftOnly::<2>, phast_conf, "C");
-            }
-            if phast_conf.linear_simple {
-                phast_benchmark::<LinearRegressionArray<Simple>, _, _>(&mut csv_file, i, conf, ShiftOnly::<2>, phast_conf, "LSimp");
-            }
-            if phast_conf.least_squares {
-                phast_benchmark::<LinearRegressionArray<LeastSquares>, _, _>(&mut csv_file, i, conf, ShiftOnly::<2>, phast_conf, "LSqr");
+                phast_benchmark::<LinearRegressionArray<LeastSquares>, _, _>(&mut csv_file, i, conf, ShiftOnly::default(), phast_conf, "LSqr");
             }
         },
         Method::phaster2wrap(ref phast_conf) => {
