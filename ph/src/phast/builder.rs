@@ -422,6 +422,8 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
         }
     }
 
+    /// Move `span_begin` forward to the first non-empty bucket (and returns `true`)
+    /// or to the end (and returns `false`).
     #[inline]
     fn find_nonempty(&mut self) -> bool {
         loop {
@@ -437,6 +439,7 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
         self.span_begin == self.buckets_num
     }
 
+    /// Adds buckets `[first_to_add, span_end())` to candidates queue.
     #[inline]
     fn add_candidates_from(&mut self, first_to_add: usize) {
         for bucket in first_to_add..self.span_end() {
