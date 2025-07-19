@@ -1,5 +1,72 @@
-use crate::phast::{conf::{mix_key_seed, Conf}, cyclic::{GenericUsedValue, UsedValueSet}, seed_chooser::shift::Multiplier, Weights};
+use crate::phast::{conf::{mix_key_seed, Conf}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}, Weights};
 use super::SeedChooser;
+
+
+/// Calculates a mask that has 0 only at positions divided by `multiplier`.
+const fn zero_at_each(multiplier: u8) -> u64 {
+    let mut result = u64::MAX;
+    let mut i = 0;
+    while i < 64 {
+        result ^= 1<<i;
+        i += multiplier;
+    }
+    result
+}
+
+/// Common code for checking each `MULTIPLIER` position.
+pub(crate) struct Multiplier<const MULTIPLIER: u8>;
+
+impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
+    pub(crate) const MASK: u64 = zero_at_each(MULTIPLIER); // mask that has 0 only at positions divided by `MULTIPLIER`
+    pub(crate) const STEP: usize = 64 - 64 % MULTIPLIER as usize;  // number of bits to use from each 64-bit fragment of used bitmap.
+
+    /**
+     * Returns the lowest collision-free shift which is lower than `shift_end`.
+     * or `None` if there are no collision-free shifts lower than `shift_end`.
+     * 
+     * For each key, `without_shift` contains begin index of the key slice and initial key position in this slice.
+     * The final value for each key is: its slice begin index + its initial position in slice + returned shift.
+     * 
+     * `used_values` shows values already used by the keys from other buckets.
+     */
+    #[inline]
+    pub(crate) fn best_in_range<const UVS: usize>(shift_end: u16, without_shift: &mut [(usize, u16)], used_values: &CyclicSet<UVS>) -> Option<u16> {
+        without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
+        if without_shift.windows(2).any(|v| v[0].0+v[0].1 as usize==v[1].0+v[1].1 as usize) {
+            return None;
+        }
+        for shift in (0..shift_end).step_by(Self::STEP) {
+            let mut used = Self::MASK;
+            for &(sb, sh0) in without_shift.iter() {
+                used |= used_values.get64(sb + sh0 as usize + shift as usize);
+            }
+            if used != u64::MAX {
+                let total_shift = shift + used.trailing_ones() as u16;
+                if total_shift >= shift_end { return None; }
+
+                /*without_shift.sort_unstable_by_key(|(sb, sh0)| sb+*sh0 as usize);  // maybe it is better to postpone self-collision test?
+                if without_shift.windows(2).any(|v| v[0].0+v[0].1 as usize==v[1].0+v[1].1 as usize) {
+                    return None;
+                }*/
+
+                return Some(total_shift);
+            }
+        }
+        None
+    }
+
+    pub(crate) fn multiple_rounded_up(mut shift_end: u16) -> u16 {
+        if MULTIPLIER != 1 {    // round up shift_end to MULTIPLIER
+            let r = shift_end % MULTIPLIER as u16;
+            if r != 0 {
+                shift_end -= r;
+                shift_end += MULTIPLIER as u16;
+            }
+        }
+        shift_end
+    }
+}
+
 
 #[derive(Clone, Copy)]
 pub struct ShiftOnlyWrapped<const MULTIPLIER: u8>;
@@ -133,7 +200,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
     }
 
     #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
+        conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one) as usize
+        //conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
 
     /*#[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {

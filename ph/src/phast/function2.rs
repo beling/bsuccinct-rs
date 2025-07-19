@@ -17,7 +17,7 @@ use voracious_radix_sort::RadixSort;
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function2<SS, SC = ShiftOnly<2>, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
+pub struct Function2<SS, SC = ShiftOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
     level0: SeedEx<SS::VecElement>,
@@ -143,6 +143,8 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             K: Hash
         {
         let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
+        //dbg!(keys.len(), unassigned_len, unassigned_values.bit_ones().count());
+        debug_assert_eq!(unassigned_len, unassigned_values.bit_ones().count());
         //Self::finish_building(keys, bits_per_seed, bucket_size100, threads_num, hasher, level0, unassigned_values, unassigned_len)
         let mut level0_unassigned = unassigned_values.bit_ones();
         let mut unassigned = Vec::with_capacity(unassigned_len * 3 / 2);

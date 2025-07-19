@@ -13,7 +13,7 @@ fn bucket_sizes_st(keys: &[u64], conf: &Conf) -> Box<[usize]> {
     buckets
 }
 
-fn bucket_sizes_mt(keys: &[u64], conf: &Conf, mut threads_num: usize) -> Box<[usize]> {    
+fn bucket_sizes_mt(keys: &[u64], conf: &Conf, mut threads_num: usize) -> Box<[usize]> { 
     //let mut threads_num = rayon::current_num_threads().min(keys.len() / (8*4096));
     threads_num = threads_num.min(keys.len() / (8*4096));
     if threads_num <= 1 { return bucket_sizes_st(keys, conf); }
@@ -145,6 +145,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
         if SC::BUMPING && seed == 0 { return; }
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
         for key_hash in keys {
+            //debug_assert!(unassigned_values.get_bit(self.seed_chooser.f(*key_hash, seed, &self.conf)));
             unassigned_values.clear_bit(self.seed_chooser.f(*key_hash, seed, &self.conf));
         }
         *unassigned_len -= keys.len();
@@ -187,11 +188,21 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
     return seeds;
 }*/
 
-/// Returns gap size for given `slice_len` and `bucket_size100`.
-#[inline] fn gap_for(slice_len: u16, bucket_size100: u16) -> usize {
-    // roundup((P + lambda) / lambda) =
-    (100 * slice_len as usize - 1) / bucket_size100 as usize + 2
+#[inline] fn gap_for(effective_slice_len: u16, bucket_num: usize, output_range: usize) -> usize {
+    let effective_slice_len = effective_slice_len as usize;
+    effective_slice_len * bucket_num / (output_range + 1 - effective_slice_len) + 1
 }
+
+/// Returns gap size for given `slice_len` and `bucket_size100`.
+/*#[inline] fn gap_for_old(slice_len: u16, bucket_size100: u16) -> usize {
+    // roundup((L + lambda) / lambda) =
+    (100 * slice_len as usize - 1) / bucket_size100 as usize + 2
+}*/
+
+/*#[inline] fn gap_for(slice_len: u16, number_of_buckets: usize, number_of_keys: usize) -> usize {
+    // roundup((L + lambda) / lambda) =
+    (slice_len as usize * number_of_buckets - 1) / number_of_keys + 2   + 20
+}*/
 
 #[inline(always)]
 pub(crate) fn build_last_level<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf, seed_size: SS, evaluator: BE)
@@ -218,7 +229,7 @@ where SC: SeedChooser, BE: BucketToActivateEvaluator
     (seeds, builder)
 }
 
-pub(crate) fn build_mt<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf, seed_size: SS, bucket_size100: u16, span_limit: u16, evaluator: BE, seed_chooser: SC, threads_num: usize)
+pub(crate) fn build_mt<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf, seed_size: SS, span_limit: u16, evaluator: BE, seed_chooser: SC, threads_num: usize)
  -> (Box<[SS::VecElement]>, BuildConf<'k, BE, SS, SC>)
 where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Sync, BE::Value: Send
 {
@@ -240,7 +251,8 @@ where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Sync, BE::Value: S
     let mut thread_builders = Vec::with_capacity(threads_num);
     let mut bucket_begin = 0;
     let mut remaining_seeds = &mut seeds[..];
-    let gap = gap_for(conf.slice_len() + seed_chooser.extra_shift(seed_size.into()), bucket_size100);
+    let gap = gap_for(conf.slice_len() + seed_chooser.extra_shift(seed_size.into()),
+        conf.buckets_num, conf.output_range(seed_chooser, seed_size.into()));
     //dbg!(conf.slice_len(), bucket_size100, gap);
     for _ in 0..threads_num-1 {
         let seeds;
@@ -422,6 +434,8 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
         }
     }
 
+    /// Move `span_begin` forward to the first non-empty bucket (and returns `true`)
+    /// or to the end (and returns `false`).
     #[inline]
     fn find_nonempty(&mut self) -> bool {
         loop {
@@ -437,6 +451,7 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
         self.span_begin == self.buckets_num
     }
 
+    /// Adds buckets `[first_to_add, span_end())` to candidates queue.
     #[inline]
     fn add_candidates_from(&mut self, first_to_add: usize) {
         for bucket in first_to_add..self.span_end() {

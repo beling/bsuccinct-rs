@@ -80,7 +80,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, SC, S>(keys: &[K], params: &Param
     hashes.voracious_mt_sort(threads_num);
     let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
-        build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+        build_mt(&hashes, conf, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(unassigned_len);
@@ -125,7 +125,7 @@ pub(crate) fn build_level_mt<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
     hashes.voracious_mt_sort(threads_num);
     let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
-        build_mt(&hashes, conf, params.seed_size, params.bucket_size100, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+        build_mt(&hashes, conf, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut result = Vec::with_capacity(unassigned_len);
@@ -268,6 +268,8 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             K: Hash
         {
         let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
+        debug_assert_eq!(unassigned_len, unassigned_values.bit_ones().count());
+        //dbg!(unassigned_len, keys.len(), unassigned_values.bit_ones().count());
         //Self::finish_building(keys, bits_per_seed, bucket_size100, threads_num, hasher, level0, unassigned_values, unassigned_len)
         let mut level0_unassigned = unassigned_values.bit_ones();
         let mut unassigned = Vec::with_capacity(unassigned_len * 3 / 2);
@@ -276,6 +278,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let mut last = 0;
         while !keys.is_empty() {
             let keys_len = keys.len();
+
             //println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
             //    keys_len as f64 / 100000.0,
                 //crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst),
