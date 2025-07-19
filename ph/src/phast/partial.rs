@@ -1,74 +1,10 @@
 use dyn_size_of::GetSize;
 use voracious_radix_sort::RadixSort;
 
-use crate::{phast::{builder::{build_mt, build_st, BuildConf}, conf::Conf, evaluator::BucketToActivateEvaluator, function::SeedEx, Params, SeedChooser, SeedOnly, WINDOW_SIZE}, seeds::SeedSize, stats};
-use std::{hash::{BuildHasher, Hash, RandomState}, time};
+use crate::{phast::{builder::{build_mt, build_st, BuildConf}, conf::Conf, evaluator::BucketToActivateEvaluator, function::SeedEx, Params, SeedChooser, SeedOnly, WINDOW_SIZE}, seeds::SeedSize};
+use std::hash::{BuildHasher, Hash, RandomState};
 
 
-pub trait BuildStats: Copy {
-    #[inline(always)] fn pre_hash(&mut self) {}
-    #[inline(always)] fn pre_sort(&mut self) {}
-    #[inline(always)] fn pre_seeding(&mut self) {}
-    #[inline(always)] fn pre_keys_removing(&mut self) {}
-    #[inline(always)] fn post_keys_removing(&mut self) {}
-}
-
-impl BuildStats for () {}
-
-#[derive(Clone, Copy)]
-pub struct BuildProgressRaport {
-    timer: time::Instant,
-    hash: time::Duration,
-    sort: time::Duration,
-    seeding: time::Duration,
-    removing: time::Duration
-}
-
-impl Default for BuildProgressRaport {
-    fn default() -> Self {
-        Self { timer: time::Instant::now(), hash: Default::default(), sort: Default::default(), seeding: Default::default(), removing: Default::default() }
-    }
-}
-
-impl BuildStats for BuildProgressRaport {
-    fn pre_hash(&mut self) {
-        print!("Calculating primary hashes... ");
-        self.timer = time::Instant::now();
-    }
-
-    fn pre_sort(&mut self) {
-        self.hash = self.timer.elapsed();
-        println!("DONE in {:#.2?}", self.hash);
-        print!("Sorting...");
-        self.timer = time::Instant::now();
-    }
-
-    fn pre_seeding(&mut self) {
-        self.sort = self.timer.elapsed();
-        println!("DONE in {:#.2?}", self.sort);
-        print!("Calculating seeds...");
-        self.timer = time::Instant::now();
-    }
-
-    fn pre_keys_removing(&mut self) {
-        self.seeding = self.timer.elapsed();
-        println!("DONE in {:#.2?}", self.seeding);
-        print!("Removing assigned keys...");
-        self.timer = time::Instant::now();
-    }
-
-    fn post_keys_removing(&mut self) {
-        self.removing = self.timer.elapsed();
-        println!("DONE in {:#.2?}", self.removing);
-        let total = self.hash + self.sort + self.seeding + self.removing;
-        println!("{total:#.2?} total with {:.0}/{:.0}/{:.0}/{:.0} percentage shares",
-            self.hash.div_duration_f64(total) * 100.0,
-            self.sort.div_duration_f64(total) * 100.0,
-            self.seeding.div_duration_f64(total) * 100.0,
-            self.removing.div_duration_f64(total) * 100.0,
-        )
-    }
-}
 
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
@@ -89,7 +25,7 @@ impl<SS: SeedSize, SC: SeedChooser> Partial<SS, SC, ()> {
     pub fn with_hashes_bps_conf_sc_be_u<'k, BE>(hashes: &'k mut [u64], seed_size: SS, conf: Conf, seed_chooser: SC, bucket_evaluator: BE) -> (Self, usize)
         where BE: BucketToActivateEvaluator
     {
-        let (f, build_conf) = Self::build_st(hashes, seed_size, conf, (), seed_chooser, bucket_evaluator, &mut ());
+        let (f, build_conf) = Self::build_st(hashes, seed_size, conf, (), seed_chooser, bucket_evaluator);
         let unassigned = build_conf.unassigned_len(&f.seeds.seeds);
         (f, unassigned)
     }
@@ -106,7 +42,7 @@ impl<SS: SeedSize, SC: SeedChooser> Partial<SS, SC, ()> {
     pub fn with_hashes_bps_conf_sc_be<'k, BE>(hashes: &'k mut [u64], seed_size: SS, conf: Conf, seed_chooser: SC, bucket_evaluator: BE) -> Self
         where BE: BucketToActivateEvaluator
     {
-        Self::build_st(hashes, seed_size, conf, (), seed_chooser, bucket_evaluator, &mut ()).0
+        Self::build_st(hashes, seed_size, conf, (), seed_chooser, bucket_evaluator).0
     }
 
     pub fn with_hashes_bps_conf_bs_threads_sc_be<'k, BE>(hashes: &'k mut [u64], seed_size: SS, conf: Conf, threads_num: usize, seed_chooser: SC, bucket_evaluator: BE) -> Self
@@ -189,13 +125,11 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
         (seed != 0).then(|| self.seed_chooser.f(key_hash, seed, &self.seeds.conf))
     }
 
-    fn build_st<'k, BE, BS: BuildStats>(hashes: &'k mut [u64], seed_size: SS, conf: Conf, hasher: S, seed_chooser: SC, bucket_evaluator: BE, stats: &mut BS)
+    fn build_st<'k, BE>(hashes: &'k mut [u64], seed_size: SS, conf: Conf, hasher: S, seed_chooser: SC, bucket_evaluator: BE)
      -> (Self, BuildConf<'k, BE, SS, SC>)
         where BE: BucketToActivateEvaluator
     {
-        stats.pre_sort();
         hashes.voracious_sort();
-        stats.pre_seeding();
         let (seeds, build_conf) = build_st(hashes, conf, seed_size, bucket_evaluator, seed_chooser);
         (Self {
             seeds: SeedEx{ seeds, conf },
@@ -209,7 +143,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
      -> (Self, BuildConf<'k, BE, SS, SC>)
         where BE: BucketToActivateEvaluator + Sync, SC: Sync, BE::Value: Send
     {
-        if threads_num == 1 { return Self::build_st(hashes, seed_size, conf, hasher, seed_chooser, bucket_evaluator, &mut ()); }
+        if threads_num == 1 { return Self::build_st(hashes, seed_size, conf, hasher, seed_chooser, bucket_evaluator); }
         hashes.voracious_mt_sort(threads_num);
         let (seeds, build_conf) = build_mt(hashes, conf, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
         (Self {
@@ -252,21 +186,20 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildHasher> Partial<SS, SC, S> {
     {
         let mut hashes: Box<[_]> = keys.map(|k| hasher.hash_one(k)).collect();
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
-        let (f, build_conf) = Self::build_st(&mut hashes, params.seed_size, conf, hasher, seed_chooser, bucket_evaluator, &mut ());
+        let (f, build_conf) = Self::build_st(&mut hashes, params.seed_size, conf, hasher, seed_chooser, bucket_evaluator);
         let unassigned = build_conf.unassigned_len(&f.seeds.seeds);
         (f, unassigned)
     }
 
     /// Returns [`Partial`] function and number of keys with unassigned values for given `keys`,
     /// using a single thread and given parameters.
-    pub fn with_keys_p_hash_sc_be_u_stats<'k, K, BE, BS>(keys: impl Iterator<Item = K>, params: &Params<SS>, hasher: S, seed_chooser: SC, bucket_evaluator: BE, stats: &mut BS)
+    pub fn with_keys_p_hash_sc_be_u_stats<'k, K, BE>(keys: impl Iterator<Item = K>, params: &Params<SS>, hasher: S, seed_chooser: SC, bucket_evaluator: BE)
      -> (Self, usize)
-        where K: Hash, BE: BucketToActivateEvaluator, BS: BuildStats
+        where K: Hash, BE: BucketToActivateEvaluator
     {
-        stats.pre_hash();
         let mut hashes: Box<[_]> = keys.map(|k| hasher.hash_one(k)).collect();
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
-        let (f, build_conf) = Self::build_st(&mut hashes, params.seed_size, conf, hasher, seed_chooser, bucket_evaluator, stats);
+        let (f, build_conf) = Self::build_st(&mut hashes, params.seed_size, conf, hasher, seed_chooser, bucket_evaluator);
         let unassigned = build_conf.unassigned_len(&f.seeds.seeds);
         (f, unassigned)
     }
