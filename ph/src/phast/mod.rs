@@ -31,7 +31,7 @@ const MAX_WINDOW_SIZE: usize = 256;
 
 /// Power of two grater or equal then range of values covered by the window.
 //const MAX_VALUES: usize = 4096;
-const MAX_VALUES: usize = 4096 * 2;
+const MAX_VALUES: usize = 4096 * 2  *2;
 
 /// Window size. Maximum number of elements in the priority queue.
 const WINDOW_SIZE: u16 = 256;
