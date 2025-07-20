@@ -1,4 +1,4 @@
-use ph::{fmph::TwoToPowerBitsStatic, phast::{CompressedArray, DefaultCompressedArray, Params, SeedChooser}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
+use ph::{fmph::TwoToPowerBitsStatic, phast::{stats::BuildProgressRaport, CompressedArray, DefaultCompressedArray, Params, SeedChooser}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
 
 use crate::{builder::{benchmark, TypeToQuery}, BenchmarkResult, Conf, IntHasher, KeySource, MPHFBuilder, PHastConf, StrHasher};
 use std::{fs::File, hash::Hash, io::Write};
@@ -15,7 +15,7 @@ pub struct PHastBencher<SC, SS, S, AC = DefaultCompressedArray> {
 impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
     where SC: SeedChooser + Sync, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
 {
-    type MPHF = ph::phast::Function<SS, SC, AC, S>;
+    type MPHF = ph::phast::Function2<SS, SC, AC, S>;
 
     type Value = usize;
 
@@ -24,11 +24,12 @@ impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
             Self::MPHF::with_slice_p_threads_hash_sc(keys, 
                 &Params::new(self.bits_per_seed, self.bucket_size_100),
                 std::thread::available_parallelism().map_or(1, |v| v.into()),
-                S::default(), self.seed_chooser, &mut ()
+                S::default(), self.seed_chooser, &mut BuildProgressRaport::default()
             )
         } else {
             Self::MPHF::with_slice_p_hash_sc(keys,
-                &Params::new(self.bits_per_seed, self.bucket_size_100), S::default(), self.seed_chooser, &mut ()
+                &Params::new(self.bits_per_seed, self.bucket_size_100),
+                S::default(), self.seed_chooser, &mut BuildProgressRaport::default()
             )
         }
     }
