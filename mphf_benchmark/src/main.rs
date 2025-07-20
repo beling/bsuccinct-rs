@@ -148,7 +148,7 @@ pub enum Method {
     /// PHast
     phast(PHastConf),
     /// PHast+
-    plus(PHastConf), // TODO use Function2
+    plus(PHastConf),
     /// PHast+ with wrapping and multiplier=1
     plus1wrap(PHastConf),
     /// PHast+ with wrapping and multiplier=2
