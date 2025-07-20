@@ -15,7 +15,7 @@ pub struct PHastBencher<SC, SS, S, AC = DefaultCompressedArray> {
 impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
     where SC: SeedChooser + Sync, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
 {
-    type MPHF = ph::phast::Function<SS, SC, AC, S>;
+    type MPHF = ph::phast::Function2<SS, SC, AC, S>;    // TODO Function(1) for regular PHast
 
     type Value = usize;
 
