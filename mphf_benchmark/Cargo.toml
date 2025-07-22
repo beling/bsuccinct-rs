@@ -27,7 +27,7 @@ ptr_hash = { version="1.1", optional = true }
 cacheline-ef = { version = "1.1", optional = true }
 mem_dbg = "0.3"
 clap = { version="4.0", features = ["derive"] }
-fxhash = "0.2"
+fxhash = { version = "0.2", optional = true }
 seedable_hash = { version="0.2", path="../seedable_hash", default-features = false }
 
 [features]

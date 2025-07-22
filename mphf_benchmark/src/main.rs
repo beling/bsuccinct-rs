@@ -31,7 +31,8 @@ use std::hash::Hash;
 use std::fmt::Debug;
 use rayon::current_num_threads;
 
-type IntHasher = ph::Seedable<fxhash::FxBuildHasher>;
+#[cfg(feature = "fxhash")] type IntHasher = ph::Seedable<fxhash::FxBuildHasher>;
+#[cfg(not(feature = "fxhash"))] type IntHasher = ph::BuildDefaultSeededHasher;
 type StrHasher = ph::BuildDefaultSeededHasher;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
