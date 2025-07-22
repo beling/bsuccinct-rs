@@ -176,7 +176,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
                 ..=5 => 256,
                 ..=7 => 512,   // or 6 => 256 for smaller size
                 ..=9 => 1024,   // or 8 => 512 for smaller size
-                ..=11 => 2048,   // or 10 => 1024 for smaller size
+                ..=11 => 2048,   // or 10 => 1024 for smaller size(?)
                 _ => 4096,
                 //_ => 2*4096
             },
