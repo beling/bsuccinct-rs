@@ -130,7 +130,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser, stats); }
         Self::_new(|h| {
-            build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser, 0)
+            build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser, 0, stats)
         }, |keys, level_nr, h| {
             build_level_mt(keys, params, threads_num, h, seed_chooser, level_nr)
         }, hasher, seed_chooser, params.seed_size, keys.len())

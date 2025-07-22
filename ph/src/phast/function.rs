@@ -69,10 +69,11 @@ pub(crate) fn build_level_from_slice_st<K, SS, SC, S, BS: BuildStats>(keys: &[K]
 }
 
 #[inline]
-pub(crate) fn build_level_from_slice_mt<K, SS, SC, S>(keys: &[K], params: &Params<SS>, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
+pub(crate) fn build_level_from_slice_mt<K, SS, SC, S, BS: BuildStats>(keys: &[K], params: &Params<SS>, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64, stats: &mut BS)
     -> (Vec<K>, SeedEx<SS::VecElement>, Box<[u64]>, usize)
     where K: Hash+Sync+Send+Clone, SS: SeedSize, SC: SeedChooser+Sync, S: BuildSeededHasher+Sync
 {
+    stats.pre_hash();
     let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
         //let mut k = Vec::with_capacity(keys.len());
         //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
@@ -82,16 +83,20 @@ pub(crate) fn build_level_from_slice_mt<K, SS, SC, S>(keys: &[K], params: &Param
         keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
     };
     //radsort::unopt::sort(&mut hashes);
+    stats.pre_sort();
     hashes.voracious_mt_sort(threads_num);
+    stats.pre_seeding();
     let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
         build_mt(&hashes, conf, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
+    stats.pre_keys_removing();
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(unassigned_len);
     keys_vec.par_extend(keys.into_par_iter().filter(|key| {
         params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
     }).cloned());
+    stats.post_keys_removing();
     (keys_vec, SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
 }
 
@@ -260,7 +265,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser, stats); }
         Self::_new(|h| {
-            build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser, 0)
+            build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser, 0, stats)
         }, |keys, level_nr, h| {
             build_level_mt(keys, params, threads_num, h, seed_chooser, level_nr)
         }, hasher, seed_chooser, params.seed_size, keys.len())
