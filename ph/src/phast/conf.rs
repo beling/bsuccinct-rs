@@ -35,13 +35,15 @@ pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
     (r >> 64) as u64
 }
 
+/// Returns the value that mix `key` and `seed`. Fast.
 #[inline(always)]
 pub(crate) fn mix_key_seed(key: u64, seed: u16) -> u16 {
     mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16
 }   // 0x51_7c_c1_b7_27_22_0a_95 is from FXHash
 
+/// Returns the value that mix `a` and `b` by multiplication and xoring.
 #[inline(always)]
-fn wymum_xor(a: u64, b: u64) -> u64 {
+pub(crate) fn mix(a: u64, b: u64) -> u64 {
     let r = (a as u128) * (b as u128);
     ((r >> 64) ^ r) as u64
     //(r >> 64) as u64
@@ -126,7 +128,7 @@ impl Conf {
     #[inline(always)]
     pub(crate) fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
         //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
-        (wymum_xor(wymum_xor(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
     }
 
     /// Returns seed independent index of `key` in its partition.
