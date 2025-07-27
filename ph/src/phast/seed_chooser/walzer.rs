@@ -1,4 +1,4 @@
-use crate::phast::{conf::{mix, Conf}, cyclic::{GenericUsedValue, UsedValueSet}, seed_chooser::{best_seed_big, best_seed_small, SMALL_BUCKET_LIMIT}, SeedChooser, Weights};
+use crate::phast::{conf::{self, Conf}, cyclic::{GenericUsedValue, UsedValueSet}, seed_chooser::{best_seed_big, best_seed_small, SMALL_BUCKET_LIMIT}, SeedChooser};
 
 /// Choose best seed without shift component.
 #[derive(Clone, Copy)]
@@ -16,23 +16,30 @@ impl Walzer {
         Self(subslice_len - 1)
     }
 
-    #[inline(always)] fn subslice_shift(&self, hash_code: u64, conf: &Conf) -> u16 {
-        mix64(hash_code) as u16 & conf.slice_len_minus_one
+    #[inline(always)] fn extra_slice_shift(&self, hash_code: u64) -> u16 {
+        mix64(hash_code) as u16
+        //conf::mix(hash_code, 0x51_7c_c1_b7_27_22_0a_95) as u16
+        //hash_code as u16
+         & self.0
     }
 
-    #[inline(always)] fn in_subslice(&self, hash_code: u64, seed: u16) -> u16 {
-        mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), hash_code) as u16 & self.0
+    #[inline(always)] fn in_slice(hash_code: u64, seed: u16, conf: &Conf) -> u16 {
+        conf::mix(conf::mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), hash_code) as u16
+        //conf::mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), hash_code) as u16
+         & conf.slice_len_minus_one
     }
 }
 
 impl SeedChooser for Walzer {
+    const WINDOW_SIZE: u16 = 256;
+
     type UsedValues = UsedValueSet;
 
     #[inline(always)] fn extra_shift(self, _bits_per_seed: u8) -> u16 {
         self.0
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+    /*fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights(
             if slice_len <= 256 { match (bits_per_seed, slice_len) {
                 (..=6, ..=128) => [-98439, 68040, 81130, 86896, 91188, 93897, 296481],   // 6, 3.0, 128
@@ -57,9 +64,9 @@ impl SeedChooser for Walzer {
                 (_, _) => [-4309, -487, 21662, 26095, 83370, 157063, 543843],   // 12, 6.8, slice=8192
             }
         })
-    }
+    }*/
 
-    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
+    /*fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ ..8192 => (n/2+1).next_power_of_two() as u16,
@@ -76,10 +83,10 @@ impl SeedChooser for Walzer {
             }
         });
         Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
-    }
+    }*/
     
     #[inline(always)] fn f(self, hash_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.slice_begin(hash_code) + (self.subslice_shift(hash_code, conf) + self.in_subslice(hash_code, seed)) as usize
+        conf.slice_begin(hash_code) + (self.extra_slice_shift(hash_code) + Self::in_slice(hash_code, seed, conf)) as usize
     }
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {

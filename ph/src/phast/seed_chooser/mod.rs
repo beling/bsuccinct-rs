@@ -29,6 +29,10 @@ pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, pr
 
 /// Choose best seed in bucket.
 pub trait SeedChooser: Copy {
+
+    /// Window size. Maximum number of elements in the priority queue.
+    const WINDOW_SIZE: u16 = 256;
+
     /// Specifies whether bumping is allowed.
     const BUMPING: bool = true;
 

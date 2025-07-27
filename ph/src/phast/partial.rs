@@ -1,7 +1,7 @@
 use dyn_size_of::GetSize;
 use voracious_radix_sort::RadixSort;
 
-use crate::{phast::{builder::{build_mt, build_st, BuildConf}, conf::Conf, evaluator::BucketToActivateEvaluator, function::SeedEx, Params, SeedChooser, SeedOnly, WINDOW_SIZE}, seeds::SeedSize};
+use crate::{phast::{builder::{build_mt, build_st, BuildConf}, conf::Conf, evaluator::BucketToActivateEvaluator, function::SeedEx, Params, SeedChooser, SeedOnly}, seeds::SeedSize};
 use std::hash::{BuildHasher, Hash, RandomState};
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
@@ -142,7 +142,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
     {
         if threads_num == 1 { return Self::build_st(hashes, seed_size, conf, hasher, seed_chooser, bucket_evaluator); }
         hashes.voracious_mt_sort(threads_num);
-        let (seeds, build_conf) = build_mt(hashes, conf, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        let (seeds, build_conf) = build_mt(hashes, conf, seed_size, SC::WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
         (Self {
             seeds: SeedEx{ seeds, conf },
             hasher,

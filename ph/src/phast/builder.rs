@@ -3,7 +3,7 @@ use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::seeds::SeedSize;
-use super::{conf::Conf, cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
+use super::{conf::Conf, cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_WINDOW_SIZE};
 use rayon::prelude::*;
 
 #[inline]
@@ -209,7 +209,7 @@ pub(crate) fn build_last_level<'k, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf
 -> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
 where BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 {
-    let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), SeedOnlyNoBump);
+    let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, SeedOnlyNoBump::WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), SeedOnlyNoBump);
     let mut tb = ThreadBuilder::<SeedOnlyNoBump, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds);
     tb.build();
     if !tb.finished() { return None; }
@@ -223,7 +223,7 @@ pub(crate) fn build_st<'k, SC, BE, SS: SeedSize>(keys: &'k [u64], conf: Conf, se
 -> (Box<[SS::VecElement]>, BuildConf<'k, BE, SS, SC>)
 where SC: SeedChooser, BE: BucketToActivateEvaluator
 {
-    let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), seed_chooser);
+    let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, SC::WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), seed_chooser);
     ThreadBuilder::<SC, _, _>::new(&builder, 0..conf.buckets_num, 0, &mut seeds).build();
     //let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     (seeds, builder)
