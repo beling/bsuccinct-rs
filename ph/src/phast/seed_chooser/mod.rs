@@ -8,6 +8,7 @@ mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftSeedWrapped};
 
 mod walzer;
+pub use walzer::Walzer;
 
 use crate::phast::{cyclic::{GenericUsedValue, UsedValueSet}, Params, Weights};
 

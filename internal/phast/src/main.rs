@@ -21,7 +21,7 @@ mod benchmark;
 use clap::Parser;
 
 use ph::seeds::{Bits8, BitsFast};
-use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped};
+use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, Walzer};
 
 fn main() {
     let conf = Conf::parse();
@@ -40,6 +40,9 @@ fn main() {
         (Method::phast2, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, SeedOnly)),
         (Method::phast2, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, SeedOnly)),
 
+        (Method::w { subslice }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, Walzer(subslice))),
+        (Method::w { subslice }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, Walzer(subslice))),
+
         (Method::perfect, 1, 8, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8), threads_num, SeedOnly)),
         (Method::perfect, 1, b, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b)), threads_num, SeedOnly)),
         (Method::perfect, k, 8, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8), threads_num, SeedOnlyK(k))),
@@ -49,6 +52,9 @@ fn main() {
         (Method::phast|Method::phast2|Method::perfect, 1, b, true) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, SeedOnly)),
         (Method::phast|Method::phast2|Method::perfect, k, 8, true) => conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, SeedOnlyK(k))),
         (Method::phast|Method::phast2|Method::perfect, k, b, true) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, SeedOnlyK(k))),
+        
+        (Method::w { subslice }, 1, 8, true) => conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, Walzer(subslice))),
+        (Method::w { subslice }, 1, b, true) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, Walzer(subslice))),
 
         (Method::pluswrap { multiplier: 1 }, 1, 8, false) => conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
         (Method::pluswrap { multiplier: 2 }, 1, 8, false) => conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<2>)),

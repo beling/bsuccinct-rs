@@ -17,6 +17,12 @@ pub enum Method {
     /// PHast
     phast2,
 
+    /// Walzer variant
+    w {
+        #[arg(default_value_t = 512)]
+        subslice: u16
+    },
+
     /// PHast+ with wrapping
     pluswrap {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=7))]
@@ -56,6 +62,7 @@ impl std::fmt::Display for Method {
         match self {
             Method::phast => write!(f, "PHast"),
             Method::phast2 => write!(f, "PHast2"),
+            Method::w { subslice } => write!(f, "PHastW {subslice}"),
             Method::pluswrap { multiplier } => write!(f, "PHast+wrap {multiplier}"),
             Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
             Method::plus => write!(f, "PHast+"),
