@@ -55,30 +55,22 @@ fn main() {
         (Method::pluswrap { multiplier: 3 }, 1, 8, false) => conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<3>)),
         (Method::pluswrap { multiplier: 5 }, 1, 8, false) => conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap { multiplier: 7 }, 1, 8, false) => conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap { multiplier: 9 }, 1, 8, false) => conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<9>)),
-        (Method::pluswrap { multiplier:11 }, 1, 8, false) => conf.run(|keys| phast(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<11>)),
         (Method::pluswrap { multiplier: 1 }, 1, b, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<1>)),
         (Method::pluswrap { multiplier: 2 }, 1, b, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<2>)),
         (Method::pluswrap { multiplier: 3 }, 1, b, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<3>)),
         (Method::pluswrap { multiplier: 5 }, 1, b, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap { multiplier: 7 }, 1, b, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap { multiplier: 9 }, 1, b, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<9>)),
-        (Method::pluswrap { multiplier:11 }, 1, b, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<11>)),
 
         (Method::pluswrap2 { multiplier: 1 }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
         (Method::pluswrap2 { multiplier: 2 }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<2>)),
         (Method::pluswrap2 { multiplier: 3 }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<3>)),
         (Method::pluswrap2 { multiplier: 5 }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap2 { multiplier: 7 }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap2 { multiplier: 9 }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<9>)),
-        (Method::pluswrap2 { multiplier:11 }, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<11>)),
         (Method::pluswrap2 { multiplier: 1 }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<1>)),
         (Method::pluswrap2 { multiplier: 2 }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<2>)),
         (Method::pluswrap2 { multiplier: 3 }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<3>)),
         (Method::pluswrap2 { multiplier: 5 }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap2 { multiplier: 7 }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap2 { multiplier: 9 }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<9>)),
-        (Method::pluswrap2 { multiplier:11 }, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<11>)),
 
         (Method::pluswrap { multiplier: 1 } | Method::pluswrap2 { multiplier: 1 }, 1, 8, true) =>
             conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
@@ -90,10 +82,6 @@ fn main() {
             conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap { multiplier: 7 } | Method::pluswrap2 { multiplier: 7 }, 1, 8, true) =>
             conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap { multiplier: 9 } | Method::pluswrap2 { multiplier: 9 }, 1, 8, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<9>)),
-        (Method::pluswrap { multiplier:11 } | Method::pluswrap2 { multiplier:11 }, 1, 8, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, ShiftOnlyWrapped::<11>)),
 
         (Method::pluswrap { multiplier: 1 }| Method::pluswrap2 { multiplier: 1 }, 1, b, true) =>
             conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<1>)),
@@ -105,10 +93,6 @@ fn main() {
             conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap { multiplier: 7 }| Method::pluswrap2 { multiplier: 7 }, 1, b, true) =>
             conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap { multiplier: 9 }| Method::pluswrap2 { multiplier: 9 }, 1, b, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<9>)),
-        (Method::pluswrap { multiplier:11 }| Method::pluswrap2 { multiplier:11 }, 1, b, true) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnlyWrapped::<11>)),
 
         (Method::plus, 1, 8, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8), threads_num, ShiftOnly)),
         (Method::plus, 1, b, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b)), threads_num, ShiftOnly)),
@@ -124,8 +108,6 @@ fn main() {
         (Method::optpluswrap { multiplier: 3 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<3>),
         (Method::optpluswrap { multiplier: 5 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<5>),
         (Method::optpluswrap { multiplier: 7 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<7>),
-        (Method::optpluswrap { multiplier: 9 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<9>),
-        (Method::optpluswrap { multiplier:11 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<11>),
 
         (Method::optplus, 1, _, _) => conf.optimize_weights(ShiftOnly),
 

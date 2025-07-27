@@ -19,13 +19,13 @@ pub enum Method {
 
     /// PHast+ with wrapping
     pluswrap {
-        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=11))]
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=7))]
         multiplier: u8
     },
 
     /// PHast+ with wrapping and building last level using regular PHast
     pluswrap2 {
-        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=11))]
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=7))]
         multiplier: u8
     },
 
