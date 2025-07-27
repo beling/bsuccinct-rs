@@ -4,17 +4,36 @@ use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueSet}, seed_ch
 #[derive(Clone, Copy)]
 pub struct Walzer(u16);
 
+#[inline(always)]
+const fn mix64(mut x: u64) -> u64 {
+    x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9u64);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111ebu64);
+    x ^ (x >> 31)
+}
+
 impl Walzer {
-    #[inline(always)] fn subslice(&self, hash_code: u64) -> usize {
-        (wymum_xor(wymum_xor(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+    #[inline] pub fn new(subslice_len: u16) {
+        Self(subslice_len - 1)
+    }
+
+    #[inline(always)] fn subslice_shift(&self, hash_code: u64, conf: &Conf) -> u16 {
+        mix64(hash_code) as u16 & conf.slice_len_minus_one
+    }
+
+    #[inline(always)] fn in_subslice(&self, hash_code: u64, seed: usize) -> u16 {
+        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), hash_code) as u16 & self.0)
     }
 }
 
 impl SeedChooser for Walzer {
     type UsedValues = UsedValueSet;
+
+    #[inline(always)] fn extra_shift(self, _bits_per_seed: u8) -> u16 {
+        self.0
+    }
     
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.slice_begin(key) +
+    #[inline(always)] fn f(self, hash_code: u64, seed: u16, conf: &Conf) -> usize {
+        conf.slice_begin(key) + (self.subslice_shift(hash_code, conf) + self.in_subslice(hash_code, seed)) as usize
     }
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
