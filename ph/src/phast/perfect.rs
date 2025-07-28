@@ -12,7 +12,7 @@ use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_
 /// Perfect Hash Function with very fast evaluation developed by Piotr Beling and Peter Sanders.
 /// 
 /// See:
-/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
+/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Perfect<SS: SeedSize, SC = SeedOnly, S = BuildDefaultSeededHasher>
 {
     level0: SeedEx<SS::VecElement>,

@@ -11,6 +11,7 @@ use crate::phast::{cyclic::{GenericUsedValue, UsedValueSet}, Params, Weights};
 
 use super::conf::Conf;
 
+/// Returns slice length for regular PHast.
 pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
     match output_without_shift_range {
         n @ 0..64 => (n/2+1).next_power_of_two() as u16,
