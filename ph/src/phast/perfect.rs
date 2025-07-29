@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, function::{Level, SeedEx}, Params, SeedChooser, SeedOnly, SeedOnlyK, WINDOW_SIZE}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, function::{Level, SeedEx}, KSeedEvaluator, Params, SeedChooser, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation and size below 2 bits/key
@@ -278,14 +278,51 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     }
 }
 
-impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
+impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher> {
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_vec_se_st<K>(k: u8, keys: Vec::<K>, seed_evaluator: SE) -> Self where K: Hash {
+        Self::with_vec_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
+    }
+
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_vec_se_mt<K>(k: u8, keys: Vec::<K>, seed_evaluator: SE) -> Self where K: Hash+Send+Sync {
+        Self::with_vec_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
+    }
+
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_slice_se_st<K>(k: u8, keys: &[K], seed_evaluator: SE) -> Self where K: Hash+Clone {
+        Self::with_slice_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
+    }
+
+    /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
+    /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn k_from_slice_se_mt<K>(k: u8, keys: &[K], seed_evaluator: SE) -> Self where K: Hash+Clone+Send+Sync {
+        Self::with_slice_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
+    }
+}
+
+impl Perfect<Bits8, SeedOnlyK<SumOfValues>, BuildDefaultSeededHasher> {
     /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_vec_st<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash {
-        Self::with_vec_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+        Self::k_from_vec_se_st(k, keys, SumOfValues)
     }
 
     /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
@@ -293,8 +330,7 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_vec_mt<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
-        Self::with_vec_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+        Self::k_from_vec_se_mt(k, keys, SumOfValues)
     }
 
     /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
@@ -302,8 +338,7 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_slice_st<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone {
-        Self::with_slice_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+        Self::k_from_slice_se_st(k, keys, SumOfValues)
     }
 
     /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
@@ -311,8 +346,7 @@ impl Perfect<Bits8, SeedOnlyK, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_slice_mt<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
-        Self::with_slice_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK(k))
+        Self::k_from_slice_se_mt(k, keys, SumOfValues)
     }
 }
 
@@ -331,7 +365,7 @@ pub(crate) mod tests {
         verify_partial_phf(f.output_range(), keys, |key| Some(f.get(key)));
     }
 
-    fn kphf_test<K: Display+Hash, SS: SeedSize, S: BuildSeededHasher>(f: &Perfect<SS, SeedOnlyK, S>, keys: &[K]) {
+    fn kphf_test<K: Display+Hash, SS: SeedSize, SE: KSeedEvaluator, S: BuildSeededHasher>(f: &Perfect<SS, SeedOnlyK<SE>, S>, keys: &[K]) {
         verify_partial_kphf(f.k(), f.output_range(), keys, |key| Some(f.get(key)));
     }
     

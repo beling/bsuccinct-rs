@@ -1,5 +1,5 @@
 mod k;
-pub use k::SeedOnlyK;
+pub use k::{SeedOnlyK, KSeedEvaluator, SumOfValues, SumOfWeightedValues};
 
 mod shift;
 pub use shift::{ShiftOnly};
