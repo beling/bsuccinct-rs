@@ -7,7 +7,8 @@ use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 
-/// Minimal Perfect Hash Function with very fast evaluation and size below 2 bits/key
+/// PHast (Perfect Hashing made fast) - Minimal Perfect Hash Function
+/// with very fast evaluation and size below 2 bits/key
 /// developed by Piotr Beling and Peter Sanders.
 /// 
 /// The last layer (when the number of keys is small) is constructed using regular PHast.
