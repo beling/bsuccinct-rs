@@ -136,14 +136,15 @@ pub(crate) fn build_level_mt<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
     (SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
 }
 
-/// PHast (Perfect Hashing with fast evaluation) Minimal Perfect Hash Function.
-/// Experimental.
-/// 
-/// Minimal Perfect Hash Function with very fast evaluation and size below 2 bits/key
+/// PHast (Perfect Hashing made fast) - Minimal Perfect Hash Function
+/// with very fast evaluation and size below 2 bits/key
 /// developed by Piotr Beling and Peter Sanders.
 /// 
+/// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
+/// [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`].
+/// 
 /// See:
-/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
+/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Function<SS, SC = SeedOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {

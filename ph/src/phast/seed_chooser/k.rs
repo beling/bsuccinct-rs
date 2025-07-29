@@ -3,7 +3,13 @@ use bitm::ceiling_div;
 use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
 use super::SeedChooser;
 
-/// Choose best seed without shift component.
+/// [`SeedChooser`] to build `k`-perfect functions.
+/// `k` is given as a parameter of this chooser.
+/// 
+/// Should be used with [`Perfect`].
+/// 
+/// It chooses best seed with quite strong hasher, without shift component,
+/// which should lead to quite small size, but long construction time.
 #[derive(Clone, Copy)]
 pub struct SeedOnlyK(pub u8);
 

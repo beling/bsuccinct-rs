@@ -7,16 +7,18 @@ use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 
-/// PHast (Perfect Hashing with fast evaluation) Minimal Perfect Hash Function.
-/// Experimental.
+/// PHast (Perfect Hashing made fast) - Minimal Perfect Hash Function
+/// with very fast evaluation and size below 2 bits/key
+/// developed by Piotr Beling and Peter Sanders.
 /// 
-/// To use with `ShiftOnly` non-wrapping seed choosers.
+/// The last layer (when the number of keys is small) is constructed using regular PHast.
+/// This makes `Function2` compatible with almost all [`SeedChooser`]s (including non-wrapping `ShiftOnly`).
 /// 
-/// Minimal Perfect Hash Function with very fast evaluation and size below 2 bits/key
-/// developed by Piotr Beling and Peter Sanders.,
+/// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
+/// [`ShiftOnly`], [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`].
 /// 
 /// See:
-/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
+/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Function2<SS, SC = ShiftOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {

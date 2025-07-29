@@ -68,8 +68,19 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
 }
 
 
+/// [`SeedChooser`] to build (1-)perfect functions called *PHast+ with wrapping*.
+/// 
+/// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
+/// 
+/// It chooses best seed using only shifting with wrapping,
+/// which leads to quite small size and quite fast construction.
+/// 
+/// `MULTIPLIER` should be 1, 2, or 3.
+/// Typically, increasing `MULTIPLIER` reduces size but slows down construction.
+/// `MULTIPLIER=1` works very well with large `bits_per_seed` (10+),
+/// larger values (2 and 3) works well with `bits_per_seed=8`.
 #[derive(Clone, Copy)]
-pub struct ShiftOnlyWrapped<const MULTIPLIER: u8>;
+pub struct ShiftOnlyWrapped<const MULTIPLIER: u8 = 1>;
 
 fn shift_only_wrapped_bucket_evaluator_m1(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     match (bits_per_seed, slice_len) {
@@ -267,7 +278,18 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
 
 
 
-/// ShiftSeedWrapped with given number of bits per shift.
+/// [`SeedChooser`] to build (1-)perfect functions which uses both shifting with wrapping and regular hashing.
+/// The parameter points the number of bits of seed used for regular hashing.
+/// Increasing it reduces size but slows down construction.
+/// 
+/// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
+/// 
+/// It chooses best seed using both shifting with wrapping and hashing,
+/// which leads to small size and medium speed constrictions,
+/// but quite slow evaluation.
+/// 
+/// `MULTIPLIER` should be 1, 2, or 3.
+/// Typically, increasing `MULTIPLIER` reduces size but slows down construction.
 #[derive(Clone, Copy)]
 pub struct ShiftSeedWrapped<const MULTIPLIER: u8>(pub u8);
 

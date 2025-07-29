@@ -28,6 +28,12 @@ use super::SeedChooser;
     }
 }
 
+/// [`SeedChooser`] to build (1-)perfect functions called *PHast+ without wrapping*.
+/// 
+/// Must be used with [`Function2`].
+/// 
+/// It chooses best seed using only shifting without wrapping,
+/// which leads to very fast construction but the cost of bigger size.
 #[derive(Clone, Copy, Default)]
 pub struct ShiftOnly;
 

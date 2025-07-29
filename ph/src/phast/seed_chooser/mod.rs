@@ -14,6 +14,7 @@ use crate::phast::{cyclic::{GenericUsedValue, UsedValueSet}, Params, Weights};
 
 use super::conf::Conf;
 
+/// Returns slice length for regular PHast.
 pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
     match output_without_shift_range {
         n @ 0..64 => (n/2+1).next_power_of_two() as u16,
@@ -27,7 +28,7 @@ pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, pr
     }
 }
 
-/// Choose best seed in bucket.
+/// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
 pub trait SeedChooser: Copy {
 
     /// Window size. Maximum number of elements in the priority queue.
@@ -156,7 +157,12 @@ fn best_seed_small<SC: SeedChooser>(seed_chooser: SC, best_value: &mut usize, be
 
 const SMALL_BUCKET_LIMIT: usize = 8;
 
-/// Choose best seed without shift component.
+/// [`SeedChooser`] to build (1-)perfect functions.
+/// 
+/// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
+/// 
+/// It chooses best seed with quite strong hasher, without shift component,
+/// which should lead to small size, but long construction time.
 #[derive(Clone, Copy)]
 pub struct SeedOnly;
 

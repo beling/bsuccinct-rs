@@ -6,13 +6,16 @@ use rayon::prelude::*;
 
 use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, function::{Level, SeedEx}, Params, SeedChooser, SeedOnly, SeedOnlyK}, seeds::{Bits8, SeedSize}};
 
-/// PHast (Perfect Hashing with fast evaluation) Perfect (not necessary minimal) Hash Function.
+/// PHast (Perfect Hashing made fast) - Perfect (not necessary minimal) Hash Function
+/// with very fast evaluation and size below 2 bits/key
+/// developed by Piotr Beling and Peter Sanders.
 /// Experimental.
 /// 
-/// Perfect Hash Function with very fast evaluation developed by Piotr Beling and Peter Sanders.
+/// Can be used with the following seed choosers (which specify a particular PHast variant):
+/// [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`], [`SeedOnlyK`].
 /// 
 /// See:
-/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing with fast evaluation*, 2025, <https://arxiv.org/abs/2504.17918>
+/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Perfect<SS: SeedSize, SC = SeedOnly, S = BuildDefaultSeededHasher>
 {
     level0: SeedEx<SS::VecElement>,
