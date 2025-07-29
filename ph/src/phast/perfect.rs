@@ -11,6 +11,9 @@ use crate::{phast::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_
 /// 
 /// Perfect Hash Function with very fast evaluation developed by Piotr Beling and Peter Sanders.
 /// 
+/// Can be used with the following seed choosers (which specify a particular PHast variant):
+/// [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`], [`SeedOnlyK`].
+/// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Perfect<SS: SeedSize, SC = SeedOnly, S = BuildDefaultSeededHasher>

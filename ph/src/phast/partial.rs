@@ -5,6 +5,12 @@ use crate::{phast::{builder::{build_mt, build_st, BuildConf}, conf::Conf, evalua
 use std::hash::{BuildHasher, Hash, RandomState};
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
+/// 
+/// Can be used with any seed chooser (which specify a particular PHast variant):
+/// [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`], [`SeedOnlyK`].
+/// 
+/// See:
+/// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Partial<SS, SC = SeedOnly, S = RandomState> where SS: SeedSize {
     seeds: SeedEx<SS::VecElement>,
     hasher: S,
