@@ -130,6 +130,7 @@ fn main() {
         (Method::optpluswrap { multiplier: 7 }, 1, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<7>),
 
         (Method::optplus, 1, _, _) => conf.optimize_weights(ShiftOnly),
+        (Method::optscore, _, _, _) => conf.optimize_score(),
 
         (Method::none, _, _, _) => {},
         _ => eprintln!("Unsupported configuration.")

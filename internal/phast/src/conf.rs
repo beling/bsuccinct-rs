@@ -1,9 +1,9 @@
 use clap::{Parser, Subcommand};
-use ph::{phast::{Params, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Params, Partial, SeedChooser, SeedOnlyK, SumOfWeightedValues}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
+use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::{SumOfWeightedValuesF, WeightsF}};
 
-use optimize::{Minimizer, NelderMeadBuilder};
+use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
 use rayon::{current_num_threads, iter::{IntoParallelIterator, ParallelIterator}};
 
@@ -47,6 +47,9 @@ pub enum Method {
     /// Optimize weights for selecting buckets by PHast+
     optplus,
 
+    /// Optimize score weights for k-perfect PHast
+    optscore,
+
     /// Do nothing
     none
 }
@@ -63,6 +66,7 @@ impl std::fmt::Display for Method {
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
+            Method::optscore => write!(f, "Optimize score weights for k-perfect PHast"),
             Method::none => write!(f, "Do nothing"),
         }
     }
@@ -249,13 +253,17 @@ impl Conf {
         total.print_avg(self);
     }
 
-    pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
+    pub fn optimizer<SC: SeedChooser>(&self, seed_chooser: &SC) -> (NelderMead, ph::phast::Conf) {
         let bucket_size = self.bucket_size_100();
         let minimizer = NelderMeadBuilder::default()
             .maxiter(self.optimization_iters() as usize) 
             .build()
             .unwrap();
-        let conf = seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len);
+        (minimizer, seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len))
+    }
+
+    pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
+        let (minimizer, conf) = self.optimizer(&seed_chooser);
         let args = Array::from_vec(WeightsF::from(seed_chooser.bucket_evaluator(self.bits_per_seed, conf.slice_len())).size_weights.into_vec());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
@@ -266,11 +274,31 @@ impl Conf {
                 let mut keys = self.keys_for_seed(200+i);
                 Partial::with_hashes_bps_conf_sc_be_u(&mut keys, BitsFast(self.bits_per_seed),
                     conf,
-                    seed_chooser, &evaluator).1
+                    seed_chooser.clone(), &evaluator).1
             }).sum();
             println!("{unassigned_keys} {:.2}% {x:.0}", unassigned_keys as f64 * 100.0 / (key_sets_num as f64 * self.keys_num as f64));
             unassigned_keys as f64
         }, args.view());
         println!("Optimal weights: {ans:.0}");
+    }
+
+    pub fn optimize_score(&self) {
+        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, SumOfWeightedValues::default()));
+        let args = Array::from_vec(SumOfWeightedValuesF::from(SumOfWeightedValues::default()).0[..8.min(self.k as usize)].to_owned());
+
+        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
+            let evaluator = SumOfWeightedValuesF(x.to_vec().into_boxed_slice());
+
+            let key_sets_num: u32 = 96;
+            let unassigned_keys: usize = (0..key_sets_num).into_par_iter().map(|i| {
+                let mut keys = self.keys_for_seed(200+i);
+                Partial::with_hashes_bps_conf_sc_u(&mut keys, BitsFast(self.bits_per_seed),
+                    conf,
+                    SeedOnlyK::new(self.k, evaluator.clone())).1
+            }).sum();
+            println!("{unassigned_keys} {:.2}% {x:.0}", unassigned_keys as f64 * 100.0 / (key_sets_num as f64 * self.keys_num as f64));
+            unassigned_keys as f64
+        }, args.view());
+        println!("Optimal score weights: {ans:.0}");
     }
 }

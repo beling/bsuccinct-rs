@@ -1,4 +1,4 @@
-use ph::phast::BucketToActivateEvaluator;
+use ph::phast::{BucketToActivateEvaluator, KSeedEvaluator, UsedValueMultiSetU8};
 
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
@@ -43,5 +43,31 @@ impl BucketToActivateEvaluator for &WeightsF {
                 l + (l-p) * (bucket_size - len) as f64
             });
         F(sw - 1024.0 * bucket_nr as f64)
+    }
+}
+
+
+#[derive(Clone)]
+pub struct SumOfWeightedValuesF(pub Box<[f64]>);
+
+impl From<ph::phast::SumOfWeightedValues> for SumOfWeightedValuesF {
+    fn from(value: ph::phast::SumOfWeightedValues) -> Self {
+        Self(value.0.iter().map(|v| *v as f64).collect())
+    }
+}
+
+impl KSeedEvaluator for SumOfWeightedValuesF {
+        
+    type Value = F;
+    
+    const MAX: Self::Value = F(f64::MAX);
+
+    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8) -> Self::Value {
+        let mut result = 0.0;
+        for value in values_used_by_seed.iter().copied() {
+            let free_values = (k - used_values[value]) as usize;
+            result += (1024*value) as f64 + self.0.get(free_values).unwrap_or_else(|| unsafe{self.0.last().unwrap_unchecked()});
+        }
+        F(result)
     }
 }

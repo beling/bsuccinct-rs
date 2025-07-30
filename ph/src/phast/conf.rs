@@ -91,7 +91,7 @@ impl Conf {
     }*/
 
     /// Returns output range of the function.
-    #[inline] pub fn output_range<SC: SeedChooser>(&self, seed_chooser: SC, bits_per_seed: u8) -> usize {
+    #[inline] pub fn output_range<SC: SeedChooser>(&self, seed_chooser: &SC, bits_per_seed: u8) -> usize {
         self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(bits_per_seed) as usize
     }
 

@@ -5,9 +5,10 @@ pub use compressed_array::{CompressedArray, CompressedBuilder, DefaultCompressed
 
 mod builder;
 mod conf;
-pub use conf::{Params, bits_per_seed_to_100_bucket_size};
+pub use conf::{Params, bits_per_seed_to_100_bucket_size, Conf};
 
 mod cyclic;
+pub use cyclic::UsedValueMultiSetU8;
 mod evaluator;
 pub use evaluator::{BucketToActivateEvaluator, Weights};
 

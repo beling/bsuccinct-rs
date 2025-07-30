@@ -72,7 +72,7 @@ impl SeedChooser for ShiftOnly {
         })
     }
 
-    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
+    fn conf(&self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
         let max_shift = self.extra_shift(bits_per_seed);
         let slice_len = match output_range.saturating_sub(max_shift as usize) {
             n @ ..8192 => (n/2+1).next_power_of_two() as u16,
@@ -91,11 +91,11 @@ impl SeedChooser for ShiftOnly {
         Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
     }
 
-    #[inline(always)] fn extra_shift(self, bits_per_seed: u8) -> u16 {
+    #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 {
         (1 << bits_per_seed) - 2
     }
 
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f(&self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
         conf.f_shift0(primary_code) + (seed-1) as usize
     }
 
@@ -104,7 +104,7 @@ impl SeedChooser for ShiftOnly {
     }*/
 
     #[inline]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
         let mut without_shift_box: Box<[usize]>;
         let without_shift: &mut [usize] = if keys.len() > 16 {

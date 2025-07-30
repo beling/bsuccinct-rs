@@ -83,11 +83,11 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values, unassigned_len) =
-                build_level_st(&mut keys, params, h, seed_chooser, 0);
+                build_level_st(&mut keys, params, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values, unassigned_len)
         }, |keys, level_nr, h| {
-            build_level_st(keys, params, h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size, number_of_keys)
+            build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size, number_of_keys)
     }
 
     /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
@@ -101,11 +101,11 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values, unassigned_len) =
-                build_level_mt(&mut keys, params, threads_num, h, seed_chooser, 0);
+                build_level_mt(&mut keys, params, threads_num, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values, unassigned_len)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, params, threads_num, h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size, number_of_keys)
+            build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size, number_of_keys)
     }
 
 
@@ -116,10 +116,10 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     /// `keys` cannot contain duplicates.
     pub fn with_slice_p_hash_sc<K>(keys: &[K], params: &Params<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash+Clone {
         Self::_new(|h| {
-            build_level_from_slice_st(keys, params, h, seed_chooser, 0)
+            build_level_from_slice_st(keys, params, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_st(keys, params, h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size, keys.len())
+            build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size, keys.len())
     }
 
 
@@ -132,10 +132,10 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
-            build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser, 0)
+            build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, params, threads_num, h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size, keys.len())
+            build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size, keys.len())
     }
 
     #[inline]
@@ -192,7 +192,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
             last_shift = unassigned.len();
-            for i in 0..last_seeds.conf.output_range(SeedOnlyNoBump, Bits8.into()) {
+            for i in 0..last_seeds.conf.output_range(&SeedOnlyNoBump, Bits8.into()) {
                 if CA::MAX_FOR_UNUSED {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
@@ -253,7 +253,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
+        self.level0.conf.output_range(&self.seed_chooser, self.seed_size.into())
     }
 
     /*#[inline(always)]

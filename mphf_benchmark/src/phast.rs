@@ -24,11 +24,11 @@ impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
             Self::MPHF::with_slice_p_threads_hash_sc(keys, 
                 &Params::new(self.bits_per_seed, self.bucket_size_100),
                 std::thread::available_parallelism().map_or(1, |v| v.into()),
-                S::default(), self.seed_chooser
+                S::default(), self.seed_chooser.clone()
             )
         } else {
             Self::MPHF::with_slice_p_hash_sc(keys,
-                &Params::new(self.bits_per_seed, self.bucket_size_100), S::default(), self.seed_chooser
+                &Params::new(self.bits_per_seed, self.bucket_size_100), S::default(), self.seed_chooser.clone()
             )
         }
     }

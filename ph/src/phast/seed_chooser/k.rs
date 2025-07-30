@@ -3,7 +3,7 @@ use bitm::ceiling_div;
 use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
 use super::SeedChooser;
 
-pub trait KSeedEvaluator: Copy + Sync {
+pub trait KSeedEvaluator: Clone + Sync {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord;
 
@@ -13,7 +13,7 @@ pub trait KSeedEvaluator: Copy + Sync {
     fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8) -> Self::Value;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SumOfValues;
 
 impl KSeedEvaluator for SumOfValues {
@@ -27,11 +27,12 @@ impl KSeedEvaluator for SumOfValues {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SumOfWeightedValues(pub [usize; 8]);
 
 impl Default for SumOfWeightedValues {
     fn default() -> Self {
+        // k = 2: [170171, -39231]
         Self([65536, 50176, 36864, 25600, 16384, 9216, 4096, 1024])
     }
 }
@@ -104,20 +105,20 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     type UsedValues = UsedValueMultiSetU8;
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(self) -> u8 { self.k }
+    #[inline(always)] fn k(&self) -> u8 { self.k }
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
-    #[inline(always)] fn minimal_output_range(self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.k() as usize) }
+    #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.k() as usize) }
 
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f(&self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
         conf.f(primary_code, seed)
     }
 
     #[inline(always)]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
         let mut best_seed = 0;
         let mut best_value = SE::MAX;
-        best_seed_k(self.k, &self, &self.seed_evaluator, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed);
+        best_seed_k(self.k, self, &self.seed_evaluator, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed);
         if best_seed != 0 { // can assign seed to the bucket
             for key in keys {               
                 used_values.add(conf.f(*key, best_seed));

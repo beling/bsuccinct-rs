@@ -66,11 +66,11 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// `keys` cannot contain duplicates.
     pub fn with_vec_p_hash_sc<K>(mut keys: Vec::<K>, params: &Params<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash {
         Self::_new(|h| {
-            let level0 = Self::build_level_st(&mut keys, params, h, seed_chooser, 0);
+            let level0 = Self::build_level_st(&mut keys, params, h, seed_chooser.clone(), 0);
             (keys, level0)
         }, |keys, level_nr, h| {
-            Self::build_level_st(keys, params, h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size)
+            Self::build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size)
     }
 
     /// Constructs [`Perfect`] function for given `keys`, using multiple (given number of) threads and given parameters:
@@ -82,11 +82,11 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         where K: Hash+Sync+Send, S: Sync, SC: Sync {
         if threads_num == 1 { return Self::with_vec_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
-            let level0 = Self::build_level_mt(&mut keys, params, threads_num, &h, seed_chooser, 0);
+            let level0 = Self::build_level_mt(&mut keys, params, threads_num, &h, seed_chooser.clone(), 0);
             (keys, level0)
         }, |keys, level_nr, h| {
-            Self::build_level_mt(keys, params, threads_num, &h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size)
+            Self::build_level_mt(keys, params, threads_num, &h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size)
     }
 
 
@@ -97,10 +97,10 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// `keys` cannot contain duplicates.
     pub fn with_slice_p_hash_sc<K>(keys: &[K], params: &Params<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash+Clone {
         Self::_new(|h| {
-            Self::build_level_from_slice_st(keys, params, h, seed_chooser, 0)
+            Self::build_level_from_slice_st(keys, params, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            Self::build_level_st(keys, params, &h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size)
+            Self::build_level_st(keys, params, &h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size)
     }
 
 
@@ -113,10 +113,10 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
-            Self::build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser, 0)
+            Self::build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            Self::build_level_mt(keys, params, threads_num, h, seed_chooser, level_nr)
-        }, hasher, seed_chooser, params.seed_size)
+            Self::build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.clone(), params.seed_size)
     }
 
     #[inline]
@@ -126,11 +126,11 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
             K: Hash
         {
         let (mut keys, level0) = build_first(&hasher);
-        let mut shift = level0.conf.output_range(seed_chooser, seed_size.into());
+        let mut shift = level0.conf.output_range(&seed_chooser, seed_size.into());
         let mut levels = Vec::with_capacity(16);
         while !keys.is_empty() {
             let seeds = build_level(&mut keys, levels.len() as u64+1, &hasher);
-            let out_range = seeds.conf.output_range(seed_chooser, seed_size.into());
+            let out_range = seeds.conf.output_range(&seed_chooser, seed_size.into());
             levels.push(Level { seeds, shift });
             shift += out_range;
         }
@@ -237,9 +237,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
         if let Some(last_level) = self.levels.last() {
-            last_level.shift + last_level.seeds.conf.output_range(self.seed_chooser, self.seed_size.into())
+            last_level.shift + last_level.seeds.conf.output_range(&self.seed_chooser, self.seed_size.into())
         } else {
-            self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
+            self.level0.conf.output_range(&self.seed_chooser, self.seed_size.into())
         }
     }
 }

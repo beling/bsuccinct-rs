@@ -33,6 +33,12 @@ impl<SS: SeedSize, SC: SeedChooser> Partial<SS, SC, ()> {
         (f, unassigned)
     }
 
+    pub fn with_hashes_bps_conf_sc_u<'k>(hashes: &'k mut [u64], seed_size: SS, conf: Conf, seed_chooser: SC) -> (Self, usize)
+    {
+        let bucket_evaluator = seed_chooser.bucket_evaluator(seed_size.into(), conf.slice_len());
+        Self::with_hashes_bps_conf_sc_be_u(hashes, seed_size, conf, seed_chooser, bucket_evaluator)
+    }
+
     pub fn with_hashes_bps_conf_bs_threads_sc_be_u<'k, BE>(hashes: &'k mut [u64], seed_size: SS, conf: Conf, threads_num: usize, seed_chooser: SC, bucket_evaluator: BE) -> (Self, usize)
         where BE: BucketToActivateEvaluator + Sync, SC: Sync, BE::Value: Send
     {
@@ -133,7 +139,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
         where BE: BucketToActivateEvaluator
     {
         hashes.voracious_sort();
-        let (seeds, build_conf) = build_st(hashes, conf, seed_size, bucket_evaluator, seed_chooser);
+        let (seeds, build_conf) = build_st(hashes, conf, seed_size, bucket_evaluator, seed_chooser.clone());
         (Self {
             seeds: SeedEx{ seeds, conf },
             hasher,
@@ -148,7 +154,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
     {
         if threads_num == 1 { return Self::build_st(hashes, seed_size, conf, hasher, seed_chooser, bucket_evaluator); }
         hashes.voracious_mt_sort(threads_num);
-        let (seeds, build_conf) = build_mt(hashes, conf, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        let (seeds, build_conf) = build_mt(hashes, conf, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser.clone(), threads_num);
         (Self {
             seeds: SeedEx{ seeds, conf },
             hasher,
@@ -167,7 +173,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.seeds.conf.output_range(self.seed_chooser, self.seed_size.into())
+        self.seeds.conf.output_range(&self.seed_chooser, self.seed_size.into())
     }
 }
 

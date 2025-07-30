@@ -109,7 +109,7 @@ pub(crate) struct BuildConf<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC:
     evaluator: BE,
     keys: &'k [u64],
     bucket_begin: Box<[usize]>,
-    seed_chooser: SC,
+    pub(crate) seed_chooser: SC,
     seed_size: SS
 }
 
@@ -153,7 +153,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
 
     /// Calculates bitmap of unassigned values and number of unassigned values of 1-perfect function.
     pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
-        let mut unassigned_len = self.conf.output_range(self.seed_chooser, self.seed_size.into());
+        let mut unassigned_len = self.conf.output_range(&self.seed_chooser, self.seed_size.into());
         let mut unassigned_values = construct_unassigned(unassigned_len);
         for bucket in 0..self.bucket_begin.len()-1 {
             self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut unassigned_len);
@@ -251,8 +251,8 @@ where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Sync, BE::Value: S
     let mut thread_builders = Vec::with_capacity(threads_num);
     let mut bucket_begin = 0;
     let mut remaining_seeds = &mut seeds[..];
-    let gap = gap_for(conf.slice_len() + seed_chooser.extra_shift(seed_size.into()),
-        conf.buckets_num, conf.output_range(seed_chooser, seed_size.into()));
+    let gap = gap_for(conf.slice_len() + builder.seed_chooser.extra_shift(seed_size.into()),
+        conf.buckets_num, conf.output_range(&builder.seed_chooser, seed_size.into()));
     //dbg!(conf.slice_len(), bucket_size100, gap);
     for _ in 0..threads_num-1 {
         let seeds;
