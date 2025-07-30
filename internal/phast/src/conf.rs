@@ -133,6 +133,10 @@ pub struct Conf {
     /// Print less, only average.
     #[arg(long, default_value_t = false)]
     pub less: bool,
+
+    /// Use weighted scores in k-perfect
+    #[arg(short='w', long, default_value_t = false)]
+    pub weights: bool
 }
 
 impl Conf {

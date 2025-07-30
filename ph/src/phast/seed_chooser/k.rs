@@ -28,7 +28,13 @@ impl KSeedEvaluator for SumOfValues {
 }
 
 #[derive(Clone, Copy)]
-pub struct SumOfWeightedValues([usize; 8]);
+pub struct SumOfWeightedValues(pub [usize; 8]);
+
+impl Default for SumOfWeightedValues {
+    fn default() -> Self {
+        Self([65536, 50176, 36864, 25600, 16384, 9216, 4096, 1024])
+    }
+}
 
 impl KSeedEvaluator for SumOfWeightedValues {
         
