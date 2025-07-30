@@ -40,7 +40,7 @@ impl KSeedEvaluator for SumOfWeightedValues {
         let mut result = 0;
         for value in values_used_by_seed.iter().copied() {
             let free_values = (k - used_values[value]) as usize;
-            result += value * self.0.get(free_values).unwrap_or(&64);
+            result += 1024*value + self.0.get(free_values).unwrap_or_else(|| unsafe{self.0.last().unwrap_unchecked()});
         }
         result
     }
