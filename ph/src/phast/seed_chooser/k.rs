@@ -28,26 +28,30 @@ impl KSeedEvaluator for SumOfValues {
 }
 
 #[derive(Clone)]
-pub struct SumOfWeightedValues(pub [usize; 8]);
+pub struct SumOfWeightedValues(pub [isize; 8]);
 
-impl Default for SumOfWeightedValues {
-    fn default() -> Self {
-        // k = 2: [170171, -39231]
-        Self([65536, 50176, 36864, 25600, 16384, 9216, 4096, 1024])
+impl SumOfWeightedValues {
+    pub fn new(k: u8) -> Self {
+        Self(match k {  // TODO fix last value to be 0 and decrease degree of freedom when optimizing
+            2 => [170171 +39231, -39231 +39231  , -39231, -39231, -39231, -39231, -39231, -39231],
+            3 => [272469, 149612, -125313  , -125313, -125313, -125313, -125313, -125313],
+            4 => [302489, 235381, 66592, -215829  , -215829, -215829, -215829, -215829],
+            _ => [302069, 234257, 75490, -85613, -282732  , -282732, -282732, -282732]  // 5
+        })
     }
 }
 
 impl KSeedEvaluator for SumOfWeightedValues {
         
-    type Value = usize;
+    type Value = isize;
     
-    const MAX: Self::Value = usize::MAX;
+    const MAX: Self::Value = isize::MAX;
 
     fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8) -> Self::Value {
         let mut result = 0;
         for value in values_used_by_seed.iter().copied() {
             let free_values = (k - used_values[value]) as usize;
-            result += 1024*value + self.0.get(free_values).unwrap_or_else(|| unsafe{self.0.last().unwrap_unchecked()});
+            result += (1024*value) as isize + self.0.get(free_values).unwrap_or_else(|| unsafe{self.0.last().unwrap_unchecked()});
         }
         result
     }

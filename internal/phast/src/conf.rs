@@ -283,8 +283,8 @@ impl Conf {
     }
 
     pub fn optimize_score(&self) {
-        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, SumOfWeightedValues::default()));
-        let args = Array::from_vec(SumOfWeightedValuesF::from(SumOfWeightedValues::default()).0[..8.min(self.k as usize)].to_owned());
+        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, SumOfWeightedValues::new(self.k)));
+        let args = Array::from_vec(SumOfWeightedValuesF::from(SumOfWeightedValues::new(self.k)).0[..8.min(self.k as usize)].to_owned());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let evaluator = SumOfWeightedValuesF(x.to_vec().into_boxed_slice());

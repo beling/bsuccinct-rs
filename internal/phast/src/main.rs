@@ -43,12 +43,12 @@ fn main() {
         (Method::perfect, 1, 8, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8), threads_num, SeedOnly)),
         (Method::perfect, 1, b, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b)), threads_num, SeedOnly)),
         (Method::perfect, k, 8, false) => if conf.weights {
-            conf.run(|keys| perfect(&keys, conf.params(Bits8), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::default()))) 
+            conf.run(|keys| perfect(&keys, conf.params(Bits8), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k)))) 
         } else {
             conf.run(|keys| perfect(&keys, conf.params(Bits8), threads_num, SeedOnlyK::new(k, SumOfValues))) 
         }, 
         (Method::perfect, k, b, false) => if conf.weights {
-            conf.run(|keys| perfect(&keys, conf.params(BitsFast(b)), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::default())))
+            conf.run(|keys| perfect(&keys, conf.params(BitsFast(b)), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k))))
         } else {
             conf.run(|keys| perfect(&keys, conf.params(BitsFast(b)), threads_num, SeedOnlyK::new(k, SumOfValues)))
         },
@@ -56,12 +56,12 @@ fn main() {
         (Method::phast|Method::phast2|Method::perfect, 1, 8, true) => conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, SeedOnly)),
         (Method::phast|Method::phast2|Method::perfect, 1, b, true) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, SeedOnly)),
         (Method::phast|Method::phast2|Method::perfect, k, 8, true) => if conf.weights {
-            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::default())))
+            conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k))))
         } else {
             conf.runp(|keys| partial(&keys, conf.params(Bits8), threads_num, SeedOnlyK::new(k, SumOfValues)))
         },
         (Method::phast|Method::phast2|Method::perfect, k, b, true) => if conf.weights {
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::default())))
+            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k))))
         } else {
             conf.runp(|keys| partial(&keys, conf.params(BitsFast(b)), threads_num, SeedOnlyK::new(k, SumOfValues)))
         },
@@ -118,7 +118,7 @@ fn main() {
 
         (Method::optphast, 1, _, _) => conf.optimize_weights(SeedOnly),
         (Method::optphast, k, _, _) =>  if conf.weights {
-            conf.optimize_weights(SeedOnlyK::new(k, SumOfWeightedValues::default()))
+            conf.optimize_weights(SeedOnlyK::new(k, SumOfWeightedValues::new(k)))
         } else {
             conf.optimize_weights(SeedOnlyK::new(k, SumOfValues))
         },
