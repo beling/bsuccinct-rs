@@ -3,6 +3,14 @@ use bitm::ceiling_div;
 use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
 use super::SeedChooser;
 
+pub fn bucket_size_normalization_multiplier(k: u8) -> f64 {
+    if k == 1 { return 1.0; }
+    const LOG2PI: f64 = 2.651496129472319;
+    let k = k as f64;
+    //2.7941142836856487*k as f64/(LOG2PI+k.log2())
+    2.0*k as f64/(LOG2PI+k.log2())
+}
+
 pub trait KSeedEvaluator: Clone + Sync {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord;
@@ -28,30 +36,31 @@ impl KSeedEvaluator for SumOfValues {
 }
 
 #[derive(Clone)]
-pub struct SumOfWeightedValues(pub [isize; 8]);
+pub struct SumOfWeightedValues(pub [usize; 8]);
 
 impl SumOfWeightedValues {
     pub fn new(k: u8) -> Self {
-        Self(match k {  // TODO fix last value to be 0 and decrease degree of freedom when optimizing
-            2 => [170171 +39231, -39231 +39231  , -39231, -39231, -39231, -39231, -39231, -39231],
-            3 => [272469, 149612, -125313  , -125313, -125313, -125313, -125313, -125313],
-            4 => [302489, 235381, 66592, -215829  , -215829, -215829, -215829, -215829],
-            _ => [302069, 234257, 75490, -85613, -282732  , -282732, -282732, -282732]  // 5
+        Self(match k {
+            2 => [275866, 0, 0, 0, 0, 0, 0, 0],
+            3 => [436110, 212418, 0, 0, 0, 0, 0, 0],
+            4 => [549245, 349230, 180883, 0, 0, 0, 0, 0],
+            _ => [661202, 479934, 329744, 190690, 0, 0, 0, 0]  // 5
         })
     }
 }
 
 impl KSeedEvaluator for SumOfWeightedValues {
         
-    type Value = isize;
+    type Value = usize;
     
-    const MAX: Self::Value = isize::MAX;
+    const MAX: Self::Value = usize::MAX;
 
     fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8) -> Self::Value {
         let mut result = 0;
         for value in values_used_by_seed.iter().copied() {
             let free_values = (k - used_values[value]) as usize;
-            result += (1024*value) as isize + self.0.get(free_values).unwrap_or_else(|| unsafe{self.0.last().unwrap_unchecked()});
+            result += (1024*value) as usize;
+            if let Some(v) = self.0.get(free_values) { result += v; };
         }
         result
     }

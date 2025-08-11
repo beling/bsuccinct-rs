@@ -25,7 +25,7 @@ mod partial;
 pub use partial::Partial;
 
 mod seed_chooser;
-pub use seed_chooser::{SeedChooser, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftSeedWrapped, SeedOnlyK, KSeedEvaluator, SumOfValues, SumOfWeightedValues};
+pub use seed_chooser::{SeedChooser, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftSeedWrapped, SeedOnlyK, KSeedEvaluator, SumOfValues, SumOfWeightedValues, bucket_size_normalization_multiplier};
 
 /// Power of two grater or equal than `WINDOW_SIZE`.
 const MAX_WINDOW_SIZE: usize = 256;

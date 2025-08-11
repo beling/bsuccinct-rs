@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use ph::{phast::{Params, Partial, SeedChooser, SeedOnlyK, SumOfWeightedValues}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{bucket_size_normalization_multiplier, Params, Partial, SeedChooser, SeedOnlyK, SumOfWeightedValues}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::{SumOfWeightedValuesF, WeightsF}};
 
@@ -161,7 +161,8 @@ impl Conf {
     }
 
     pub fn bucket_size_100(&self) -> u16 {
-        self.bucket_size.unwrap_or_else(|| ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed))
+        let bs = self.bucket_size.unwrap_or_else(|| ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed));
+        (bs as f64 * bucket_size_normalization_multiplier(self.k)) as u16
     }
 
     pub fn keys_for_seed(&self, seed: u32) -> Box<[u64]> {
@@ -284,7 +285,7 @@ impl Conf {
 
     pub fn optimize_score(&self) {
         let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, SumOfWeightedValues::new(self.k)));
-        let args = Array::from_vec(SumOfWeightedValuesF::from(SumOfWeightedValues::new(self.k)).0[..8.min(self.k as usize)].to_owned());
+        let args = Array::from_vec(SumOfWeightedValuesF::from(SumOfWeightedValues::new(self.k)).0[..8.min(self.k as usize - 1)].to_owned());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let evaluator = SumOfWeightedValuesF(x.to_vec().into_boxed_slice());
