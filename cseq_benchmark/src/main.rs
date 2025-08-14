@@ -295,14 +295,14 @@ impl Conf {
     /// - index in universe in range [0..`self.universe`),
     /// - whether there is an item (one) at the current position.
     /// Print statistics about data. Returns tester.
-    fn fill_data<F: FnMut(usize, bool)>(&self, mut add: F) -> Tester {
+    fn fill_data<F: FnMut(usize, bool)>(&'_ self, mut add: F) -> Tester<'_> {
         let number_of_ones = self.data_foreach(|index, _, v| add(index, v));
         println!(" input: number of bit ones is {} / {} ({:.2}%), {} distribution",
             number_of_ones, self.universe, percent_of(number_of_ones, self.universe), self.distribution);
         Tester { conf: self, number_of_ones, rank_includes_current: false }
     }
 
-    #[inline] fn add_data<F: FnMut(usize)>(&self, mut add: F) -> Tester {
+    #[inline] fn add_data<F: FnMut(usize)>(&'_ self, mut add: F) -> Tester<'_> {
         self.fill_data(|i, v| if v { add(i) })
     }
 

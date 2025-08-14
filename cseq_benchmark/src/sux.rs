@@ -3,7 +3,7 @@ use sux::{bits::BitVec, rank_sel::{SelectAdapt, SelectAdaptConst, SelectZeroAdap
     traits::{SelectUnchecked, SelectZeroUnchecked}};
 use crate::{Conf, Tester};
 
-pub fn build_bit_vec(conf: &Conf) -> (BitVec, Tester) {
+pub fn build_bit_vec(conf: &'_ Conf) -> (BitVec, Tester<'_>) {
     let mut content = BitVec::new(conf.universe);
     let tester = conf.fill_data(|bit_nr, value| content.set(bit_nr, value));
     (content, tester)
