@@ -258,6 +258,7 @@ impl Conf {
         let bucket_size = self.bucket_size_100();
         let minimizer = NelderMeadBuilder::default()
             .maxiter(self.optimization_iters() as usize) 
+            .ulps(128)
             .build()
             .unwrap();
         (minimizer, seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len))
