@@ -254,7 +254,7 @@ impl Conf {
         total.print_avg(self);
     }
 
-    pub fn optimizer<SC: SeedChooser>(&self, seed_chooser: &SC) -> (NelderMead, ph::phast::Conf) {
+    fn optimizer<SC: SeedChooser>(&self, seed_chooser: &SC) -> (NelderMead, ph::phast::Conf) {
         let bucket_size = self.bucket_size_100();
         let minimizer = NelderMeadBuilder::default()
             .maxiter(self.optimization_iters() as usize) 
@@ -264,22 +264,25 @@ impl Conf {
         (minimizer, seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len))
     }
 
+    const KEY_SETS_NUM: u32 = 96;
+
+    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: ArrayView1<f64>, f: F) -> f64 {
+        let unassigned_keys: usize = (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
+            f(&mut self.keys_for_seed(200+i))
+        }).sum();
+        println!("{unassigned_keys} {:.2}% {x:.0}", unassigned_keys as f64 * 100.0 / (Self::KEY_SETS_NUM as f64 * self.keys_num as f64));
+        unassigned_keys as f64
+    }
+
     pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
         let (minimizer, conf) = self.optimizer(&seed_chooser);
         let args = Array::from_vec(WeightsF::from(seed_chooser.bucket_evaluator(self.bits_per_seed, conf.slice_len())).size_weights.into_vec());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let evaluator = WeightsF{ size_weights: x.as_slice().unwrap().try_into().unwrap() };
-
-            let key_sets_num: u32 = 96;
-            let unassigned_keys: usize = (0..key_sets_num).into_par_iter().map(|i| {
-                let mut keys = self.keys_for_seed(200+i);
-                Partial::with_hashes_bps_conf_sc_be_u(&mut keys, BitsFast(self.bits_per_seed),
+            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(self.bits_per_seed),
                     conf,
-                    seed_chooser.clone(), &evaluator).1
-            }).sum();
-            println!("{unassigned_keys} {:.2}% {x:.0}", unassigned_keys as f64 * 100.0 / (key_sets_num as f64 * self.keys_num as f64));
-            unassigned_keys as f64
+                    seed_chooser.clone(), &evaluator).1)
         }, args.view());
         println!("Optimal weights: {ans:.0}");
     }
@@ -290,16 +293,8 @@ impl Conf {
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let evaluator = SumOfWeightedValuesF(x.to_vec().into_boxed_slice());
-
-            let key_sets_num: u32 = 96;
-            let unassigned_keys: usize = (0..key_sets_num).into_par_iter().map(|i| {
-                let mut keys = self.keys_for_seed(200+i);
-                Partial::with_hashes_bps_conf_sc_u(&mut keys, BitsFast(self.bits_per_seed),
-                    conf,
-                    SeedOnlyK::new(self.k, evaluator.clone())).1
-            }).sum();
-            println!("{unassigned_keys} {:.2}% {x:.0}", unassigned_keys as f64 * 100.0 / (key_sets_num as f64 * self.keys_num as f64));
-            unassigned_keys as f64
+            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnlyK::new(self.k, evaluator.clone())).1)
         }, args.view());
         println!("Optimal score weights: {ans:.0}");
     }
