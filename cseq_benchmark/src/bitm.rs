@@ -3,7 +3,7 @@ use bitm::{RankSelect101111, BinaryRankSearch, BitAccess, BitVec, CombinedSampli
 use dyn_size_of::GetSize;
 use crate::{Conf, Tester};
 
-pub fn build_bit_vec(conf: &Conf) -> (ABox<[u64]>, Tester) {
+pub fn build_bit_vec(conf: &'_ Conf) -> (ABox<[u64]>, Tester<'_>) {
     let mut content =  ABox::with_zeroed_bits(conf.universe);
     //let mut content = AVec::from_iter(64, (0..ceiling_div(conf.universe, 64)).map(|_| 0)).into_boxed_slice();
     let tester = conf.fill_data(|bit_nr, value| if value {content.init_bit(bit_nr, value)});

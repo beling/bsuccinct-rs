@@ -84,7 +84,7 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
     }
 
     /// Returns decoder that allows for decoding a value.
-    #[inline] pub fn decoder(&self) -> Decoder<ValueType, D> {
+    #[inline] pub fn decoder(&'_ self) -> Decoder<'_, ValueType, D> {
         return Decoder::<ValueType, D>::new(self);
     }
 

@@ -243,28 +243,28 @@ impl<S, S0, BV: Deref<Target = [u64]>> Sequence<S, S0, BV> {
     }
 
     /// Converts `position` to [`Cursor`].
-    #[inline] fn cursor(&self, position: Position) -> Cursor<S, S0, BV> {
+    #[inline] fn cursor(&'_ self, position: Position) -> Cursor<'_, S, S0, BV> {
         Cursor { sequence: &self, position }
     }
 
     /// Returns iterator over `self` values.
-    #[inline] pub fn iter(&self) -> Iterator<S, S0, BV> {
+    #[inline] pub fn iter(&'_ self) -> Iterator<'_, S, S0, BV> {
         Iterator { sequence: self, begin: self.begin_position(), end: self.end_position() } 
     }
 
     /// Returns an iterator that gives the value of the first item followed by
     /// the differences between the values of subsequent items.
-    #[inline] pub fn diffs(&self) -> DiffIterator<S, S0, BV> {
+    #[inline] pub fn diffs(&'_ self) -> DiffIterator<'_, S, S0, BV> {
         DiffIterator { sequence: self, position: self.begin_position(), prev_value: 0 } 
     }
 
     /// Returns cursor that points to the first item of `self`.
-    #[inline] pub fn begin(&self) -> Cursor<S, S0, BV> {
+    #[inline] pub fn begin(&'_ self) -> Cursor<'_, S, S0, BV> {
         self.cursor(self.begin_position())
     }
     
     /// Returns cursor that points past the end.
-    #[inline] pub fn end(&self) -> Cursor<S, S0, BV> {
+    #[inline] pub fn end(&'_ self) -> Cursor<'_, S, S0, BV> {
         self.cursor(self.end_position())
     }
 
@@ -373,13 +373,13 @@ impl<S: SelectForRank101111, S0, BV: Deref<Target = [u64]>> Sequence<S, S0, BV> 
 
     /// Returns valid cursor that points to given `index` of `self`.
     /// Result is undefined if `index` is out of bounds.
-    #[inline] pub unsafe fn cursor_at_unchecked(&self, index: usize) -> Cursor<S, S0, BV> {
+    #[inline] pub unsafe fn cursor_at_unchecked(&'_ self, index: usize) -> Cursor<'_, S, S0, BV> {
         self.cursor(self.position_at_unchecked(index))
     }
 
     /// Returns valid cursor that points to given `index` of `self`,
     /// or [`None`] if `index` is out of bounds.
-    #[inline] pub unsafe fn cursor_at(&self, index: usize) -> Option<Cursor<S, S0, BV>> {
+    #[inline] pub unsafe fn cursor_at(&'_ self, index: usize) -> Option<Cursor<'_, S, S0, BV>> {
         (index < self.len).then(|| unsafe { self.cursor_at_unchecked(index) })
     }
 }
@@ -418,7 +418,7 @@ impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Sequence<S, S0, BV>
     }
 
     /// Returns the cursor pointed to the first `self` item with value greater than or equal to given `value`.
-    #[inline] pub fn geq_cursor(&self, value: u64) -> Cursor<S, S0, BV> {
+    #[inline] pub fn geq_cursor(&'_ self, value: u64) -> Cursor<'_, S, S0, BV> {
         self.cursor(self.geq_position(value))
     }
 
@@ -428,7 +428,7 @@ impl<S, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> Sequence<S, S0, BV>
     }
 
     /// Returns the cursor pointing to the first occurrence of `value` or [`None`] if `self` does not contain `value`.
-    #[inline] pub fn cursor_of(&self, value: u64) -> Option<Cursor<S, S0, BV>> {
+    #[inline] pub fn cursor_of(&'_ self, value: u64) -> Option<Cursor<'_, S, S0, BV>> {
         self.position_of(value).map(|position| self.cursor(position))
     }
 

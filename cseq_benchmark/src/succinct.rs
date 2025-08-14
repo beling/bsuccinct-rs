@@ -1,7 +1,7 @@
 use succinct::{rank, select::{Select0Support, Select1Support}, BinSearchSelect, BitRankSupport, BitVecMut, BitVector, SpaceUsage};
 use crate::{Conf, Tester};
 
-pub fn build_bit_vec(conf: &Conf) -> (BitVector::<u64>, Tester) {
+pub fn build_bit_vec(conf: &'_ Conf) -> (BitVector::<u64>, Tester<'_>) {
     let mut content = BitVector::with_fill(conf.universe as u64, false);
     let tester = conf.fill_data(|bit_nr, value| {content.set_bit(bit_nr as u64, value)});
     (content, tester)
