@@ -281,20 +281,20 @@ pub trait BitAccess {
     fn count_bit_ones(&self) -> usize;
 
     /// Returns iterator over indices of ones (set bits).
-    fn bit_ones(&self) -> BitOnesIterator;
+    fn bit_ones(&'_ self) -> BitOnesIterator<'_>;
 
     /// Returns iterator over indices of ones (set bits).
-    fn bit_zeros(&self) -> BitZerosIterator;
+    fn bit_zeros(&'_ self) -> BitZerosIterator<'_>;
 
     /// Returns iterator over all bits in `self` that yields `true` for each one and `false` for each zero.
-    fn bit_iter(&self) -> BitIterator;
+    fn bit_iter(&'_ self) -> BitIterator<'_>;
 
     /// Returns iterator over given range of `self` bits that yields `true` for each one and `false` for each zero.
-    fn bit_in_range_iter(&self, bit_range: Range<usize>) -> BitIterator;
+    fn bit_in_range_iter(&'_ self, bit_range: Range<usize>) -> BitIterator<'_>;
 
     /// Returns iterator over given range (whose bounds are unchecked) of `self` bits
     /// that yields `true` for each one and `false` for each zero.
-    unsafe fn bit_in_unchecked_range_iter(&self, bit_range: Range<usize>) -> BitIterator;
+    unsafe fn bit_in_unchecked_range_iter(&'_ self, bit_range: Range<usize>) -> BitIterator<'_>;
 
     /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
     /// Panics if the range is out of bounds.
@@ -613,23 +613,23 @@ impl BitAccess for [u64] {
         self.into_iter().map(|s| s.count_ones() as usize).sum()
     }
 
-    #[inline(always)] fn bit_ones(&self) -> BitOnesIterator {
+    #[inline(always)] fn bit_ones(&'_ self) -> BitOnesIterator<'_> {
         BitOnesIterator::new(self)
     }
 
-    #[inline(always)] fn bit_zeros(&self) -> BitZerosIterator {
+    #[inline(always)] fn bit_zeros(&'_ self) -> BitZerosIterator<'_> {
         BitZerosIterator::new(self)
     }
 
-    #[inline(always)] fn bit_iter(&self) -> BitIterator {
+    #[inline(always)] fn bit_iter(&'_ self) -> BitIterator<'_> {
         BitIterator::new(self)
     }
 
-    #[inline(always)] fn bit_in_range_iter(&self, bit_range: Range<usize>) -> BitIterator {
+    #[inline(always)] fn bit_in_range_iter(&'_ self, bit_range: Range<usize>) -> BitIterator<'_> {
         BitIterator::with_range(self, bit_range)
     }
 
-    #[inline(always)] unsafe fn bit_in_unchecked_range_iter(&self, bit_range: Range<usize>) -> BitIterator {
+    #[inline(always)] unsafe fn bit_in_unchecked_range_iter(&'_ self, bit_range: Range<usize>) -> BitIterator<'_> {
         BitIterator::with_range_unchecked(self, bit_range)
     }
 
