@@ -1,5 +1,5 @@
 mod k;
-pub use k::{SeedOnlyK, KSeedEvaluator, SumOfValues, SumOfWeightedValues, bucket_size_normalization_multiplier};
+pub use k::{SeedOnlyK, KSeedEvaluator, SumOfValues, SumOfWeightedValues, bucket_size_normalization_multiplier, space_lower_bound};
 
 mod shift;
 pub use shift::{ShiftOnly};

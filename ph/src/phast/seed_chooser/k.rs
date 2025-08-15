@@ -3,13 +3,35 @@ use bitm::ceiling_div;
 use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
 use super::SeedChooser;
 
+/// Returns approximation of lower bound of space (in bits/key)
+/// needed to represent minimal `k`-perfect function.
+pub fn space_lower_bound(k: u8) -> f64 {
+    match k {
+        0|1 => 1.4426950408889634,  // TODO? 0 should panic
+        2 => 0.9426950408889634,
+        3 => 0.7193867070748593,
+        _ => {
+            const LOG2PI: f64 = 2.651496129472319;
+            let k = k as f64;
+            //let k2 = 2.0 * k;
+            //log2(pi*k2)/k2 + 0.12/(k*k)
+            0.5 * (LOG2PI + k.log2()) / k + 0.12/(k*k)
+        }
+    }
+}
+
 pub fn bucket_size_normalization_multiplier(k: u8) -> f64 {
+    let overhead = 0.25 + 0.25 / (k as f64 * k as f64);
+    (space_lower_bound(1)+overhead) / (space_lower_bound(k)+overhead)
+}
+
+/*pub fn bucket_size_normalization_multiplier(k: u8) -> f64 {
     if k == 1 { return 1.0; }
     const LOG2PI: f64 = 2.651496129472319;
     let k = k as f64;
     //2.7941142836856487*k as f64/(LOG2PI+k.log2())
     2.0*k as f64/(LOG2PI+k.log2())
-}
+}*/
 
 pub trait KSeedEvaluator: Clone + Sync {
     /// Type of evaluation value.

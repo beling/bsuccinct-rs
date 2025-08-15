@@ -25,6 +25,7 @@ use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, SumOfValues, S
 
 fn main() {
     let conf = Conf::parse();
+    //println!("{}", space_lower_bound(conf.k));
     let threads_num = conf.threads();
     let bucket_size = conf.bucket_size_100();
     if conf.csv && conf.support_csv() {
