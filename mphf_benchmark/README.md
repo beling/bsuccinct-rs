@@ -9,7 +9,7 @@ It can test the algorithms included in the following crates:
 Please run the program with the `--help` switch to see the available options.
 
 The availability of some options depends on the activation of the following features:
-- *fmph-key-access* - allows a choice of multiple methods of accessing keys by FMPH(GO).
+- `fmph-key-access` - allows a choice of multiple methods of accessing keys by FMPH(GO).
 
 Features delegated to [seedable_hash crate](seedable_hash) and described in the [seedable_hash documentation](seedable_hash) decide which algorithm is used by the most methods to hash string keys ([GxHash](https://crates.io/crates/gxhash) enabled by the `gxhash` feature is the fastest on the platforms it supports).
 
@@ -29,10 +29,52 @@ Once Rust is installed, just execute the following to install `mphf_benchmark` w
 
 ```RUSTFLAGS="-C target-cpu=native" cargo install mphf_benchmark```
 
+or, to use it with [gxhash](https://crates.io/crates/gxhash) for hashing (which is recommended):
+
+```RUSTFLAGS="-C target-cpu=native" cargo --features gxhash install mphf_benchmark```
+
 # Reproducing experiments from the papers
+
+## PHast -- Perfect Hashing made fast
+(Piotr Beling, Peter Sanders, *PHast -- Perfect Hashing made fast*, SIAM Symposium on Algorithm Engineering and Experiments ALENEX26, 2026; [preprint available on arXiv](https://arxiv.org/abs/2504.17918))
+
+Most of the experiments were performed using the program [MPHF-Experiments](https://github.com/beling/MPHF-Experiments/). Its [README](https://github.com/beling/MPHF-Experiments/blob/main/README.md) contains [instructions](https://github.com/beling/MPHF-Experiments/blob/main/README.md#reproducing-results-from-the-paper-phast---perfect-hashing-made-fast) for reproducing them.
+
+The data for plots showing how the size of PHast/PHast+ depends on the bucket size can be calculated either using `mphf_benchmark` or the `phast` program from the `internal` folder (both should be compiled with `--features gxhash`), depending on the preferred output format. In both cases, a single run of the program yields a single value for the plot, so it is advisable to run the programs in a shell loop or using the [parallel](https://www.gnu.org/software/parallel/) program.
+
+For example, to obtain data for *PHast S=8* (and 10M keys) using `mphf_benchmark` and `parallel`, you can run:
+```shell
+parallel -j 1 mphf_benchmark -t multi --save-details -n 100000000 -s xs64 phast 8 {} ::: {200..800..5}
+```
+To get data for other method or *S*, change `phast 8` fragment; run `./mphf_benchmark --help` to see possible method names and the meanings of all parameters. The calculations can be repeated for different sets of keys (by adding `--seed` with different numbers), for example to average the results.
+
+To obtain data for *PHast+ S=8 δ=3* (and 10M keys) using `phast` program with `parallel`, you can run:
+```shell
+parallel -k phast -n 100000000 --csv -s8 -b{} -i5 plus 3 ::: {200..800..5}
+```
+To get data for other method or *S*, change `plus 3` or `-s8` fragment respectively; run `./phast --help` to see possible method names and the meanings of all parameters. Thanks to the `-i5` parameter, the results are averaged over 5 sets of keys.
+
+The contribution of individual steps to PHast/PHast+ construction time can be displayed by the version of the `mphf_benchmark` program contained in the `statspartial` branch. To clone this branch, run:
+
+```shell
+git clone -b statspartial https://github.com/beling/bsuccinct-rs.git
+```
+
+Next, to compile and run `mphf_benchmark` with `--help` flag (to display available options):
+```shell
+RUSTFLAGS="-C target-cpu=native" cargo run --release --features gxhash --bin mphf_benchmark -- --help
+```
+
+Example run for *PHast S=8 λ=4.5* (`phast 8 450`), 50M 8-byte keys (`-n 50000000 -s xs64`), single threaded construction (`-t single`):
+```shell
+RUSTFLAGS="-C target-cpu=native" cargo run --release --features gxhash --bin mphf_benchmark -- -t single -n 50000000 -s xs64 phast 8 450
+```
+
 
 ## Fingerprinting-based minimal perfect hashing revisited
 (Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, DOI: <https://doi.org/10.1145/3596453>)
+
+Note: `mphf_benchmark` must be compiled/installed with `fmph` feature.
 
 The results for FMPHGO with wide range of parameters and 100,000,000 64-bit integer keys generated uniformly at random,
 can be calculated by:
