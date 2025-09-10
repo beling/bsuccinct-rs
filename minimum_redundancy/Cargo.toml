@@ -1,7 +1,6 @@
 [package]
 name = "minimum_redundancy"
-version = "0.3.2"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+version = "0.3.3"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "The library to encode and decode data with binary or non-binary Huffman coding."

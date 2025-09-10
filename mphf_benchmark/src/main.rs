@@ -211,7 +211,7 @@ pub enum KeySource {
 }
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author="Piotr Beling", version, about, long_about = None)]
 /// Minimal perfect hashing benchmark.
 pub struct Conf {
     /// Method to run

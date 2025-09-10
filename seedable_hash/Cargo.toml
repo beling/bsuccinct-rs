@@ -1,7 +1,6 @@
 [package]
 name = "seedable_hash"
-version = "0.2.1"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+version = "0.2.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "The library for calculating seedable hashes and fast reduction of their ranges."

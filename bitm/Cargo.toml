@@ -1,8 +1,7 @@
 [package]
 name = "bitm"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
 description = "The library for bit and bitmap (bit vector) manipulation."
 documentation = "https://docs.rs/bitm"

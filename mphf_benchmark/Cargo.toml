@@ -1,7 +1,6 @@
 [package]
 name = "mphf_benchmark"
-version = "0.3.5"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+version = "0.3.6"
 license = "MIT OR Apache-2.0"
 description = "The program for benchmarking Minimal Perfect Hash Functions"
 edition = "2021"

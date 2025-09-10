@@ -1,7 +1,6 @@
 [package]
 name = "phast"
 version = "0.0.0"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
 description = "Internal BSuccinct program that helps develop the phast algorithm"
 edition = "2021"

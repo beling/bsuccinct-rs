@@ -71,7 +71,7 @@ impl std::fmt::Display for Method {
 pub const CSV_HEADER: &'static str = "keys_num method k bits/seed bucket_size100 slice threads seed bits/key bumped_% range_overhead_% build_ns/key query_ns/key";
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author="Piotr Beling", version, about, long_about = None)]
 /// Minimal perfect hashing benchmark.
 pub struct Conf {
     /// Method to run

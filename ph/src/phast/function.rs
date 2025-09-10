@@ -141,9 +141,11 @@ pub(crate) fn build_level_mt<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
 /// developed by Piotr Beling and Peter Sanders.
 /// 
 /// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
-/// [`ShiftOnlyWrapped`] (PHast+ with wrapping), [`ShiftSeedWrapped`] (PHast/PHast+ hybrid), [`SeedOnly`] (regular PHast).
+/// [`ShiftOnlyWrapped`] (PHast+ with wrapping),
+/// [`ShiftSeedWrapped`] (PHast/PHast+ hybrid),
+/// [`SeedOnly`] (regular PHast).
 /// 
-/// Note that some [`SeedChooser`]s can be used only with [`crate::phast::Function2`].
+/// Note that some [`SeedChooser`]s can be used only with [`Function2`](crate::phast::Function2).
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>

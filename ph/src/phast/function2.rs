@@ -15,7 +15,12 @@ use voracious_radix_sort::RadixSort;
 /// This makes `Function2` compatible with almost all [`SeedChooser`]s (including non-wrapping `ShiftOnly`).
 /// 
 /// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
-/// [`ShiftOnly`], [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`].
+/// [`ShiftOnly`] (PHast+ without wrapping),
+/// [`ShiftOnlyWrapped`] (PHast+ with wrapping),
+/// [`ShiftSeedWrapped`] (PHast/PHast+ hybrid),
+/// [`SeedOnly`] (regular PHast).
+/// 
+/// Note that some [`SeedChooser`]s can also be used with [`Function`](crate::phast::Function).
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>

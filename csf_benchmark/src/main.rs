@@ -83,7 +83,7 @@ impl Distribution {
 }
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author="Piotr Beling", version, about, long_about = None)]
 /// Static function benchmark.
 pub struct Conf {
     /// Function to test

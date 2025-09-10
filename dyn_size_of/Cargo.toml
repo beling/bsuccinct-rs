@@ -1,8 +1,7 @@
 [package]
 name = "dyn_size_of"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2021"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
 description = "The library to report approximate amount of memory consumed by variables, including the memory allocated on heap."
 documentation = "https://docs.rs/dyn_size_of"

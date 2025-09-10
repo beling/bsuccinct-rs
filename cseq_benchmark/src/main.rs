@@ -69,7 +69,7 @@ impl std::fmt::Display for Distribution {
 }
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None, infer_subcommands=true, infer_long_args=true)]
+#[command(author="Piotr Beling", version, about, long_about = None, infer_subcommands=true, infer_long_args=true)]
 /// Compact sequences benchmark.
 pub struct Conf {
     /// Structure to test
