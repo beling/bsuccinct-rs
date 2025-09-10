@@ -17,9 +17,16 @@ The default one can be selected via features, which are delegated to [seedable_h
 We recommend [GxHash](https://crates.io/crates/gxhash) (enabled by `gxhash` feature) on the platforms it supports.
 
 # Bibliography
-When using `ph` for research purposes, please cite the following paper which provides details on FMPH and FMPHGO:
+When using `ph` for research purposes, please cite the following paper which provides details on:
+* PHast and PHast+:
+  
+  Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, SIAM Symposium on Algorithm Engineering and Experiments (ALENEX26), 2026
 
-* Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
+  (its preprint is also [available on arXiv](https://arxiv.org/abs/2504.17918))
+
+* FMPH and FMPHGO:
+
+  Piotr Beling, *Fingerprinting-based minimal perfect hashing revisited*, ACM Journal of Experimental Algorithmics, 2023, <https://doi.org/10.1145/3596453>
 
 # Examples
 The following examples illustrate the use of [`fmph::Function`], which, however, can be replaced with [`fmph::GOFunction`] without any other changes.
