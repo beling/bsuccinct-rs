@@ -42,13 +42,13 @@ Most of the experiments were performed using [MPHF-Experiments](https://github.c
 
 The data for plots showing how the size of PHast/PHast+ depends on the bucket size can be calculated either using `mphf_benchmark` or the `phast` program from the `internal` folder (both should be compiled with `--features gxhash`), depending on the preferred output format. In both cases, a single run of the program yields a single value for the plot, so it is advisable to run the programs in a shell loop or using the [parallel](https://www.gnu.org/software/parallel/) program.
 
-For example, to obtain data for *PHast S=8* (and 10M keys) using `mphf_benchmark` and `parallel`, you can run:
+For example, to obtain data for *PHast S=8*, all *λ* from *2* to *8* in *0.05* increments, *10M* keys, using `mphf_benchmark` and `parallel`, you can run:
 ```shell
 parallel -j 1 mphf_benchmark -t multi --save-details -n 100000000 -s xs64 phast 8 {} ::: {200..800..5}
 ```
 To get data for other method or *S*, change `phast 8` fragment; run `./mphf_benchmark --help` to see possible method names and the meanings of all parameters. The calculations can be repeated for different sets of keys (by adding `--seed` with different numbers), for example to average the results.
 
-To obtain data for *PHast+ S=8 δ=3* (and 10M keys) using `phast` program with `parallel`, you can run:
+To obtain data for *PHast+ S=8 δ=3*, all *λ*, *10M* keys, using `phast` program with `parallel`, you can run:
 ```shell
 parallel -k phast -n 100000000 --csv -s8 -b{} -i5 plus 3 ::: {200..800..5}
 ```
@@ -66,7 +66,7 @@ Next, to compile and run `mphf_benchmark` with `--help` flag (to display availab
 RUSTFLAGS="-C target-cpu=native" cargo run --release --features gxhash --bin mphf_benchmark -- --help
 ```
 
-Example run for *PHast S=8 λ=4.5* (`phast 8 450`), 50M 8-byte keys (`-n 50000000 -s xs64`), single threaded construction (`-t single`):
+Example run for *PHast S=8 λ=4.5* (`phast 8 450`), *50M* *8*-byte keys (`-n 50000000 -s xs64`), single threaded construction (`-t single`):
 ```shell
 RUSTFLAGS="-C target-cpu=native" cargo run --release --features gxhash --bin mphf_benchmark -- -t single -n 50000000 -s xs64 phast 8 450
 ```
