@@ -58,6 +58,7 @@ The contribution of individual steps to PHast/PHast+ construction time can be di
 
 ```shell
 git clone -b statspartial https://github.com/beling/bsuccinct-rs.git
+cd bsuccinct-rs
 ```
 
 Next, to compile and run `mphf_benchmark` with `--help` flag (to display available options):

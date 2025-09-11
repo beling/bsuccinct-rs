@@ -156,17 +156,17 @@ pub enum Method {
     plus2wrap(PHastConf),
     /// PHast+ with wrapping and multiplier=3
     plus3wrap(PHastConf),
-    /// PHaster with shift and seed, multiplier 1
+    /// PHast+ with shift and seed, multiplier 1
     plusshift1 {
         bits_per_shift: u8,
         #[command(flatten)] phast_conf: PHastConf
     },
-    /// PHaster with shift and seed, multiplier 2
+    /// PHast+ with shift and seed, multiplier 2
     plusshift2 {
         bits_per_shift: u8,
         #[command(flatten)] phast_conf: PHastConf
     },
-    /// PHaster with shift and seed, multiplier 3
+    /// PHast+ with shift and seed, multiplier 3
     plusshift3 {
         bits_per_shift: u8,
         #[command(flatten)] phast_conf: PHastConf
