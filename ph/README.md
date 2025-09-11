@@ -20,9 +20,9 @@ We recommend [GxHash](https://crates.io/crates/gxhash) (enabled by `gxhash` feat
 When using `ph` for research purposes, please cite the following paper which provides details on:
 * PHast and PHast+:
   
-  Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, SIAM Symposium on Algorithm Engineering and Experiments (ALENEX26), 2026
+  Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, SIAM Symposium on Algorithm Engineering and Experiments ALENEX26, 2026
 
-  (its preprint is also [available on arXiv](https://arxiv.org/abs/2504.17918))
+  (its preprint is [available on arXiv](https://arxiv.org/abs/2504.17918))
 
 * FMPH and FMPHGO:
 

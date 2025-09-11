@@ -38,7 +38,7 @@ or, to use it with [gxhash](https://crates.io/crates/gxhash) for hashing (which 
 ## PHast -- Perfect Hashing made fast
 (Piotr Beling, Peter Sanders, *PHast -- Perfect Hashing made fast*, SIAM Symposium on Algorithm Engineering and Experiments ALENEX26, 2026; [preprint available on arXiv](https://arxiv.org/abs/2504.17918))
 
-Most of the experiments were performed using the program [MPHF-Experiments](https://github.com/beling/MPHF-Experiments/). Its [README](https://github.com/beling/MPHF-Experiments/blob/main/README.md) contains [instructions](https://github.com/beling/MPHF-Experiments/blob/main/README.md#reproducing-results-from-the-paper-phast---perfect-hashing-made-fast) for reproducing them.
+Most of the experiments were performed using [MPHF-Experiments](https://github.com/beling/MPHF-Experiments/) program. Its [README](https://github.com/beling/MPHF-Experiments/blob/main/README.md) contains [instructions](https://github.com/beling/MPHF-Experiments/blob/main/README.md#reproducing-results-from-the-paper-phast---perfect-hashing-made-fast) for reproducing them.
 
 The data for plots showing how the size of PHast/PHast+ depends on the bucket size can be calculated either using `mphf_benchmark` or the `phast` program from the `internal` folder (both should be compiled with `--features gxhash`), depending on the preferred output format. In both cases, a single run of the program yields a single value for the plot, so it is advisable to run the programs in a shell loop or using the [parallel](https://www.gnu.org/software/parallel/) program.
 
