@@ -1,6 +1,6 @@
 [package]
 name = "csf"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "The library of compressed static functions (maps) that use perfect hashing and value compression."

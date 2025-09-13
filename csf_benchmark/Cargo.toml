@@ -12,7 +12,7 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [dependencies]
-csf = { version ="0.2.0-alpha.3", path = "../csf" }
+csf = { version ="0.2.0-alpha.2", path = "../csf" }
 ph = { version=">=0.8, <0.11", path="../ph", features = ["wyhash"] }
 clap = { version="4", features = ["derive"] }
 #fsum = { version ="0.1", path = "../fsum" }
