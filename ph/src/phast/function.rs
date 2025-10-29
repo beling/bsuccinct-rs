@@ -37,9 +37,10 @@ impl<SSVecElement: GetSize> GetSize for SeedEx<SSVecElement> {
 
 #[cfg_attr(feature = "epserde", derive(epserde::Epserde))]
 #[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
-pub struct Level<SSVecElement> {
-    pub(crate) seeds: SeedEx<SSVecElement>,
-    pub(crate) shift: usize
+pub struct Level<SSVecElement, S = SeedEx<SSVecElement>> {
+    pub(crate) seeds: S,
+    pub(crate) shift: usize,
+    pub(crate) _marker: std::marker::PhantomData<SSVecElement>
 }
 
 impl<SSVecElement: GetSize> GetSize for Level<SSVecElement> {
@@ -311,7 +312,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
                     unassigned.push(last);
                 }
             }
-            levels.push(Level { seeds, shift });
+            levels.push(Level { seeds, shift, _marker: std::marker::PhantomData });
         }
         debug_assert!(level0_unassigned.next().is_none());
         drop(level0_unassigned);

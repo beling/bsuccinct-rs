@@ -185,7 +185,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
                     unassigned.push(last);
                 }
             }
-            levels.push(Level { seeds, shift });
+            levels.push(Level { seeds, shift, _marker: std::marker::PhantomData });
         }
         //dbg!(keys.len());   // TODO keys.len()==0
         let mut last_seed = levels.len() as u64+1;
@@ -224,7 +224,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             levels: levels.into_boxed_slice(),
             hasher,
             seed_chooser,
-            last_level: Level { seeds: last_seeds, shift: last_shift },
+            last_level: Level { seeds: last_seeds, shift: last_shift, _marker: std::marker::PhantomData },
             last_level_seed: last_seed,
             seed_size,
         }

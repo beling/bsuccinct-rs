@@ -131,7 +131,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         while !keys.is_empty() {
             let seeds = build_level(&mut keys, levels.len() as u64+1, &hasher);
             let out_range = seeds.conf.output_range(seed_chooser, seed_size.into());
-            levels.push(Level { seeds, shift });
+            levels.push(Level { seeds, shift, _marker: std::marker::PhantomData });
             shift += out_range;
         }
         Self {
