@@ -156,6 +156,8 @@ const SMALL_BUCKET_LIMIT: usize = 8;
 /// 
 /// It chooses best seed with quite strong hasher, without shift component,
 /// which should lead to small size, but long construction time.
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Clone, Copy)]
 pub struct SeedOnly;
 

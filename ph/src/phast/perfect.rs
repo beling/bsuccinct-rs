@@ -159,7 +159,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         keys_vec.extend(keys.into_iter().filter(|key| {
             params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
-        (keys_vec, SeedEx{ seeds, conf })
+        (keys_vec, SeedEx{ seeds, conf, _marker: std::marker::PhantomData })
     }
 
     #[inline]
@@ -182,7 +182,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }).cloned());
-        (keys_vec, SeedEx{ seeds, conf })
+        (keys_vec, SeedEx{ seeds, conf, _marker: std::marker::PhantomData })
     }
 
     #[inline(always)]
@@ -197,7 +197,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         keys.retain(|key| {
             params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         });
-        SeedEx{ seeds, conf }
+        SeedEx{ seeds, conf, _marker: std::marker::PhantomData }
     }
 
     #[inline]
@@ -224,7 +224,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         keys.par_extend(result.into_par_iter().filter(|key| {
             params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
         }));
-        SeedEx{ seeds, conf }
+        SeedEx{ seeds, conf, _marker: std::marker::PhantomData }
     }
 
     /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.

@@ -24,14 +24,15 @@ use voracious_radix_sort::RadixSort;
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function2<SS, SC = ShiftOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
-    where SS: SeedSize
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
+pub struct Function2<SS: SeedSize, SC = ShiftOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher, L0 = SeedEx<<SS as SeedSize>::VecElement>, L = Box<[Level<<SS as SeedSize>::VecElement>]>, LL = Level<<Bits8 as SeedSize>::VecElement>>
 {
-    level0: SeedEx<SS::VecElement>,
+    level0: L0,
     unassigned: CA,
-    levels: Box<[Level<SS::VecElement>]>,
+    levels: L,
     hasher: S,
-    last_level: Level<<Bits8 as SeedSize>::VecElement>,
+    last_level: LL,
     last_level_seed: u64,
     seed_chooser: SC,
     seed_size: SS,
@@ -192,7 +193,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         let last_seeds =
         if keys.is_empty() {
             last_shift = 0;
-            SeedEx::<<Bits8 as SeedSize>::VecElement>{ seeds: Box::default(), conf: Conf { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
+            SeedEx::<<Bits8 as SeedSize>::VecElement>{ seeds: Box::default(), conf: Conf { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 }, _marker: std::marker::PhantomData }
         } else {
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
@@ -245,7 +246,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             if let Some((seeds, unassigned_values, unassigned_len)) =
                 build_last_level(&hashes, conf, bits_per_seed, evaluator.clone())
             {
-                return (SeedEx{ seeds, conf }, unassigned_values, unassigned_len);
+                return (SeedEx{ seeds, conf, _marker: std::marker::PhantomData }, unassigned_values, unassigned_len);
             }
             *seed += 1;
             //dbg!(*seed);

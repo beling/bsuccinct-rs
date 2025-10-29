@@ -21,6 +21,8 @@ sip13 = ["seedable_hash/sip13"]  # if enabled, makes available BuildSip13 that u
 fnv = ["seedable_hash/fnv"]
 sux = ["dep:sux", "mem_dbg"]
 cacheline-ef = ["dep:cacheline-ef", "mem_dbg"]
+epserde = ["dep:epserde", "sux/epserde", "seedable_hash/epserde"]
+mem_dbg = ["dep:mem_dbg", "seedable_hash/mem_dbg"]
 
 [dependencies]
 bitm = { version="0.5", path="../bitm" }
@@ -31,9 +33,11 @@ seedable_hash = { version="0.2", path="../seedable_hash", default-features = fal
 arrayvec = "0.7"
 voracious_radix_sort = { version = "1.2.0", features = ["voracious_multithread"] }
 cseq = { version = "0.1", path = "../cseq", optional = true }
-sux = { version = "0.6", optional = true }
-mem_dbg = { version="0.3", optional = true } # required by sux and cacheline-ef
+sux = { version = "0.9", optional = true }
+mem_dbg = { path = "../../mem_dbg-rs/mem_dbg", optional = true } # required by sux and cacheline-ef
 cacheline-ef = { version = "1.1.0", optional = true }
+epserde = { version = "0.11", optional = true }
+maligned = "0.2.1"
 
 [target.'cfg(target_pointer_width = "32")'.dependencies]
 aligned-vec = { version="0.6", optional=true }  #  for 32 bit support

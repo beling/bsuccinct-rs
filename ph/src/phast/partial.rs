@@ -11,7 +11,7 @@ use std::hash::{BuildHasher, Hash, RandomState};
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Partial<SS, SC = SeedOnly, S = RandomState> where SS: SeedSize {
+pub struct Partial<SS: SeedSize, SC = SeedOnly, S = RandomState> {
     seeds: SeedEx<SS::VecElement>,
     hasher: S,
     seed_chooser: SC,
@@ -135,7 +135,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
         hashes.voracious_sort();
         let (seeds, build_conf) = build_st(hashes, conf, seed_size, bucket_evaluator, seed_chooser);
         (Self {
-            seeds: SeedEx{ seeds, conf },
+            seeds: SeedEx{ seeds, conf, _marker: std::marker::PhantomData },
             hasher,
             seed_chooser,
             seed_size
@@ -150,7 +150,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
         hashes.voracious_mt_sort(threads_num);
         let (seeds, build_conf) = build_mt(hashes, conf, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
         (Self {
-            seeds: SeedEx{ seeds, conf },
+            seeds: SeedEx{ seeds, conf, _marker: std::marker::PhantomData },
             hasher,
             seed_chooser,
             seed_size,

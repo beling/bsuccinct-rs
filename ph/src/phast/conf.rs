@@ -6,6 +6,8 @@ use super::SeedChooser;
 
 /// PHast map-or-bump function configuration.
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), repr(C), epserde_zero_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 pub struct Conf {
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) slice_len_minus_one: u16,  // slice length L

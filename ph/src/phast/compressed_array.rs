@@ -189,6 +189,8 @@ impl<C> GetSize for LinearRegressionArray<C> {
 }
 
 /// Implementation of `CompressedArray` that stores each value with the same number of bits required to store the largest one.
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 pub struct Compact {
     pub items: Box<[u64]>,
     pub item_size: u8,
@@ -277,7 +279,10 @@ impl CompressedArray for CompactFast {
 
 
 /// CompressedArray implementation by Elias-Fano from `sux` crate.
-#[cfg(feature = "sux")] pub struct SuxEliasFano(sux::dict::elias_fano::EfSeq);
+#[cfg(feature = "sux")] 
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
+pub struct SuxEliasFano<E = sux::dict::elias_fano::EfSeq>(E);
 
 #[cfg(feature = "sux")] impl CompressedBuilder for sux::dict::EliasFanoBuilder {
     #[inline] fn new(num_of_values: usize, max_value: usize) -> Self {
