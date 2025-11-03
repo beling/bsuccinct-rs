@@ -23,7 +23,7 @@ pub trait BuildSeededHasher {
 }
 
 /// [`BuildSeededHasher`] that uses standard [`BuildHasher`].
-#[cfg_attr(feature = "epserde", derive(epserde::Epserde))]
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), epserde_deep_copy)]
 #[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Default, Copy, Clone)]
 pub struct Seedable<BH: BuildHasher + Clone>(pub BH);
