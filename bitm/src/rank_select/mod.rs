@@ -40,6 +40,9 @@ pub trait Rank {
     #[inline] unsafe fn rank0_unchecked(&self, index: usize) -> usize {
         index - self.rank_unchecked(index)
     }
+
+    #[inline]
+    fn prefetch(&self, _index: usize) {}
 }
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
@@ -240,6 +243,14 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 
         //r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))
         r + count_bits_in(self.content.get_unchecked(word_idx&!7..word_idx))
+    }
+
+    #[inline]
+    fn prefetch(&self, index: usize) {
+        let word_idx = index / 64;
+        prefetch_index(&self.l2ranks, index / 2048);
+        prefetch_index(&self.l1ranks, index >> 32);
+        prefetch_index(&*self.content, word_idx);
     }
 }
 
@@ -660,5 +671,28 @@ mod tests {
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111_combined() {
         array_64bit_zeroed_first::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
+    }
+}
+
+/// Prefetch the cache line containing (the first byte of) `data[index]` into
+/// all levels of the cache.
+#[inline(always)]
+fn prefetch_index<T>(data: impl AsRef<[T]>, index: usize) {
+    let ptr = data.as_ref().as_ptr().wrapping_add(index) as *const i8;
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        std::arch::x86_64::_mm_prefetch(ptr, std::arch::x86_64::_MM_HINT_T0);
+    }
+    #[cfg(target_arch = "x86")]
+    unsafe {
+        std::arch::x86::_mm_prefetch(ptr, std::arch::x86::_MM_HINT_T0);
+    }
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        std::arch::aarch64::_prefetch(ptr, std::arch::aarch64::_PREFETCH_LOCALITY3);
+    }
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))]
+    {
+        // Do nothing.
     }
 }
