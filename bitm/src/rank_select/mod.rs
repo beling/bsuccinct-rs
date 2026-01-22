@@ -41,6 +41,8 @@ pub trait Rank {
         index - self.rank_unchecked(index)
     }
 
+    /// Prefetch the cache line containing the data needed to calculate `rank(index)` into
+    /// all levels of the cache.
     #[inline]
     fn prefetch(&self, _index: usize) {}
 }
