@@ -9,6 +9,7 @@ pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling,
 
 use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
+use prefetch_index::prefetch_index;
 
 /// Trait for rank queries on bit vector.
 /// Rank query returns the number of ones (or zeros) in requested number of the first bits.
@@ -673,28 +674,5 @@ mod tests {
     #[ignore = "uses much memory and time"]
     fn array_64bit_zeroed_first_101111_combined() {
         array_64bit_zeroed_first::<RankSelect101111::<CombinedSampling, CombinedSampling>>();
-    }
-}
-
-/// Prefetch the cache line containing (the first byte of) `data[index]` into
-/// all levels of the cache.
-#[inline(always)]
-fn prefetch_index<T>(data: impl AsRef<[T]>, index: usize) {
-    let ptr = data.as_ref().as_ptr().wrapping_add(index) as *const i8;
-    #[cfg(target_arch = "x86_64")]
-    unsafe {
-        std::arch::x86_64::_mm_prefetch(ptr, std::arch::x86_64::_MM_HINT_T0);
-    }
-    #[cfg(target_arch = "x86")]
-    unsafe {
-        std::arch::x86::_mm_prefetch(ptr, std::arch::x86::_MM_HINT_T0);
-    }
-    #[cfg(target_arch = "aarch64")]
-    unsafe {
-        std::arch::aarch64::_prefetch(ptr, std::arch::aarch64::_PREFETCH_LOCALITY3);
-    }
-    #[cfg(not(any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))]
-    {
-        // Do nothing.
     }
 }

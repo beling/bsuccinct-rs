@@ -14,6 +14,7 @@ keywords = [ "bit", "bitmap", "rank", "bitvector", "bitset" ]
 [dependencies]
 dyn_size_of = { version=">=0.4.3", path="../dyn_size_of" }
 aligned-vec = { version="0.6", optional=true }  # for construcing cache-aligment bit vectors, which usually speeds up rank and select
+prefetch-index = "0.1.0"
 
 [dev-dependencies]
 criterion = "0.5"
