@@ -759,8 +759,7 @@ mod tests {
     use std::fmt::{Debug, Display};
     use crate::seeds::Bits;
 
-    fn test_read_write<GS: GroupSize + Sync, SS: SeedSize>(h: &GOFunction<GS, SS>)
-        where SS::VecElement: std::cmp::PartialEq + Debug
+    fn test_read_write<GS: GroupSize + Sync, SS: SeedSize<VecElement: std::cmp::PartialEq + Debug>>(h: &GOFunction<GS, SS>)
     {
         let mut buff = Vec::new();
         h.write(&mut buff).unwrap();

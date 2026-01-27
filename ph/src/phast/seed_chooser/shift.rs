@@ -34,6 +34,8 @@ use super::SeedChooser;
 /// 
 /// It chooses best seed using only shifting without wrapping,
 /// which leads to very fast construction but the cost of bigger size.
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), repr(C), epserde_zero_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Clone, Copy, Default)]
 pub struct ShiftOnly;
 

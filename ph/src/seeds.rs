@@ -64,6 +64,8 @@ pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
 }
 
 /// Size in bits.
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), epserde_deep_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Copy, Clone)]
 pub struct Bits(pub u8);
 
@@ -128,6 +130,8 @@ impl SeedSize for Bits {
 /// Size in bits.
 /// 
 /// Uses unaligned reads/writes to access data in SeedSize implementation.
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), epserde_deep_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Copy, Clone)]
 pub struct BitsFast(pub u8);
 
@@ -197,6 +201,8 @@ impl SeedSize for BitsFast {
 }
 
 /// Seed size of 8 bits.
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), epserde_deep_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Copy, Clone, Default)]
 pub struct Bits8;
 
@@ -248,6 +254,8 @@ impl SeedSize for Bits8 {
 }
 
 /// Seed size given as a power of two (knowing at compile time).
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), epserde_deep_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Copy, Clone, Default)]
 pub struct TwoToPowerBitsStatic<const LOG2_BITS: u8>;
 

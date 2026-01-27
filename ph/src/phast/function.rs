@@ -9,9 +9,12 @@ use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
 /// Represents map-or-bump function.
-pub(crate) struct SeedEx<SSVecElement> {
-    pub(crate) seeds: Box<[SSVecElement]>,
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), repr(C))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
+pub struct SeedEx<SSVecElement, B = Box<[SSVecElement]>> {
+    pub(crate) seeds: B,
     pub(crate) conf: Conf,
+    pub(crate) _marker: std::marker::PhantomData<SSVecElement>
 }
 
 impl<SSVecElement> SeedEx<SSVecElement> {
@@ -19,7 +22,7 @@ impl<SSVecElement> SeedEx<SSVecElement> {
     pub(crate) fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
 
     #[inline(always)]
-    pub(crate) fn seed_for<SS>(&self, seed_size: SS, key: u64) -> u16 where SS: SeedSize<VecElement=SSVecElement> {
+    pub(crate) fn seed_for<SS: SeedSize<VecElement=SSVecElement>>(&self, seed_size: SS, key: u64) -> u16 {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
         seed_size.get_seed(&self.seeds, self.bucket_for(key))
     }
@@ -32,9 +35,12 @@ impl<SSVecElement: GetSize> GetSize for SeedEx<SSVecElement> {
 }
 
 
-pub(crate) struct Level<SSVecElement> {
-    pub(crate) seeds: SeedEx<SSVecElement>,
-    pub(crate) shift: usize
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
+pub struct Level<SSVecElement, S = SeedEx<SSVecElement>> {
+    pub(crate) seeds: S,
+    pub(crate) shift: usize,
+    pub(crate) _marker: std::marker::PhantomData<SSVecElement>
 }
 
 impl<SSVecElement: GetSize> GetSize for Level<SSVecElement> {
@@ -60,7 +66,7 @@ pub(crate) fn build_level_from_slice_st<K, SS, SC, S>(keys: &[K], params: &Param
     keys_vec.extend(keys.into_iter().filter(|key| {
         params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
     }).cloned());
-    (keys_vec, SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
+    (keys_vec, SeedEx::<SS::VecElement>{ seeds, conf, _marker: std::marker::PhantomData }, unassigned_values, unassigned_len)
 }
 
 #[inline]
@@ -87,7 +93,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, SC, S>(keys: &[K], params: &Param
     keys_vec.par_extend(keys.into_par_iter().filter(|key| {
         params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
     }).cloned());
-    (keys_vec, SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
+    (keys_vec, SeedEx::<SS::VecElement>{ seeds, conf, _marker: std::marker::PhantomData }, unassigned_values, unassigned_len)
 }
 
 #[inline(always)]
@@ -105,7 +111,7 @@ pub(crate) fn build_level_st<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
     keys.retain(|key| {
         params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
     });
-    (SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
+    (SeedEx::<SS::VecElement>{ seeds, conf, _marker: std::marker::PhantomData }, unassigned_values, unassigned_len)
 }
 
 #[inline]
@@ -133,7 +139,7 @@ pub(crate) fn build_level_mt<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
     keys.par_extend(result.into_par_iter().filter(|key| {
         params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0
     }));
-    (SeedEx::<SS::VecElement>{ seeds, conf }, unassigned_values, unassigned_len)
+    (SeedEx::<SS::VecElement>{ seeds, conf, _marker: std::marker::PhantomData }, unassigned_values, unassigned_len)
 }
 
 /// PHast (Perfect Hashing made fast) - Minimal Perfect Hash Function
@@ -149,8 +155,7 @@ pub(crate) fn build_level_mt<K, SS, SC, S>(keys: &mut Vec::<K>, params: &Params<
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function<SS, SC = SeedOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
-    where SS: SeedSize
+pub struct Function<SS: SeedSize, SC = SeedOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
 {
     level0: SeedEx<SS::VecElement>,
     unassigned: CA,
@@ -307,7 +312,7 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
                     unassigned.push(last);
                 }
             }
-            levels.push(Level { seeds, shift });
+            levels.push(Level { seeds, shift, _marker: std::marker::PhantomData });
         }
         debug_assert!(level0_unassigned.next().is_none());
         drop(level0_unassigned);
