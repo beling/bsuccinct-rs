@@ -7,7 +7,7 @@ use csf::coding::minimum_redundancy::BitsPerFragment;
 use csf::{fp, ls, GetSize};
 
 pub trait CSFBuilder {
-    const CAN_DETECT_ABSENCE: bool = true;
+    //const CAN_DETECT_ABSENCE: bool = true;
     type CSF: GetSize;
     fn new(self, keys: &[u32], values: &[u8], frequencies: &[u32; 256]) -> Self::CSF;
     fn value(f: &Self::CSF, k: u32, levels: &mut usize) -> Option<u8>;
@@ -170,7 +170,7 @@ pub struct BuildLSMap;
 
 impl CSFBuilder for BuildLSMap
 {
-    const CAN_DETECT_ABSENCE: bool = false;
+    //const CAN_DETECT_ABSENCE: bool = false;
     type CSF = ls::Map;
 
     fn new(self, keys: &[u32], values: &[u8], _frequencies: &[u32; 256]) -> Self::CSF {
