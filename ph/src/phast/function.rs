@@ -1,7 +1,8 @@
-use std::{hash::Hash, usize};
+use std::{hash::Hash, io, usize};
 
 use crate::{phast::Params, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use binout::{Serializer, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -402,6 +403,39 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             hasher,
         }
     }*/
+
+    /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        self.level0.conf.write(output)?;
+        self.seed_size.write_seed_vec(output, &self.level0.seeds)?;
+        self.unassigned.write(output)?;
+
+        VByte::write(output, self.levels.len())?;
+        for level in &self.levels {
+            VByte::write(output, level.shift)?;
+            level.seeds.conf.write(output)?;
+            self.seed_size.write_seed_vec(output, &level.seeds.seeds)?;
+        }
+        Ok(())
+    }
+
+    pub fn read_with_hasher_sc(&self, input: &mut dyn io::Read, hasher: S, seed_chooser: SC) -> io::Result<Self> {
+        let level0_conf = Conf::read(input)?;
+        let (seed_size, level0_seeds) = SS::read_seed_vec(input, level0_conf.buckets_num)?;
+        let unassigned = CA::read(input)?;
+        let levels_num: usize = VByte::read(input)?;
+        let mut levels = Vec::with_capacity(levels_num);
+        for _ in 0..levels_num {
+            let shift = VByte::read(input)?;
+            let conf = Conf::read(input)?;
+            // TODO we do not need store seed size for each level
+            let (_, seeds) = SS::read_seed_vec(input, conf.buckets_num)?;
+            levels.push(Level { seeds: SeedEx { seeds, conf }, shift });
+        }
+        Ok(Self { level0: SeedEx { seeds: level0_seeds, conf: level0_conf },
+            unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser, seed_size })
+    }
 }
 
 impl Function<Bits8, SeedOnly, DefaultCompressedArray, BuildDefaultSeededHasher> {

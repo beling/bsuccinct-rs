@@ -1,3 +1,6 @@
+use std::io;
+
+use binout::{Serializer, VByte};
 use seedable_hash::map64_to_64;
 
 use crate::seeds::SeedSize;
@@ -183,6 +186,26 @@ impl Conf {
         self.turbo_bucket_for_slice(self.slice_begin(key))
     }*/
 
+    /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        VByte::write(output, self.buckets_num)?;
+        VByte::write(output, self.slice_len_minus_one)?;
+        VByte::write(output, self.num_of_slices)
+    }
+
+    /// Read `Self` from the `input`.
+    pub fn read(input: &mut dyn io::Read) -> io::Result<Self>
+    {
+        let buckets_num = VByte::read(input)?;
+        let slice_len_minus_one = VByte::read(input)?;
+        let num_of_slices = VByte::read(input)?;
+        Ok(Self {
+            buckets_num,
+            slice_len_minus_one,
+            num_of_slices,
+        })
+    }
 }
 
 #[derive(Clone, Copy)]

@@ -1,5 +1,6 @@
-use std::{isize, marker::PhantomData};
+use std::{io, isize, marker::PhantomData};
 
+use binout::{AsIs, Serializer, VByte};
 use bitm::{bits_to_store, ceiling_div, get_bits57, init_bits57, n_lowest_bits, BitAccess, BitVec};
 use dyn_size_of::GetSize;
 #[cfg(feature = "sux")] use sux::traits::IndexedSeq;
@@ -15,6 +16,12 @@ pub trait CompressedArray {
 
     /// Get `index`-th item from the array.
     fn get(&self, index: usize) -> usize;
+
+    /// Writes `self` to the `output`.
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()>;
+
+    /// Read `Self` from the `input`.
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized;
 }
 
 /// Builder used to construct `CompressedArray`.
@@ -180,6 +187,30 @@ impl<C: LinearRegressionConstructor> CompressedArray for LinearRegressionArray<C
         (self.regression.get(index) - self.corrections.get(index) as isize) as usize
         //(unsafe { get_bits57(self.corrections.as_ptr(), index * self.bits_per_correction as usize) & n_lowest_bits(self.bits_per_correction) }) as usize
     }
+    
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        AsIs::write(output, self.regression.multiplier as usize)?;
+        AsIs::write(output, self.regression.divider as usize)?;
+        AsIs::write(output, self.regression.offset as usize)?;
+        self.corrections.write(output)
+    }
+
+    /// Read `Self` from the `input`.
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
+        let multiplier: usize = AsIs::read(input)?;
+        let divider: usize = AsIs::read(input)?;
+        let offset: usize = AsIs::read(input)?;
+        let corrections = CompactFast::read(input)?;
+        Ok(Self {
+            regression: LinearRegression {
+                multiplier: multiplier as isize,
+                divider: divider as isize,
+                offset: offset as isize,
+            },
+            corrections,
+            constructor: PhantomData
+        })
+    }
 }
 
 impl<C> GetSize for LinearRegressionArray<C> {
@@ -228,6 +259,17 @@ impl CompressedArray for Compact {
     fn get(&self, index: usize) -> usize {
         unsafe { self.items.get_fragment_unchecked(index, self.item_size) as usize }
     }
+
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        VByte::write(output, self.item_size)?;
+        AsIs::write_array(output, &self.items)
+    }
+
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
+        let item_size = VByte::read(input)?;
+        let items = AsIs::read_array(input)?;
+        Ok(Self { items, item_size })
+    }
 }
 
 
@@ -273,6 +315,18 @@ impl CompressedArray for CompactFast {
     fn get(&self, index: usize) -> usize {
         (unsafe { get_bits57(self.items.as_ptr(), index * self.item_size as usize) & n_lowest_bits(self.item_size) }) as usize
     }
+
+    #[inline]
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        VByte::write(output, self.item_size)?;
+        AsIs::write_array(output, &self.items)
+    }
+
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
+        let item_size = VByte::read(input)?;
+        let items = AsIs::read_array(input)?;
+        Ok(Self { items, item_size })
+    }
 }
 
 
@@ -298,6 +352,24 @@ impl CompressedArray for SuxEliasFano {
     #[inline]
     fn get(&self, index: usize) -> usize {
         unsafe { self.0.get_unchecked(index) }
+    }
+    
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        use epserde::ser::Serialize;
+        match unsafe {self.0.serialize(&mut std::io::BufWriter::new(output))} {
+            Ok(_) => Ok(()),
+            Err(epserde::ser::Error::FileOpenError(io_err)) => Err(io_err),
+            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
+        }
+    }
+
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {     
+            use epserde::deser::Deserialize;
+            match unsafe{ sux::dict::elias_fano::EfSeq::deserialize_full(&mut std::io::BufReader::new(input))} {
+                Ok(v) => Ok(Self(v)),
+                Err(epserde::deser::Error::FileOpenError(io_err)) => Err(io_err),
+                Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
+            }
     }
 }
 
