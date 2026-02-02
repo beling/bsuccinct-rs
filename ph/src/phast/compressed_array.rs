@@ -355,21 +355,25 @@ impl CompressedArray for SuxEliasFano {
     }
     
     fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        use std::io::Write;
+
         use epserde::ser::Serialize;
-        match unsafe {self.0.serialize(&mut std::io::BufWriter::new(output))} {
+        let mut bw = std::io::BufWriter::new(output);
+        match unsafe {self.0.serialize(&mut bw)} {
             Ok(_) => Ok(()),
             Err(epserde::ser::Error::FileOpenError(io_err)) => Err(io_err),
             Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
-        }
+        }?;
+        bw.flush()
     }
 
     fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {     
-            use epserde::deser::Deserialize;
-            match unsafe{ sux::dict::elias_fano::EfSeq::deserialize_full(&mut std::io::BufReader::new(input))} {
-                Ok(v) => Ok(Self(v)),
-                Err(epserde::deser::Error::FileOpenError(io_err)) => Err(io_err),
-                Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
-            }
+        use epserde::deser::Deserialize;
+        match unsafe{ sux::dict::elias_fano::EfSeq::deserialize_full(&mut std::io::BufReader::with_capacity(1, input))} {
+            Ok(v) => Ok(Self(v)),
+            Err(epserde::deser::Error::FileOpenError(io_err)) => Err(io_err),
+            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
+        }
     }
 }
 

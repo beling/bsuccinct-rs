@@ -458,6 +458,14 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     }
 }
 
+impl<SS: SeedSize> Function<SS, SeedOnly, DefaultCompressedArray, BuildDefaultSeededHasher> {
+
+    /// Read `Self` from the `input`. Uses default hasher and seed chooser.
+    pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), SeedOnly)
+    }
+}
+
 impl Function<Bits8, SeedOnly, DefaultCompressedArray, BuildDefaultSeededHasher> {
     /// Constructs [`Function`] for given `keys`, using a single thread.
     /// 
@@ -491,10 +499,6 @@ impl Function<Bits8, SeedOnly, DefaultCompressedArray, BuildDefaultSeededHasher>
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
     }
 
-    /// Read `Self` from the `input`. Uses default hasher and seed chooser.
-    pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
-        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), SeedOnly)
-    }
 }
 
 #[cfg(test)]
@@ -502,16 +506,17 @@ pub(crate) mod tests {
     use super::*;
     use crate::utils::tests::test_mphf;
 
-    fn test_read_write<SS: SeedSize>(h: &Function::<SS>) {
+    fn test_read_write<SS: SeedSize>(h: &Function::<SS>) where SS::VecElement: std::fmt::Debug+PartialEq {
         let mut buff = Vec::new();
         h.write(&mut buff).unwrap();
         //assert_eq!(buff.len(), h.write_bytes());
-        let read = Function::read(&mut &buff[..],).unwrap();
+        let read = Function::<SS>::read(&mut &buff[..]).unwrap();
         assert_eq!(h.level0.conf, read.level0.conf);
         assert_eq!(h.levels.len(), read.levels.len());
         for (hl, rl) in h.levels.iter().zip(&read.levels) {
             assert_eq!(hl.shift, rl.shift);
             assert_eq!(hl.seeds.conf, rl.seeds.conf);
+            assert_eq!(hl.seeds.seeds, rl.seeds.seeds);
         }
     }
 
