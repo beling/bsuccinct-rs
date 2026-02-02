@@ -1,7 +1,8 @@
-use std::{hash::Hash, usize};
+use std::{hash::Hash, io, usize};
 
 use crate::{phast::{function::{build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st, Level, SeedEx}, seed_chooser::SeedOnlyNoBump, Params, ShiftOnly}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::build_last_level, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
+use binout::{Serializer, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
@@ -333,6 +334,34 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             hasher,
         }
     }*/
+
+        /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        self.level0.write(output, self.seed_size)?;
+        self.unassigned.write(output)?;
+        VByte::write(output, self.levels.len())?;
+        for level in &self.levels {
+            level.write(output, self.seed_size)?;
+        }
+        VByte::write(output, self.last_level_seed)?;
+        self.last_level.write(output, Bits8)?;
+        Ok(())
+    }
+
+    /// Read `Self` from the `input`. `hasher` and `seed_chooser` must be the same as used by the structure written.
+    pub fn read_with_hasher_sc(&self, input: &mut dyn io::Read, hasher: S, seed_chooser: SC) -> io::Result<Self> {
+        let (seed_size, level0) = SeedEx::read(input)?;
+        let unassigned = CA::read(input)?;
+        let levels_num: usize = VByte::read(input)?;
+        let mut levels = Vec::with_capacity(levels_num);
+        for _ in 0..levels_num {
+            levels.push(Level::read::<SS>(input)?.1);
+        }
+        let last_level_seed = VByte::read(input)?;
+        let last_level = Level::read::<Bits8>(input)?.1;
+        Ok(Self { level0, unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser, seed_size, last_level, last_level_seed })
+    }
 }
 
 impl Function2<Bits8, SeedOnly, DefaultCompressedArray, BuildDefaultSeededHasher> {
@@ -366,6 +395,11 @@ impl Function2<Bits8, SeedOnly, DefaultCompressedArray, BuildDefaultSeededHasher
     pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
         Self::with_slice_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
+    }
+
+    /// Read `Self` from the `input`. Uses default hasher and seed chooser.
+    pub fn read(&self, input: &mut dyn io::Read) -> io::Result<Self> {
+        Self::read_with_hasher_sc(&self, input, BuildDefaultSeededHasher::default(), SeedOnly)
     }
 }
 

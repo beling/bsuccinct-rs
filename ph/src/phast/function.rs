@@ -24,6 +24,20 @@ impl<SSVecElement> SeedEx<SSVecElement> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
         seed_size.get_seed(&self.seeds, self.bucket_for(key))
     }
+
+    /// Writes `self` to the `output`.
+    pub fn write<SS: SeedSize<VecElement = SSVecElement>>(&self, output: &mut dyn io::Write, seed_size: SS) -> io::Result<()>
+    {
+        self.conf.write(output)?;
+        seed_size.write_seed_vec(output, &self.seeds)
+    }
+
+    /// Reads seed size and `Self` from the `input`.
+    pub fn read<SS: SeedSize<VecElement = SSVecElement>>(input: &mut dyn io::Read) -> io::Result<(SS, Self)> {
+        let conf = Conf::read(input)?;
+        let (seed_size, seeds) = SS::read_seed_vec(input, conf.buckets_num)?;
+        Ok((seed_size, Self{ seeds, conf }))
+    }
 }
 
 impl<SSVecElement: GetSize> GetSize for SeedEx<SSVecElement> {
@@ -42,6 +56,21 @@ impl<SSVecElement: GetSize> GetSize for Level<SSVecElement> {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
+}
+
+impl<SSVecElement> Level<SSVecElement> {
+    /// Writes `self` to the `output`.
+    pub fn write<SS: SeedSize<VecElement = SSVecElement>>(&self, output: &mut dyn io::Write, seed_size: SS) -> io::Result<()>
+    {
+        VByte::write(output, self.shift)?;
+        self.seeds.write(output, seed_size)
+    }
+
+    /// Reads seed size and `Self` from the `input`.
+    pub fn read<SS: SeedSize<VecElement = SSVecElement>>(input: &mut dyn io::Read) -> io::Result<(SS, Self)> {
+        let shift = VByte::read(input)?;
+        SeedEx::<SSVecElement>::read::<SS>(input).map(|(ss, seeds)| (ss, Self{ seeds, shift }))
+    }
 }
 
 #[inline]
@@ -407,34 +436,25 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     /// Writes `self` to the `output`.
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
     {
-        self.level0.conf.write(output)?;
-        self.seed_size.write_seed_vec(output, &self.level0.seeds)?;
+        self.level0.write(output, self.seed_size)?;
         self.unassigned.write(output)?;
-
         VByte::write(output, self.levels.len())?;
         for level in &self.levels {
-            VByte::write(output, level.shift)?;
-            level.seeds.conf.write(output)?;
-            self.seed_size.write_seed_vec(output, &level.seeds.seeds)?;
+            level.write(output, self.seed_size)?;
         }
         Ok(())
     }
 
-    pub fn read_with_hasher_sc(&self, input: &mut dyn io::Read, hasher: S, seed_chooser: SC) -> io::Result<Self> {
-        let level0_conf = Conf::read(input)?;
-        let (seed_size, level0_seeds) = SS::read_seed_vec(input, level0_conf.buckets_num)?;
+    /// Read `Self` from the `input`. `hasher` and `seed_chooser` must be the same as used by the structure written.
+    pub fn read_with_hasher_sc(input: &mut dyn io::Read, hasher: S, seed_chooser: SC) -> io::Result<Self> {
+        let (seed_size, level0) = SeedEx::read(input)?;
         let unassigned = CA::read(input)?;
         let levels_num: usize = VByte::read(input)?;
         let mut levels = Vec::with_capacity(levels_num);
         for _ in 0..levels_num {
-            let shift = VByte::read(input)?;
-            let conf = Conf::read(input)?;
-            // TODO we do not need store seed size for each level
-            let (_, seeds) = SS::read_seed_vec(input, conf.buckets_num)?;
-            levels.push(Level { seeds: SeedEx { seeds, conf }, shift });
+            levels.push(Level::read::<SS>(input)?.1);
         }
-        Ok(Self { level0: SeedEx { seeds: level0_seeds, conf: level0_conf },
-            unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser, seed_size })
+        Ok(Self { level0, unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser, seed_size })
     }
 }
 
@@ -470,6 +490,11 @@ impl Function<Bits8, SeedOnly, DefaultCompressedArray, BuildDefaultSeededHasher>
         Self::with_slice_p_threads_hash_sc(keys, &Params::new(Bits8::default(), bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
     }
+
+    /// Read `Self` from the `input`. Uses default hasher and seed chooser.
+    pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), SeedOnly)
+    }
 }
 
 #[cfg(test)]
@@ -477,10 +502,24 @@ pub(crate) mod tests {
     use super::*;
     use crate::utils::tests::test_mphf;
 
+    fn test_read_write<SS: SeedSize>(h: &Function::<SS>) {
+        let mut buff = Vec::new();
+        h.write(&mut buff).unwrap();
+        //assert_eq!(buff.len(), h.write_bytes());
+        let read = Function::read(&mut &buff[..],).unwrap();
+        assert_eq!(h.level0.conf, read.level0.conf);
+        assert_eq!(h.levels.len(), read.levels.len());
+        for (hl, rl) in h.levels.iter().zip(&read.levels) {
+            assert_eq!(hl.shift, rl.shift);
+            assert_eq!(hl.seeds.conf, rl.seeds.conf);
+        }
+    }
+
     #[test]
     fn test_small() {
         let input = [1, 2, 3, 4, 5];
         let f = Function::from_slice_st(&input);
         test_mphf(&input, |key| Some(f.get(key)));
+        test_read_write(&f);
     }
 }

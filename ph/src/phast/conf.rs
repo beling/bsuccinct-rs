@@ -8,7 +8,7 @@ use crate::seeds::SeedSize;
 use super::SeedChooser;
 
 /// PHast map-or-bump function configuration.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Conf {
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) slice_len_minus_one: u16,  // slice length L
