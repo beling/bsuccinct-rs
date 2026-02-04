@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{function::{build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st, Level, SeedEx}, seed_chooser::SeedOnlyNoBump, Params, ShiftOnly}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{function::{build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st, Level, SeedEx}, seed_chooser::SeedOnlyNoBump, Params, ShiftOnlyWrapped}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::build_last_level, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;
@@ -25,7 +25,7 @@ use voracious_radix_sort::RadixSort;
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function2<SS, SC = ShiftOnly, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
+pub struct Function2<SS, SC = ShiftOnlyWrapped, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
     level0: SeedEx<SS::VecElement>,
@@ -364,21 +364,21 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     }
 }
 
-impl<SS: SeedSize> Function2<SS, ShiftOnly, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl<SS: SeedSize> Function2<SS, ShiftOnlyWrapped, DefaultCompressedArray, BuildDefaultSeededHasher> {
 
     /// Read `Self` from the `input`. Uses default hasher and seed chooser.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
-        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), ShiftOnly)
+        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 }
 
-impl Function2<Bits8, ShiftOnly, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl Function2<Bits8, ShiftOnlyWrapped, DefaultCompressedArray, BuildDefaultSeededHasher> {
     /// Constructs [`Function`] for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_st<K>(keys: Vec::<K>) -> Self where K: Hash {
         Self::with_vec_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        BuildDefaultSeededHasher::default(), ShiftOnly)
+        BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 
     /// Constructs [`Function`] for given `keys`, using multiple threads.
@@ -386,7 +386,7 @@ impl Function2<Bits8, ShiftOnly, DefaultCompressedArray, BuildDefaultSeededHashe
     /// `keys` cannot contain duplicates.
     pub fn from_vec_mt<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
         Self::with_vec_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), ShiftOnly)
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 
     /// Constructs [`Function`] for given `keys`, using a single thread.
@@ -394,7 +394,7 @@ impl Function2<Bits8, ShiftOnly, DefaultCompressedArray, BuildDefaultSeededHashe
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K]) -> Self where K: Hash+Clone {
         Self::with_slice_p_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        BuildDefaultSeededHasher::default(), ShiftOnly)
+        BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 
     /// Constructs [`Function`] for given `keys`, using multiple threads.
@@ -402,11 +402,11 @@ impl Function2<Bits8, ShiftOnly, DefaultCompressedArray, BuildDefaultSeededHashe
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
         Self::with_slice_p_threads_hash_sc(keys, &Params::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), ShiftOnly)
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use crate::utils::tests::test_mphf;
@@ -430,5 +430,6 @@ pub(crate) mod tests {
         let input = [1, 2, 3, 4, 5];
         let f = Function2::from_slice_st(&input);
         test_mphf(&input, |key| Some(f.get(key)));
+        test_read_write(&f);
     }
-}*/
+}
