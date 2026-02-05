@@ -20,6 +20,9 @@ pub trait CompressedArray {
     /// Writes `self` to the `output`.
     fn write(&self, output: &mut dyn io::Write) -> io::Result<()>;
 
+    /// Returns number of bytes which `write` will write.
+    fn write_bytes(&self) -> usize;
+
     /// Read `Self` from the `input`.
     fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized;
 }
@@ -62,6 +65,18 @@ impl CompressedArray for CSeqEliasFano {
     fn get(&self, index: usize) -> usize {
         //self.get_or_panic(index) as usize
         unsafe { self.get_unchecked(index) as usize }
+    }
+    
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        CSeqEliasFano::write(&self, output)
+    }
+    
+    fn write_bytes(&self) -> usize {
+        CSeqEliasFano::write_bytes(&self)
+    }
+    
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
+        CSeqEliasFano::read_s(input)
     }
 }
 
@@ -194,6 +209,13 @@ impl<C: LinearRegressionConstructor> CompressedArray for LinearRegressionArray<C
         AsIs::write(output, self.regression.offset as usize)?;
         self.corrections.write(output)
     }
+        
+    fn write_bytes(&self) -> usize {
+        AsIs::size(self.regression.multiplier as usize)
+        + AsIs::size(self.regression.divider as usize)
+        + AsIs::size(self.regression.offset as usize)
+        + self.corrections.write_bytes()
+    }
 
     /// Read `Self` from the `input`.
     fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
@@ -265,6 +287,10 @@ impl CompressedArray for Compact {
         AsIs::write_array(output, &self.items)
     }
 
+    fn write_bytes(&self) -> usize {
+        VByte::size(self.item_size) + AsIs::array_size(&self.items)
+    }
+
     fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
         let item_size = VByte::read(input)?;
         let items = AsIs::read_array(input)?;
@@ -322,6 +348,10 @@ impl CompressedArray for CompactFast {
         AsIs::write_array(output, &self.items)
     }
 
+    fn write_bytes(&self) -> usize {
+        VByte::size(self.item_size) + AsIs::array_size(&self.items)
+    }
+
     fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
         let item_size = VByte::read(input)?;
         let items = AsIs::read_array(input)?;
@@ -365,6 +395,13 @@ impl CompressedArray for SuxEliasFano {
             Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
         }?;
         bw.flush()
+    }
+
+    fn write_bytes(&self) -> usize {
+        let mut buf = Vec::<u8>::new();
+        use epserde::ser::Serialize;
+        unsafe { self.0.serialize(&mut buf).unwrap(); }
+        buf.len()
     }
 
     fn read(input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {     

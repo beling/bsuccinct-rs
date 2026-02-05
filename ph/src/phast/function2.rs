@@ -349,6 +349,16 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
         Ok(())
     }
 
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        self.level0.write_bytes() +
+        self.unassigned.write_bytes() +
+        VByte::size(self.levels.len()) +
+        self.levels.iter().map(|l| l.size_bytes()).sum::<usize>() +
+        VByte::size(self.last_level_seed) +
+        self.last_level.write_bytes()
+    }
+
     /// Read `Self` from the `input`. `hasher` and `seed_chooser` must be the same as used by the structure written.
     pub fn read_with_hasher_sc(input: &mut dyn io::Read, hasher: S, seed_chooser: SC) -> io::Result<Self> {
         let (seed_size, level0) = SeedEx::read(input)?;

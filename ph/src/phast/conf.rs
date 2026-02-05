@@ -187,11 +187,17 @@ impl Conf {
     }*/
 
     /// Writes `self` to the `output`.
-    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
-    {
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
         VByte::write(output, self.buckets_num)?;
         VByte::write(output, self.slice_len_minus_one)?;
         VByte::write(output, self.num_of_slices)
+    }
+
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        VByte::size(self.buckets_num)
+         + VByte::size(self.slice_len_minus_one)
+         + VByte::size(self.num_of_slices)
     }
 
     /// Read `Self` from the `input`.

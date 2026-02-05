@@ -40,6 +40,13 @@ impl<SSVecElement> SeedEx<SSVecElement> {
     }
 }
 
+impl<SSVecElement: GetSize> SeedEx<SSVecElement> {
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        self.conf.write_bytes() + GetSize::size_bytes_dyn(&self.seeds)
+    }
+}
+
 impl<SSVecElement: GetSize> GetSize for SeedEx<SSVecElement> {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
@@ -56,6 +63,12 @@ impl<SSVecElement: GetSize> GetSize for Level<SSVecElement> {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
+}
+
+impl<SSVecElement: GetSize> Level<SSVecElement> {
+    pub fn write_bytes(&self) -> usize {
+        VByte::size(self.shift) + self.seeds.write_bytes()
+    }
 }
 
 impl<SSVecElement> Level<SSVecElement> {
@@ -432,6 +445,14 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
             hasher,
         }
     }*/
+
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        self.level0.write_bytes() +
+        self.unassigned.write_bytes() +
+        VByte::size(self.levels.len()) +
+        self.levels.iter().map(|l| l.size_bytes()).sum::<usize>()
+    }
 
     /// Writes `self` to the `output`.
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
