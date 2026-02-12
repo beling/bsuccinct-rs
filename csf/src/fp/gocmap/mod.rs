@@ -86,7 +86,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
             let level_size_groups = *self.level_size.get(level_nr)?;
             let hash = self.goconf.hash_builder.hash_one(key, level_nr as u64);
             let group = groups_before + group_nr(hash, level_size_groups);
-            let seed = self.goconf.bits_per_seed.get_seed(&self.group_seeds, group as usize);
+            let seed = unsafe { self.goconf.bits_per_seed.get_seed(&self.group_seeds, group as usize) };
             let i = self.goconf.bits_per_group.bit_index_for_seed(hash, seed, group);
             if self.array.content.get_bit(i) {
                 match result_decoder.consume(self.value_fragments.get_fragment(self.array.rank(i), self.value_coding.bits_per_fragment()) as u8) {
@@ -155,21 +155,21 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
                     let best = &mut best_counts[group_index];
                     if new > *best {
                         *best = new;
-                        conf.goconf.bits_per_seed.set_seed(&mut best_seeds, group_index, new_seed);
+                        unsafe { conf.goconf.bits_per_seed.set_seed(&mut best_seeds, group_index, new_seed) };
                     }
                 }
             }
             let mut collision_solver = LoMemAcceptEqualsSolver::new(level_size_segments, value_coding.bits_per_fragment());
             Self::consider_all(&conf, &value_coding, in_keys, in_values, in_value_rev_indices,
                                level_size_groups, level_nr,
-                               |group_index| conf.goconf.bits_per_seed.get_seed(&best_seeds, group_index as usize),
+                               |group_index| unsafe { conf.goconf.bits_per_seed.get_seed(&best_seeds, group_index as usize) },
                                &mut collision_solver);
             let current_array = collision_solver.to_collision_array();
             let mut i = 0usize;
             while i < input_size {
                 let hash = conf.goconf.hash_builder.hash_one(&keys[i], level_nr);
                 let group = group_nr(hash, level_size_groups);
-                let bit_index = conf.goconf.bits_per_group.bit_index_for_seed(hash, conf.goconf.bits_per_seed.get_seed(&best_seeds, group as usize), group);
+                let bit_index = conf.goconf.bits_per_group.bit_index_for_seed(hash, unsafe { conf.goconf.bits_per_seed.get_seed(&best_seeds, group as usize) }, group);
                 if current_array.get_bit(bit_index) { // no collision
                     let rev_index = &mut value_rev_indices[i];
                     if *rev_index == 0 { // the value fully encoded:
@@ -201,7 +201,7 @@ impl<C: Coding, GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOCMap<C, GS,
                 let level_size_groups = level_size[level_nr as usize];
                 let hash = conf.goconf.hash_builder.hash_one(&keys[input_index], level_nr);
                 let group = groups_before + group_nr(hash, level_size_groups);
-                let i = conf.goconf.bits_per_group.bit_index_for_seed(hash, conf.goconf.bits_per_seed.get_seed(&group_seeds, group as usize), group);
+                let i = conf.goconf.bits_per_group.bit_index_for_seed(hash, unsafe { conf.goconf.bits_per_seed.get_seed(&group_seeds, group as usize) }, group);
                 if array.content.get_bit(i) {
                     let code = &mut values[input_index];
                     output_value_fragments.init_fragment(   // AcceptEquals::set_value

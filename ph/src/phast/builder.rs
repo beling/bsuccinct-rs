@@ -141,7 +141,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
     /// Decreases `unassigned_len` by `keys.len()`.
     #[inline]
     pub fn clear_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
-        let seed = self.seed_size.get_seed(&seeds, bucket);
+        let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
         if SC::BUMPING && seed == 0 { return; }
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
         for key_hash in keys {
@@ -165,7 +165,7 @@ impl<'k, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf
     pub fn unassigned_len(&self, seeds: &[SS::VecElement]) -> usize {
         if !SC::BUMPING { return 0; }
         (0..self.bucket_begin.len()-1)
-            .filter(|bucket| self.seed_size.get_seed(&seeds, *bucket) == 0)
+            .filter(|bucket| unsafe{ self.seed_size.get_seed(&seeds, *bucket) } == 0)
             .map(|bucket| self.bucket_begin[bucket+1] - self.bucket_begin[bucket])
             .sum()
 
@@ -270,7 +270,7 @@ where SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Sync, BE::Value: S
     for next in 1..thread_builders.len() {
         let prev = next-1;
         for bucket in 0..gap {
-            let seed = seed_size.get_seed(&thread_builders[next].seeds, bucket) as u16;
+            let seed = unsafe{ seed_size.get_seed(&thread_builders[next].seeds, bucket) } as u16;
             if SC::BUMPING && seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
                 thread_builders[prev].used_values.add(builder.seed_chooser.f(*key, seed, &builder.conf));
@@ -418,7 +418,7 @@ impl<'k, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBui
             let best_seed = self.best_seed(best_bucket);
             if !SC::BUMPING && best_seed == u16::MAX { return; }
             //self.seeds.set_fragment(best_bucket, best_seed as u64, self.conf.conf.bits_per_seed());
-            self.conf.seed_size.set_seed(&mut self.seeds, best_bucket, best_seed);
+            unsafe{ self.conf.seed_size.set_seed(&mut self.seeds, best_bucket, best_seed) };
             if best_bucket == self.span_begin {
                 let old_span_end = self.span_end();
                 self.span_begin += 1;

@@ -261,7 +261,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuildCon
     {
         for group_index in 0..level_size_groups {
             self.goconf.bits_per_group.copy_group_if_better(best_array, array, group_index,
-                || self.goconf.bits_per_seed.set_seed(best_seeds, group_index, array_seed(group_index))
+                || unsafe{ self.goconf.bits_per_seed.set_seed(best_seeds, group_index, array_seed(group_index)) }
             )
         }
     }
@@ -317,7 +317,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         self.arrays.iter().zip(self.group_seeds.iter()).zip(self.level_sizes.iter()).enumerate()
             .all(|(level_seed, ((a, seeds), level_size_groups))| {
                 !a.get_bit(self.conf.goconf.key_index(key, level_seed as u64, *level_size_groups,
-                |group| self.conf.goconf.bits_per_seed.get_seed(seeds, group as usize)))
+                |group| unsafe{ self.conf.goconf.bits_per_seed.get_seed(seeds, group as usize)}))
             })
     }
 
@@ -373,11 +373,11 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
         keys.maybe_par_retain_keys_with_indices(
             |i| !array.get_bit(
                 self.conf.goconf.hash_index(key_hashes[i], level_size_groups,
-                                     |group| self.conf.goconf.bits_per_seed.get_seed(&seeds, group as usize))
+                                     |group| unsafe{ self.conf.goconf.bits_per_seed.get_seed(&seeds, group as usize) })
             ),
             |key| !array.get_bit(
                 self.conf.goconf.key_index(key, level_seed, level_size_groups,
-                                    |group| self.conf.goconf.bits_per_seed.get_seed(&seeds, group as usize))
+                                    |group| unsafe{ self.conf.goconf.bits_per_seed.get_seed(&seeds, group as usize) })
             ),
             |key| self.retained(key),
             || array.count_bit_ones(),
@@ -414,7 +414,7 @@ impl<GS: GroupSize + Sync, SS: SeedSize, S: BuildSeededHasher + Sync> GOBuilder<
                         let bit_index = self.conf.goconf.bits_per_group.bit_index_for_seed(
                             hash,
                             //current_seeds.get_fragment(group as usize, conf.bits_per_group_seed) as u16,
-                            self.conf.goconf.bits_per_seed.get_seed(&seeds, group as usize),
+                            unsafe{ self.conf.goconf.bits_per_seed.get_seed(&seeds, group as usize) },
                             group);
                         !array.get_bit(bit_index)
                     },
@@ -497,7 +497,7 @@ impl<GS: GroupSize, SS: SeedSize, S: BuildSeededHasher> GOFunction<GS, SS, S> {
             ); // wrong as bit_index_for_seed is called with wrong group */
             let hash = self.conf.hash_builder.hash_one(key, level_nr as u64);
             let group = groups_before + group_nr(hash, level_size_groups);
-            let seed = self.conf.bits_per_seed.get_seed(&self.group_seeds, group);
+            let seed = unsafe{ self.conf.bits_per_seed.get_seed(&self.group_seeds, group) };
             let bit_index = self.conf.bits_per_group.bit_index_for_seed(hash, seed, group);
             if self.array.content.get_bit(bit_index) {
                 access_stats.found_on_level(level_nr);

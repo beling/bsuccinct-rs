@@ -124,7 +124,7 @@ impl<SS: SeedSize, SC: SeedChooser, S> Partial<SS, SC, S> {
     /// Returns value assigned to the given key hash or `None`.
     #[inline(always)]
     pub fn get_for_hash(&self, key_hash: u64) -> Option<usize> {
-        let seed = self.seeds.seed_for(self.seed_size, key_hash);
+        let seed = unsafe { self.seeds.seed_for(self.seed_size, key_hash) };
         (seed != 0).then(|| self.seed_chooser.f(key_hash, seed, &self.seeds.conf))
     }
 

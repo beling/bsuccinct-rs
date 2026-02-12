@@ -63,20 +63,20 @@ impl<SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> F
     #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
-        let seed = self.level0.seed_for(self.seed_size, key_hash);
+        let seed = unsafe { self.level0.seed_for(self.seed_size, key_hash) };
         if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
             let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
-            let seed = l.seeds.seed_for(self.seed_size, key_hash);
+            let seed = unsafe { l.seeds.seed_for(self.seed_size, key_hash) };
             if seed != 0 {
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
             }
         }
 
         let key_hash = self.hasher.hash_one(key, self.last_level_seed);
-        let seed = self.last_level.seeds.seed_for(Bits8, key_hash);
+        let seed = unsafe { self.last_level.seeds.seed_for(Bits8, key_hash) };
         return self.unassigned.get(SeedOnlyNoBump.f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
     }
 
