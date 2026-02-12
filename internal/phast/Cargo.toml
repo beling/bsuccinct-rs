@@ -17,7 +17,7 @@ bitm = { version="0.5", path="../../bitm" }
 butils = { version="0.1", path="../../butils" }
 rayon = "1.5"
 dyn_size_of = { version="0.4", path="../../dyn_size_of" }
-ph = { version="0.10", path="../../ph" }
+ph = { version=">= 0.10", path="../../ph" }
 clap = { version="4.0", features = ["derive"] }
 fxhash = { version="0.2", optional = true }
 seedable_hash = { version="0.2", path="../../seedable_hash", default-features = false }
