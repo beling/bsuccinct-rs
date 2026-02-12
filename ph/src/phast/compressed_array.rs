@@ -432,12 +432,12 @@ impl GetSize for SuxEliasFano {
 }
 
 #[cfg(feature = "cacheline-ef")]
-/// CompressedArray implementation by Elias-Fano from `cacheline_ef` crate.
+/// CompressedArray implementation by Elias-Fano from `cacheline_ef` crate. Experimental.
 pub struct CachelineEF(cacheline_ef::CachelineEfVec);
 
 #[cfg(feature = "cacheline-ef")]
 impl CompressedArray for CachelineEF {
-    fn new(values: Vec<usize>, _last: usize) -> Self {
+    fn new(values: Vec<usize>, _last: usize, _num_of_keys: usize) -> Self {
         let v: Vec<_> = values.iter().map(|v| *v as u64).collect();
         CachelineEF(cacheline_ef::CachelineEfVec::new(&v))
     }
@@ -446,6 +446,18 @@ impl CompressedArray for CachelineEF {
     fn get(&self, index: usize) -> usize {
         unsafe { self.0.index_unchecked(index) as usize }
         //self.0.index(index) as usize
+    }
+    
+    fn write(&self, _output: &mut dyn io::Write) -> io::Result<()> {
+        todo!()
+    }
+    
+    fn write_bytes(&self) -> usize {
+        todo!()
+    }
+    
+    fn read(_input: &mut dyn io::Read) -> io::Result<Self> where Self: Sized {
+        todo!()
     }
 }
 
