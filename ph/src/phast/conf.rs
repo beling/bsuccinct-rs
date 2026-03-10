@@ -11,8 +11,8 @@ use super::SeedChooser;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Conf {
     pub(crate) buckets_num: usize, // number of buckets, B
-    pub(crate) slice_len_minus_one: u16,  // slice length L
-    pub(crate) num_of_slices: usize,   // m-P
+    pub(crate) slice_len_minus_one: u16,  // slice length L - 1
+    pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
 }
 
 /*#[inline(always)]
@@ -83,7 +83,7 @@ impl Conf {
         }
     }
 
-    // configuration for "turbo" function that ussume that input=output range and bucket_size_100 is about 400.
+    // configuration for "turbo" function that assume that input=output range and bucket_size_100 is about 400.
     /*pub(crate) fn turbo_new(output_range: usize, slice_len: u16, max_shift: u16) -> Self {
         let num_of_slices = output_range + 1 - slice_len as usize - max_shift as usize;
         Self {
