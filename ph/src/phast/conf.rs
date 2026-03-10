@@ -7,12 +7,69 @@ use crate::seeds::SeedSize;
 
 use super::SeedChooser;
 
+pub trait ConfTrait: Copy {
+
+    /// Returns the number of buckets.
+    fn buckets_num(&self) -> usize;
+
+    /// Returns bucket assigned to the `key`.
+    fn bucket_for(&self, key: u64) -> usize;
+
+    /// Writes `self` to the `output`.
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()>;
+
+    /// Returns number of bytes which `write` will write.
+    fn write_bytes(&self) -> usize;
+
+    /// Read `Self` from the `input`.
+    fn read(input: &mut dyn io::Read) -> io::Result<Self>;
+}
+
 /// PHast map-or-bump function configuration.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Conf {
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) slice_len_minus_one: u16,  // slice length L - 1
     pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
+}
+
+impl ConfTrait for Conf {
+
+    #[inline(always)]
+    fn buckets_num(&self) -> usize {
+        self.buckets_num
+    }
+
+    /// Returns bucket assigned to the `key`.
+    #[inline(always)]
+    fn bucket_for(&self, key: u64) -> usize {
+        map64_to_64(key, self.buckets_num as u64) as usize
+    }
+
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        VByte::write(output, self.buckets_num)?;
+        VByte::write(output, self.slice_len_minus_one)?;
+        VByte::write(output, self.num_of_slices)
+    }
+
+    fn write_bytes(&self) -> usize {
+        VByte::size(self.buckets_num)
+         + VByte::size(self.slice_len_minus_one)
+         + VByte::size(self.num_of_slices)
+    }
+
+    fn read(input: &mut dyn io::Read) -> io::Result<Self>
+    {
+        let buckets_num = VByte::read(input)?;
+        let slice_len_minus_one = VByte::read(input)?;
+        let num_of_slices = VByte::read(input)?;
+        Ok(Self {
+            buckets_num,
+            slice_len_minus_one,
+            num_of_slices,
+        })
+    }
+
 }
 
 /*#[inline(always)]
@@ -185,33 +242,6 @@ impl Conf {
     pub(crate) fn turbo_bucket_for_key(&self, key: u64) -> usize {
         self.turbo_bucket_for_slice(self.slice_begin(key))
     }*/
-
-    /// Writes `self` to the `output`.
-    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
-        VByte::write(output, self.buckets_num)?;
-        VByte::write(output, self.slice_len_minus_one)?;
-        VByte::write(output, self.num_of_slices)
-    }
-
-    /// Returns number of bytes which `write` will write.
-    pub fn write_bytes(&self) -> usize {
-        VByte::size(self.buckets_num)
-         + VByte::size(self.slice_len_minus_one)
-         + VByte::size(self.num_of_slices)
-    }
-
-    /// Read `Self` from the `input`.
-    pub fn read(input: &mut dyn io::Read) -> io::Result<Self>
-    {
-        let buckets_num = VByte::read(input)?;
-        let slice_len_minus_one = VByte::read(input)?;
-        let num_of_slices = VByte::read(input)?;
-        Ok(Self {
-            buckets_num,
-            slice_len_minus_one,
-            num_of_slices,
-        })
-    }
 }
 
 #[derive(Clone, Copy)]

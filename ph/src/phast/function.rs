@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::Params, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Params, conf::ConfTrait}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -10,19 +10,16 @@ use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
 /// Represents map-or-bump function.
-pub(crate) struct SeedEx<SSVecElement> {
+pub(crate) struct SeedEx<SSVecElement, C = Conf> {
     pub(crate) seeds: Box<[SSVecElement]>,
-    pub(crate) conf: Conf,
+    pub(crate) conf: C, // ConfTrait
 }
 
-impl<SSVecElement> SeedEx<SSVecElement> {
-    #[inline(always)]
-    pub(crate) fn bucket_for(&self, key: u64) -> usize { self.conf.bucket_for(key) }
-
+impl<SSVecElement, C: ConfTrait> SeedEx<SSVecElement, C> {
     #[inline(always)]
     pub(crate) unsafe fn seed_for<SS>(&self, seed_size: SS, key: u64) -> u16 where SS: SeedSize<VecElement=SSVecElement> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
-        seed_size.get_seed(&self.seeds, self.bucket_for(key))
+        seed_size.get_seed(&self.seeds, self.conf.bucket_for(key))
     }
 
     /// Writes `self` to the `output`.
@@ -34,44 +31,44 @@ impl<SSVecElement> SeedEx<SSVecElement> {
 
     /// Reads seed size and `Self` from the `input`.
     pub fn read<SS: SeedSize<VecElement = SSVecElement>>(input: &mut dyn io::Read) -> io::Result<(SS, Self)> {
-        let conf = Conf::read(input)?;
-        let (seed_size, seeds) = SS::read_seed_vec(input, conf.buckets_num)?;
+        let conf = C::read(input)?;
+        let (seed_size, seeds) = SS::read_seed_vec(input, conf.buckets_num())?;
         Ok((seed_size, Self{ seeds, conf }))
     }
 }
 
-impl<SSVecElement: GetSize> SeedEx<SSVecElement> {
+impl<SSVecElement: GetSize, C: ConfTrait> SeedEx<SSVecElement, C> {
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         self.conf.write_bytes() + GetSize::size_bytes_dyn(&self.seeds)
     }
 }
 
-impl<SSVecElement: GetSize> GetSize for SeedEx<SSVecElement> {
+impl<SSVecElement: GetSize, C> GetSize for SeedEx<SSVecElement, C> {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
 
-pub(crate) struct Level<SSVecElement> {
-    pub(crate) seeds: SeedEx<SSVecElement>,
+pub(crate) struct Level<SSVecElement, C = Conf> {
+    pub(crate) seeds: SeedEx<SSVecElement, C>,
     pub(crate) shift: usize
 }
 
-impl<SSVecElement: GetSize> GetSize for Level<SSVecElement> {
+impl<SSVecElement: GetSize, C> GetSize for Level<SSVecElement, C> {
     fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
     fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
     const USES_DYN_MEM: bool = true;
 }
 
-impl<SSVecElement: GetSize> Level<SSVecElement> {
+impl<SSVecElement: GetSize, C: ConfTrait> Level<SSVecElement, C> {
     pub fn write_bytes(&self) -> usize {
         VByte::size(self.shift) + self.seeds.write_bytes()
     }
 }
 
-impl<SSVecElement> Level<SSVecElement> {
+impl<SSVecElement, C: ConfTrait> Level<SSVecElement, C> {
     /// Writes `self` to the `output`.
     pub fn write<SS: SeedSize<VecElement = SSVecElement>>(&self, output: &mut dyn io::Write, seed_size: SS) -> io::Result<()>
     {
@@ -82,7 +79,7 @@ impl<SSVecElement> Level<SSVecElement> {
     /// Reads seed size and `Self` from the `input`.
     pub fn read<SS: SeedSize<VecElement = SSVecElement>>(input: &mut dyn io::Read) -> io::Result<(SS, Self)> {
         let shift = VByte::read(input)?;
-        SeedEx::<SSVecElement>::read::<SS>(input).map(|(ss, seeds)| (ss, Self{ seeds, shift }))
+        SeedEx::<SSVecElement, C>::read::<SS>(input).map(|(ss, seeds)| (ss, Self{ seeds, shift }))
     }
 }
 
