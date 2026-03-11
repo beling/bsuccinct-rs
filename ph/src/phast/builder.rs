@@ -231,7 +231,7 @@ where C: ConfTrait, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize
 
 pub(crate) fn build_mt<'k, C, SC, BE, SS>(keys: &'k [u64], conf: C, seed_size: SS, span_limit: u16, evaluator: BE, seed_chooser: SC, threads_num: usize)
  -> (Box<[SS::VecElement]>, BuildConf<'k, C, BE, SS, SC>)
-where C: ConfTrait + Sync, SC: SeedChooser + Sync, BE: BucketToActivateEvaluator + Sync, BE::Value: Send, SS: SeedSize
+where C: ConfTrait + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync, BE::Value: Send, SS: SeedSize
 {
     //let threads_num = rayon::current_num_threads();
     let threads_num = threads_num.min(rayon::current_num_threads()).min(conf.buckets_num() / 4096).max(1);

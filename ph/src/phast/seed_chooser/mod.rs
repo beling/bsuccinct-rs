@@ -26,7 +26,7 @@ pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, pr
 }
 
 /// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
-pub trait SeedChooser: Copy {
+pub trait SeedChooser: Copy + Sync {
     /// Specifies whether bumping is allowed.
     const BUMPING: bool = true;
 

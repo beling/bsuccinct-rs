@@ -153,10 +153,8 @@ impl ConfTrait for Conf {
             num_of_slices,
         })
     }
-    
-
-
 }
+
 
 /*#[inline(always)]
 const fn mix64(mut x: u64) -> u64 {
@@ -244,10 +242,6 @@ impl Conf {
         map64_to_64(key, self.buckets_num as u64) as usize
     }
 
-
-
-
-
     // Returns bucket assigned to the `slice_begin` by "turbo" configuration.
     /*#[inline(always)]
     pub(crate) fn turbo_bucket_for_slice(&self, slice_begin: usize) -> usize {
@@ -263,20 +257,78 @@ impl Conf {
     }*/
 }
 
-pub trait ParamsTrait {
+pub trait ParamsTrait: Sync {
     type Conf: ConfTrait;
     type SeedSize: SeedSize;
 
     fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf;
 
-    /// Returns number of bits used to store each seed.
-    fn bits_per_seed(&self) -> u8;
-
     //fn bucket_size100(&self) -> u16;
     fn preferred_slice_len(&self) -> u16;
 
     fn seed_size(&self) -> Self::SeedSize;
+
+    /// Returns number of bits used to store each seed.
+    fn bits_per_seed(&self) -> u8;
 }
+
+
+/// PHast map-or-bump turbo function configuration.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct ConfTurbo {
+    pub(crate) slice_len_minus_one: u16,  // slice length L - 1
+    pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
+}
+
+impl ConfTurbo {
+
+    pub(crate) fn new(output_range: usize, slice_len: u16, max_shift: u16) -> Self {
+        Self {
+            slice_len_minus_one: slice_len - 1,
+            num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
+        }
+    }
+}
+
+impl ConfTrait for ConfTurbo {
+
+    #[inline(always)]
+    fn buckets_num(&self) -> usize {
+        (self.num_of_slices-1)/4+1
+    }
+
+    #[inline(always)]
+    fn slice_len_minus_one(&self) -> u16 {
+        self.slice_len_minus_one
+    }
+    
+    #[inline(always)]
+    fn num_of_slices(&self) -> usize {
+        self.num_of_slices
+    }
+
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
+        VByte::write(output, self.slice_len_minus_one)?;
+        VByte::write(output, self.num_of_slices)
+    }
+
+    fn write_bytes(&self) -> usize {
+         VByte::size(self.slice_len_minus_one)
+         + VByte::size(self.num_of_slices)
+    }
+
+    fn read(input: &mut dyn io::Read) -> io::Result<Self>
+    {
+        let slice_len_minus_one = VByte::read(input)?;
+        let num_of_slices = VByte::read(input)?;
+        Ok(Self {
+            slice_len_minus_one,
+            num_of_slices,
+        })
+    }
+}
+
+
 
 
 #[derive(Clone, Copy)]
@@ -312,7 +364,50 @@ impl<SS: SeedSize> ParamsTrait for Params<SS> {
         Conf::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
     }
 
+    #[inline(always)] fn preferred_slice_len(&self) -> u16 {
+        self.preferred_slice_len
+    }
+    
+    #[inline(always)] fn seed_size(&self) -> Self::SeedSize {
+        self.seed_size
+    }
+
     #[inline(always)] fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
+}
+
+
+
+#[derive(Clone, Copy)]
+pub struct ParamsTurbo<SS> {
+    pub seed_size: SS,
+    pub preferred_slice_len: u16
+}
+
+impl<SS> ParamsTurbo<SS> {
+    #[inline]
+    pub fn new(seed_size: SS) -> Self {
+        Self { seed_size, preferred_slice_len: 0 }
+    }
+
+    #[inline]
+    pub fn new_psl(seed_size: SS, preferred_slice_len: u16) -> Self {
+        Self { seed_size, preferred_slice_len }
+    }
+
+    /*#[inline]
+    pub fn slice_len(&self, default: u16) -> u16 {
+        if self.preferred_slice_len == 0 { default } else { self.preferred_slice_len }
+    }*/
+}
+
+impl<SS: SeedSize> ParamsTrait for ParamsTurbo<SS> {
+    
+    type Conf = ConfTurbo;
+    type SeedSize = SS;
+    
+    fn conf(&self, output_range: usize, _num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf {
+        ConfTurbo::new(output_range, slice_len, max_shift)
+    }
     
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
         self.preferred_slice_len
@@ -321,4 +416,6 @@ impl<SS: SeedSize> ParamsTrait for Params<SS> {
     #[inline(always)] fn seed_size(&self) -> Self::SeedSize {
         self.seed_size
     }
+
+    #[inline(always)] fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
 }

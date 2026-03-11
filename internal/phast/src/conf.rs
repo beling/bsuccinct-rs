@@ -245,7 +245,7 @@ impl Conf {
         total.print_avg(self);
     }
 
-    pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
+    pub fn optimize_weights<SC: SeedChooser>(&self, seed_chooser: SC) {
         let bucket_size = self.bucket_size_100();
         let minimizer = NelderMeadBuilder::default()
             .maxiter(self.optimization_iters() as usize) 
