@@ -7,7 +7,7 @@ pub use shift::{ShiftOnly};
 mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftSeedWrapped};
 
-use crate::phast::{cyclic::{GenericUsedValue, UsedValueSet}, Params, Weights};
+use crate::phast::{Params, Weights, conf::ConfTrait, cyclic::{GenericUsedValue, UsedValueSet}};
 
 use super::conf::Conf;
 

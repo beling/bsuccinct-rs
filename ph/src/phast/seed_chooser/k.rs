@@ -1,6 +1,6 @@
 use bitm::ceiling_div;
 
-use crate::phast::{conf::Conf, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
+use crate::phast::{conf::{Conf, ConfTrait}, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
 use super::SeedChooser;
 
 /// [`SeedChooser`] to build `k`-perfect functions.

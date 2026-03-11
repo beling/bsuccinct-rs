@@ -1,4 +1,4 @@
-use crate::phast::{conf::{mix_key_seed, Conf}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}, Weights};
+use crate::phast::{Weights, conf::{Conf, ConfTrait, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
 use super::SeedChooser;
 
 

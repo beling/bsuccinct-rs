@@ -1,4 +1,4 @@
-use crate::phast::{conf::Conf, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}, Weights};
+use crate::phast::{Weights, conf::{Conf, ConfTrait}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
 use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {

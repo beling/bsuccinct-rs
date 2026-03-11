@@ -12,8 +12,72 @@ pub trait ConfTrait: Copy {
     /// Returns the number of buckets.
     fn buckets_num(&self) -> usize;
 
+    /// Returns slice length L - 1.
+    fn slice_len_minus_one(&self) -> u16;
+
+    /// Returns number of slices = output range - slice_len_minus_one
+    fn num_of_slices(&self) -> usize;
+
     /// Returns bucket assigned to the `key`.
     fn bucket_for(&self, key: u64) -> usize;
+
+        /// Returns first value of slice assigned to the `key`.
+    #[inline(always)]
+    fn slice_begin(&self, key: u64) -> usize {
+        map64_to_64(key, self.num_of_slices() as u64) as usize
+    }
+
+    /// Returns index of `key` in its slice.
+    #[inline(always)]
+    fn in_slice(&self, key: u64, seed: u16) -> usize {
+        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & self.slice_len_minus_one()) as usize
+        //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
+        //((key.wrapping_mul(0x1d8e_4e27_c47d_124f).wrapping_add(seed as u64)) as u16 & self.slice_len_minus_one) as usize
+        /*const P: u16 = 0;
+        let seed_lo = (seed & ((1<<P)-1)) + 1;
+        (wymum((seed_lo as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key).wrapping_add(3*(seed>>P) as u64) as u16 & self.slice_len_minus_one) as usize*/
+    }
+
+    /// Returns index of `key` in its slice.
+    /*#[inline(always)]
+    pub(crate) fn in_slice_seed_shift(&self, key: u64, seed: u16, shift: u16) -> usize {
+        ((mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 + shift as u16) & self.slice_len_minus_one) as usize
+        //0x51_7c_c1_b7_27_22_0a_95
+    }*/
+
+    #[inline(always)]
+    fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
+        //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one()) as usize
+    }
+
+    /// Returns seed independent index of `key` in its partition.
+    #[inline(always)]
+    fn in_slice_noseed(&self, key: u64) -> usize {
+        //(wymum_xor(key as u64, 0xe703_7ed1_a0b4_28db) as u16  & self.slice_len_minus_one) as usize
+        (key as u16 & self.slice_len_minus_one()) as usize
+    }
+
+    /// Returns the value of the function for given `key` and `seed`.
+    #[inline(always)]
+    fn f(&self, key: u64, seed: u16) -> usize {
+        self.slice_begin(key) + self.in_slice(key, seed)
+    }
+
+    #[inline(always)]
+    fn f_shift0(&self, key: u64) -> usize {
+        self.slice_begin(key) + self.in_slice_noseed(key)
+    }
+
+    /*#[inline(always)]
+    pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
+        self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize - 1
+    }*/
+
+    #[inline(always)]
+    fn f_nobump(&self, key: u64, seed: u16) -> usize {
+        self.slice_begin(key) + self.in_slice_nobump(key, seed)
+    } 
 
     /// Writes `self` to the `output`.
     fn write(&self, output: &mut dyn io::Write) -> io::Result<()>;
@@ -38,6 +102,16 @@ impl ConfTrait for Conf {
     #[inline(always)]
     fn buckets_num(&self) -> usize {
         self.buckets_num
+    }
+
+    #[inline(always)]
+    fn slice_len_minus_one(&self) -> u16 {
+        self.slice_len_minus_one
+    }
+    
+    #[inline(always)]
+    fn num_of_slices(&self) -> usize {
+        self.num_of_slices
     }
 
     /// Returns bucket assigned to the `key`.
@@ -69,6 +143,8 @@ impl ConfTrait for Conf {
             num_of_slices,
         })
     }
+    
+
 
 }
 
@@ -160,66 +236,6 @@ impl Conf {
     pub fn bucket_for(&self, key: u64) -> usize {
         map64_to_64(key, self.buckets_num as u64) as usize
     }
-
-    /// Returns first value of slice assigned to the `key`.
-    #[inline(always)]
-    pub fn slice_begin(&self, key: u64) -> usize {
-        map64_to_64(key, self.num_of_slices as u64) as usize
-    }
-
-    /// Returns index of `key` in its slice.
-    #[inline(always)]
-    pub fn in_slice(&self, key: u64, seed: u16) -> usize {
-        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & self.slice_len_minus_one) as usize
-        //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
-        //((key.wrapping_mul(0x1d8e_4e27_c47d_124f).wrapping_add(seed as u64)) as u16 & self.slice_len_minus_one) as usize
-        /*const P: u16 = 0;
-        let seed_lo = (seed & ((1<<P)-1)) + 1;
-        (wymum((seed_lo as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key).wrapping_add(3*(seed>>P) as u64) as u16 & self.slice_len_minus_one) as usize*/
-    }
-
-    /// Returns index of `key` in its slice.
-    /*#[inline(always)]
-    pub(crate) fn in_slice_seed_shift(&self, key: u64, seed: u16, shift: u16) -> usize {
-        ((mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 + shift as u16) & self.slice_len_minus_one) as usize
-        //0x51_7c_c1_b7_27_22_0a_95
-    }*/
-
-    #[inline(always)]
-    pub(crate) fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
-        //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
-        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
-    }
-
-    /// Returns seed independent index of `key` in its partition.
-    #[inline(always)]
-    pub(crate) fn in_slice_noseed(&self, key: u64) -> usize {
-        //(wymum_xor(key as u64, 0xe703_7ed1_a0b4_28db) as u16  & self.slice_len_minus_one) as usize
-        (key as u16 & self.slice_len_minus_one) as usize
-    }
-
-    /// Returns the value of the function for given `key` and `seed`.
-    #[inline(always)]
-    pub fn f(&self, key: u64, seed: u16) -> usize {
-        self.slice_begin(key) + self.in_slice(key, seed)
-    }
-
-    #[inline(always)]
-    pub(crate) fn f_shift0(&self, key: u64) -> usize {
-        self.slice_begin(key) + self.in_slice_noseed(key)
-    }
-
-    /*#[inline(always)]
-    pub(crate) fn f_shift(&self, key: u64, shift: u16) -> usize {
-        self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize - 1
-    }*/
-
-    #[inline(always)]
-    pub(crate) fn f_nobump(&self, key: u64, seed: u16) -> usize {
-        self.slice_begin(key) + self.in_slice_nobump(key, seed)
-    }
-
-
 
     #[inline] pub fn slice_len(&self) -> u16 {
         self.slice_len_minus_one + 1

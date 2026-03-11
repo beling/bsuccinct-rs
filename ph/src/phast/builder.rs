@@ -2,7 +2,7 @@ use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
 use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
-use crate::seeds::SeedSize;
+use crate::{phast::conf::ConfTrait, seeds::SeedSize};
 use super::{conf::Conf, cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
