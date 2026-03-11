@@ -171,9 +171,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         })
     }
 
-    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = match output_range.saturating_sub(max_shift as usize) {
+    #[inline(always)] fn slice_len(self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
             n @ 0..4096 => (n/2+1).next_power_of_two() as u16,
             /*64..1300 => 64,
             1300..1750 => 128,
@@ -206,8 +205,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
                 ..=10 => 2048,  // or (for MULTIPLIER=3) 10 => 4096 for faster construction
                 _ => 4096
             },
-        }});        
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
+        }})
     }
 
     #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
@@ -296,18 +294,16 @@ pub struct ShiftSeedWrapped<const MULTIPLIER: u8>(pub u8);
 impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
     type UsedValues = UsedValueSet;
 
-    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = match output_range.saturating_sub(max_shift as usize) {
-            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-            64..1300 => 64,
-            1300..1750 => 128,
-            1750..7500 => 256,
-            7500..150000 => 512,
-            150000..250000 => 1024,
-            _ => 2048,
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 });    // TODO tune 1024
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
+    #[inline(always)] fn slice_len(self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+                    n @ 0..64 => (n/2+1).next_power_of_two() as u16,
+                    64..1300 => 64,
+                    1300..1750 => 128,
+                    1750..7500 => 256,
+                    7500..150000 => 512,
+                    150000..250000 => 1024,
+                    _ => 2048,
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
     }
 
     #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {

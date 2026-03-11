@@ -7,7 +7,7 @@ pub use shift::{ShiftOnly};
 mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftSeedWrapped};
 
-use crate::phast::{Params, Weights, conf::ConfTrait, cyclic::{GenericUsedValue, UsedValueSet}};
+use crate::phast::{Weights, conf::{ConfTrait, ParamsTrait}, cyclic::{GenericUsedValue, UsedValueSet}};
 
 use super::conf::Conf;
 
@@ -48,22 +48,31 @@ pub trait SeedChooser: Copy {
         Weights::new(bits_per_seed, slice_len)
     }
 
-    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into(), preferred_slice_len);
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
+    /// How much the chooser can add to value over slice length.
+    #[inline(always)] fn extra_shift(self, _bits_per_seed: u8) -> u16 { 0 }
+
+    #[inline(always)] fn slice_len(self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        slice_len(output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize), bits_per_seed, preferred_slice_len)
+    }
+
+    fn conf(self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
+        Conf::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
     }
 
     #[inline(always)] fn conf_for_minimal(self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
         self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
-    #[inline(always)] fn conf_for_minimal_p<SS: Copy+Into<u8>>(self, num_of_keys: usize, params: &Params<SS>) -> Conf {
-        self.conf_for_minimal(num_of_keys, params.seed_size.into(), params.bucket_size100, params.preferred_slice_len)
+    #[inline(always)] fn conf_p<P: ParamsTrait>(self, output_range: usize, num_of_keys: usize, params: &P) -> P::Conf {
+        let bits_per_seed = params.bits_per_seed();
+        params.conf(output_range, num_of_keys, self.slice_len(output_range, bits_per_seed, params.preferred_slice_len()), self.extra_shift(bits_per_seed))
     }
 
-    /// How much the chooser can add to value over slice length.
-    #[inline(always)] fn extra_shift(self, _bits_per_seed: u8) -> u16 { 0 }
+    #[inline(always)] fn conf_for_minimal_p<P: ParamsTrait>(self, num_of_keys: usize, params: &P) -> P::Conf {
+        self.conf_p(self.minimal_output_range(num_of_keys), num_of_keys, params)
+    }
+
+
 
     /// Returns function value for given primary code and seed.
     fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize;

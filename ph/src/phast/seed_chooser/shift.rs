@@ -72,9 +72,8 @@ impl SeedChooser for ShiftOnly {
         })
     }
 
-    fn conf(self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = match output_range.saturating_sub(max_shift as usize) {
+    #[inline(always)] fn slice_len(self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
             n @ ..8192 => (n/2+1).next_power_of_two() as u16,
             _ => 8192
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
@@ -87,8 +86,7 @@ impl SeedChooser for ShiftOnly {
                 11 => 4096,
                 _ => 8192
             }
-        });
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
+        })
     }
 
     #[inline(always)] fn extra_shift(self, bits_per_seed: u8) -> u16 {

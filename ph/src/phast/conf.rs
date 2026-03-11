@@ -207,10 +207,10 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 
 impl Conf {
 
-    pub(crate) fn new(output_range: usize, input_size: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
+    pub(crate) fn new(output_range: usize, num_of_keys: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
         let bucket_size_100 = bucket_size_100 as usize;
         Self {
-            buckets_num: 1.max((input_size * 100 + bucket_size_100/2) / bucket_size_100),
+            buckets_num: 1.max((num_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
             slice_len_minus_one: slice_len - 1,
             num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
         }
@@ -260,6 +260,19 @@ impl Conf {
     }*/
 }
 
+pub trait ParamsTrait {
+    type Conf: ConfTrait;
+
+    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf;
+
+    /// Returns number of bits used to store each seed.
+    fn bits_per_seed(&self) -> u8;
+
+    //fn bucket_size100(&self) -> u16;
+    fn preferred_slice_len(&self) -> u16;
+}
+
+
 #[derive(Clone, Copy)]
 pub struct Params<SS> {
     pub seed_size: SS,
@@ -284,7 +297,17 @@ impl<SS> Params<SS> {
     }*/
 }
 
-impl<SS: Copy+Into<u8>> Params<SS> {
-    #[inline(always)]
-    pub fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
+impl<SS: Copy+Into<u8>> ParamsTrait for Params<SS> {
+    
+    type Conf = Conf;
+    
+    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf {
+        Conf::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
+    }
+
+    #[inline(always)] fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
+    
+    #[inline(always)] fn preferred_slice_len(&self) -> u16 {
+        self.preferred_slice_len
+    }
 }

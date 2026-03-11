@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Params, conf::ConfTrait}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Params, conf::{ConfTrait, ParamsTrait}}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
