@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Params, conf::{ConfTrait, ParamsTrait}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Params, conf::{ConfTrait, ParamsTrait, bucket_for}}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -19,7 +19,7 @@ impl<SSVecElement, C: ConfTrait> SeedEx<SSVecElement, C> {
     #[inline(always)]
     pub(crate) unsafe fn seed_for<SS>(&self, seed_size: SS, key: u64) -> u16 where SS: SeedSize<VecElement=SSVecElement> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
-        seed_size.get_seed(&self.seeds, self.conf.bucket_for(key))
+        seed_size.get_seed(&self.seeds, bucket_for(key, self.conf.buckets_num()))
     }
 
     /// Writes `self` to the `output`.

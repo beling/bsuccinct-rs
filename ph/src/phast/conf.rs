@@ -7,7 +7,13 @@ use crate::seeds::SeedSize;
 
 use super::SeedChooser;
 
-pub trait ConfTrait: Copy {
+/// Returns bucket assigned to the `key`.
+#[inline(always)]
+pub fn bucket_for(key: u64, buckets_num: usize) -> usize {
+    map64_to_64(key, buckets_num as u64) as usize
+}
+
+pub trait ConfTrait: Copy+Sync {
 
     /// Returns the number of buckets.
     fn buckets_num(&self) -> usize;
@@ -22,10 +28,7 @@ pub trait ConfTrait: Copy {
     /// Returns number of slices = output range - slice_len_minus_one
     fn num_of_slices(&self) -> usize;
 
-    /// Returns bucket assigned to the `key`.
-    fn bucket_for(&self, key: u64) -> usize;
-
-        /// Returns first value of slice assigned to the `key`.
+    /// Returns first value of slice assigned to the `key`.
     #[inline(always)]
     fn slice_begin(&self, key: u64) -> usize {
         map64_to_64(key, self.num_of_slices() as u64) as usize
@@ -83,6 +86,15 @@ pub trait ConfTrait: Copy {
         self.slice_begin(key) + self.in_slice_nobump(key, seed)
     } 
 
+    /// Returns output range of the function.
+    #[inline] fn output_range<SC: SeedChooser>(&self, seed_chooser: SC, bits_per_seed: u8) -> usize {
+        self.num_of_slices() + self.slice_len_minus_one() as usize + seed_chooser.extra_shift(bits_per_seed) as usize
+    }
+
+    #[inline] fn new_seeds_vec<SS: SeedSize>(&self, seed_size: SS) -> Box<[SS::VecElement]> {
+        seed_size.new_zeroed_seed_vec(self.buckets_num())
+    }
+
     /// Writes `self` to the `output`.
     fn write(&self, output: &mut dyn io::Write) -> io::Result<()>;
 
@@ -116,12 +128,6 @@ impl ConfTrait for Conf {
     #[inline(always)]
     fn num_of_slices(&self) -> usize {
         self.num_of_slices
-    }
-
-    /// Returns bucket assigned to the `key`.
-    #[inline(always)]
-    fn bucket_for(&self, key: u64) -> usize {
-        map64_to_64(key, self.buckets_num as u64) as usize
     }
 
     fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
@@ -230,10 +236,7 @@ impl Conf {
         }
     }*/
 
-    /// Returns output range of the function.
-    #[inline] pub fn output_range<SC: SeedChooser>(&self, seed_chooser: SC, bits_per_seed: u8) -> usize {
-        self.num_of_slices + self.slice_len_minus_one as usize + seed_chooser.extra_shift(bits_per_seed) as usize
-    }
+
 
     /// Returns bucket assigned to the `key`.
     #[inline(always)]
@@ -243,9 +246,7 @@ impl Conf {
 
 
 
-    #[inline] pub(crate) fn new_seeds_vec<SS: SeedSize>(&self, seed_size: SS) -> Box<[SS::VecElement]> {
-        seed_size.new_zeroed_seed_vec(self.buckets_num)
-    }
+
 
     // Returns bucket assigned to the `slice_begin` by "turbo" configuration.
     /*#[inline(always)]
@@ -264,6 +265,7 @@ impl Conf {
 
 pub trait ParamsTrait {
     type Conf: ConfTrait;
+    type SeedSize: SeedSize;
 
     fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf;
 
@@ -272,6 +274,8 @@ pub trait ParamsTrait {
 
     //fn bucket_size100(&self) -> u16;
     fn preferred_slice_len(&self) -> u16;
+
+    fn seed_size(&self) -> Self::SeedSize;
 }
 
 
@@ -299,9 +303,10 @@ impl<SS> Params<SS> {
     }*/
 }
 
-impl<SS: Copy+Into<u8>> ParamsTrait for Params<SS> {
+impl<SS: SeedSize> ParamsTrait for Params<SS> {
     
     type Conf = Conf;
+    type SeedSize = SS;
     
     fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf {
         Conf::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
@@ -311,5 +316,9 @@ impl<SS: Copy+Into<u8>> ParamsTrait for Params<SS> {
     
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
         self.preferred_slice_len
+    }
+    
+    #[inline(always)] fn seed_size(&self) -> Self::SeedSize {
+        self.seed_size
     }
 }
