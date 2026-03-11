@@ -1,6 +1,6 @@
 use bitm::ceiling_div;
 
-use crate::phast::{conf::{Conf, ConfTrait}, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
+use crate::phast::{conf::ConfTrait, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
 use super::SeedChooser;
 
 /// [`SeedChooser`] to build `k`-perfect functions.
@@ -14,7 +14,7 @@ use super::SeedChooser;
 pub struct SeedOnlyK(pub u8);
 
 #[inline(always)]
-fn best_seed_k<SC: SeedChooser>(k: u8, seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], conf: &Conf, seeds_num: u16) {
+fn best_seed_k<SC: SeedChooser, C: ConfTrait>(k: u8, seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], conf: &C, seeds_num: u16) {
     //assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
@@ -48,12 +48,12 @@ impl SeedChooser for SeedOnlyK {
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.k() as usize) }
 
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f(primary_code, seed)
     }
 
     #[inline(always)]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         let mut best_seed = 0;
         let mut best_value = usize::MAX;
         best_seed_k(self.0, self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed);

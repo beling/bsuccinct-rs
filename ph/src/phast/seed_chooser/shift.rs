@@ -1,4 +1,4 @@
-use crate::phast::{Weights, conf::{Conf, ConfTrait}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
+use crate::phast::{Weights, conf::ConfTrait, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
 use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
@@ -11,7 +11,7 @@ use super::SeedChooser;
     false
 }
 
-#[inline] fn shifts0<'k, 'c>(keys: &'k [u64], conf: &'c Conf) -> impl Iterator<Item = usize> + use<'k, 'c> {
+#[inline] fn shifts0<'k, 'c, C: ConfTrait>(keys: &'k [u64], conf: &'c C) -> impl Iterator<Item = usize> + use<'k, 'c, C> {
     keys.iter().map(|key| conf.f_shift0(*key))
 }
 
@@ -93,7 +93,7 @@ impl SeedChooser for ShiftOnly {
         (1 << bits_per_seed) - 2
     }
 
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f_shift0(primary_code) + (seed-1) as usize
     }
 
@@ -102,7 +102,7 @@ impl SeedChooser for ShiftOnly {
     }*/
 
     #[inline]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
         let mut without_shift_box: Box<[usize]>;
         let without_shift: &mut [usize] = if keys.len() > 16 {

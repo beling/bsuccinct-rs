@@ -72,17 +72,15 @@ pub trait SeedChooser: Copy {
         self.conf_p(self.minimal_output_range(num_of_keys), num_of_keys, params)
     }
 
-
-
     /// Returns function value for given primary code and seed.
-    fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize;
+    fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize;
     
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16;
+    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16;
 }
 
 #[inline(always)]
-fn best_seed_big<SC: SeedChooser>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &Conf, seeds_num: u16) {
+fn best_seed_big<SC: SeedChooser, C: ConfTrait>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let simd_keys = keys.len() / 4 * 4;
     //assert!(simd_keys <= keys.len());
@@ -130,7 +128,7 @@ fn best_seed_big<SC: SeedChooser>(seed_chooser: SC, best_value: &mut usize, best
 }
 
 #[inline(always)]
-fn best_seed_small<SC: SeedChooser>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &Conf, seeds_num: u16) {
+fn best_seed_small<SC: SeedChooser, C: ConfTrait>(seed_chooser: SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16) {
     assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
@@ -171,7 +169,7 @@ pub struct SeedOnly;
 impl SeedChooser for SeedOnly {
     type UsedValues = UsedValueSet;
     
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f(primary_code, seed)
     }
 
@@ -180,7 +178,7 @@ impl SeedChooser for SeedOnly {
     }*/
 
     #[inline(always)]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         let mut best_seed = 0;
         let mut best_value = usize::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
@@ -207,12 +205,12 @@ impl SeedChooser for SeedOnlyNoBump {
 
     type UsedValues = UsedValueSet;
 
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f_nobump(primary_code, seed)
     }
 
     #[inline]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         //let _: [(); Self::FIRST_SEED as usize] = [];
         let mut best_seed = u16::MAX;
         let mut best_value = usize::MAX;

@@ -15,6 +15,10 @@ pub trait ConfTrait: Copy {
     /// Returns slice length L - 1.
     fn slice_len_minus_one(&self) -> u16;
 
+    #[inline(always)] fn slice_len(&self) -> u16 {
+        self.slice_len_minus_one() + 1
+    }
+
     /// Returns number of slices = output range - slice_len_minus_one
     fn num_of_slices(&self) -> usize;
 
@@ -237,9 +241,7 @@ impl Conf {
         map64_to_64(key, self.buckets_num as u64) as usize
     }
 
-    #[inline] pub fn slice_len(&self) -> u16 {
-        self.slice_len_minus_one + 1
-    }
+
 
     #[inline] pub(crate) fn new_seeds_vec<SS: SeedSize>(&self, seed_size: SS) -> Box<[SS::VecElement]> {
         seed_size.new_zeroed_seed_vec(self.buckets_num)

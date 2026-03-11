@@ -1,4 +1,4 @@
-use crate::phast::{Weights, conf::{Conf, ConfTrait, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
+use crate::phast::{Weights, conf::{ConfTrait, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
 use super::SeedChooser;
 
 
@@ -208,8 +208,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         }})
     }
 
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
-        conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one) as usize
+    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
+        conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one()) as usize
         //conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
 
@@ -218,14 +218,14 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
     }*/
 
     #[inline]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;
         let mut without_shift_box: Box<[(usize, u16)]>;
         let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {   // we add MULTIPLIER to key as shift=0 is invalid (reserved for bumping)
-            without_shift_box = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one)).collect();
+            without_shift_box = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one())).collect();
             &mut without_shift_box
         } else {
-            without_shift_arrayvec = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one)).collect();
+            without_shift_arrayvec = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one())).collect();
             &mut without_shift_arrayvec
         };
 
@@ -267,7 +267,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         } else {
             let best_plus_multiplier = best_total_shift as usize + MULTIPLIER as usize;
             for key in keys {
-                used_values.add(conf.slice_begin(*key) + ((*key as usize).wrapping_add(best_plus_multiplier)&conf.slice_len_minus_one as usize));
+                used_values.add(conf.slice_begin(*key) + ((*key as usize).wrapping_add(best_plus_multiplier)&conf.slice_len_minus_one() as usize));
             }
             (best_plus_multiplier / MULTIPLIER as usize) as u16
         }
@@ -306,14 +306,14 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
     }
 
-    #[inline(always)] fn f(self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.slice_begin(primary_code) +
             ((mix_key_seed(primary_code, (seed>>self.0) + 1)
-             + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one) as usize
+             + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one()) as usize
     }
 
     #[inline]
-    fn best_seed(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         //TODO check; what with seed=0, shift=0?
         let slice_len = conf.slice_len();
         let mut best_score = usize::MAX;
@@ -334,7 +334,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
                 *slice_begin = conf.slice_begin(*key);
                 *in_slice = mix_key_seed(*key, seed+1).wrapping_add((MULTIPLIER as u16*seed) << self.0);
                 if seed == 0 { *in_slice = in_slice.wrapping_add(MULTIPLIER as u16); }   // minimal shift for seed = 0 is 1
-                *in_slice &= conf.slice_len_minus_one;
+                *in_slice &= conf.slice_len_minus_one();
             }
             let mut score_without_shift: usize = without_shift.iter().map(|(sb, is)| *sb + *is as usize).sum();
             let mut total_end_shift = (1u16 << self.0) * MULTIPLIER as u16;
@@ -376,7 +376,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
             for key in keys {
                 used_values.add(conf.slice_begin(*key) +
                     ((mix_key_seed(*key, best_seed + 1)
-                    + MULTIPLIER as u16 * result) & conf.slice_len_minus_one) as usize
+                    + MULTIPLIER as u16 * result) & conf.slice_len_minus_one()) as usize
                 );
             }
             result

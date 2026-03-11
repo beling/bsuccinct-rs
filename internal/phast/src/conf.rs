@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use ph::{phast::{Params, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{ConfTrait, Params, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
 

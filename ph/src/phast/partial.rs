@@ -1,7 +1,7 @@
 use dyn_size_of::GetSize;
 use voracious_radix_sort::RadixSort;
 
-use crate::{phast::{Params, SeedChooser, SeedOnly, WINDOW_SIZE, builder::{BuildConf, build_mt, build_st}, conf::{Conf, ParamsTrait}, evaluator::BucketToActivateEvaluator, function::SeedEx}, seeds::SeedSize};
+use crate::{phast::{Params, SeedChooser, SeedOnly, WINDOW_SIZE, builder::{BuildConf, build_mt, build_st}, conf::{Conf, ConfTrait, ParamsTrait}, evaluator::BucketToActivateEvaluator, function::SeedEx}, seeds::SeedSize};
 use std::hash::{BuildHasher, Hash, RandomState};
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
