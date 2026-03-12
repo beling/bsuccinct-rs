@@ -34,25 +34,15 @@ fn main() {
         conf.method, conf.keys_num, conf.k, conf.bits_per_seed, bucket_size, conf.slice_len);
     }
     match (conf.method, conf.k, conf.bits_per_seed, conf.one, bucket_size.into(), conf.is_turbo()) {
-        (Method::phast, 1, 8, false, _, true) =>
-            conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly)),
-        (Method::phast, 1, b, false, _, true) =>
-            conf.run(|keys| phast(&keys, conf.params_turbo(BitsFast(b)), threads_num, SeedOnly)),
+        (Method::phast, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly)),
+        (Method::phast, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
+        (Method::phast, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
 
-        (Method::phast, 1, 8, false, bucket_size100, false) =>
-            conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::phast, 1, b, false, bucket_size100, false) =>
-            conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
+        (Method::phast2, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
+        (Method::phast2, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
 
-        (Method::phast2, 1, 8, false, bucket_size100, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::phast2, 1, b, false, bucket_size100, false) =>
-            conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
-
-        (Method::perfect, 1, 8, false, bucket_size100, false) =>
-            conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::perfect, 1, b, false, bucket_size100, false) =>
-            conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
+        (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
+        (Method::perfect, 1, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
         (Method::perfect, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK(k))),
         (Method::perfect, k, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK(k))),
 
