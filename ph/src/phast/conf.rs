@@ -282,7 +282,9 @@ pub struct ConfTurbo {
 
 impl ConfTurbo {
 
-    pub(crate) fn new(output_range: usize, slice_len: u16, max_shift: u16) -> Self {
+    pub(crate) fn new(output_range: usize, mut slice_len: u16, max_shift: u16) -> Self {
+        let max_allowed_slice_len = output_range/5+1;   // or output_range/4+1;
+        if slice_len as usize > max_allowed_slice_len { slice_len = (max_allowed_slice_len as u16).next_power_of_two(); }
         Self {
             slice_len_minus_one: slice_len - 1,
             num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
