@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 use clap::{Parser, Subcommand};
-use ph::{phast::{ConfTrait, Params, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{ConfTrait, Params, ParamsTurbo, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
 
@@ -70,6 +72,45 @@ impl std::fmt::Display for Method {
 
 pub const CSV_HEADER: &'static str = "keys_num method k bits/seed bucket_size100 slice threads seed bits/key bumped_% range_overhead_% build_ns/key query_ns/key";
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum BucketSize {
+    Size100(u16),
+    Turbo
+}
+
+impl FromStr for BucketSize {
+    type Err = String;
+    
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let sl = s.to_lowercase();
+        Ok(if sl == "t" || sl == "turbo" {
+            BucketSize::Turbo
+        } else {
+            BucketSize::Size100(s.parse()
+                .map_err(|_| "Expected number or 't'".to_string())?)
+        })
+    }
+}
+
+impl std::fmt::Display for BucketSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BucketSize::Size100(v) => std::fmt::Display::fmt(&(*v as f64 / 100.0), f),
+            BucketSize::Turbo => write!(f, "4 (turbo)"),
+        }
+    }
+}
+
+impl Into<u16> for BucketSize {
+    fn into(self) -> u16 {
+        match self {
+            BucketSize::Size100(v) => v,
+            BucketSize::Turbo => 400,
+        }
+    }
+}
+
+
 #[derive(Parser)]
 #[command(author="Piotr Beling", version, about, long_about = None)]
 /// Minimal perfect hashing benchmark.
@@ -78,13 +119,13 @@ pub struct Conf {
     #[command(subcommand)]
     pub method: Method,
 
-    /// Number of bits to store seed of each bucket
-    #[arg(short='s', default_value_t = 8, value_parser = clap::value_parser!(u8).range(1..16))]
+    /// Number of bits to store seed of each bucket (0 for turbo)
+    #[arg(short='s', default_value_t = 8, value_parser = clap::value_parser!(u8).range(0..16))]
     pub bits_per_seed: u8,
 
-    /// Expected number of keys per bucket multipled by 100
+    /// Expected number of keys per bucket multiplied by 100
     #[arg(short='b')]
-    pub bucket_size: Option<u16>,
+    pub bucket_size: Option<BucketSize>,
 
     /// Number of times to perform evaluation (over all keys) test
     #[arg(short='e', long, default_value_t = 1)]
@@ -152,16 +193,24 @@ impl Conf {
         self.keys_num.div_ceil(self.k as u32)
     }
 
-    pub fn bucket_size_100(&self) -> u16 {
-        self.bucket_size.unwrap_or_else(|| ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed))
+    pub fn bucket_size(&self) -> BucketSize {
+        self.bucket_size.unwrap_or_else(|| BucketSize::Size100(ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed)))
+    }
+
+    pub fn is_turbo(&self) -> bool {
+        self.bucket_size == Some(BucketSize::Turbo)
     }
 
     pub fn keys_for_seed(&self, seed: u32) -> Box<[u64]> {
         butils::XorShift64(seed as u64).take(self.keys_num as usize).collect()
     }
 
-    pub fn params<SS>(&self, seed_size: SS) -> Params<SS> {
-        Params { seed_size, bucket_size100: self.bucket_size_100(), preferred_slice_len: self.slice_len }
+    pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> Params<SS> {
+        Params { seed_size, bucket_size100, preferred_slice_len: self.slice_len }
+    }
+
+    pub fn params_turbo<SS>(&self, seed_size: SS) -> ParamsTurbo<SS> {
+        ParamsTurbo { seed_size, preferred_slice_len: self.slice_len }
     }
 
     pub fn threads(&self) -> usize { if self.multiple_threads { current_num_threads() } else { 1 } }
@@ -177,7 +226,7 @@ impl Conf {
     pub fn print_csv(&self) {
         print!("{} {} {} {} {} {} {}",
             self.keys_num, self.method.to_string().replace(" ", "_"),
-            self.k, self.bits_per_seed, self.bucket_size_100(), self.slice_len, self.threads())
+            self.k, self.bits_per_seed, self.bucket_size(), self.slice_len, self.threads())
     }
 
     pub fn run<F, B>(&self, build: B)
@@ -246,7 +295,7 @@ impl Conf {
     }
 
     pub fn optimize_weights<SC: SeedChooser>(&self, seed_chooser: SC) {
-        let bucket_size = self.bucket_size_100();
+        let bucket_size: u16 = self.bucket_size().into();
         let minimizer = NelderMeadBuilder::default()
             .maxiter(self.optimization_iters() as usize) 
             .build()
