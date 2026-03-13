@@ -9,7 +9,7 @@ use super::SeedChooser;
 
 /// Returns bucket assigned to the `key`.
 #[inline(always)]
-pub fn bucket_for(key: u64, buckets_num: usize) -> usize {
+pub fn bucket_for(key: u64, buckets_num: usize) -> usize {  // TODO ?? wrong for Turbo -> move to Conf
     map64_to_64(key, buckets_num as u64) as usize
 }
 
