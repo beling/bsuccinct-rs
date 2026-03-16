@@ -309,6 +309,11 @@ impl ConfTrait for ConfTurbo {
         self.num_of_slices
     }
 
+    #[inline(always)]
+    fn bucket_for(&self, key: u64) -> usize {
+        self.slice_begin(key) / 4
+    }
+
     fn write(&self, output: &mut dyn io::Write) -> io::Result<()> {
         VByte::write(output, self.slice_len_minus_one)?;
         VByte::write(output, self.num_of_slices)
