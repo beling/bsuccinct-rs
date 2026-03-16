@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Params, conf::{ConfTrait, ParamsTrait, bucket_for}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Params, conf::{ConfTrait, ParamsTrait}}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::Conf, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -19,7 +19,7 @@ impl<SSVecElement, C: ConfTrait> SeedEx<SSVecElement, C> {
     #[inline(always)]
     pub(crate) unsafe fn seed_for<SS>(&self, seed_size: SS, key: u64) -> u16 where SS: SeedSize<VecElement=SSVecElement> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
-        seed_size.get_seed(&self.seeds, bucket_for(key, self.conf.buckets_num()))
+        seed_size.get_seed(&self.seeds, self.conf.bucket_for(key))
     }
 
     /// Writes `self` to the `output`.
@@ -98,7 +98,7 @@ pub(crate) fn build_level_from_slice_st<K, P, SC, S>(keys: &[K], params: &P, has
     drop(builder);
     let mut keys_vec = Vec::with_capacity(unassigned_len);
     keys_vec.extend(keys.into_iter().filter(|key| {
-        unsafe { params.seed_size().get_seed(&seeds, bucket_for(hasher.hash_one(key, level_nr), conf.buckets_num())) == 0 }
+        unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     }).cloned());
     (keys_vec, SeedEx{ seeds, conf }, unassigned_values, unassigned_len)
 }
@@ -125,7 +125,7 @@ pub(crate) fn build_level_from_slice_mt<K, P, SC, S>(keys: &[K], params: &P, thr
     drop(builder);
     let mut keys_vec = Vec::with_capacity(unassigned_len);
     keys_vec.par_extend(keys.into_par_iter().filter(|key| {
-        unsafe { params.seed_size().get_seed(&seeds, bucket_for(hasher.hash_one(key, level_nr), conf.buckets_num())) == 0 }
+        unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     }).cloned());
     (keys_vec, SeedEx{ seeds, conf }, unassigned_values, unassigned_len)
 }
@@ -143,7 +143,7 @@ pub(crate) fn build_level_st<K, P, SC, S>(keys: &mut Vec::<K>, params: &P, hashe
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     drop(builder);
     keys.retain(|key| {
-        unsafe { params.seed_size().get_seed(&seeds, bucket_for(hasher.hash_one(key, level_nr), conf.buckets_num())) == 0 }
+        unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     });
     (SeedEx{ seeds, conf }, unassigned_values, unassigned_len)
 }
@@ -171,7 +171,7 @@ pub(crate) fn build_level_mt<K, P, SC, S>(keys: &mut Vec::<K>, params: &P, threa
     let mut result = Vec::with_capacity(unassigned_len);
     std::mem::swap(keys, &mut result);
     keys.par_extend(result.into_par_iter().filter(|key| {
-        unsafe { params.seed_size().get_seed(&seeds, bucket_for(hasher.hash_one(key, level_nr), conf.buckets_num())) == 0 }
+        unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     }));
     (SeedEx{ seeds, conf }, unassigned_values, unassigned_len)
 }

@@ -7,12 +7,6 @@ use crate::seeds::SeedSize;
 
 use super::SeedChooser;
 
-/// Returns bucket assigned to the `key`.
-#[inline(always)]
-pub fn bucket_for(key: u64, buckets_num: usize) -> usize {  // TODO ?? wrong for Turbo -> move to Conf
-    map64_to_64(key, buckets_num as u64) as usize
-}
-
 pub trait ConfTrait: Copy+Sync {
 
     /// Returns the number of buckets.
@@ -32,6 +26,12 @@ pub trait ConfTrait: Copy+Sync {
     #[inline(always)]
     fn slice_begin(&self, key: u64) -> usize {
         map64_to_64(key, self.num_of_slices() as u64) as usize
+    }
+
+    /// Returns bucket assigned to the `key`.
+    #[inline(always)]
+    fn bucket_for(&self, key: u64) -> usize {
+        map64_to_64(key, self.buckets_num() as u64) as usize
     }
 
     /// Returns index of `key` in its slice.
