@@ -5,7 +5,7 @@ pub use compressed_array::{CompressedArray, CompressedBuilder, DefaultCompressed
 
 mod builder;
 mod conf;
-pub use conf::{Params, ParamsTurbo, bits_per_seed_to_100_bucket_size, ConfTrait, ParamsTrait};
+pub use conf::{Params, Conf, ParamsTurbo, ConfTurbo, bits_per_seed_to_100_bucket_size, ConfTrait, ParamsTrait};
 
 mod cyclic;
 mod evaluator;
