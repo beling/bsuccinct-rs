@@ -28,6 +28,13 @@ pub trait ConfTrait: Copy+Sync {
         map64_to_64(key, self.num_of_slices() as u64) as usize
     }
 
+    /// Returns the largest value which is lower than or equal to the value of any key in the `bucket`.
+    #[inline(always)]
+    fn slice_begin_for_bucket(&self, bucket: usize) -> usize {
+        // The lowest hash code in the bucket is floor((bucket<<64)/buckets_num)+2
+        self.slice_begin((((bucket as u128) << 64) / self.buckets_num() as u128) as u64 + 2)
+    }
+
     /// Returns bucket assigned to the `key`.
     #[inline(always)]
     fn bucket_for(&self, key: u64) -> usize {
@@ -293,6 +300,11 @@ impl ConfTurbo {
 }
 
 impl ConfTrait for ConfTurbo {
+
+    #[inline(always)]
+    fn slice_begin_for_bucket(&self, bucket: usize) -> usize {
+        bucket * 4
+    }
 
     #[inline(always)]
     fn buckets_num(&self) -> usize {
