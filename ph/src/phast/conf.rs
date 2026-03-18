@@ -34,10 +34,10 @@ pub trait ConfTrait: Copy+Sync {
         // The lowest hash code in the bucket is ⌈(bucket<<64)/buckets_num⌉
         self.slice_begin(((bucket as u128) << 64).div_ceil(self.buckets_num() as u128) as u64)
         // Proof:
-        // We look for the lowest c such that bucket=⌊(B*c)>>64⌋=⌊BC/U⌋.
+        // We look for the lowest c such that b=bucket=⌊(B*c)>>64⌋=⌊BC/U⌋ (*).
         // b = ⌊Bc/U⌋  =>  b ≤ ⌊Bc/U⌋  <=>  b ≤ Bc/U  <=>  bU ≤ Bc  <=>  bU/B ≤ c  <=>  ⌈bU/B⌉ ≤ c
-        // for the lowest c, we have b > B(c-1)/U  <=>  bU/B > c-1  <=>  c < bU/B + 1  <=>  c < ⌈bU/B⌉ + 1
-        // So for the lowest c:  ⌈bU/B⌉ ≤ c < ⌈bU/B⌉ + 1  <=>  c = ⌈bU/B⌉.
+        // for the lowest c fulfilling (*), we have b > B(c-1)/U  <=>  bU/B > c-1  <=>  c < bU/B + 1  <=>  c < ⌈bU/B⌉ + 1
+        // So the lowest c fulfilling (*) meets:  ⌈bU/B⌉ ≤ c < ⌈bU/B⌉ + 1  <=>  c = ⌈bU/B⌉.
     }
 
     /// Returns bucket assigned to the `key`.
