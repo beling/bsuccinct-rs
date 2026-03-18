@@ -31,8 +31,13 @@ pub trait ConfTrait: Copy+Sync {
     /// Returns the largest value which is lower than or equal to the value of any key in the `bucket`.
     #[inline(always)]
     fn slice_begin_for_bucket(&self, bucket: usize) -> usize {
-        // The lowest hash code in the bucket is floor((bucket<<64)/buckets_num)+2
-        self.slice_begin((((bucket as u128) << 64) / self.buckets_num() as u128) as u64 + 2)
+        // The lowest hash code in the bucket is ⌈(bucket<<64)/buckets_num⌉
+        self.slice_begin(((bucket as u128) << 64).div_ceil(self.buckets_num() as u128) as u64)
+        // Proof:
+        // We look for the lowest c such that bucket=⌊(B*c)>>64⌋=⌊BC/U⌋.
+        // b = ⌊Bc/U⌋  =>  b ≤ ⌊Bc/U⌋  <=>  b ≤ Bc/U  <=>  bU ≤ Bc  <=>  bU/B ≤ c  <=>  ⌈bU/B⌉ ≤ c
+        // for the lowest c, we have b > B(c-1)/U  <=>  bU/B > c-1  <=>  c < bU/B + 1  <=>  c < ⌈bU/B⌉ + 1
+        // So for the lowest c:  ⌈bU/B⌉ ≤ c < ⌈bU/B⌉ + 1  <=>  c = ⌈bU/B⌉.
     }
 
     /// Returns bucket assigned to the `key`.
