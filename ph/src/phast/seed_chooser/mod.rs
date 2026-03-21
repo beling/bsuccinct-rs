@@ -51,7 +51,7 @@ pub trait SeedChooser: Clone + Sync {
     /// How much the chooser can add to value over slice length.
     #[inline(always)] fn extra_shift(&self, _bits_per_seed: u8) -> u16 { 0 }
 
-    #[inline(always)] fn slice_len(self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         slice_len(output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize), bits_per_seed, preferred_slice_len)
     }
 
@@ -69,25 +69,25 @@ pub trait SeedChooser: Clone + Sync {
         self.conf_for_minimal(num_of_keys, params.seed_size.into(), params.bucket_size100, params.preferred_slice_len)
     } */
 
-    fn conf(self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
+    fn conf(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
         GenericCore::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
     }
 
-    #[inline(always)] fn conf_for_minimal(self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
+    #[inline(always)] fn conf_for_minimal(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
         self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
-    #[inline(always)] fn conf_p<P: Conf>(self, output_range: usize, num_of_keys: usize, params: &P) -> P::Core {
+    #[inline(always)] fn conf_p<P: Conf>(&self, output_range: usize, num_of_keys: usize, params: &P) -> P::Core {
         let bits_per_seed = params.bits_per_seed();
         params.conf(output_range, num_of_keys, self.slice_len(output_range, bits_per_seed, params.preferred_slice_len()), self.extra_shift(bits_per_seed))
     }
 
-    #[inline(always)] fn conf_for_minimal_p<P: Conf>(self, num_of_keys: usize, params: &P) -> P::Core {
+    #[inline(always)] fn conf_for_minimal_p<P: Conf>(&self, num_of_keys: usize, params: &P) -> P::Core {
         self.conf_p(self.minimal_output_range(num_of_keys), num_of_keys, params)
     }
 
     /// Returns function value for given primary code and seed.
-    fn f<C: Core>(self, primary_code: u64, seed: u16, conf: &C) -> usize;
+    fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize;
 
     #[inline(always)]
     fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
@@ -96,7 +96,7 @@ pub trait SeedChooser: Clone + Sync {
     }
     
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
-    fn best_seed<C: Core>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16;
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16;
 }
 
 #[inline(always)]

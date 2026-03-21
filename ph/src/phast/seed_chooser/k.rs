@@ -113,7 +113,7 @@ impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
 }
 
 #[inline(always)]
-fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator>(k: u8, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], conf: &C, seeds_num: u16) {
+fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u8, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], conf: &C, seeds_num: u16) {
     //assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());

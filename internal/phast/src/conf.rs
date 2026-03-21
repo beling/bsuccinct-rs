@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use ph::{bucket_size_normalization_multiplier, phast::{Core, Generic, Turbo, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Core, Generic, Partial, SeedChooser, SeedOnlyK, SumOfWeightedValues, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::{SumOfWeightedValuesF, WeightsF}};
 
@@ -304,7 +304,7 @@ impl Conf {
         total.print_avg(self);
     }
 
-    fn optimizer<SC: SeedChooser>(&self, seed_chooser: &SC) -> (NelderMead, ph::phast::Conf) {
+    fn optimizer<SC: SeedChooser>(&self, seed_chooser: &SC) -> (NelderMead, ph::phast::GenericCore) {
         let bucket_size = self.bucket_size().into();
         let minimizer = NelderMeadBuilder::default()
             .maxiter(self.optimization_iters() as usize) 
