@@ -1,7 +1,6 @@
 [package]
 name = "cseq"
-version = "0.1.4"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+version = "0.1.5"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "The library of compact sequences."

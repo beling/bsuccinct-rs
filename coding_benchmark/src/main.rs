@@ -39,7 +39,7 @@ pub enum Coding {
 }*/
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None, infer_subcommands=true)]
+#[command(author="Piotr Beling", version, about, long_about = None, infer_subcommands=true)]
 /// Coding benchmark.
 pub struct Conf {
     /// Coder to test

@@ -1,7 +1,6 @@
 [package]
 name = "butils"
-version = "0.1.0"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
+version = "0.1.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Utilities shared by software included in BSuccinct."

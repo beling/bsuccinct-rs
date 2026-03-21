@@ -121,6 +121,20 @@ impl<S> Serializer<usize> for S where S: Serializer<u64> {
     }
 }
 
+/*impl<S> Serializer<isize> for S where S: Serializer<i64> {
+    const CONST_SIZE: Option<usize> = S::CONST_SIZE;
+
+    #[inline] fn size(val: isize) -> usize { S::size(val as i64) }
+
+    #[inline] fn write<W: std::io::Write + ?Sized>(output: &mut W, val: isize) -> std::io::Result<()> {
+        S::write(output, val as i64)
+    }
+    
+    #[inline] fn read<R: std::io::Read + ?Sized>(input: &mut R) -> std::io::Result<isize> {
+        S::read(input).map(|v| v as isize)
+    }
+}*/
+
 /// Serialize values as-is, in little-endian bytes order.
 #[derive(Clone, Copy)]
 pub struct AsIs;

@@ -9,6 +9,7 @@ pub use self::select::{Select, Select0, BinaryRankSearch, CombinedSampling,
 
 use super::{ceiling_div, n_lowest_bits};
 use dyn_size_of::GetSize;
+use prefetch_index::prefetch_index;
 
 /// Trait for rank queries on bit vector.
 /// Rank query returns the number of ones (or zeros) in requested number of the first bits.
@@ -40,6 +41,11 @@ pub trait Rank {
     #[inline] unsafe fn rank0_unchecked(&self, index: usize) -> usize {
         index - self.rank_unchecked(index)
     }
+
+    /// Prefetch the cache line containing the data needed to calculate `rank(index)` into
+    /// all levels of the cache.
+    #[inline]
+    fn prefetch(&self, _index: usize) {}
 }
 
 /// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
@@ -240,6 +246,14 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 
         //r + count_bits_in(self.content.get_unchecked(block * 8..word_idx))
         r + count_bits_in(self.content.get_unchecked(word_idx&!7..word_idx))
+    }
+
+    #[inline]
+    fn prefetch(&self, index: usize) {
+        let word_idx = index / 64;
+        prefetch_index(&self.l2ranks, index / 2048);
+        prefetch_index(&self.l1ranks, index >> 32);
+        prefetch_index(&*self.content, word_idx);
     }
 }
 

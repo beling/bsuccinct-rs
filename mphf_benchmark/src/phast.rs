@@ -1,4 +1,4 @@
-use ph::{fmph::TwoToPowerBitsStatic, phast::{CompressedArray, DefaultCompressedArray, Params, SeedChooser}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
+use ph::{fmph::TwoToPowerBitsStatic, phast::{CompressedArray, DefaultCompressedArray, Generic, SeedChooser}, seeds::{Bits8, BitsFast, SeedSize}, BuildSeededHasher, GetSize};
 
 use crate::{builder::{benchmark, TypeToQuery}, BenchmarkResult, Conf, IntHasher, KeySource, MPHFBuilder, PHastConf, StrHasher};
 use std::{fs::File, hash::Hash, io::Write};
@@ -13,22 +13,22 @@ pub struct PHastBencher<SC, SS, S, AC = DefaultCompressedArray> {
 }
 
 impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
-    where SC: SeedChooser + Sync, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
+    where SC: SeedChooser, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
 {
-    type MPHF = ph::phast::Function2<SS, SC, AC, S>;    // TODO Function(1) for regular PHast
+    type MPHF = ph::phast::Function2<ph::phast::GenericCore, SS, SC, AC, S>;    // TODO Function(1) for regular PHast
 
     type Value = usize;
 
     fn new(&self, keys: &[K], use_multiple_threads: bool) -> Self::MPHF {
         if use_multiple_threads {
             Self::MPHF::with_slice_p_threads_hash_sc(keys, 
-                &Params::new(self.bits_per_seed, self.bucket_size_100),
+                &Generic::new(self.bits_per_seed, self.bucket_size_100),
                 std::thread::available_parallelism().map_or(1, |v| v.into()),
                 S::default(), self.seed_chooser.clone()
             )
         } else {
             Self::MPHF::with_slice_p_hash_sc(keys,
-                &Params::new(self.bits_per_seed, self.bucket_size_100), S::default(), self.seed_chooser.clone()
+                &Generic::new(self.bits_per_seed, self.bucket_size_100), S::default(), self.seed_chooser.clone()
             )
         }
     }
@@ -55,7 +55,7 @@ impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
 }*/
 
 pub fn benchmark_with<SC, S, SS, AC, K>(bits_per_seed: SS, bucket_size_100: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, seed_chooser: SC) -> BenchmarkResult
-where SC: SeedChooser + Sync, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
+where SC: SeedChooser, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
 {
     benchmark(PHastBencher { hash: std::marker::PhantomData::<S>::default(),
          array_compression: std::marker::PhantomData::<AC>::default(), bits_per_seed, bucket_size_100,
@@ -63,7 +63,7 @@ where SC: SeedChooser + Sync, SS: SeedSize, S: BuildSeededHasher + Default + Syn
 }
 
 pub fn phast_benchmark_enc<SC, H, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, seed_chooser: SC, phast_conf: &PHastConf, encoder: &str)
-    where SC: SeedChooser + Sync, H: BuildSeededHasher+Default+Sync, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
+    where SC: SeedChooser, H: BuildSeededHasher+Default+Sync, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
 {
     let bucket_size_100 = phast_conf.bucket_size();
     let b = match phast_conf.bits_per_seed {
@@ -76,7 +76,7 @@ pub fn phast_benchmark_enc<SC, H, AC, K>(csv_file: &mut Option<File>, i: &(Vec<K
 }
 
 pub fn phast_benchmark<AC, SC, K>(csv_file: &mut Option<File>, i: &(Vec<K>, Vec<K>), conf: &Conf, seed_chooser: SC, phast_conf: &PHastConf, encoder: &str)
-    where SC: SeedChooser + Sync, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
+    where SC: SeedChooser, AC: CompressedArray+GetSize, K: Hash + Sync + Send + Clone + TypeToQuery
 {
     match conf.key_source {
         KeySource::xs32 | KeySource::xs64 => phast_benchmark_enc::<SC, IntHasher, AC, _>(csv_file, i, conf, seed_chooser, phast_conf, encoder),

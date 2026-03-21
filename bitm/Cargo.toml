@@ -1,8 +1,7 @@
 [package]
 name = "bitm"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
-authors = ["Piotr Beling <piotr.beling@wmii.uni.lodz.pl>"]
 license = "MIT OR Apache-2.0"
 description = "The library for bit and bitmap (bit vector) manipulation."
 documentation = "https://docs.rs/bitm"
@@ -15,6 +14,7 @@ keywords = [ "bit", "bitmap", "rank", "bitvector", "bitset" ]
 [dependencies]
 dyn_size_of = { version=">=0.4.3", path="../dyn_size_of" }
 aligned-vec = { version="0.6", optional=true }  # for construcing cache-aligment bit vectors, which usually speeds up rank and select
+prefetch-index = "0.2.0"
 
 [dev-dependencies]
 criterion = "0.5"

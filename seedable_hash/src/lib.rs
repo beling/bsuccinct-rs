@@ -55,6 +55,8 @@ impl BuildSeededHasher for BuildSip13 {
 
 /// [`BuildSeededHasher`] that uses `wyhash` crate.
 #[cfg(feature = "wyhash")]
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), repr(C), epserde_zero_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Default, Copy, Clone)]
 pub struct BuildWyHash;
 
@@ -70,6 +72,8 @@ impl BuildSeededHasher for BuildWyHash {
 
 /// [`BuildSeededHasher`] that uses `Xxh3` from `xxhash_rust` crate.
 #[cfg(feature = "xxhash-rust")]
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), repr(C), epserde_zero_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Default, Copy, Clone)]
 pub struct BuildXxh3;
 
@@ -95,6 +99,8 @@ impl BuildSeededHasher for fnv::FnvBuildHasher {
 
 /// [`BuildSeededHasher`] that uses `GxHasher` from `gxhash` crate.
 #[cfg(feature = "gxhash")]
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), repr(C), epserde_zero_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Default, Copy, Clone)]
 pub struct BuildGxHash;
 
@@ -111,6 +117,8 @@ impl BuildSeededHasher for BuildGxHash {
 
 /// [`BuildSeededHasher`] that uses `rapidhash::RapidHasher`.
 #[cfg(feature = "rapidhash")]
+#[cfg_attr(feature = "epserde", derive(epserde::Epserde), repr(C), epserde_zero_copy)]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg, mem_dbg::MemSize))]
 #[derive(Default, Copy, Clone)]
 pub struct BuildRapidHash;
 

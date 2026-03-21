@@ -1,4 +1,4 @@
-use crate::phast::{conf::Conf, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}, Weights};
+use crate::phast::{Weights, conf::Core, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
 use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
@@ -11,7 +11,7 @@ use super::SeedChooser;
     false
 }
 
-#[inline] fn shifts0<'k, 'c>(keys: &'k [u64], conf: &'c Conf) -> impl Iterator<Item = usize> + use<'k, 'c> {
+#[inline] fn shifts0<'k, 'c, C: Core>(keys: &'k [u64], conf: &'c C) -> impl Iterator<Item = usize> + use<'k, 'c, C> {
     keys.iter().map(|key| conf.f_shift0(*key))
 }
 
@@ -72,9 +72,8 @@ impl SeedChooser for ShiftOnly {
         })
     }
 
-    fn conf(&self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = match output_range.saturating_sub(max_shift as usize) {
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
             n @ ..8192 => (n/2+1).next_power_of_two() as u16,
             _ => 8192
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
@@ -87,15 +86,14 @@ impl SeedChooser for ShiftOnly {
                 11 => 4096,
                 _ => 8192
             }
-        });
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
+        })
     }
 
     #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 {
         (1 << bits_per_seed) - 2
     }
 
-    #[inline(always)] fn f(&self, primary_code: u64, seed: u16, conf: &Conf) -> usize {
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f_shift0(primary_code) + (seed-1) as usize
     }
 
@@ -104,7 +102,7 @@ impl SeedChooser for ShiftOnly {
     }*/
 
     #[inline]
-    fn best_seed(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &Conf, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
         let mut without_shift_box: Box<[usize]>;
         let without_shift: &mut [usize] = if keys.len() > 16 {
