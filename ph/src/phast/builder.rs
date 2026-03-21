@@ -2,18 +2,18 @@ use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
 use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
-use crate::{phast::conf::ConfTrait, seeds::SeedSize};
+use crate::{phast::conf::Core, seeds::SeedSize};
 use super::{cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
 #[inline]
-fn bucket_sizes_st<C: ConfTrait>(keys: &[u64], conf: &C) -> Box<[usize]> {
+fn bucket_sizes_st<C: Core>(keys: &[u64], conf: &C) -> Box<[usize]> {
     let mut buckets = vec![0; conf.buckets_num() + 1].into_boxed_slice();
     for key in keys.iter() { unsafe{ *buckets.get_unchecked_mut(conf.bucket_for(*key)) += 1 } }
     buckets
 }
 
-fn bucket_sizes_mt<C: ConfTrait>(keys: &[u64], conf: &C, mut threads_num: usize) -> Box<[usize]> { // TODO pass conf values to make fn non-generic
+fn bucket_sizes_mt<C: Core>(keys: &[u64], conf: &C, mut threads_num: usize) -> Box<[usize]> { // TODO pass conf values to make fn non-generic
     //let mut threads_num = rayon::current_num_threads().min(keys.len() / (8*4096));
     threads_num = threads_num.min(keys.len() / (8*4096));
     if threads_num <= 1 { return bucket_sizes_st(keys, conf); }
@@ -65,7 +65,7 @@ fn accumulative_sum(buckets: std::slice::IterMut<'_, usize>) -> usize {
 }
 
 /// Calculate bucket_begin array using a single thread. `keys` must be sorted.
-pub fn bucket_begin_st<C: ConfTrait>(keys: &[u64], conf: &C) -> Box<[usize]> {
+pub fn bucket_begin_st<C: Core>(keys: &[u64], conf: &C) -> Box<[usize]> {
     let mut buckets = bucket_sizes_st(keys, conf);
     let sum = accumulative_sum(buckets.iter_mut()); //bucket_lens
     debug_assert_eq!(sum, keys.len());
@@ -73,7 +73,7 @@ pub fn bucket_begin_st<C: ConfTrait>(keys: &[u64], conf: &C) -> Box<[usize]> {
 }
 
 /// Calculate bucket_begin array using up to `threads_num` threads. `keys` must be sorted.
-pub fn bucket_begin_mt<C: ConfTrait>(keys: &[u64], conf: &C, threads_num: usize) -> Box<[usize]> {
+pub fn bucket_begin_mt<C: Core>(keys: &[u64], conf: &C, threads_num: usize) -> Box<[usize]> {
     let mut buckets = bucket_sizes_mt(keys, conf, threads_num);
     let sum = accumulative_sum(buckets.iter_mut()); //bucket_lens
     debug_assert_eq!(sum, keys.len());
@@ -103,7 +103,7 @@ pub fn bucket_begin_mt<C: ConfTrait>(keys: &[u64], conf: &C, threads_num: usize)
 }*/
 
 //// Read-only data shared by all threads.
-pub(crate) struct BuildConf<'k, C: ConfTrait, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> {
+pub(crate) struct BuildConf<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> {
     conf: C,
     span_limit: u16,
     evaluator: BE,
@@ -121,7 +121,7 @@ fn construct_unassigned(unassigned_len: usize) -> Box<[u64]> {
     unassigned_values
 }
 
-impl<'k, C: ConfTrait, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<'k, C, BE, SS, SC> {
+impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<'k, C, BE, SS, SC> {
     #[inline]
     pub fn new(keys: &'k [u64], conf: C, seed_size: SS, span_limit: u16, evaluator: BE, bucket_begin: Box<[usize]>, seed_chooser: SC) -> (Self, Box<[SS::VecElement]>) {
         //let seeds = Box::with_zeroed_bits(conf.buckets_num * conf.bits_per_seed() as usize);
@@ -207,7 +207,7 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
 #[inline(always)]
 pub(crate) fn build_last_level<'k, C, BE, SS>(keys: &'k [u64], conf: C, seed_size: SS, evaluator: BE)
 -> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
-where C: ConfTrait, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send, SS: SeedSize
+where C: Core, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send, SS: SeedSize
 {
     let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), SeedOnlyNoBump);
     let mut tb = ThreadBuilder::<C, SeedOnlyNoBump, _, _>::new(&builder, 0..conf.buckets_num(), 0, &mut seeds);
@@ -221,7 +221,7 @@ where C: ConfTrait, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send
 #[inline(always)]
 pub(crate) fn build_st<'k, SC, BE, C, SS>(keys: &'k [u64], conf: C, seed_size: SS, evaluator: BE, seed_chooser: SC)
 -> (Box<[SS::VecElement]>, BuildConf<'k, C, BE, SS, SC>)
-where C: ConfTrait, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize
+where C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize
 {
     let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), seed_chooser);
     ThreadBuilder::<C, SC, _, _>::new(&builder, 0..conf.buckets_num(), 0, &mut seeds).build();
@@ -231,7 +231,7 @@ where C: ConfTrait, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize
 
 pub(crate) fn build_mt<'k, C, SC, BE, SS>(keys: &'k [u64], conf: C, seed_size: SS, span_limit: u16, evaluator: BE, seed_chooser: SC, threads_num: usize)
  -> (Box<[SS::VecElement]>, BuildConf<'k, C, BE, SS, SC>)
-where C: ConfTrait + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync, BE::Value: Send, SS: SeedSize
+where C: Core + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync, BE::Value: Send, SS: SeedSize
 {
     //let threads_num = rayon::current_num_threads();
     let threads_num = threads_num.min(rayon::current_num_threads()).min(conf.buckets_num() / 4096).max(1);
@@ -369,7 +369,7 @@ where C: ConfTrait + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync
     )),
     repr(align(64))
 )]
-struct ThreadBuilder<'k, C: ConfTrait, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> {
+struct ThreadBuilder<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> {
     conf: &'k BuildConf<'k, C, BE, SS, SC>,
 
     /// buckets to process by the thread
@@ -392,7 +392,7 @@ struct ThreadBuilder<'k, C: ConfTrait, SC: SeedChooser, BE: BucketToActivateEval
     seeds: &'k mut [SS::VecElement],
 }
 
-impl<'k, C: ConfTrait, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, C, SC, BE, SS> {
+impl<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, C, SC, BE, SS> {
     pub(crate) fn new(conf: &'k BuildConf<'k, C, BE, SS, SC>, buckets: Range<usize>, gap: usize, seeds: &'k mut [SS::VecElement]) -> Self {
         Self {
             used_values: SC::UsedValues::default(),

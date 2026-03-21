@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{Params, SeedChooser, SeedOnly, SeedOnlyK, WINDOW_SIZE, bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::{ConfTrait, ParamsTrait}, function::{Level, SeedEx}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Params, SeedChooser, SeedOnly, SeedOnlyK, WINDOW_SIZE, bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::{Core, Conf}, function::{Level, SeedEx}}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.

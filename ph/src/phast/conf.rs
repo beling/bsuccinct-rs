@@ -7,7 +7,8 @@ use crate::seeds::SeedSize;
 
 use super::SeedChooser;
 
-pub trait ConfTrait: Copy+Sync {
+/// The PHast core which is responsible for mapping key hashes to buckets and slices.
+pub trait Core: Copy+Sync {
 
     /// Returns the number of buckets.
     fn buckets_num(&self) -> usize;
@@ -123,15 +124,15 @@ pub trait ConfTrait: Copy+Sync {
     fn read(input: &mut dyn io::Read) -> io::Result<Self>;
 }
 
-/// PHast map-or-bump function configuration.
+/// Generic PHast core that supports many configurations.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct Conf {
+pub struct GenericCore {
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) slice_len_minus_one: u16,  // slice length L - 1
     pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
 }
 
-impl ConfTrait for Conf {
+impl Core for GenericCore {
 
     #[inline(always)]
     fn buckets_num(&self) -> usize {
@@ -231,7 +232,7 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
     }
 }
 
-impl Conf {
+impl GenericCore {
 
     pub(crate) fn new(output_range: usize, num_of_keys: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
         let bucket_size_100 = bucket_size_100 as usize;
@@ -275,11 +276,14 @@ impl Conf {
     }*/
 }
 
-pub trait ParamsTrait: Sync {
-    type Conf: ConfTrait;
+pub trait Conf: Sync {
+    /// PHast Core to use.
+    type Core: Core;
+
+    /// Type of seed size to use.
     type SeedSize: SeedSize;
 
-    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf;
+    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core;
 
     //fn bucket_size100(&self) -> u16;
     fn preferred_slice_len(&self) -> u16;
@@ -293,12 +297,12 @@ pub trait ParamsTrait: Sync {
 
 /// PHast map-or-bump turbo function configuration.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct ConfTurbo {
+pub struct TurboCore {
     pub(crate) slice_len_minus_one: u16,  // slice length L - 1
     pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
 }
 
-impl ConfTurbo {
+impl TurboCore {
 
     pub(crate) fn new(output_range: usize, mut slice_len: u16, max_shift: u16) -> Self {
         let max_allowed_slice_len = output_range/5+1;   // or output_range/4+1;
@@ -310,7 +314,7 @@ impl ConfTurbo {
     }
 }
 
-impl ConfTrait for ConfTurbo {
+impl Core for TurboCore {
 
     #[inline(always)]
     fn try_f<SS>(&self, seed_size: SS, seeds: &[SS::VecElement], key: u64) -> Option<usize> where SS: SeedSize {
@@ -392,13 +396,13 @@ impl<SS> Params<SS> {
     }*/
 }
 
-impl<SS: SeedSize> ParamsTrait for Params<SS> {
+impl<SS: SeedSize> Conf for Params<SS> {
     
-    type Conf = Conf;
+    type Core = GenericCore;
     type SeedSize = SS;
     
-    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf {
-        Conf::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
+    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
+        GenericCore::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
     }
 
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
@@ -437,13 +441,13 @@ impl<SS> ParamsTurbo<SS> {
     }*/
 }
 
-impl<SS: SeedSize> ParamsTrait for ParamsTurbo<SS> {
+impl<SS: SeedSize> Conf for ParamsTurbo<SS> {
     
-    type Conf = ConfTurbo;
+    type Core = TurboCore;
     type SeedSize = SS;
     
-    fn conf(&self, output_range: usize, _num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Conf {
-        ConfTurbo::new(output_range, slice_len, max_shift)
+    fn conf(&self, output_range: usize, _num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
+        TurboCore::new(output_range, slice_len, max_shift)
     }
     
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {

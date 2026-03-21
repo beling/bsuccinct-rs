@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use ph::{phast::{ConfTrait, Params, ParamsTurbo, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Core, Params, ParamsTurbo, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
 

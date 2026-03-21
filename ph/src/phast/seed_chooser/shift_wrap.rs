@@ -1,4 +1,4 @@
-use crate::phast::{Weights, conf::{ConfTrait, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
+use crate::phast::{Weights, conf::{Core, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
 use super::SeedChooser;
 
 
@@ -208,7 +208,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         }})
     }
 
-    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
+    #[inline(always)] fn f<C: Core>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one()) as usize
         //conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
@@ -218,7 +218,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
     }*/
 
     #[inline]
-    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: Core>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;
         let mut without_shift_box: Box<[(usize, u16)]>;
         let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {   // we add MULTIPLIER to key as shift=0 is invalid (reserved for bumping)
@@ -306,14 +306,14 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
     }
 
-    #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
+    #[inline(always)] fn f<C: Core>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.slice_begin(primary_code) +
             ((mix_key_seed(primary_code, (seed>>self.0) + 1)
              + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one()) as usize
     }
 
     #[inline]
-    fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: Core>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
         //TODO check; what with seed=0, shift=0?
         let slice_len = conf.slice_len();
         let mut best_score = usize::MAX;
