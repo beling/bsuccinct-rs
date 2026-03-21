@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use ph::{phast::{Core, Params, ParamsTurbo, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Core, Generic, Turbo, Partial, SeedChooser}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::WeightsF};
 
@@ -205,12 +205,12 @@ impl Conf {
         butils::XorShift64(seed as u64).take(self.keys_num as usize).collect()
     }
 
-    pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> Params<SS> {
-        Params { seed_size, bucket_size100, preferred_slice_len: self.slice_len }
+    pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> Generic<SS> {
+        Generic { seed_size, bucket_size100, preferred_slice_len: self.slice_len }
     }
 
-    pub fn params_turbo<SS>(&self, seed_size: SS) -> ParamsTurbo<SS> {
-        ParamsTurbo { seed_size, preferred_slice_len: self.slice_len }
+    pub fn params_turbo<SS>(&self, seed_size: SS) -> Turbo<SS> {
+        Turbo { seed_size, preferred_slice_len: self.slice_len }
     }
 
     pub fn threads(&self) -> usize { if self.multiple_threads { current_num_threads() } else { 1 } }

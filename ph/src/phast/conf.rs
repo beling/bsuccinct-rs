@@ -373,13 +373,13 @@ impl Core for TurboCore {
 
 
 #[derive(Clone, Copy)]
-pub struct Params<SS> {
+pub struct Generic<SS> {
     pub seed_size: SS,
     pub bucket_size100: u16,
     pub preferred_slice_len: u16
 }
 
-impl<SS> Params<SS> {
+impl<SS> Generic<SS> {
     #[inline]
     pub fn new(seed_size: SS, bucket_size100: u16) -> Self {
         Self { seed_size, bucket_size100, preferred_slice_len: 0 }
@@ -396,7 +396,7 @@ impl<SS> Params<SS> {
     }*/
 }
 
-impl<SS: SeedSize> Conf for Params<SS> {
+impl<SS: SeedSize> Conf for Generic<SS> {
     
     type Core = GenericCore;
     type SeedSize = SS;
@@ -419,12 +419,12 @@ impl<SS: SeedSize> Conf for Params<SS> {
 
 
 #[derive(Clone, Copy)]
-pub struct ParamsTurbo<SS> {
+pub struct Turbo<SS> {
     pub seed_size: SS,
     pub preferred_slice_len: u16
 }
 
-impl<SS> ParamsTurbo<SS> {
+impl<SS> Turbo<SS> {
     #[inline]
     pub fn new(seed_size: SS) -> Self {
         Self { seed_size, preferred_slice_len: 0 }
@@ -441,7 +441,7 @@ impl<SS> ParamsTurbo<SS> {
     }*/
 }
 
-impl<SS: SeedSize> Conf for ParamsTurbo<SS> {
+impl<SS: SeedSize> Conf for Turbo<SS> {
     
     type Core = TurboCore;
     type SeedSize = SS;
