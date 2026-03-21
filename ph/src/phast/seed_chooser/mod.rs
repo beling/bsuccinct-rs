@@ -7,7 +7,7 @@ pub use shift::{ShiftOnly};
 mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftSeedWrapped};
 
-use crate::phast::{Weights, conf::{ConfTrait, ParamsTrait}, cyclic::{GenericUsedValue, UsedValueSet}};
+use crate::{fmph::SeedSize, phast::{Weights, conf::{ConfTrait, ParamsTrait}, cyclic::{GenericUsedValue, UsedValueSet}}};
 
 use super::conf::Conf;
 
@@ -74,6 +74,12 @@ pub trait SeedChooser: Copy + Sync {
 
     /// Returns function value for given primary code and seed.
     fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize;
+
+    #[inline(always)]
+    fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: ConfTrait {
+        let seed = unsafe { seed_size.get_seed(seeds, conf.bucket_for(primary_code)) };
+        (seed != 0).then(|| self.f(primary_code, seed, conf))
+    }
     
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
     fn best_seed<C: ConfTrait>(self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16;
@@ -171,6 +177,11 @@ impl SeedChooser for SeedOnly {
     
     #[inline(always)] fn f<C: ConfTrait>(self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f(primary_code, seed)
+    }
+
+    #[inline(always)]
+    fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: ConfTrait {
+        conf.try_f(seed_size, seeds, primary_code)
     }
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {

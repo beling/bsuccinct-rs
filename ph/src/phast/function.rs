@@ -226,16 +226,22 @@ impl<C: ConfTrait, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildS
         let seed = self.level0.seed_for_slice(slice_begin);
         if seed != 0 { return SC::f_slice(key_hash, slice_begin, seed, &self.level0.conf); } */
 
-        let key_hash = self.hasher.hash_one(key, 0);
+        /*let key_hash = self.hasher.hash_one(key, 0);
         let seed = unsafe{ self.level0.seed_for(self.seed_size, key_hash) };
-        if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }
+        if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }*/
+        if let Some(result) = self.seed_chooser.try_f(self.seed_size, &self.level0.seeds, self.hasher.hash_one(key, 0), &self.level0.conf) {
+            return result;
+        }
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
-            let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
+            /*let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
             let seed = unsafe { l.seeds.seed_for(self.seed_size, key_hash) };
             if seed != 0 {
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
+            }*/
+            if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.conf) {
+                return self.unassigned.get(result + l.shift);
             }
         }
         unreachable!()
@@ -548,6 +554,14 @@ pub(crate) mod tests {
     #[test]
     fn test_small() {
         let input = [1, 2, 3, 4, 5];
+        let f = Function::from_slice_st(&input);
+        test_mphf(&input, |key| Some(f.get(key)));
+        test_read_write(&f);
+    }
+
+    #[test]
+    fn test_small2() {
+        let input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
         let f = Function::from_slice_st(&input);
         test_mphf(&input, |key| Some(f.get(key)));
         test_read_write(&f);

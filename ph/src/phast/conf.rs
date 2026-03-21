@@ -84,6 +84,12 @@ pub trait ConfTrait: Copy+Sync {
     }
 
     #[inline(always)]
+    fn try_f<SS>(&self, seed_size: SS, seeds: &[SS::VecElement], key: u64) -> Option<usize> where SS: SeedSize {
+        let seed = unsafe { seed_size.get_seed(seeds, self.bucket_for(key)) };
+        (seed != 0).then(|| self.f(key, seed))
+    }
+
+    #[inline(always)]
     fn f_shift0(&self, key: u64) -> usize {
         self.slice_begin(key) + self.in_slice_noseed(key)
     }
@@ -305,6 +311,13 @@ impl ConfTurbo {
 }
 
 impl ConfTrait for ConfTurbo {
+
+    #[inline(always)]
+    fn try_f<SS>(&self, seed_size: SS, seeds: &[SS::VecElement], key: u64) -> Option<usize> where SS: SeedSize {
+        let slice_begin = self.slice_begin(key);
+        let seed = unsafe { seed_size.get_seed(seeds, slice_begin/4) };
+        (seed != 0).then(|| slice_begin + self.in_slice(key, seed))
+    }
 
     #[inline(always)]
     fn slice_begin_for_bucket(&self, bucket: usize) -> usize {
