@@ -62,7 +62,14 @@ impl KSeedEvaluator for SumOfWeightedValuesF {
     
     const MAX: Self::Value = F(f64::MAX);
 
-    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8) -> Self::Value {
+    type BucketData = ();
+
+    #[inline]
+    fn for_bucket<C: ph::phast::Core>(&self, _bucket_nr: usize, _core: &C) -> Self::BucketData {
+        ()
+    }
+
+    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, _bucket_data: Self::BucketData) -> Self::Value {
         let mut result = 0.0;
         for value in values_used_by_seed.iter().copied() {
             let free_values = (k - used_values[value]) as usize;
