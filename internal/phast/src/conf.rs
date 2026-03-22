@@ -40,6 +40,14 @@ pub enum Method {
     /// k-perfect PHast with weighted seed evaluation
     perfectw,
 
+    /// k-perfect PHast with logarithmic seed evaluation
+    perfectlog {
+        #[arg(default_value_t = 1.0)]
+        free_values_weight: f64,
+        #[arg(default_value_t = 100)]
+        value_shift: usize
+    },
+
     /// Optimize weights for selecting buckets by PHast
     optphast,
 
@@ -72,6 +80,7 @@ impl std::fmt::Display for Method {
             Method::plus => write!(f, "PHast+"),
             Method::perfect => write!(f, "Perfect"),
             Method::perfectw => write!(f, "Perfect with weighted seed evaluation"),
+            Method::perfectlog { free_values_weight, value_shift } => write!(f, "Perfect with: log(f(x) - minimum + {value_shift}) - {free_values_weight:.2} * log(free(f(x)))"),
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optperfectw => write!(f, "Optimize weights for k-perfect PHast with weighted seed evaluation"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),

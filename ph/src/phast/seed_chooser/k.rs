@@ -221,8 +221,8 @@ impl Ord for ComparableF64 {
 /// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
 #[derive(Clone, Copy)]
 pub struct SumOfLogValues {
-    free_values_weight: f64,
-    value_shift: usize
+    pub free_values_weight: f64,
+    pub value_shift: usize
 }
 
 impl KSeedEvaluator for SumOfLogValues {
@@ -240,7 +240,7 @@ impl KSeedEvaluator for SumOfLogValues {
         let mut result = 0.0;
         for value in values_used_by_seed.iter().copied() {
             let free_values = (k - used_values[value]) as f64;
-            result += (value.wrapping_sub(to_subtract_from_value) as f64).log2() + self.free_values_weight * free_values.log2();
+            result += (value.wrapping_sub(to_subtract_from_value) as f64).log2() - self.free_values_weight * free_values.log2();
         }
         ComparableF64(result)
     }
