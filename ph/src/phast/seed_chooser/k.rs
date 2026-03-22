@@ -222,7 +222,8 @@ impl Ord for ComparableF64 {
 #[derive(Clone, Copy)]
 pub struct SumOfLogValues {
     pub free_values_weight: f64,
-    pub value_shift: usize
+    pub value_shift: usize,
+    pub free_shift: usize
 }
 
 impl KSeedEvaluator for SumOfLogValues {
@@ -239,7 +240,7 @@ impl KSeedEvaluator for SumOfLogValues {
     fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = 0.0;
         for value in values_used_by_seed.iter().copied() {
-            let free_values = (k - used_values[value]) as f64;
+            let free_values = (self.free_shift + k as usize - used_values[value] as usize) as f64;
             result += (value.wrapping_sub(to_subtract_from_value) as f64).log2() - self.free_values_weight * free_values.log2();
         }
         ComparableF64(result)
