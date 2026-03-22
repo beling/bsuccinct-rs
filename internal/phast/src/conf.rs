@@ -37,8 +37,14 @@ pub enum Method {
     /// k-perfect PHast
     perfect,
 
+    /// k-perfect PHast with weighted seed evaluation
+    perfectw,
+
     /// Optimize weights for selecting buckets by PHast
     optphast,
+
+    /// Optimize weights for selecting buckets by k-perfect PHast with weighted seed evaluation
+    optperfectw,
 
     /// Optimize weights for selecting buckets by PHast+ with wrapping
     optpluswrap {
@@ -65,7 +71,9 @@ impl std::fmt::Display for Method {
             Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
             Method::plus => write!(f, "PHast+"),
             Method::perfect => write!(f, "Perfect"),
+            Method::perfectw => write!(f, "Perfect with weighted seed evaluation"),
             Method::optphast => write!(f, "Optimize PHast weights"),
+            Method::optperfectw => write!(f, "Optimize weights for k-perfect PHast with weighted seed evaluation"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optscore => write!(f, "Optimize score weights for k-perfect PHast"),
@@ -178,10 +186,6 @@ pub struct Conf {
     /// Print less, only average.
     #[arg(long, default_value_t = false)]
     pub less: bool,
-
-    /// Use weighted scores in k-perfect
-    #[arg(short='w', long, default_value_t = false)]
-    pub weights: bool
 }
 
 impl Conf {

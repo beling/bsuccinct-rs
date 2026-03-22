@@ -1,3 +1,5 @@
+use core::f64;
+
 use bitm::ceiling_div;
 
 use crate::phast::{conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
@@ -193,5 +195,53 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
             }
         };
         best_seed
+    }
+}
+
+/// Wrapper over `f64` with compare operators.
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct ComparableF64(pub f64);
+
+impl PartialEq for ComparableF64 {
+    #[inline(always)] fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
+}
+
+impl PartialOrd for ComparableF64 {
+    #[inline(always)] fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
+}
+
+impl Eq for ComparableF64 {}
+
+impl Ord for ComparableF64 {
+    #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
+}
+
+/// Chooses seed that minimizes
+/// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
+#[derive(Clone, Copy)]
+pub struct SumOfLogValues {
+    free_values_weight: f64,
+    value_shift: usize
+}
+
+impl KSeedEvaluator for SumOfLogValues {
+    type Value = ComparableF64;
+
+    type BucketData = usize;
+
+    const MAX: Self::Value = ComparableF64(f64::MAX);
+
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, core: &C) -> Self::BucketData {
+        core.slice_begin_for_bucket(bucket_nr).wrapping_sub(self.value_shift)
+    }
+
+    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, to_subtract_from_value: Self::BucketData) -> Self::Value {
+        let mut result = 0.0;
+        for value in values_used_by_seed.iter().copied() {
+            let free_values = (k - used_values[value]) as f64;
+            result += (value.wrapping_sub(to_subtract_from_value) as f64).log2() + self.free_values_weight * free_values.log2();
+        }
+        ComparableF64(result)
     }
 }

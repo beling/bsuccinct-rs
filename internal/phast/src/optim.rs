@@ -1,22 +1,4 @@
-use ph::phast::{BucketToActivateEvaluator, KSeedEvaluator, UsedValueMultiSetU8};
-
-#[derive(Default, Clone, Copy)]
-#[repr(transparent)]
-pub struct F(pub f64);
-
-impl PartialEq for F {
-    #[inline(always)] fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
-}
-
-impl PartialOrd for F {
-    #[inline(always)] fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
-}
-
-impl Eq for F {}
-
-impl Ord for F {
-    #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
-}
+use ph::phast::{BucketToActivateEvaluator, KSeedEvaluator, UsedValueMultiSetU8, ComparableF64};
 
 /// Weights version that uses f64 and works well with numerical optimization.
 pub struct WeightsF {
@@ -30,9 +12,9 @@ impl From<ph::phast::Weights> for WeightsF {
 }
 
 impl BucketToActivateEvaluator for &WeightsF {
-    type Value = F;
+    type Value = ComparableF64;
 
-    const MIN: Self::Value = F(f64::MIN);
+    const MIN: Self::Value = ComparableF64(f64::MIN);
 
     fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value {
         let sw = self.size_weights.get(bucket_size-1).copied()
@@ -42,7 +24,7 @@ impl BucketToActivateEvaluator for &WeightsF {
                 let p = self.size_weights[len-2];
                 l + (l-p) * (bucket_size - len) as f64
             });
-        F(sw - 1024.0 * bucket_nr as f64)
+        ComparableF64(sw - 1024.0 * bucket_nr as f64)
     }
 }
 
@@ -58,9 +40,9 @@ impl From<ph::phast::SumOfWeightedValues> for SumOfWeightedValuesF {
 
 impl KSeedEvaluator for SumOfWeightedValuesF {
         
-    type Value = F;
+    type Value = ComparableF64;
     
-    const MAX: Self::Value = F(f64::MAX);
+    const MAX: Self::Value = ComparableF64(f64::MAX);
 
     type BucketData = ();
 
@@ -76,6 +58,6 @@ impl KSeedEvaluator for SumOfWeightedValuesF {
             result += (1024*value) as f64;
             if let Some(v) = self.0.get(free_values) { result += v; }
         }
-        F(result)
+        ComparableF64(result)
     }
 }
