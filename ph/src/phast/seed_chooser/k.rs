@@ -159,7 +159,7 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     }
 
     #[inline(always)]
-    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, _bucket_nr: usize) -> u16 {
         let mut best_seed = 0;
         let mut best_value = SE::MAX;
         best_seed_k(self.k, self, &self.seed_evaluator, &mut best_value, &mut best_seed, used_values, keys, core, 1<<bits_per_seed);

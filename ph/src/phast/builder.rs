@@ -482,7 +482,7 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> 
     #[inline(always)]
     fn best_seed(&mut self, bucket_nr: usize) -> u16 {
         let keys = &self.conf.keys[self.bucket_begin[bucket_nr]..self.bucket_begin[bucket_nr+1]];
-        self.conf.seed_chooser.best_seed(&mut self.used_values, keys, &self.conf.conf, self.conf.seed_size.into())
+        self.conf.seed_chooser.best_seed(&mut self.used_values, keys, &self.conf.conf, self.conf.seed_size.into(), bucket_nr)
     }
 
     /// Number of the last bucket included in the span limit + 1.

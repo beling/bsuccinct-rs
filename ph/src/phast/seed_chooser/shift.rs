@@ -102,7 +102,7 @@ impl SeedChooser for ShiftOnly {
     }*/
 
     #[inline]
-    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, _bucket_nr: usize) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;
         let mut without_shift_box: Box<[usize]>;
         let without_shift: &mut [usize] = if keys.len() > 16 {

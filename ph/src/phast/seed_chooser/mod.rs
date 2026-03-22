@@ -96,14 +96,33 @@ pub trait SeedChooser: Clone + Sync {
     }
     
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
-    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16;
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize) -> u16;
+}
+
+struct SeedEvaluator {
+    min_bucket_value_minus_100: usize
+}
+
+impl SeedEvaluator {
+    pub fn new<C: Core>(bucket_nr: usize, core: &C) -> Self {
+        Self { min_bucket_value_minus_100: core.slice_begin_for_bucket(bucket_nr).wrapping_sub(100) }
+    }
+
+    pub fn eval(&self, values_used_by_seed: &[usize]) -> usize {
+        values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+            //2048.0 * ((v - min) as f64).log2()    // 1.905
+            4096.0 * (v.wrapping_sub(self.min_bucket_value_minus_100) as f64).log2()    // 1.905 (0,2) 1.903 (10) 1.901 (20) 1.900 (30) 1.899 (40) 1.898 (50,60,80,100,120,150), 1.899 (200), 1.900 (250), 1.901 (300)
+            //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
+        }).sum::<f64>() as usize
+    }
 }
 
 #[inline(always)]
-fn best_seed_big<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16) {
+fn best_seed_big<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let simd_keys = keys.len() / 4 * 4;
     //assert!(simd_keys <= keys.len());
+    let seed_eval = SeedEvaluator::new(bucket_nr, conf);
     'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for i in (0..simd_keys).step_by(4) {
@@ -132,7 +151,7 @@ fn best_seed_big<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut u
             if used_values.contain(value) { continue 'outer; }
             values_used_by_seed.push(value);
         }
-        let seed_value = values_used_by_seed.iter().sum();
+        let seed_value = seed_eval.eval(&values_used_by_seed);
         if seed_value < *best_value {
             values_used_by_seed.sort();
             if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
@@ -148,9 +167,10 @@ fn best_seed_big<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut u
 }
 
 #[inline(always)]
-fn best_seed_small<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16) {
+fn best_seed_small<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize) {
     assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
+    let seed_eval = SeedEvaluator::new(bucket_nr, conf);
     'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
@@ -158,7 +178,7 @@ fn best_seed_small<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut
             if used_values.contain(value) { continue 'outer; }
             values_used_by_seed.push(value);
         }
-        let seed_value = values_used_by_seed.iter().sum();
+        let seed_value = seed_eval.eval(&values_used_by_seed);
         if seed_value < *best_value {
             values_used_by_seed.sort_unstable();
             for i in 1..values_used_by_seed.len() {
@@ -203,13 +223,13 @@ impl SeedChooser for SeedOnly {
     }*/
 
     #[inline(always)]
-    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize) -> u16 {
         let mut best_seed = 0;
         let mut best_value = usize::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
+            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr)
         } else {
-            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
+            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr)
         };
         if best_seed != 0 { // can assign seed to the bucket
             for key in keys {
@@ -235,14 +255,14 @@ impl SeedChooser for SeedOnlyNoBump {
     }
 
     #[inline]
-    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8) -> u16 {
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize) -> u16 {
         //let _: [(); Self::FIRST_SEED as usize] = [];
         let mut best_seed = u16::MAX;
         let mut best_value = usize::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
+            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr)
         } else {
-            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed)
+            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr)
         };
         if best_seed != u16::MAX { // can assign seed to the bucket
             for key in keys {
