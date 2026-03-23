@@ -42,11 +42,11 @@ pub enum Method {
 
     /// k-perfect PHast with logarithmic seed evaluation
     perfectlog {
-        #[arg(default_value_t = 50.0)]
+        #[arg(default_value_t = 72.0)]
         free_values_weight: f64,
-        #[arg(default_value_t = 100)]
+        #[arg(default_value_t = 28)]
         value_shift: usize,
-        #[arg(default_value_t = 150)]
+        #[arg(default_value_t = 155)]
         free_shift: usize
     },
 

@@ -228,7 +228,7 @@ pub struct SumOfLogValues {
 
 impl Default for SumOfLogValues {
     fn default() -> Self {
-        Self { free_values_weight: 50.0, value_shift: 100, free_shift: 150 }
+        Self { free_values_weight: 72.0, value_shift: 28, free_shift: 155 }
     }
 }
 
