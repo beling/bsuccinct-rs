@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand};
 use ph::{phast::{Core, Generic, Partial, SeedChooser, SeedOnlyK, SumOfWeightedValues, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{benchmark, Result}, function::{Function, PartialFunction}, optim::{SumOfWeightedValuesF, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{SumOfLogValuesF, SumOfWeightedValuesF, WeightsF}};
 
 use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -68,6 +68,9 @@ pub enum Method {
     /// Optimize score weights for k-perfect PHast
     optscore,
 
+    /// Optimize seed evaluation in perfectlog
+    optperfectlog,
+
     /// Do nothing
     none
 }
@@ -88,6 +91,7 @@ impl std::fmt::Display for Method {
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optscore => write!(f, "Optimize score weights for k-perfect PHast"),
+            Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::none => write!(f, "Do nothing"),
         }
     }
@@ -362,5 +366,18 @@ impl Conf {
                     conf, SeedOnlyK::new(self.k, evaluator.clone())).1)
         }, args.view());
         println!("Optimal score weights: {ans:.0}");
+    }
+
+    pub fn optimize_perfectlog(&self) {
+        let s = SumOfLogValuesF::default();
+        let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight]);
+        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, s));
+        
+        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
+            let evaluator = SumOfLogValuesF { free_values_weight: x[2], value_shift: x[0], free_shift: x[1] };
+            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnlyK::new(self.k, evaluator)).1)
+        }, args.view());
+        println!("Optimal parameters: free_values_weight: {:.0}, value_shift: {:.0}, free_shift: {:.0}", ans[2], ans[0], ans[1]);
     }
 }

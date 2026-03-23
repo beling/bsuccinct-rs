@@ -138,6 +138,7 @@ fn main() {
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
         (Method::optscore, _, _, _, _, _) => conf.optimize_score(),
+        (Method::optperfectlog, _, _, _, _, _) => conf.optimize_perfectlog(),
 
         (Method::none, _, _, _, _, _) => {},
         _ => eprintln!("Unsupported configuration.")

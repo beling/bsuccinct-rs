@@ -226,6 +226,12 @@ pub struct SumOfLogValues {
     pub free_shift: usize
 }
 
+impl Default for SumOfLogValues {
+    fn default() -> Self {
+        Self { free_values_weight: 50.0, value_shift: 100, free_shift: 150 }
+    }
+}
+
 impl KSeedEvaluator for SumOfLogValues {
     type Value = ComparableF64;
 
