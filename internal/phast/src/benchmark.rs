@@ -32,13 +32,29 @@ impl std::ops::AddAssign for Result {
     }
 }
 
+/*fn predict_mphf_size(&self, unassigned_keys: f64) -> f64 {
+        let mut result = (self.conf.buckets_num * self.conf.bits_per_seed() as usize) as f64 / self.bc.num as f64;
+        if unassigned_keys > 0.0 {
+            let f = unassigned_keys / self.bc.num as f64;
+            result += f*((1.0/f).log2()+4.0);
+        }
+        let r = self.conf.f_range();
+        if r > self.bc.num {
+            let f = (r - self.bc.num) as f64 / self.bc.num as f64;
+            result += f*((1.0/f).log2()+2.0);
+        }
+        result
+    }*/
+
 impl Result {
     #[inline(never)]
     pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32) {
         let total_keys = tries as usize * key_num as usize;
         print!("{:.3} bits/key", (8*self.size_bytes) as f64 / total_keys as f64);
+        let bumped_share = (self.bumped_keys * 100) as f64 / total_keys as f64;
         if self.bumped_keys != 0 {
-            print!(", {:.2}% bumped", (self.bumped_keys * 100) as f64 / total_keys as f64);
+            let bumped_percent = bumped_share * 100.0;
+            print!(", {:.2}% bumped, α={:.1}%", bumped_percent, 100.0-bumped_percent);
         }
         let minimum_range = minimum_range as usize * tries as usize;
         if self.range != minimum_range {
