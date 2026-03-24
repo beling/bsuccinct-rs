@@ -41,7 +41,7 @@ fn elias_fano_cost(keys_to_map: f64, output_range: u32) -> f64 {
 impl Result {
 
     #[inline(never)]
-    pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32) {
+    pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32, k: u8) {
         let total_keys = tries as usize * key_num as usize;
         
         let bits_per_key = (8*self.size_bytes) as f64 / total_keys as f64;
@@ -56,8 +56,9 @@ impl Result {
         let minimum_range_x_tries = minimum_range as usize * tries as usize;
         if self.range != minimum_range_x_tries {
             let total_keys_to_map = (self.range - minimum_range_x_tries) as f64;
-            repair_cost_per_key += elias_fano_cost(total_keys_to_map / tries as f64, minimum_range)
-                * total_keys_to_map / total_keys as f64;
+            repair_cost_per_key += (elias_fano_cost(total_keys_to_map / tries as f64, minimum_range)
+                + if k > 1 { 2.0 } else { 0.0 }) * total_keys_to_map / total_keys as f64;
+                // if k>1 we assume that we build MPHF for keys with values >minimum_range from scratch, using 2.0 bits/key
         }
         if repair_cost_per_key != 0.0 { print!(" (≈{:.3} MPHF)", bits_per_key + repair_cost_per_key) }
         if self.bumped_keys != 0 {
@@ -106,7 +107,7 @@ impl Result {
     pub fn print_try(&self, try_nr: u32, conf: &Conf) {
         if conf.csv || conf.less { return; }
         if conf.many_tries() { print!("{try_nr}: "); }
-        self.print(1, conf.keys_num, conf.evaluations, conf.minimum_range());
+        self.print(1, conf.keys_num, conf.evaluations, conf.minimum_range(), conf.k);
     }
 
     #[inline(never)]
@@ -114,7 +115,7 @@ impl Result {
         if conf.csv { self.print_avg_csv(conf); return; }
         if !conf.many_tries() { return; }
         print!("Average: ");
-        self.print(conf.tries(), conf.keys_num, conf.evaluations, conf.minimum_range());
+        self.print(conf.tries(), conf.keys_num, conf.evaluations, conf.minimum_range(), conf.k);
     }
 }
 
