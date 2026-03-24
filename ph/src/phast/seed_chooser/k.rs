@@ -24,7 +24,7 @@ pub fn space_lower_bound(k: u8) -> f64 {
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
 pub fn bucket_size_normalization_multiplier(k: u8) -> f64 {
-    let overhead = 0.25 + 0.25 / (k as f64 * k as f64);
+    let overhead = 0.08; //+ 0.25 / (k as f64 * k as f64);
     (space_lower_bound(1)+overhead) / (space_lower_bound(k)+overhead)
 }
 
@@ -228,8 +228,8 @@ pub struct SumOfLogValues {
 
 impl Default for SumOfLogValues {
     fn default() -> Self {
-        Self { free_values_weight: 72.0, value_shift: 28, free_shift: 155 } // for k=2
-        //free_values_weight: 55, value_shift: 30, free_shift: 181  // for k=4
+        Self { free_values_weight: 74.0, value_shift: 29, free_shift: 147 } // for k=2
+        //Self { free_values_weight: 36, value_shift: 32, free_shift: 201 } // for k=10
     }
 }
 
