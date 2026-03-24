@@ -18,7 +18,7 @@ pub struct Result {
     /// Total number of bumped keys
     pub bumped_keys: usize,
 
-    /// Total output range
+    /// Total output range, sum of output ranges of tries
     pub range: usize,
 }
 
@@ -32,33 +32,40 @@ impl std::ops::AddAssign for Result {
     }
 }
 
-/*fn predict_mphf_size(&self, unassigned_keys: f64) -> f64 {
-        let mut result = (self.conf.buckets_num * self.conf.bits_per_seed() as usize) as f64 / self.bc.num as f64;
-        if unassigned_keys > 0.0 {
-            let f = unassigned_keys / self.bc.num as f64;
-            result += f*((1.0/f).log2()+4.0);
-        }
-        let r = self.conf.f_range();
-        if r > self.bc.num {
-            let f = (r - self.bc.num) as f64 / self.bc.num as f64;
-            result += f*((1.0/f).log2()+2.0);
-        }
-        result
-    }*/
+/// Returns the cost (in bits per mapped key) of mapping `keys_to_map` keys
+/// to given `output_range` by Elias-Fano.
+fn elias_fano_cost(keys_to_map: f64, output_range: u32) -> f64 {
+    (output_range as f64 / keys_to_map).log2()/*.ceil()*/ + 2.0
+}
 
 impl Result {
+
     #[inline(never)]
     pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32) {
         let total_keys = tries as usize * key_num as usize;
-        print!("{:.3} bits/key", (8*self.size_bytes) as f64 / total_keys as f64);
-        let bumped_share = (self.bumped_keys * 100) as f64 / total_keys as f64;
+        
+        let bits_per_key = (8*self.size_bytes) as f64 / total_keys as f64;
+        print!("{bits_per_key:.3} bits/key");
+        let bumped_share = self.bumped_keys as f64 / total_keys as f64;
+        let mut repair_cost_per_key = 0.0;
+        if self.bumped_keys != 0 {
+            repair_cost_per_key += 
+                (elias_fano_cost(self.bumped_keys as f64 / tries as f64, minimum_range)
+                + 2.0) * bumped_share;    // 2.0 bits/key is a cost of building MPHF for bumped keys
+        }
+        let minimum_range_x_tries = minimum_range as usize * tries as usize;
+        if self.range != minimum_range_x_tries {
+            let total_keys_to_map = (self.range - minimum_range_x_tries) as f64;
+            repair_cost_per_key += elias_fano_cost(total_keys_to_map / tries as f64, minimum_range)
+                * total_keys_to_map / total_keys as f64;
+        }
+        if repair_cost_per_key != 0.0 { print!(" (≈{:.3} MPHF)", bits_per_key + repair_cost_per_key) }
         if self.bumped_keys != 0 {
             let bumped_percent = bumped_share * 100.0;
             print!(", {:.2}% bumped, α={:.1}%", bumped_percent, 100.0-bumped_percent);
         }
-        let minimum_range = minimum_range as usize * tries as usize;
-        if self.range != minimum_range {
-            print!(", {:.2}% over the minimum range", ((self.range - minimum_range) * 100) as f64 / minimum_range as f64)
+        if self.range != minimum_range_x_tries {
+            print!(", {:.2}% over the minimum range", ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64)
         }
         print!(", {:#.2?} build", self.build_time / tries as u32);
         if evals_per_try != 0 {
