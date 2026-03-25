@@ -218,7 +218,7 @@ impl Ord for ComparableF64 {
 }
 
 /// Chooses seed that minimizes
-/// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
+/// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(free(f(x,seed))+free_shift)
 #[derive(Clone, Copy)]
 pub struct SumOfLogValues {
     pub free_values_weight: f64,
@@ -229,7 +229,15 @@ pub struct SumOfLogValues {
 impl Default for SumOfLogValues {
     fn default() -> Self {
         Self { free_values_weight: 74.0, value_shift: 29, free_shift: 147 } // for k=2
+        //Self { free_values_weight: 62, value_shift: 31, free_shift: 157 } // for k=3
+        //Self { free_values_weight: 57, value_shift: 31, free_shift: 169 } // for k=4
+        //Self { free_values_weight: 50, value_shift: 32, free_shift: 173 } // for k=5
+        //Self { free_values_weight: 47, value_shift: 32, free_shift: 179 } // for k=6
+        //Self { free_values_weight: 42, value_shift: 33, free_shift: 185 } // for k=7
+        //Self { free_values_weight: 39, value_shift: 35, free_shift: 188 } // for k=8
+        //Self { free_values_weight: 37, value_shift: 33, free_shift: 191 } // for k=9
         //Self { free_values_weight: 36, value_shift: 32, free_shift: 201 } // for k=10
+        //Self { free_values_weight: 25, value_shift: 35, free_shift: 202 } // for k=16
     }
 }
 
