@@ -21,7 +21,7 @@ mod benchmark;
 use clap::Parser;
 
 use ph::seeds::{Bits8, BitsFast};
-use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, SumOfLogValues, SumOfValues, SumOfWeightedValues, space_lower_bound};
+use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, SumOfLogValues, SumOfValues, space_lower_bound};
 
 fn main() {
     let conf = Conf::parse();
@@ -48,21 +48,17 @@ fn main() {
         (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
         (Method::perfect, 1, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
         (Method::perfect, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfValues))), 
-        (Method::perfectw, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k)))),
         (Method::perfectlog { free_values_weight, value_shift, free_shift }, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfLogValues { free_values_weight, value_shift, free_shift }))),
         (Method::perfect, k, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfValues))),
-        (Method::perfectw, k, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k)))),
         (Method::perfectlog { free_values_weight, value_shift, free_shift }, k, b, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfLogValues { free_values_weight, value_shift, free_shift }))),
 
         (Method::phast|Method::phast2|Method::perfect, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
         (Method::phast|Method::phast2|Method::perfect, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
         (Method::phast|Method::phast2|Method::perfect, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfValues))),
-        (Method::perfectw, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k)))),
         (Method::perfectlog { free_values_weight, value_shift, free_shift }, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfLogValues{ free_values_weight, value_shift, free_shift }))),
         (Method::phast|Method::phast2|Method::perfect, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfValues))),
-        (Method::perfectw, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfWeightedValues::new(k)))),
         (Method::perfectlog { free_values_weight, value_shift, free_shift }, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfLogValues{ free_values_weight, value_shift, free_shift }))),
 
         (Method::pluswrap { multiplier: 1 }, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
@@ -128,7 +124,6 @@ fn main() {
 
         (Method::optphast, 1, _, _, _, _) => conf.optimize_weights(SeedOnly),
         (Method::optphast, k, _, _, _, _) => conf.optimize_weights(SeedOnlyK::new(k, SumOfValues)),
-        (Method::optperfectw, k, _, _, _, _) => conf.optimize_weights(SeedOnlyK::new(k, SumOfWeightedValues::new(k))),
 
         (Method::optpluswrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
         (Method::optpluswrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<2>),
@@ -137,7 +132,6 @@ fn main() {
         (Method::optpluswrap { multiplier: 7 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<7>),
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
-        (Method::optscore, _, _, _, _, _) => conf.optimize_score(),
         (Method::optperfectlog, _, _, _, _, _) => conf.optimize_perfectlog(),
 
         (Method::none, _, _, _, _, _) => {},

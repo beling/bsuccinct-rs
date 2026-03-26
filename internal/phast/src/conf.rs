@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use ph::{phast::{Core, Generic, Partial, SeedChooser, SeedOnlyK, SumOfWeightedValues, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Core, Generic, Partial, SeedChooser, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{SumOfLogValuesF, SumOfWeightedValuesF, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{SumOfLogValuesF, WeightsF}};
 
 use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -37,9 +37,6 @@ pub enum Method {
     /// k-perfect PHast
     perfect,
 
-    /// k-perfect PHast with weighted seed evaluation
-    perfectw,
-
     /// k-perfect PHast with logarithmic seed evaluation
     perfectlog {
         #[arg(default_value_t = 72.0)]
@@ -52,9 +49,6 @@ pub enum Method {
 
     /// Optimize weights for selecting buckets by PHast
     optphast,
-
-    /// Optimize weights for selecting buckets by k-perfect PHast with weighted seed evaluation
-    optperfectw,
 
     /// Optimize weights for selecting buckets by PHast+ with wrapping
     optpluswrap {
@@ -84,10 +78,8 @@ impl std::fmt::Display for Method {
             Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
             Method::plus => write!(f, "PHast+"),
             Method::perfect => write!(f, "Perfect"),
-            Method::perfectw => write!(f, "Perfect with weighted seed evaluation"),
             Method::perfectlog { free_values_weight, value_shift, free_shift } => write!(f, "Perfect with: log(f(x) - minimum + {value_shift}) - {free_values_weight:.2} * log(free(f(x)+{free_shift}))"),
             Method::optphast => write!(f, "Optimize PHast weights"),
-            Method::optperfectw => write!(f, "Optimize weights for k-perfect PHast with weighted seed evaluation"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optscore => write!(f, "Optimize score weights for k-perfect PHast"),
@@ -354,18 +346,6 @@ impl Conf {
                     seed_chooser.clone(), &evaluator).1)
         }, args.view());
         println!("Optimal weights: {ans:.0}");
-    }
-
-    pub fn optimize_score(&self) {
-        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, SumOfWeightedValues::new(self.k)));
-        let args = Array::from_vec(SumOfWeightedValuesF::from(SumOfWeightedValues::new(self.k)).0[..8.min(self.k as usize - 1)].to_owned());
-
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            let evaluator = SumOfWeightedValuesF(x.to_vec().into_boxed_slice());
-            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnlyK::new(self.k, evaluator.clone())).1)
-        }, args.view());
-        println!("Optimal score weights: {ans:.0}");
     }
 
     pub fn optimize_perfectlog(&self) {

@@ -56,6 +56,14 @@ pub trait KSeedEvaluator: Clone + Sync {
     fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, bucket_data: Self::BucketData) -> Self::Value;
 }
 
+pub trait KSeedEvaluatorConf {
+    /// Type of evaluator.
+    type KSeedEvaluator: KSeedEvaluator;
+
+    /// Returns evaluator for given `k`.
+    fn for_k(&self, k: u8) -> Self::KSeedEvaluator;
+}
+
 #[derive(Clone)]
 pub struct SumOfValues;
 
@@ -76,52 +84,12 @@ impl KSeedEvaluator for SumOfValues {
     fn eval(&self, _k: u8, values_used_by_seed: &[usize], _used_values: &UsedValueMultiSetU8, _bucket_data: Self::BucketData) -> Self::Value {
         values_used_by_seed.iter().sum()
     }
-    
-
 }
 
-#[derive(Clone)]
-pub struct SumOfWeightedValues(pub [usize; 8]);
-
-impl SumOfWeightedValues {
-    pub fn new(k: u8) -> Self {
-        Self(match k {
-            2 => [240914, 0, 0, 0, 0, 0, 0, 0],
-            3 => [378761, 208579, 0, 0, 0, 0, 0, 0],
-            4 => [489347, 355545, 196741, 0, 0, 0, 0, 0],
-            5 => [543147, 438544, 306812, 154314, 0, 0, 0, 0],
-            6 => [588805, 498050, 388973, 259831, 130127, 0, 0, 0],
-            7 => [592640, 518403, 429431, 317914, 200281, 81677, 0, 0],
-            8 => [618809, 549890, 470877, 374067, 272131, 169017, 32274, 0],
-            _ => [591953, 528254, 453509, 378310, 301994, 186614, 30642, 5928],
-        })
-    }
+impl KSeedEvaluatorConf for SumOfLogValues {
+    type KSeedEvaluator = Self;
+    fn for_k(&self, _k: u8) -> Self::KSeedEvaluator { *self }
 }
-
-impl KSeedEvaluator for SumOfWeightedValues {
-        
-    type Value = usize;
-    
-    const MAX: Self::Value = usize::MAX;
-
-    type BucketData = ();
-
-    #[inline]
-    fn for_bucket<C: Core>(&self, _bucket_nr: usize, _core: &C) -> Self::BucketData {
-        ()
-    }
-
-    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, _bucket_data: Self::BucketData) -> Self::Value {
-        let mut result = 0;
-        for value in values_used_by_seed.iter().copied() {
-            let free_values = (k - used_values[value]) as usize;
-            result += (1024*value) as usize;
-            if let Some(v) = self.0.get(free_values) { result += v; };
-        }
-        result
-    }
-}
-
 
 /// [`SeedChooser`] to build `k`-perfect functions.
 /// `k` is given as a parameter of this chooser.
