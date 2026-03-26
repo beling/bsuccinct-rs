@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use ph::{phast::{Core, Generic, Partial, SeedChooser, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{SumOfLogValuesF, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{SumOfLogValuesF, SumOfLogValuesFEval, WeightsF}};
 
 use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -38,14 +38,7 @@ pub enum Method {
     perfect,
 
     /// k-perfect PHast with logarithmic seed evaluation
-    perfectlog {
-        #[arg(default_value_t = 72.0)]
-        free_values_weight: f64,
-        #[arg(default_value_t = 28)]
-        value_shift: usize,
-        #[arg(default_value_t = 155)]
-        free_shift: usize
-    },
+    perfectlog,
 
     /// Optimize weights for selecting buckets by PHast
     optphast,
@@ -78,7 +71,7 @@ impl std::fmt::Display for Method {
             Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
             Method::plus => write!(f, "PHast+"),
             Method::perfect => write!(f, "Perfect"),
-            Method::perfectlog { free_values_weight, value_shift, free_shift } => write!(f, "Perfect with: log(f(x) - minimum + {value_shift}) - {free_values_weight:.2} * log(free(f(x)+{free_shift}))"),
+            Method::perfectlog => write!(f, "Perfect with: log(f(x) - minimum + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
@@ -349,12 +342,12 @@ impl Conf {
     }
 
     pub fn optimize_perfectlog(&self) {
-        let s = SumOfLogValuesF::default();
+        let s = SumOfLogValuesF.for_k(self.k);
         let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight]);
         let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, s));
         
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            let evaluator = SumOfLogValuesF { free_values_weight: x[2], value_shift: x[0], free_shift: x[1] };
+            let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1] };
             self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());

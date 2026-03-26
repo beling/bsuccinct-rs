@@ -86,10 +86,85 @@ impl KSeedEvaluator for SumOfValues {
     }
 }
 
-impl KSeedEvaluatorConf for SumOfLogValues {
+impl KSeedEvaluatorConf for SumOfValues {
     type KSeedEvaluator = Self;
-    fn for_k(&self, _k: u8) -> Self::KSeedEvaluator { *self }
+    #[inline] fn for_k(&self, _k: u8) -> Self::KSeedEvaluator { SumOfValues }
 }
+
+
+/// Wrapper over `f64` with compare operators.
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct ComparableF64(pub f64);
+
+impl PartialEq for ComparableF64 {
+    #[inline(always)] fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
+}
+
+impl PartialOrd for ComparableF64 {
+    #[inline(always)] fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
+}
+
+impl Eq for ComparableF64 {}
+
+impl Ord for ComparableF64 {
+    #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
+}
+
+#[derive(Clone, Copy)]
+pub struct SumOfLogValues;
+
+impl KSeedEvaluatorConf for SumOfLogValues {
+    type KSeedEvaluator = SumOfLogValuesEvaluator;
+
+    fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
+        match k {
+            2=>SumOfLogValuesEvaluator { free_values_weight: 74.0, value_shift: 29, free_shift: 147 }, // for k=2
+            3=>SumOfLogValuesEvaluator { free_values_weight: 62.0, value_shift: 31, free_shift: 157 }, // for k=3
+            4=>SumOfLogValuesEvaluator { free_values_weight: 57.0, value_shift: 31, free_shift: 169 }, // for k=4
+            5=>SumOfLogValuesEvaluator { free_values_weight: 50.0, value_shift: 32, free_shift: 173 }, // for k=5
+            6=>SumOfLogValuesEvaluator { free_values_weight: 47.0, value_shift: 32, free_shift: 179 }, // for k=6
+            7=>SumOfLogValuesEvaluator { free_values_weight: 42.0, value_shift: 33, free_shift: 185 }, // for k=7
+            8=>SumOfLogValuesEvaluator { free_values_weight: 39.0, value_shift: 35, free_shift: 188 }, // for k=8
+            9=>SumOfLogValuesEvaluator { free_values_weight: 37.0, value_shift: 33, free_shift: 191 }, // for k=9
+            10=>SumOfLogValuesEvaluator { free_values_weight: 36.0, value_shift: 32, free_shift: 201 }, // for k=10
+            11..32=>SumOfLogValuesEvaluator { free_values_weight: 25.0, value_shift: 35, free_shift: 202 }, // for k=16
+            32..63=>SumOfLogValuesEvaluator { free_values_weight: 16.0, value_shift: 33, free_shift: 217 }, // for k=32
+            _=>SumOfLogValuesEvaluator { free_values_weight: 8.0, value_shift: 36, free_shift: 224 } // for k=64
+        }
+    }
+}
+
+/// Chooses seed that minimizes
+/// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(free(f(x,seed))+free_shift)
+#[derive(Clone, Copy)]
+pub struct SumOfLogValuesEvaluator {
+    pub free_values_weight: f64,
+    pub value_shift: usize,
+    pub free_shift: usize
+}
+
+impl KSeedEvaluator for SumOfLogValuesEvaluator {
+    type Value = ComparableF64;
+
+    type BucketData = usize;
+
+    const MAX: Self::Value = ComparableF64(f64::MAX);
+
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, core: &C) -> Self::BucketData {
+        core.slice_begin_for_bucket(bucket_nr).wrapping_sub(self.value_shift)
+    }
+
+    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, to_subtract_from_value: Self::BucketData) -> Self::Value {
+        let mut result = 0.0;
+        for value in values_used_by_seed.iter().copied() {
+            let free_values = (self.free_shift + k as usize - used_values[value] as usize) as f64;
+            result += (value.wrapping_sub(to_subtract_from_value) as f64).log2() - self.free_values_weight * free_values.log2();
+        }
+        ComparableF64(result)
+    }
+}
+
 
 /// [`SeedChooser`] to build `k`-perfect functions.
 /// `k` is given as a parameter of this chooser.
@@ -105,8 +180,8 @@ pub struct SeedOnlyK<SE> {
 }
 
 impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
-    pub fn new(k: u8, seed_evaluator: SE) -> Self {
-        Self { seed_evaluator, k }
+    pub fn new<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u8, seed_evaluator: SEC) -> Self {
+        Self { seed_evaluator: seed_evaluator.for_k(k), k }
     }
 }
 
@@ -166,68 +241,3 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     }
 }
 
-/// Wrapper over `f64` with compare operators.
-#[derive(Default, Clone, Copy)]
-#[repr(transparent)]
-pub struct ComparableF64(pub f64);
-
-impl PartialEq for ComparableF64 {
-    #[inline(always)] fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
-}
-
-impl PartialOrd for ComparableF64 {
-    #[inline(always)] fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
-}
-
-impl Eq for ComparableF64 {}
-
-impl Ord for ComparableF64 {
-    #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
-}
-
-/// Chooses seed that minimizes
-/// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(free(f(x,seed))+free_shift)
-#[derive(Clone, Copy)]
-pub struct SumOfLogValues {
-    pub free_values_weight: f64,
-    pub value_shift: usize,
-    pub free_shift: usize
-}
-
-impl Default for SumOfLogValues {
-    fn default() -> Self {
-        Self { free_values_weight: 74.0, value_shift: 29, free_shift: 147 } // for k=2
-        //Self { free_values_weight: 62, value_shift: 31, free_shift: 157 } // for k=3
-        //Self { free_values_weight: 57, value_shift: 31, free_shift: 169 } // for k=4
-        //Self { free_values_weight: 50, value_shift: 32, free_shift: 173 } // for k=5
-        //Self { free_values_weight: 47, value_shift: 32, free_shift: 179 } // for k=6
-        //Self { free_values_weight: 42, value_shift: 33, free_shift: 185 } // for k=7
-        //Self { free_values_weight: 39, value_shift: 35, free_shift: 188 } // for k=8
-        //Self { free_values_weight: 37, value_shift: 33, free_shift: 191 } // for k=9
-        //Self { free_values_weight: 36, value_shift: 32, free_shift: 201 } // for k=10
-        //Self { free_values_weight: 25, value_shift: 35, free_shift: 202 } // for k=16
-        //Self { free_values_weight: 16, value_shift: 33, free_shift: 217 } // for k=32
-        //Self { free_values_weight: 8, value_shift: 36, free_shift: 224 } // for k=64
-    }
-}
-
-impl KSeedEvaluator for SumOfLogValues {
-    type Value = ComparableF64;
-
-    type BucketData = usize;
-
-    const MAX: Self::Value = ComparableF64(f64::MAX);
-
-    fn for_bucket<C: Core>(&self, bucket_nr: usize, core: &C) -> Self::BucketData {
-        core.slice_begin_for_bucket(bucket_nr).wrapping_sub(self.value_shift)
-    }
-
-    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, to_subtract_from_value: Self::BucketData) -> Self::Value {
-        let mut result = 0.0;
-        for value in values_used_by_seed.iter().copied() {
-            let free_values = (self.free_shift + k as usize - used_values[value] as usize) as f64;
-            result += (value.wrapping_sub(to_subtract_from_value) as f64).log2() - self.free_values_weight * free_values.log2();
-        }
-        ComparableF64(result)
-    }
-}

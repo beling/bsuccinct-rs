@@ -1,4 +1,4 @@
-use ph::phast::{BucketToActivateEvaluator, ComparableF64, KSeedEvaluator, SumOfLogValues, UsedValueMultiSetU8};
+use ph::phast::{BucketToActivateEvaluator, ComparableF64, KSeedEvaluator, KSeedEvaluatorConf, SumOfLogValues, UsedValueMultiSetU8};
 
 /// Weights version that uses f64 and works well with numerical optimization.
 pub struct WeightsF {
@@ -29,24 +29,34 @@ impl BucketToActivateEvaluator for &WeightsF {
 }
 
 
+pub struct SumOfLogValuesF;
+
+impl KSeedEvaluatorConf for SumOfLogValuesF {
+    type KSeedEvaluator = SumOfLogValuesFEval;
+
+    fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
+        let s = SumOfLogValues.for_k(k);
+        SumOfLogValuesFEval {
+            free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64, free_shift: s.free_shift as f64
+        }
+    }
+}
 
 /// Chooses seed that minimizes
 /// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
 #[derive(Clone, Copy)]
-pub struct SumOfLogValuesF {
+pub struct SumOfLogValuesFEval {
     pub free_values_weight: f64,
     pub value_shift: f64,
     pub free_shift: f64
 }
 
-impl Default for SumOfLogValuesF {
-    fn default() -> Self {
-        let s = SumOfLogValues::default();
-        Self { free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64, free_shift: s.free_shift as f64 }
-    }
+impl KSeedEvaluatorConf for SumOfLogValuesFEval {
+    type KSeedEvaluator = Self;
+    fn for_k(&self, _k: u8) -> Self { *self }
 }
 
-impl KSeedEvaluator for SumOfLogValuesF {
+impl KSeedEvaluator for SumOfLogValuesFEval {
     type Value = ComparableF64;
 
     type BucketData = f64;
