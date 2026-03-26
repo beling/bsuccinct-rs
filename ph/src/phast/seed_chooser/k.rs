@@ -238,6 +238,8 @@ impl Default for SumOfLogValues {
         //Self { free_values_weight: 37, value_shift: 33, free_shift: 191 } // for k=9
         //Self { free_values_weight: 36, value_shift: 32, free_shift: 201 } // for k=10
         //Self { free_values_weight: 25, value_shift: 35, free_shift: 202 } // for k=16
+        //Self { free_values_weight: 16, value_shift: 33, free_shift: 217 } // for k=32
+        //Self { free_values_weight: 8, value_shift: 36, free_shift: 224 } // for k=64
     }
 }
 
