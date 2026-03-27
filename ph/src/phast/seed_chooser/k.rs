@@ -50,7 +50,7 @@ pub trait KSeedEvaluator: Clone + Sync {
 
     /// Precalculates data usable to evaluate each seed in the same bucket.
     /// The result is passed to `eval` for each seed in the bucket.
-    fn for_bucket<C: Core>(&self, bucket_nr: usize, core: &C) -> Self::BucketData;
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData;
 
     /// Evaluate (harness of) seed that used given `values`.
     fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, bucket_data: Self::BucketData) -> Self::Value;
@@ -76,7 +76,7 @@ impl KSeedEvaluator for SumOfValues {
     type BucketData = ();
 
     #[inline]
-    fn for_bucket<C: Core>(&self, _bucket_nr: usize, _core: &C) -> Self::BucketData {
+    fn for_bucket<C: Core>(&self, _first_bucket_in_window: usize, _bucket_nr: usize, _core: &C) -> Self::BucketData {
         ()
     }
 
@@ -152,7 +152,7 @@ impl KSeedEvaluator for SumOfLogValuesEvaluator {
 
     const MAX: Self::Value = ComparableF64(f64::MAX);
 
-    fn for_bucket<C: Core>(&self, bucket_nr: usize, core: &C) -> Self::BucketData {
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
         core.slice_begin_for_bucket(bucket_nr).wrapping_sub(self.value_shift)
     }
 
@@ -187,11 +187,11 @@ impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
 }
 
 #[inline(always)]
-fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u8, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], core: &C, seeds_num: u16, bucket_nr: usize) {
+fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u8, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], core: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     //assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
-    let bucket_data = seed_evaluator.for_bucket(bucket_nr, core);
+    let bucket_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, core);
     for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
@@ -229,10 +229,10 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     }
 
     #[inline(always)]
-    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize) -> u16 {
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;
         let mut best_value = SE::MAX;
-        best_seed_k(self.k, self, &self.seed_evaluator, &mut best_value, &mut best_seed, used_values, keys, core, 1<<bits_per_seed, bucket_nr);
+        best_seed_k(self.k, self, &self.seed_evaluator, &mut best_value, &mut best_seed, used_values, keys, core, 1<<bits_per_seed, bucket_nr, first_bucket_in_window);
         if best_seed != 0 { // can assign seed to the bucket
             for key in keys {               
                 used_values.add(core.f(*key, best_seed));

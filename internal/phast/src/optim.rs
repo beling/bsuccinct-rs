@@ -63,7 +63,7 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
 
     const MAX: Self::Value = ComparableF64(f64::MAX);
 
-    fn for_bucket<C: ph::phast::Core>(&self, bucket_nr: usize, core: &C) -> Self::BucketData {
+    fn for_bucket<C: ph::phast::Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
         core.slice_begin_for_bucket(bucket_nr) as f64 - self.value_shift
     }
 
