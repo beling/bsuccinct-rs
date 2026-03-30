@@ -2,7 +2,7 @@ use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
 use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
-use crate::{phast::conf::Core, seeds::SeedSize};
+use crate::{phast::{ProdOfValues, conf::Core}, seeds::SeedSize};
 use super::{cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
@@ -209,7 +209,7 @@ pub(crate) fn build_last_level<'k, C, BE, SS>(keys: &'k [u64], conf: C, seed_siz
 -> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
 where C: Core, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send, SS: SeedSize
 {
-    let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), SeedOnlyNoBump);
+    let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), SeedOnlyNoBump(ProdOfValues));
     let mut tb = ThreadBuilder::<C, SeedOnlyNoBump, _, _>::new(&builder, 0..conf.buckets_num(), 0, &mut seeds);
     tb.build();
     if !tb.finished() { return None; }

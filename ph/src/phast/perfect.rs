@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{Generic, KSeedEvaluator, KSeedEvaluatorConf, SeedChooser, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::{Conf, Core}, function::{Level, SeedEx}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Generic, KSeedEvaluator, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::{Conf, Core}, function::{Level, SeedEx}}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -249,7 +249,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// `keys` cannot contain duplicates.
     pub fn from_vec_st<K>(keys: Vec::<K>) -> Self where K: Hash {
         Self::with_vec_p_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        BuildDefaultSeededHasher::default(), SeedOnly)
+        BuildDefaultSeededHasher::default(), SeedOnly(ProdOfValues))
     }
 
     /// Constructs [`Perfect`] function for given `keys`, using multiple threads.
@@ -257,7 +257,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// `keys` cannot contain duplicates.
     pub fn from_vec_mt<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
         Self::with_vec_p_threads_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly(ProdOfValues))
     }
 
     /// Constructs [`Perfect`] function for given `keys`, using a single thread.
@@ -265,7 +265,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K]) -> Self where K: Hash+Clone {
         Self::with_slice_p_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        BuildDefaultSeededHasher::default(), SeedOnly)
+        BuildDefaultSeededHasher::default(), SeedOnly(ProdOfValues))
     }
 
     /// Constructs [`Perfect`] function for given `keys`, using multiple threads.
@@ -273,7 +273,7 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
         Self::with_slice_p_threads_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly)
+        std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnly(ProdOfValues))
     }
 }
 

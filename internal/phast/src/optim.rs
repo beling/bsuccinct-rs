@@ -1,4 +1,4 @@
-use ph::phast::{BucketToActivateEvaluator, ComparableF64, KSeedEvaluator, KSeedEvaluatorConf, SumOfLogValues, UsedValueMultiSetU8};
+use ph::phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, SeedEvaluator, SumOfLogValues, UsedValueMultiSetU8};
 
 /// Weights version that uses f64 and works well with numerical optimization.
 pub struct WeightsF {
@@ -63,7 +63,7 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
 
     const MAX: Self::Value = ComparableF64(f64::MAX);
 
-    fn for_bucket<C: ph::phast::Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
         core.slice_begin_for_bucket(bucket_nr) as f64 - self.value_shift
     }
 
@@ -74,5 +74,33 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
             result += (value as f64 - to_subtract_from_value).log2() - self.free_values_weight * free_values.log2();
         }
         ComparableF64(result)
+    }
+}
+
+
+#[derive(Clone, Copy)]
+pub struct GenericProdOfValues {
+    pub first_weight: f64,
+    pub shift: f64,
+}   // first_weight: 0.10001434445381163, shift: 30.01843410730362 1.16%
+
+impl SeedEvaluator for GenericProdOfValues {
+
+    type Value = ComparableF64;
+
+    const MAX: Self::Value = ComparableF64(f64::MAX);
+        
+    type BucketData = f64;
+    
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData {
+       core.slice_begin_for_bucket(bucket_nr) as f64 * (1.0-self.first_weight) +
+       core.slice_begin_for_bucket(first_bucket_in_window) as f64 * self.first_weight
+        - self.shift
+    }
+
+    fn eval(&self, values_used_by_seed: &[usize], to_extract: Self::BucketData) -> Self::Value {
+        ComparableF64(values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+            (*v as f64) - to_extract
+        }).product())
     }
 }

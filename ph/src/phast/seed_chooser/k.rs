@@ -2,7 +2,7 @@ use core::f64;
 
 use bitm::ceiling_div;
 
-use crate::phast::{conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
+use crate::phast::{ComparableF64, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
 use super::SeedChooser;
 
 /// Returns approximation of lower bound of space (in bits/key)
@@ -89,26 +89,6 @@ impl KSeedEvaluator for SumOfValues {
 impl KSeedEvaluatorConf for SumOfValues {
     type KSeedEvaluator = Self;
     #[inline] fn for_k(&self, _k: u8) -> Self::KSeedEvaluator { SumOfValues }
-}
-
-
-/// Wrapper over `f64` with compare operators.
-#[derive(Default, Clone, Copy)]
-#[repr(transparent)]
-pub struct ComparableF64(pub f64);
-
-impl PartialEq for ComparableF64 {
-    #[inline(always)] fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
-}
-
-impl PartialOrd for ComparableF64 {
-    #[inline(always)] fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
-}
-
-impl Eq for ComparableF64 {}
-
-impl Ord for ComparableF64 {
-    #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
 }
 
 #[derive(Clone, Copy)]

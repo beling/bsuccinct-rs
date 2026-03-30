@@ -1,5 +1,7 @@
 mod k;
-pub use k::{SeedOnlyK, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier, space_lower_bound, ComparableF64};
+use core::f64;
+
+pub use k::{SeedOnlyK, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier, space_lower_bound};
 
 mod shift;
 pub use shift::{ShiftOnly};
@@ -24,6 +26,26 @@ pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, pr
         _ => if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
     }
 }
+
+/// Wrapper over `f64` with compare operators.
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct ComparableF64(pub f64);
+
+impl PartialEq for ComparableF64 {
+    #[inline(always)] fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
+}
+
+impl PartialOrd for ComparableF64 {
+    #[inline(always)] fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
+}
+
+impl Eq for ComparableF64 {}
+
+impl Ord for ComparableF64 {
+    #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
+}
+
 
 /// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
 pub trait SeedChooser: Clone + Sync {
@@ -99,31 +121,63 @@ pub trait SeedChooser: Clone + Sync {
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16;
 }
 
-struct SeedEvaluator {
-    min_bucket_value_minus_100: usize
+
+/// Evaluate (harness of) seed for (1-)perfect function.
+/// Seed with the lowest value is used.
+pub trait SeedEvaluator: Clone + Sync {
+    /// Type of evaluation value.
+    type Value: PartialEq + PartialOrd + Ord;
+
+    /// Value grater than each value returned by `eval`.
+    const MAX: Self::Value;
+
+    /// Precalculated data usable to evaluate each seed in the same bucket.
+    type BucketData: Copy;
+
+    /// Precalculates data usable to evaluate each seed in the same bucket.
+    /// The result is passed to `eval` for each seed in the bucket.
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData;
+
+    /// Evaluate (harness of) seed that used given `values`.
+    fn eval(&self, values_used_by_seed: &[usize], bucket_data: Self::BucketData) -> Self::Value;
 }
 
-impl SeedEvaluator {
-    pub fn new<C: Core>(_bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self {
-        Self { min_bucket_value_minus_100: core.slice_begin_for_bucket(_bucket_nr).wrapping_sub(100) }
-        //Self { min_bucket_value_minus_100: core.slice_begin_for_bucket(_first_bucket_in_window).wrapping_sub(1) }
+#[derive(Clone, Copy)]
+pub struct ProdOfValues;
+
+impl SeedEvaluator for ProdOfValues {
+
+    type Value = ComparableF64;
+
+    const MAX: Self::Value = ComparableF64(f64::MAX);
+        
+    type BucketData = usize;
+    
+    fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
+       core.slice_begin_for_bucket(_bucket_nr).wrapping_sub(100)
     }
 
-    pub fn eval(&self, values_used_by_seed: &[usize]) -> usize {
-        values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+    fn eval(&self, values_used_by_seed: &[usize], to_extract: Self::BucketData) -> Self::Value {
+        /*values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
             //2048.0 * ((v - min) as f64).log2()    // 1.905
             4096.0 * (v.wrapping_sub(self.min_bucket_value_minus_100) as f64).log2()    // 1.905 (0,2) 1.903 (10) 1.901 (20) 1.900 (30) 1.899 (40) 1.898 (50,60,80,100,120,150), 1.899 (200), 1.900 (250), 1.901 (300)
             //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
-        }).sum::<f64>() as usize
+        }).sum::<f64>() as usize*/
+        ComparableF64(values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+            //2048.0 * ((v - min) as f64).log2()    // 1.905
+            v.wrapping_sub(to_extract) as f64    // 1.905 (0,2) 1.903 (10) 1.901 (20) 1.900 (30) 1.899 (40) 1.898 (50,60,80,100,120,150), 1.899 (200), 1.900 (250), 1.901 (300)
+            //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
+        }).product())
     }
+    
 }
 
 #[inline(always)]
-fn best_seed_big<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
+fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let simd_keys = keys.len() / 4 * 4;
     //assert!(simd_keys <= keys.len());
-    let seed_eval = SeedEvaluator::new(bucket_nr, first_bucket_in_window, conf);
+    let seed_eval_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, conf);
     'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for i in (0..simd_keys).step_by(4) {
@@ -152,7 +206,7 @@ fn best_seed_big<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut u
             if used_values.contain(value) { continue 'outer; }
             values_used_by_seed.push(value);
         }
-        let seed_value = seed_eval.eval(&values_used_by_seed);
+        let seed_value = seed_evaluator.eval(&values_used_by_seed, seed_eval_data);
         if seed_value < *best_value {
             values_used_by_seed.sort();
             if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
@@ -168,10 +222,10 @@ fn best_seed_big<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut u
 }
 
 #[inline(always)]
-fn best_seed_small<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut usize, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
+fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
-    let seed_eval = SeedEvaluator::new(bucket_nr, first_bucket_in_window, conf);
+    let seed_eval_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, conf);
     'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
@@ -179,7 +233,7 @@ fn best_seed_small<SC: SeedChooser, C: Core>(seed_chooser: &SC, best_value: &mut
             if used_values.contain(value) { continue 'outer; }
             values_used_by_seed.push(value);
         }
-        let seed_value = seed_eval.eval(&values_used_by_seed);
+        let seed_value = seed_evaluator.eval(&values_used_by_seed, seed_eval_data);
         if seed_value < *best_value {
             values_used_by_seed.sort_unstable();
             for i in 1..values_used_by_seed.len() {
@@ -205,9 +259,9 @@ const SMALL_BUCKET_LIMIT: usize = 8;
 /// It chooses best seed with quite strong hasher, without shift component,
 /// which should lead to small size, but long construction time.
 #[derive(Clone, Copy)]
-pub struct SeedOnly;
+pub struct SeedOnly<SE: SeedEvaluator = ProdOfValues>(pub SE);
 
-impl SeedChooser for SeedOnly {
+impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
     type UsedValues = UsedValueSet;
     
     #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
@@ -226,11 +280,11 @@ impl SeedChooser for SeedOnly {
     #[inline(always)]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;
-        let mut best_value = usize::MAX;
+        let mut best_value = SE::MAX;//usize::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_small(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         } else {
-            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_big(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         };
         if best_seed != 0 { // can assign seed to the bucket
             for key in keys {
@@ -243,9 +297,9 @@ impl SeedChooser for SeedOnly {
 
 /// Choose best seed without shift component.
 #[derive(Clone, Copy)]
-pub struct SeedOnlyNoBump;
+pub struct SeedOnlyNoBump<SE: SeedEvaluator = ProdOfValues>(pub SE);
 
-impl SeedChooser for SeedOnlyNoBump {
+impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
     const BUMPING: bool = false;
     const FIRST_SEED: u16 = 0;
 
@@ -259,11 +313,11 @@ impl SeedChooser for SeedOnlyNoBump {
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         //let _: [(); Self::FIRST_SEED as usize] = [];
         let mut best_seed = u16::MAX;
-        let mut best_value = usize::MAX;
+        let mut best_value = SE::MAX;//ComparableF64(f64::MAX);//usize::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_small(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         } else {
-            best_seed_big(self, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_big(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         };
         if best_seed != u16::MAX { // can assign seed to the bucket
             for key in keys {

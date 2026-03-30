@@ -21,7 +21,7 @@ mod benchmark;
 use clap::Parser;
 
 use ph::seeds::{Bits8, BitsFast};
-use ph::phast::{SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, SumOfLogValues, SumOfValues, space_lower_bound};
+use ph::phast::{ProdOfValues, SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, SumOfLogValues, SumOfValues, space_lower_bound};
 
 fn main() {
     let conf = Conf::parse();
@@ -36,17 +36,17 @@ fn main() {
         conf.keys_num, conf.bits_per_seed, bucket_size, conf.slice_len);
     }
     match (conf.method, conf.k, conf.bits_per_seed, conf.one, bucket_size.into(), conf.is_turbo()) {
-        (Method::phast, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly)),
-        (Method::phast, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::phast, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
+        (Method::phast, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
 
-        (Method::phast2, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly)),
-        (Method::phast2, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::phast2, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
+        (Method::phast2, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast2, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast2, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
 
         //(Method::perfect, 1, 8, false, bucket_size100, true) => conf.run(|keys| perfect(&keys, conf.params_turbo(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::perfect, 1, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
+        (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::perfect, 1, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
         (Method::perfect, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfValues))), 
         (Method::perfectlog, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfLogValues))),
@@ -54,8 +54,8 @@ fn main() {
         (Method::perfectlog, k, b, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfLogValues))),
 
-        (Method::phast|Method::phast2|Method::perfect, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::phast|Method::phast2|Method::perfect, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly)),
+        (Method::phast|Method::phast2|Method::perfect, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast|Method::phast2|Method::perfect, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
         (Method::phast|Method::phast2|Method::perfect, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfValues))),
         (Method::perfectlog, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::new(k, SumOfLogValues))),
         (Method::phast|Method::phast2|Method::perfect, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::new(k, SumOfValues))),
@@ -122,7 +122,7 @@ fn main() {
         (Method::plus, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnly)),
         (Method::plus, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnly)),
 
-        (Method::optphast, 1, _, _, _, _) => conf.optimize_weights(SeedOnly),
+        (Method::optphast, 1, _, _, _, _) => conf.optimize_weights(SeedOnly(ProdOfValues)),
         (Method::optphast, k, _, _, _, _) => conf.optimize_weights(SeedOnlyK::new(k, SumOfValues)),
 
         (Method::optpluswrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
@@ -133,6 +133,7 @@ fn main() {
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
         (Method::optperfectlog, _, _, _, _, _) => conf.optimize_perfectlog(),
+        (Method::optgenprod, _, _, _, _, _) => conf.optimize_genericprod(),
 
         (Method::none, _, _, _, _, _) => {},
         _ => eprintln!("Unsupported configuration.")

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedOnly, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{SumOfLogValuesF, SumOfLogValuesFEval, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{GenericProdOfValues, SumOfLogValuesF, SumOfLogValuesFEval, WeightsF}};
 
 use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -58,6 +58,8 @@ pub enum Method {
     /// Optimize seed evaluation in perfectlog
     optperfectlog,
 
+    optgenprod,
+
     /// Do nothing
     none
 }
@@ -77,6 +79,7 @@ impl std::fmt::Display for Method {
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optscore => write!(f, "Optimize score weights for k-perfect PHast"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
+            Method::optgenprod => write!(f, "Optimize GenericProdOfValues"),
             Method::none => write!(f, "Do nothing"),
         }
     }
@@ -352,5 +355,19 @@ impl Conf {
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
         println!("Optimal parameters: free_values_weight: {:.0}, value_shift: {:.0}, free_shift: {:.0}", ans[2], ans[0], ans[1]);
+    }
+
+    pub fn optimize_genericprod(&self) {
+        let s = GenericProdOfValues { first_weight: 0.0, shift: 70.0 };
+        let args = Array::from_vec(vec![s.first_weight, s.shift]);
+        let (minimizer, conf) = self.optimizer(&SeedOnly(s));
+        
+        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
+            let evaluator = GenericProdOfValues { first_weight: x[0], shift: x[1] };
+            println!("first_weight: {}, shift: {}", x[0], x[1]);
+            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnly(evaluator)).1)
+        }, args.view());
+        println!("Optimal parameters: first_weight: {}, shift: {}", ans[0], ans[1]);
     }
 }

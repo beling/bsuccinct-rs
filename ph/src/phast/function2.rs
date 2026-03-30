@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Generic, Conf, ShiftOnlyWrapped, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::SeedOnlyNoBump}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, Generic, ProdOfValues, ShiftOnlyWrapped, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::SeedOnlyNoBump}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::build_last_level, conf::GenericCore, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;
@@ -83,7 +83,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
 
         let key_hash = self.hasher.hash_one(key, self.last_level_seed);
         let seed = unsafe { self.last_level.seeds.seed_for(Bits8, key_hash) };
-        return self.unassigned.get(SeedOnlyNoBump.f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
+        return self.unassigned.get(SeedOnlyNoBump(ProdOfValues).f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
     }
 
     /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
@@ -207,7 +207,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
             last_shift = unassigned.len();
-            for i in 0..last_seeds.conf.output_range(&SeedOnlyNoBump, Bits8.into()) {
+            for i in 0..last_seeds.conf.output_range(&SeedOnlyNoBump(ProdOfValues), Bits8.into()) {
                 if CA::MAX_FOR_UNUSED {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
@@ -246,9 +246,9 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     {
         let bits_per_seed = Bits8;
         let len100 = (keys.len()+10)*120;
-        let conf = SeedOnly.conf_for_minimal((len100+50)/100,
+        let conf = SeedOnly(ProdOfValues).conf_for_minimal((len100+50)/100,
             bits_per_seed.into(), 400, 0);  // TODO use turbo variant here
-        let evaluator = SeedOnly.bucket_evaluator(bits_per_seed.into(), conf.slice_len());
+        let evaluator = SeedOnly(ProdOfValues).bucket_evaluator(bits_per_seed.into(), conf.slice_len());
         loop {
             let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
             hashes.voracious_sort();    // maybe standard sort here?
