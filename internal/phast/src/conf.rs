@@ -3,11 +3,13 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand};
 use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedOnly, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{GenericProdOfValues, SumOfLogValuesF, SumOfLogValuesFEval, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{GenericProdOfValues, SumOfLogValuesF, SumOfLogValuesFEval, WGenericProdOfValues, WeightsF}};
 
 use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
 use rayon::{current_num_threads, iter::{IntoParallelIterator, ParallelIterator}};
+
+use minuit2::MnSimplex;
 
 #[allow(non_camel_case_types)]
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -60,6 +62,8 @@ pub enum Method {
 
     optgenprod,
 
+    optwgenprod,
+
     /// Do nothing
     none
 }
@@ -80,6 +84,7 @@ impl std::fmt::Display for Method {
             Method::optscore => write!(f, "Optimize score weights for k-perfect PHast"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optgenprod => write!(f, "Optimize GenericProdOfValues"),
+            Method::optwgenprod => write!(f, "Optimize WGenericProdOfValues"),
             Method::none => write!(f, "Do nothing"),
         }
     }
@@ -323,11 +328,13 @@ impl Conf {
 
     const KEY_SETS_NUM: u32 = 96;
 
-    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: ArrayView1<f64>, f: F) -> f64 {
+    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> f64 {
         let unassigned_keys: usize = (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
             f(&mut self.keys_for_seed(200+i))
         }).sum();
-        println!("{unassigned_keys} {:.2}% {x:.0}", unassigned_keys as f64 * 100.0 / (Self::KEY_SETS_NUM as f64 * self.keys_num as f64));
+        print!("{unassigned_keys} {:.2}%", unassigned_keys as f64 * 100.0 / (Self::KEY_SETS_NUM as f64 * self.keys_num as f64));
+        for v in x { print!(" {v:.0}") }
+        println!();
         unassigned_keys as f64
     }
 
@@ -336,8 +343,9 @@ impl Conf {
         let args = Array::from_vec(WeightsF::from(seed_chooser.bucket_evaluator(self.bits_per_seed, conf.slice_len())).size_weights.into_vec());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            let evaluator = WeightsF{ size_weights: x.as_slice().unwrap().try_into().unwrap() };
-            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(self.bits_per_seed),
+            let slice = x.as_slice().unwrap();
+            let evaluator = WeightsF{ size_weights: slice.try_into().unwrap() };
+            self.par_f_eval(slice, |keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(self.bits_per_seed),
                     conf,
                     seed_chooser.clone(), &evaluator).1)
         }, args.view());
@@ -351,13 +359,13 @@ impl Conf {
         
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1] };
-            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+            self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
         println!("Optimal parameters: free_values_weight: {:.0}, value_shift: {:.0}, free_shift: {:.0}", ans[2], ans[0], ans[1]);
     }
 
-    pub fn optimize_genericprod(&self) {
+    /*pub fn optimize_genericprod(&self) {
         let s = GenericProdOfValues { first_weight: 0.0, shift: 70.0 };
         let args = Array::from_vec(vec![s.first_weight, s.shift]);
         let (minimizer, conf) = self.optimizer(&SeedOnly(s));
@@ -369,5 +377,53 @@ impl Conf {
                     conf, SeedOnly(evaluator)).1)
         }, args.view());
         println!("Optimal parameters: first_weight: {}, shift: {}", ans[0], ans[1]);
+    }*/
+
+    pub fn optimize_genericprod(&self) {
+        let conf = SeedOnly(GenericProdOfValues { first_weight: 0.5, shift: 100.0 }).conf_for_minimal(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len);
+        let result = MnSimplex::new()
+            .add_limited("first_weight", 0.5, 0.01, 0.0, 1.0)
+            .add_lower_limited("shift", 100.0, 1.0, 1.0)
+            .max_fcn(if self.iters == 0 { 100 } else {self.iters as usize})
+            .minimize(&|x: &[f64]| {
+                println!("first_weight: {}, shift: {}", x[0], x[1]);
+                let evaluator = GenericProdOfValues { first_weight: x[0], shift: x[1] };
+                self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnly(evaluator)).1)
+            });
+        println!("{result}");
+    }
+
+    /*pub fn optimize_wgenericprod(&self) {
+        let conf = SeedOnly(WGenericProdOfValues([145.0; 9])).conf_for_minimal(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len);
+        let result = MnSimplex::new()
+            .add_lower_limited("1", 145.0, 10.0, 1.0)
+            .add_lower_limited("2", 145.0, 10.0, 1.0)
+            .add_lower_limited("3", 145.0, 10.0, 1.0)
+            .add_lower_limited("4", 145.0, 10.0, 1.0)
+            .add_lower_limited("5", 145.0, 10.0, 1.0)
+            .add_lower_limited("6", 145.0, 10.0, 1.0)
+            .add_lower_limited("7", 145.0, 10.0, 1.0)
+            .add_lower_limited("8", 145.0, 10.0, 1.0)
+            .add_lower_limited("9", 145.0, 10.0, 1.0)
+            .max_fcn(if self.iters == 0 { 100 } else {self.iters as usize})
+            .minimize(&|x: &[f64]| {
+                let evaluator = WGenericProdOfValues(*x.as_array::<9>().unwrap());
+                self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnly(evaluator)).1)
+            });
+        println!("{result}");
+    }*/
+
+    pub fn optimize_wgenericprod(&self) {
+        let (minimizer, conf) = self.optimizer(&SeedOnly(WGenericProdOfValues([181.0, 177.0, 108.0, 80.0])));
+        let args = Array::from_vec(vec![181.0, 177.0, 108.0, 80.0]);
+        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
+            let slice = x.as_slice().unwrap();
+            let evaluator = WGenericProdOfValues(*slice.as_array::<4>().unwrap());
+            self.par_f_eval(slice, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnly(evaluator)).1)
+        }, args.view());
+        println!("Optimal weights: {ans:.0}");
     }
 }

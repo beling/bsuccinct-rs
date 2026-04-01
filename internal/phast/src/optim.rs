@@ -82,7 +82,7 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
 pub struct GenericProdOfValues {
     pub first_weight: f64,
     pub shift: f64,
-}   // first_weight: 0.10001434445381163, shift: 30.01843410730362 1.16%
+}   // first_weight: 1.098765e-5, shift: 145 1.16%
 
 impl SeedEvaluator for GenericProdOfValues {
 
@@ -100,6 +100,30 @@ impl SeedEvaluator for GenericProdOfValues {
 
     fn eval(&self, values_used_by_seed: &[usize], to_extract: Self::BucketData) -> Self::Value {
         ComparableF64(values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+            (*v as f64) - to_extract
+        }).product())
+    }
+}
+
+
+#[derive(Clone, Copy)]
+pub struct WGenericProdOfValues(pub [f64; 4]);
+
+impl SeedEvaluator for WGenericProdOfValues {
+
+    type Value = ComparableF64;
+
+    const MAX: Self::Value = ComparableF64(f64::MAX);
+        
+    type BucketData = f64;
+    
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
+       core.slice_begin_for_bucket(bucket_nr) as f64
+    }
+
+    fn eval(&self, values_used_by_seed: &[usize], bucket_first: Self::BucketData) -> Self::Value {
+        let to_extract = bucket_first - self.0.get(if values_used_by_seed.len() >= 3 { values_used_by_seed.len()-2} else {0}).unwrap_or_else(|| self.0.last().unwrap());
+        ComparableF64(values_used_by_seed.iter().map(|v| {
             (*v as f64) - to_extract
         }).product())
     }
