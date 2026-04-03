@@ -29,9 +29,9 @@ impl BucketToActivateEvaluator for &WeightsF {
 }
 
 
-pub struct SumOfLogValuesF;
+pub struct SumOfLogValuesF0;
 
-impl KSeedEvaluatorConf for SumOfLogValuesF {
+impl KSeedEvaluatorConf for SumOfLogValuesF0 {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
     fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
@@ -45,9 +45,9 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
 
 /// Chooses seed that minimizes
 /// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
-pub struct SumOfLogValuesFW;
+pub struct SumOfLogValuesF;
 
-impl KSeedEvaluatorConf for SumOfLogValuesFW {
+impl KSeedEvaluatorConf for SumOfLogValuesF {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
     fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
@@ -64,6 +64,23 @@ impl KSeedEvaluatorConf for SumOfLogValuesFW {
         }
     }
 }
+
+/// Chooses seed that minimizes
+/// sum_{x in bucket} log(f(x,seed) - minimum value in the window + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
+pub struct SumOfLogValuesF1;
+
+impl KSeedEvaluatorConf for SumOfLogValuesF1 {
+    type KSeedEvaluator = SumOfLogValuesFEval;
+
+    fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
+        let s = SumOfLogValues.for_k(k);
+        SumOfLogValuesFEval {
+            free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64 + 20.0, free_shift: s.free_shift as f64,
+            first_weight: 1.0, 
+        }
+    }
+}
+
 
 /// Chooses seed that minimizes
 /// sum_{x in bucket} log(f(x,seed) - first_weight*minimum value in the window - (1-first_weight)*minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))

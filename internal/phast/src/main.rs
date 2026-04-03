@@ -132,8 +132,9 @@ fn main() {
         (Method::optpluswrap { multiplier: 7 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<7>),
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
+        (Method::optperfectlog0, _, _, _, _, _) => conf.optimize_perfectlog0(),
+        (Method::optperfectlog1, _, _, _, _, _) => conf.optimize_perfectlog1(),
         (Method::optperfectlog, _, _, _, _, _) => conf.optimize_perfectlog(),
-        (Method::optwperfectlog, _, _, _, _, _) => conf.optimize_wperfectlog(),
         (Method::optgenprod, _, _, _, _, _) => conf.optimize_genericprod(),
         (Method::optwgenprod, _, _, _, _, _) => conf.optimize_wgenericprod(),
 
