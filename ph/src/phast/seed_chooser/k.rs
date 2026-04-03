@@ -99,7 +99,7 @@ impl KSeedEvaluatorConf for SumOfLogValues {
 
     fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
         match k {
-            2=>SumOfLogValuesEvaluator { free_values_weight: 74.0, value_shift: 29, free_shift: 147 }, // for k=2   
+            2=>SumOfLogValuesEvaluator { free_values_weight: 74.0, value_shift: 29, free_shift: 147 }, // for k=2   0.91%
             3=>SumOfLogValuesEvaluator { free_values_weight: 62.0, value_shift: 31, free_shift: 157 }, // for k=3   0.89%
             4=>SumOfLogValuesEvaluator { free_values_weight: 57.0, value_shift: 31, free_shift: 169 }, // for k=4   0.91%
             5=>SumOfLogValuesEvaluator { free_values_weight: 50.0, value_shift: 32, free_shift: 173 }, // for k=5   0.91%

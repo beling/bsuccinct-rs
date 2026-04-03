@@ -74,6 +74,7 @@ impl KSeedEvaluatorConf for SumOfLogValuesF1 {
 
     fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
         let s = SumOfLogValues.for_k(k);
+        // 2 => free_values_weight: 43.422, value_shift: 55.238, free_shift: 184.280    // 1.08%
         SumOfLogValuesFEval {
             free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64 + 20.0, free_shift: s.free_shift as f64,
             first_weight: 1.0, 
