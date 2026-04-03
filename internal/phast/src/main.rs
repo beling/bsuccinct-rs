@@ -133,6 +133,7 @@ fn main() {
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
         (Method::optperfectlog, _, _, _, _, _) => conf.optimize_perfectlog(),
+        (Method::optwperfectlog, _, _, _, _, _) => conf.optimize_wperfectlog(),
         (Method::optgenprod, _, _, _, _, _) => conf.optimize_genericprod(),
         (Method::optwgenprod, _, _, _, _, _) => conf.optimize_wgenericprod(),
 
