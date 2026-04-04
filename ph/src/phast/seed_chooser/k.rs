@@ -24,7 +24,7 @@ pub fn space_lower_bound(k: u8) -> f64 {
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
 pub fn bucket_size_normalization_multiplier(k: u8) -> f64 {
-    let overhead = 0.08; //+ 0.25 / (k as f64 * k as f64);
+    let overhead = 0.05; //+ 0.25 / (k as f64 * k as f64);
     (space_lower_bound(1)+overhead) / (space_lower_bound(k)+overhead)
 }
 

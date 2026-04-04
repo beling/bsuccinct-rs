@@ -42,6 +42,12 @@ pub enum Method {
     /// k-perfect PHast with logarithmic seed evaluation
     perfectlog,
 
+    /// k-perfect PHast with logarithmic seed evaluation and first_weight=0
+    perfectlog0,
+
+    /// k-perfect PHast with logarithmic seed evaluation and first_weight=1
+    perfectlog1,
+
     /// Optimize weights for selecting buckets by PHast
     optphast,
 
@@ -66,7 +72,6 @@ pub enum Method {
     /// Optimize seed evaluation in perfectlog with first_weight=1
     optperfectlog1,
 
-
     optgenprod,
 
     optwgenprod,
@@ -84,7 +89,9 @@ impl std::fmt::Display for Method {
             Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
             Method::plus => write!(f, "PHast+"),
             Method::perfect => write!(f, "Perfect"),
-            Method::perfectlog => write!(f, "Perfect with: log(f(x) - minimum + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
+            Method::perfectlog => write!(f, "Perfect with: log(f(x) - minimum sum + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
+            Method::perfectlog0 => write!(f, "Perfect with: log(f(x) - minimum in bucket + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
+            Method::perfectlog1 => write!(f, "Perfect with: log(f(x) - minimum in window + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
@@ -371,7 +378,7 @@ impl Conf {
             self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
-        println!("Optimal parameters: free_values_weight: {:.3}, value_shift: {:.3}, free_shift: {:.3}", ans[2], ans[0], ans[1]);
+        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
     }
 
     pub fn optimize_perfectlog(&self) {
@@ -380,12 +387,12 @@ impl Conf {
         let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, s));
         
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            println!("free_values_weight: {:.3}, value_shift: {:.3}, free_shift: {:.3}, first_weight: {:.3}", x[2], x[0], x[1], x[3]);
+            println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[2], x[0], x[1], x[3]);
             let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
             self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
-        println!("Optimal parameters: free_values_weight: {:.3}, value_shift: {:.3}, free_shift: {:.3}, first_weight: {:.3}", ans[2], ans[0], ans[1], ans[3]);
+        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[2], ans[0], ans[1], ans[3]);
     }
 
     pub fn optimize_perfectlog1(&self) {
@@ -394,12 +401,12 @@ impl Conf {
         let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, s));
         
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            println!("free_values_weight: {:.3}, value_shift: {:.3}, free_shift: {:.3}", x[2], x[0], x[1]);
+            println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", x[2], x[0], x[1]);
             let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
             self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
-        println!("Optimal parameters: free_values_weight: {:.3}, value_shift: {:.3}, free_shift: {:.3}", ans[2], ans[0], ans[1]);
+        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
     }
 
     /*pub fn optimize_genericprod(&self) {
