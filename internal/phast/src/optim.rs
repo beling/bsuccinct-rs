@@ -53,14 +53,19 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
     fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
         match k {
             //..=2 => free_values_weight: 109, value_shift: 39, free_shift: 233, first_weight: 0.036    // 0.91%
-            ..=2 => SumOfLogValuesFEval { free_values_weight: 53.0, value_shift: 14.0, free_shift: 119.0, first_weight: 0.092 },  // 0.91%
-            3 => SumOfLogValuesFEval { free_values_weight: 38.0, value_shift: 12.0, free_shift: 102.0, first_weight: 0.145 },  // 0.87%
+            ..=2 => SumOfLogValuesFEval { free_values_weight: 56.35121, value_shift: 13.86704, free_shift: 117.37754, first_weight: 0.08890 },  // 1.02%
+            3 => SumOfLogValuesFEval { free_values_weight: 39.41108, value_shift: 12.23467, free_shift: 103.40449, first_weight: 0.13891 },  // 1.10%
             4 => SumOfLogValuesFEval { free_values_weight: 22.0, value_shift: 11.0, free_shift: 78.0, first_weight: 0.510 },     // 0.87%
             5 => SumOfLogValuesFEval { free_values_weight: 20.0, value_shift: 11.0, free_shift: 78.0, first_weight: 0.513 }, // 0.82%
-            6..10 => SumOfLogValuesFEval { free_values_weight: 19.0, value_shift: 11.0, free_shift: 81.0, first_weight: 0.512 }, //  0.76%
-            10 => SumOfLogValuesFEval { free_values_weight: 13.494, value_shift: 6.803, free_shift: 93.555, first_weight: 0.810 },  //  0.91%
-            11..32 => SumOfLogValuesFEval { free_values_weight: 0.988, value_shift: 0.003, free_shift: 3.583, first_weight: 0.677 }, //  0.61%
-            32.. => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 69.0, free_shift: 9.0, first_weight: 0.897 }, //  0.49%
+            //6..10 => SumOfLogValuesFEval { free_values_weight: 19.0, value_shift: 11.0, free_shift: 81.0, first_weight: 0.512 }, //  0.76%
+            //10 => SumOfLogValuesFEval { free_values_weight: 13.494, value_shift: 6.803, free_shift: 93.555, first_weight: 0.810 },  //  0.91%
+            6..=11 => SumOfLogValuesFEval { free_values_weight: 1.00964, value_shift: 0.00307, free_shift: 3.34136, first_weight: 0.70944 }, //0.63%
+            12 => SumOfLogValuesFEval { free_values_weight: 0.97919, value_shift: 0.00305, free_shift: 3.25671, first_weight: 0.70222 }, //0.60%
+            13 => SumOfLogValuesFEval { free_values_weight: 1.00290, value_shift: 0.00296, free_shift: 3.49979, first_weight: 0.70233 }, //0.57%
+            14 => SumOfLogValuesFEval { free_values_weight: 1.00255, value_shift: 0.00303, free_shift: 3.55407, first_weight: 0.68480 }, //0.56%
+            15.. => SumOfLogValuesFEval { free_values_weight: 0.99834, value_shift: 0.00304, free_shift: 3.54822, first_weight: 0.67896 }, //0.55%
+            //16..32 => SumOfLogValuesFEval { free_values_weight: 0.988, value_shift: 0.003, free_shift: 3.583, first_weight: 0.677 }, //  0.61%
+            //32.. => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 69.0, free_shift: 9.0, first_weight: 0.897 }, //  0.49%
         }
     }
 }
