@@ -70,10 +70,10 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
             14 => SumOfLogValuesFEval { free_values_weight: 1.00255, value_shift: 0.00303, free_shift: 3.55407, first_weight: 0.68480 }, // 0.56%
             15 => SumOfLogValuesFEval { free_values_weight: 0.99834, value_shift: 0.00304, free_shift: 3.54822, first_weight: 0.67896 }, // 0.55%
             16..32 => SumOfLogValuesFEval { free_values_weight: 0.99529, value_shift: 0.00308, free_shift: 3.62006, first_weight: 0.68640 }, // 0.54%
-            32..64 => SumOfLogValuesFEval { free_values_weight: 0.92816, value_shift: 0.00307, free_shift: 3.91187, first_weight: 0.66890 },  // 0.63%
-            64.. => SumOfLogValuesFEval { free_values_weight: 0.86516, value_shift: 0.00324, free_shift: 4.15503, first_weight: 0.66520 } // 0.84%
-            //16..32 => SumOfLogValuesFEval { free_values_weight: 0.99529, value_shift: 0.00308, free_shift: 3.62006, first_weight: 0.68640 }, //  0.54%
-            //32.. => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 69.0, free_shift: 9.0, first_weight: 0.897 }, //  0.49%
+            32..48 => SumOfLogValuesFEval { free_values_weight: 0.92816, value_shift: 0.00307, free_shift: 3.91187, first_weight: 0.66890 }, // 0.63%
+            48..64 => SumOfLogValuesFEval { free_values_weight: 0.90327, value_shift: 0.00330, free_shift: 4.21686, first_weight: 0.64461 }, // 0.74%
+            64..80 => SumOfLogValuesFEval { free_values_weight: 0.86516, value_shift: 0.00324, free_shift: 4.15503, first_weight: 0.66520 }, // 0.84%
+            80.. => SumOfLogValuesFEval { free_values_weight: 0.87878, value_shift: 0.00331, free_shift: 4.10116, first_weight: 0.67052 } // 0.55%
         }
     }
 }
