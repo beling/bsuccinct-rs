@@ -11,7 +11,7 @@ use std::hash::{BuildHasher, Hash, RandomState};
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Partial<C: Core, SS, SC = SeedOnly, S = RandomState> where SS: SeedSize {
+pub struct Partial<C, SS, SC = SeedOnly, S = RandomState> where C: Core, SS: SeedSize {
     seeds: SeedEx<SS::VecElement, C>,
     hasher: S,
     seed_chooser: SC,
