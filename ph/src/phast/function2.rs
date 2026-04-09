@@ -96,9 +96,9 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     {
         let number_of_keys = keys.len();
         Self::_new(|h| {
-            let (level0, unassigned_values, unassigned_len) =
+            let (level0, unassigned_values) =
                 build_level_st(&mut keys, params, h, seed_chooser.clone(), 0);
-            (keys, level0, unassigned_values, unassigned_len)
+            (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.clone(), params.seed_size(), number_of_keys)
@@ -114,9 +114,9 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
         if threads_num == 1 { return Self::with_vec_p_hash_sc(keys, params, hasher, seed_chooser); }
         let number_of_keys = keys.len();
         Self::_new(|h| {
-            let (level0, unassigned_values, unassigned_len) =
+            let (level0, unassigned_values) =
                 build_level_mt(&mut keys, params, threads_num, h, seed_chooser.clone(), 0);
-            (keys, level0, unassigned_values, unassigned_len)
+            (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.clone(), params.seed_size(), number_of_keys)
@@ -155,16 +155,16 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
 
     #[inline]
     fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, seed_chooser: SC, seed_size: SS, number_of_keys: usize) -> Self
-        where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS::VecElement, C>, Box<[u64]>, usize),
-            BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS::VecElement, C>, Box<[u64]>, usize),
+        where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS::VecElement, C>, Box<[u64]>),
+            BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS::VecElement, C>, Box<[u64]>),
             K: Hash
         {
-        let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
+        let (mut keys, level0, unassigned_values) = build_first(&hasher);
         //dbg!(keys.len(), unassigned_len, unassigned_values.bit_ones().count());
-        debug_assert_eq!(unassigned_len, unassigned_values.bit_ones().count());
+        debug_assert_eq!(keys.len(), unassigned_values.bit_ones().count());
         //Self::finish_building(keys, bits_per_seed, bucket_size100, threads_num, hasher, level0, unassigned_values, unassigned_len)
         let mut level0_unassigned = unassigned_values.bit_ones();
-        let mut unassigned = Vec::with_capacity(unassigned_len * 3 / 2);
+        let mut bumped_index_to_value = Vec::with_capacity(keys.len() * 3 / 2);
 
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
@@ -176,22 +176,22 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
                 //crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst),
                 //crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst) * 100 / keys_len as u64,
                 //crate::phast::seed_chooser::SELF_COLLISION_BUCKETS.load(std::sync::atomic::Ordering::SeqCst));
-            let (seeds, unassigned_values, _unassigned_len) =
+            let (seeds, unassigned_values) =
                 build_level(&mut keys, levels.len() as u64+1, &hasher);
-            let shift = unassigned.len();
+            let shift = bumped_index_to_value.len();
             for i in 0..keys_len {
                 if CA::MAX_FOR_UNUSED {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
-                        unassigned.push(last);
+                        bumped_index_to_value.push(last);
                     } else {
-                        unassigned.push(usize::MAX);
+                        bumped_index_to_value.push(usize::MAX);
                     }
                 } else {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
                     }
-                    unassigned.push(last);
+                    bumped_index_to_value.push(last);
                 }
             }
             levels.push(Level { seeds, shift });
@@ -206,20 +206,20 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
         } else {
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
-            last_shift = unassigned.len();
+            last_shift = bumped_index_to_value.len();
             for i in 0..last_seeds.conf.output_range(&SeedOnlyNoBump(ProdOfValues), Bits8.into()) {
                 if CA::MAX_FOR_UNUSED {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
-                        unassigned.push(last);
+                        bumped_index_to_value.push(last);
                     } else {
-                        unassigned.push(usize::MAX);
+                        bumped_index_to_value.push(usize::MAX);
                     }
                 } else {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
                     }
-                    unassigned.push(last);
+                    bumped_index_to_value.push(last);
                 }
             }
             //drop(unassigned_values);
@@ -229,7 +229,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
         drop(level0_unassigned);
         Self {
             level0,
-            unassigned: CA::new(unassigned, last, number_of_keys),
+            unassigned: CA::new(bumped_index_to_value, last, number_of_keys),
             levels: levels.into_boxed_slice(),
             hasher,
             seed_chooser,
