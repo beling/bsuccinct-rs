@@ -2,12 +2,12 @@ use core::f64;
 
 use bitm::ceiling_div;
 
-use crate::phast::{ComparableF64, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU8}};
+use crate::phast::{ComparableF64, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}};
 use super::SeedChooser;
 
 /// Returns approximation of lower bound of space (in bits/key)
 /// needed to represent minimal `k`-perfect function.
-pub fn space_lower_bound(k: u8) -> f64 {
+pub fn space_lower_bound(k: u16) -> f64 {
     match k {
         0|1 => 1.4426950408889634,  // TODO? 0 should panic
         2 => 0.9426950408889634,
@@ -23,7 +23,7 @@ pub fn space_lower_bound(k: u8) -> f64 {
 }
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
-pub fn bucket_size_normalization_multiplier(k: u8) -> f64 {
+pub fn bucket_size_normalization_multiplier(k: u16) -> f64 {
     let overhead = 0.05; //+ 0.25 / (k as f64 * k as f64);
     (space_lower_bound(1)+overhead) / (space_lower_bound(k)+overhead)
 }
@@ -53,7 +53,7 @@ pub trait KSeedEvaluator: Clone + Sync {
     fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData;
 
     /// Evaluate (harness of) seed that used given `values`.
-    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, bucket_data: Self::BucketData) -> Self::Value;
+    fn eval(&self, k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, bucket_data: Self::BucketData) -> Self::Value;
 }
 
 pub trait KSeedEvaluatorConf {
@@ -61,7 +61,7 @@ pub trait KSeedEvaluatorConf {
     type KSeedEvaluator: KSeedEvaluator;
 
     /// Returns evaluator for given `k`.
-    fn for_k(&self, k: u8) -> Self::KSeedEvaluator;
+    fn for_k(&self, k: u16) -> Self::KSeedEvaluator;
 }
 
 #[derive(Clone)]
@@ -81,14 +81,14 @@ impl KSeedEvaluator for SumOfValues {
     }
 
     #[inline]
-    fn eval(&self, _k: u8, values_used_by_seed: &[usize], _used_values: &UsedValueMultiSetU8, _bucket_data: Self::BucketData) -> Self::Value {
+    fn eval(&self, _k: u16, values_used_by_seed: &[usize], _used_values: &UsedValueMultiSetU16, _bucket_data: Self::BucketData) -> Self::Value {
         values_used_by_seed.iter().sum()
     }
 }
 
 impl KSeedEvaluatorConf for SumOfValues {
     type KSeedEvaluator = Self;
-    #[inline] fn for_k(&self, _k: u8) -> Self::KSeedEvaluator { SumOfValues }
+    #[inline] fn for_k(&self, _k: u16) -> Self::KSeedEvaluator { SumOfValues }
 }
 
 #[derive(Clone, Copy)]
@@ -97,7 +97,7 @@ pub struct SumOfLogValues;
 impl KSeedEvaluatorConf for SumOfLogValues {
     type KSeedEvaluator = SumOfLogValuesEvaluator;
 
-    fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
+    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         match k {
             2=>SumOfLogValuesEvaluator { free_values_weight: 74.0, value_shift: 29, free_shift: 147 }, // for k=2   0.91%
             3=>SumOfLogValuesEvaluator { free_values_weight: 62.0, value_shift: 31, free_shift: 157 }, // for k=3   0.89%
@@ -136,7 +136,7 @@ impl KSeedEvaluator for SumOfLogValuesEvaluator {
         core.slice_begin_for_bucket(bucket_nr).wrapping_sub(self.value_shift)
     }
 
-    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, to_subtract_from_value: Self::BucketData) -> Self::Value {
+    fn eval(&self, k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = 0.0;
         for value in values_used_by_seed.iter().copied() {
             let free_values = (self.free_shift + k as usize - used_values[value] as usize) as f64;
@@ -157,17 +157,17 @@ impl KSeedEvaluator for SumOfLogValuesEvaluator {
 #[derive(Clone, Copy)]
 pub struct SeedOnlyK<SE> {
     pub seed_evaluator: SE,
-    pub k: u8,
+    pub k: u16,
 }
 
 impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
-    pub fn new<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u8, seed_evaluator: SEC) -> Self {
+    pub fn new<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u16, seed_evaluator: SEC) -> Self {
         Self { seed_evaluator: seed_evaluator.for_k(k), k }
     }
 }
 
 #[inline(always)]
-fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u8, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU8, keys: &[u64], core: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
+fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueMultiSetU16, keys: &[u64], core: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     //assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
@@ -196,10 +196,10 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u8, seed_chooser
 
 
 impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
-    type UsedValues = UsedValueMultiSetU8;
+    type UsedValues = UsedValueMultiSetU16;
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(&self) -> u8 { self.k }
+    #[inline(always)] fn k(&self) -> u16 { self.k }
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.k() as usize) }

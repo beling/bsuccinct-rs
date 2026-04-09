@@ -61,7 +61,7 @@ pub trait SeedChooser: Clone + Sync {
     type UsedValues: GenericUsedValue;
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(&self) -> u8 { 1 }
+    #[inline(always)] fn k(&self) -> u16 { 1 }
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { num_of_keys }

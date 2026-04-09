@@ -105,7 +105,17 @@ impl<T, const SIZE: usize> IndexMut<usize> for CyclicArray<T, SIZE> {
     }
 }
 
-impl<const SIZE_64: usize> GenericUsedValue for CyclicArray<u8, SIZE_64> {
+/*impl<const SIZE_64: usize> GenericUsedValue for CyclicArray<u8, SIZE_64> {
+    #[inline] fn add(&mut self, value: usize) {
+        self[value] += 1;
+    }
+
+    #[inline] fn remove(&mut self, value: usize) {
+        self[value] = 0;
+    }
+}*/
+
+impl<const SIZE_64: usize> GenericUsedValue for CyclicArray<u16, SIZE_64> {
     #[inline] fn add(&mut self, value: usize) {
         self[value] += 1;
     }
@@ -115,4 +125,5 @@ impl<const SIZE_64: usize> GenericUsedValue for CyclicArray<u8, SIZE_64> {
     }
 }
 
-pub type UsedValueMultiSetU8 = CyclicArray<u8, MAX_VALUES>;
+
+pub type UsedValueMultiSetU16 = CyclicArray<u16, MAX_VALUES>;

@@ -227,7 +227,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
     /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
-    #[inline(always)] pub fn k(&self) -> u8 { self.seed_chooser.k() }
+    #[inline(always)] pub fn k(&self) -> u16 { self.seed_chooser.k() }
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys,
     /// i.e. 1 + maximum value that minimal function can return.
@@ -282,7 +282,7 @@ impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher>
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_vec_se_st<K, SEC>(k: u8, keys: Vec::<K>, seed_evaluator: SEC) -> Self
+    pub fn k_from_vec_se_st<K, SEC>(k: u16, keys: Vec::<K>, seed_evaluator: SEC) -> Self
         where K: Hash, SEC: KSeedEvaluatorConf<KSeedEvaluator = SE>
     {
         Self::with_vec_p_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
@@ -293,7 +293,7 @@ impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher>
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_vec_se_mt<K, SEC>(k: u8, keys: Vec::<K>, seed_evaluator: SEC) -> Self
+    pub fn k_from_vec_se_mt<K, SEC>(k: u16, keys: Vec::<K>, seed_evaluator: SEC) -> Self
         where K: Hash+Send+Sync, SEC: KSeedEvaluatorConf<KSeedEvaluator = SE>
     {
         Self::with_vec_p_threads_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
@@ -304,7 +304,7 @@ impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher>
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_slice_se_st<K, SEC>(k: u8, keys: &[K], seed_evaluator: SEC) -> Self 
+    pub fn k_from_slice_se_st<K, SEC>(k: u16, keys: &[K], seed_evaluator: SEC) -> Self 
         where K: Hash+Clone, SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>
     {
         Self::with_slice_p_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
@@ -315,7 +315,7 @@ impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher>
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_slice_se_mt<K, SEC>(k: u8, keys: &[K], seed_evaluator: SEC) -> Self 
+    pub fn k_from_slice_se_mt<K, SEC>(k: u16, keys: &[K], seed_evaluator: SEC) -> Self 
         where K: Hash+Clone+Send+Sync, SEC: KSeedEvaluatorConf<KSeedEvaluator = SE> {
         Self::with_slice_p_threads_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
@@ -327,7 +327,7 @@ impl Perfect<Bits8, SeedOnlyK<SumOfValues>, BuildDefaultSeededHasher> {
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_vec_st<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash {
+    pub fn k_from_vec_st<K>(k: u16, keys: Vec::<K>) -> Self where K: Hash {
         Self::k_from_vec_se_st(k, keys, SumOfValues)
     }
 
@@ -335,7 +335,7 @@ impl Perfect<Bits8, SeedOnlyK<SumOfValues>, BuildDefaultSeededHasher> {
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_vec_mt<K>(k: u8, keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
+    pub fn k_from_vec_mt<K>(k: u16, keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
         Self::k_from_vec_se_mt(k, keys, SumOfValues)
     }
 
@@ -343,7 +343,7 @@ impl Perfect<Bits8, SeedOnlyK<SumOfValues>, BuildDefaultSeededHasher> {
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_slice_st<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone {
+    pub fn k_from_slice_st<K>(k: u16, keys: &[K]) -> Self where K: Hash+Clone {
         Self::k_from_slice_se_st(k, keys, SumOfValues)
     }
 
@@ -351,7 +351,7 @@ impl Perfect<Bits8, SeedOnlyK<SumOfValues>, BuildDefaultSeededHasher> {
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn k_from_slice_mt<K>(k: u8, keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
+    pub fn k_from_slice_mt<K>(k: u16, keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
         Self::k_from_slice_se_mt(k, keys, SumOfValues)
     }
 }
