@@ -180,8 +180,8 @@ pub struct Conf {
     pub multiple_threads: bool,
 
     /// k for k-Perfect function
-    #[arg(short, default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..))]
-    pub k: u8,
+    #[arg(short, default_value_t = 1, value_parser = clap::value_parser!(u16).range(1..))]
+    pub k: u16,
 
     /// Cooling time before measuring construction or query time, in milliseconds
     #[arg(short='c', long, default_value_t = 200)]

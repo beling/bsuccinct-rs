@@ -41,7 +41,7 @@ fn elias_fano_cost(keys_to_map: f64, output_range: u32) -> f64 {
 impl Result {
 
     #[inline(never)]
-    pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32, k: u8) {
+    pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32, k: u16) {
         let total_keys = tries as usize * key_num as usize;
         
         let bits_per_key = (8*self.size_bytes) as f64 / total_keys as f64;

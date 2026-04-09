@@ -1,4 +1,4 @@
-use ph::phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, SeedEvaluator, SumOfLogValues, UsedValueMultiSetU8};
+use ph::phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, SeedEvaluator, SumOfLogValues, UsedValueMultiSetU16};
 
 /// Weights version that uses f64 and works well with numerical optimization.
 pub struct WeightsF {
@@ -34,7 +34,7 @@ pub struct SumOfLogValuesF0;
 impl KSeedEvaluatorConf for SumOfLogValuesF0 {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
+    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         let s = SumOfLogValues.for_k(k);
         SumOfLogValuesFEval {
             free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64, free_shift: s.free_shift as f64,
@@ -50,7 +50,7 @@ pub struct SumOfLogValuesF;
 impl KSeedEvaluatorConf for SumOfLogValuesF {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
+    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         match k {
             ..=2 => SumOfLogValuesFEval { free_values_weight: 1.75456, value_shift: 0.00370, free_shift: 3.15671, first_weight: 0.10135 },  // for2 1.01%
             3 => SumOfLogValuesFEval { free_values_weight: 1.53878, value_shift: 0.00325, free_shift: 3.09695, first_weight: 0.16796 }, // 1.08%
@@ -87,7 +87,7 @@ pub struct SumOfLogValuesF1;
 impl KSeedEvaluatorConf for SumOfLogValuesF1 {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn for_k(&self, k: u8) -> Self::KSeedEvaluator {
+    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         match k {
             ..=2 => SumOfLogValuesFEval { free_values_weight: 43.422, value_shift: 55.238, free_shift: 184.280, first_weight: 1.0 },// 1.08%
             3 => SumOfLogValuesFEval { free_values_weight: 42.541, value_shift: 54.427, free_shift: 185.614, first_weight: 1.0 },// 1.02%
@@ -119,7 +119,7 @@ pub struct SumOfLogValuesFEval {
 
 impl KSeedEvaluatorConf for SumOfLogValuesFEval {
     type KSeedEvaluator = Self;
-    fn for_k(&self, _k: u8) -> Self { *self }
+    fn for_k(&self, _k: u16) -> Self { *self }
 }
 
 impl KSeedEvaluator for SumOfLogValuesFEval {
@@ -135,7 +135,7 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
         - self.value_shift
     }
 
-    fn eval(&self, k: u8, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU8, to_subtract_from_value: Self::BucketData) -> Self::Value {
+    fn eval(&self, k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = 0.0;
         for value in values_used_by_seed.iter().copied() {
             let free_values = self.free_shift + k as f64 - used_values[value] as f64;

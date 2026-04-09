@@ -34,7 +34,7 @@ pub fn verify_phf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(expected_range
 }
 
 /// Checks if `kphf` is valid partial (`None` results are ignored) k-perfect hash function. Panics if it is not.
-pub fn verify_partial_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u8, expected_range: usize, keys: impl IntoIterator<Item=K>, kphf: G) {
+pub fn verify_partial_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u16, expected_range: usize, keys: impl IntoIterator<Item=K>, kphf: G) {
     if k == 1 { verify_partial_phf(expected_range, keys, kphf); return; }
     let mut seen_values = vec![0; expected_range];
     for key in keys {
@@ -47,7 +47,7 @@ pub fn verify_partial_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u8
 }
 
 /// Checks if `kphf` is valid partial k-perfect hash function. Panics if it is not (also if `phf` returns `None` for any key).
-pub fn verify_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u8, expected_range: usize, keys: impl IntoIterator<Item=K>, kphf: G) {
+pub fn verify_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u16, expected_range: usize, keys: impl IntoIterator<Item=K>, kphf: G) {
     verify_partial_kphf(k, expected_range, keys, |key| {
         let v = kphf(key);
         assert!(v.is_some(), "f does not assign the value to the key {} which is in the input", key);
