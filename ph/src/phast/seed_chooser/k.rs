@@ -155,7 +155,7 @@ impl KSeedEvaluator for SumOfLogValuesEvaluator {
 /// It chooses best seed with quite strong hasher, without shift component,
 /// which should lead to quite small size, but long construction time.
 #[derive(Clone, Copy)]
-pub struct SeedOnlyK<SE> {
+pub struct SeedOnlyK<SE = SumOfLogValues> {
     pub seed_evaluator: SE,
     pub k: u16,
 }

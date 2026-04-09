@@ -19,7 +19,7 @@ pub struct Perfect<SS: SeedSize, SC = SeedOnly, S = BuildDefaultSeededHasher>
 {
     level0: SeedEx<SS::VecElement>,
     levels: Box<[Level<SS::VecElement>]>,
-    hasher: S,
+    pub(crate) hasher: S,
     seed_chooser: SC,
     seed_size: SS
 }
@@ -153,7 +153,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (seeds, builder) =
             build_st(&hashes, conf, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser);
-        let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
+        let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
         drop(builder);
         keys_vec.extend(keys.into_iter().filter(|key| {
             unsafe { params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
@@ -176,7 +176,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (seeds, builder) =
             build_mt(&hashes, conf, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
-        let mut keys_vec = Vec::with_capacity(builder.unassigned_len(&seeds));
+        let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
         drop(builder);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             unsafe { params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
@@ -217,7 +217,7 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (seeds, builder) =
             build_mt(&hashes, conf, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
-        let mut result = Vec::with_capacity(builder.unassigned_len(&seeds));
+        let mut result = Vec::with_capacity(builder.bumped_len(&seeds));
         drop(builder);
         std::mem::swap(keys, &mut result);
         keys.par_extend(result.into_par_iter().filter(|key| {

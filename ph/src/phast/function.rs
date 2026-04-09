@@ -323,7 +323,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
             K: Hash
         {
         let (mut keys, level0, unassigned_values, unassigned_len) = build_first(&hasher);
-        debug_assert_eq!(unassigned_len, unassigned_values.bit_ones().count());
+        debug_assert_eq!(unassigned_len, unassigned_values.bit_ones().count()); // only true for output range = number of keys
         //dbg!(unassigned_len, keys.len(), unassigned_values.bit_ones().count());
         //Self::finish_building(keys, bits_per_seed, bucket_size100, threads_num, hasher, level0, unassigned_values, unassigned_len)
         let mut level0_unassigned = unassigned_values.bit_ones();

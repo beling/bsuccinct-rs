@@ -24,6 +24,9 @@ pub use perfect::Perfect;
 mod partial;
 pub use partial::Partial;
 
+//mod kfunction;
+//pub use kfunction::KFunction;
+
 mod seed_chooser;
 pub use seed_chooser::{SeedChooser, SeedEvaluator, ProdOfValues, SeedOnly, ShiftOnly, ShiftOnlyWrapped, ShiftSeedWrapped, SeedOnlyK, KSeedEvaluator, SumOfValues,
     KSeedEvaluatorConf, SumOfLogValues, bucket_size_normalization_multiplier, space_lower_bound, ComparableF64};

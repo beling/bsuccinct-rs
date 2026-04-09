@@ -29,7 +29,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser> Partial<C, SS, SC, ()> {
         where BE: BucketToActivateEvaluator
     {
         let (f, build_conf) = Self::build_st(hashes, seed_size, conf, (), seed_chooser, bucket_evaluator);
-        let unassigned = build_conf.unassigned_len(&f.seeds.seeds);
+        let unassigned = build_conf.bumped_len(&f.seeds.seeds);
         (f, unassigned)
     }
 
@@ -43,7 +43,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser> Partial<C, SS, SC, ()> {
         where BE: BucketToActivateEvaluator + Sync, SC: Sync, BE::Value: Send
     {
         let (f, build_conf) = Self::build_mt(hashes, seed_size, conf, threads_num, (), seed_chooser, bucket_evaluator);
-        let unassigned = build_conf.unassigned_len(&f.seeds.seeds);
+        let unassigned = build_conf.bumped_len(&f.seeds.seeds);
         (f, unassigned)
     }
 
@@ -197,7 +197,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, S: BuildHasher> Partial<C, SS, SC, 
         let mut hashes: Box<[_]> = keys.map(|k| hasher.hash_one(k)).collect();
         let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
         let (f, build_conf) = Self::build_st(&mut hashes, params.seed_size(), conf, hasher, seed_chooser, bucket_evaluator);
-        let unassigned = build_conf.unassigned_len(&f.seeds.seeds);
+        let unassigned = build_conf.bumped_len(&f.seeds.seeds);
         (f, unassigned)
     }
 }

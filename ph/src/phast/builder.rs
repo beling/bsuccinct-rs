@@ -113,10 +113,10 @@ pub(crate) struct BuildConf<'k, C: Core, BE: BucketToActivateEvaluator, SS: Seed
     seed_size: SS
 }
 
-fn construct_unassigned(unassigned_len: usize) -> Box<[u64]> {
-    let mut unassigned_values = Box::with_filled_bits(unassigned_len);
-    if unassigned_len % 64 != 0 {
-        *unassigned_values.last_mut().unwrap() >>= 64 - unassigned_len % 64;
+fn construct_unassigned(output_range: usize) -> Box<[u64]> {
+    let mut unassigned_values = Box::with_filled_bits(output_range);
+    if output_range % 64 != 0 {
+        *unassigned_values.last_mut().unwrap() >>= 64 - output_range % 64;
     }
     unassigned_values
 }
@@ -138,31 +138,33 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
     }
 
     /// Clears bits of `unassigned_values` occupied by the keys in given `bucket`.
-    /// Decreases `unassigned_len` by `keys.len()`.
+    /// If the bucket is bumped, increases `unassigned_len` by the number of keys in the bucket.
     #[inline]
-    pub fn clear_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], unassigned_len: &mut usize) {
-        let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
-        if SC::BUMPING && seed == 0 { return; }
+    pub fn clear_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], bumped_len: &mut usize) {
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
+        let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
+        if SC::BUMPING && seed == 0 { 
+            *bumped_len += keys.len();
+            return;
+        }
         for key_hash in keys {
             //debug_assert!(unassigned_values.get_bit(self.seed_chooser.f(*key_hash, seed, &self.conf)));
             unassigned_values.clear_bit(self.seed_chooser.f(*key_hash, seed, &self.conf));
         }
-        *unassigned_len -= keys.len();
     }
 
-    /// Calculates bitmap of unassigned values and number of unassigned values of 1-perfect function.
+    /// Calculates bitmap (with length = output range) of free values of 1-perfect function and the number of bumped keys.
     pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
-        let mut unassigned_len = self.conf.output_range(&self.seed_chooser, self.seed_size.into());
-        let mut unassigned_values = construct_unassigned(unassigned_len);
+        let mut unassigned_values = construct_unassigned(self.conf.output_range(&self.seed_chooser, self.seed_size.into()));
+        let mut bumped_len = 0;
         for bucket in 0..self.bucket_begin.len()-1 {
-            self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut unassigned_len);
+            self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut bumped_len);
         }
-        (unassigned_values, unassigned_len)
+        (unassigned_values, bumped_len)
     }
 
     /// Calculates number of unassigned keys.
-    pub fn unassigned_len(&self, seeds: &[SS::VecElement]) -> usize {
+    pub fn bumped_len(&self, seeds: &[SS::VecElement]) -> usize {
         if !SC::BUMPING { return 0; }
         (0..self.bucket_begin.len()-1)
             .filter(|bucket| unsafe{ self.seed_size.get_seed(&seeds, *bucket) } == 0)
@@ -176,6 +178,33 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
             }
         }
         unassigned_len*/
+    }
+
+    /// Decreases `free_count`s occupied by the keys in given `bucket`. Increases `bumped_keys` if the `bucket` is bumped.
+    #[inline]
+    pub fn subtract_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], free_count: &mut [u16], bumped_keys: &mut usize) {
+        let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
+        let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
+        if SC::BUMPING && seed == 0 {
+            *bumped_keys += keys.len();
+            return;
+        }
+        for key_hash in keys {
+            //debug_assert!(free_count[self.seed_chooser.f(*key_hash, seed, &self.conf)] > 0);
+            free_count[self.seed_chooser.f(*key_hash, seed, &self.conf)] -= 1;
+        }
+    }
+
+    /// Returns number of free values of k-perfect function as an array indexed by values and the total number of free values
+    /// and the number of bumped keys.
+    pub fn unassigned_values_k(&self, seeds: &[SS::VecElement]) -> (Box<[u16]>, usize) {
+        let output_range = self.conf.output_range(&self.seed_chooser, self.seed_size.into());
+        let mut free_count = vec![self.seed_chooser.k(); output_range].into_boxed_slice();
+        let mut bumped_len = 0;
+        for bucket in 0..self.bucket_begin.len()-1 {
+            self.subtract_assigned_from_bucket(bucket, seeds, &mut free_count, &mut bumped_len);
+        }
+        (free_count, bumped_len)
     }
 }
 
