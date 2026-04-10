@@ -37,6 +37,24 @@ pub fn benchmark_rank9(conf: &Conf) {
 }
 
 #[cfg(target_pointer_width = "64")]
+pub fn benchmark_rs_small_u64_2(conf: &Conf) {
+    println!("sux RsSmall[u64:2]:");
+    let (content, tester) = build_bit_vec_u64(conf);
+    let rs = rank_small![u64: 2; content];
+    let rs_size = rs.mem_size(Default::default());
+    tester.raport_rank("sux RsSmall[u64:2]", rs_size, |index| rs.rank(index));
+    let sel = SelectSmall::<1, 10, _>::new(rs);
+    tester.raport_select1("sux RsSmall[u64:2]",
+        sel.mem_size(Default::default()) - rs_size,
+        |rank| unsafe { sel.select_unchecked(rank) });
+    let rs = sel.into_inner();
+    let sel = SelectZeroSmall::<1, 10, _>::new(rs);
+    tester.raport_select0("sux RsSmall[u64:2]",
+        sel.mem_size(Default::default()) - rs_size,
+        |rank| unsafe { sel.select_zero_unchecked(rank) });
+}
+
+#[cfg(target_pointer_width = "64")]
 pub fn benchmark_rs_small_u64_3(conf: &Conf) {
     println!("sux RsSmall[u64:3]:");
     let (content, tester) = build_bit_vec_u64(conf);
@@ -68,6 +86,24 @@ pub fn benchmark_rs_small_u64_4(conf: &Conf) {
     let rs = sel.into_inner();
     let sel = SelectZeroSmall::<3, 13, _>::new(rs);
     tester.raport_select0("sux RsSmall[u64:4]",
+        sel.mem_size(Default::default()) - rs_size,
+        |rank| unsafe { sel.select_zero_unchecked(rank) });
+}
+
+#[cfg(not(target_pointer_width = "64"))]
+pub fn benchmark_rs_small_u32_3(conf: &Conf) {
+    println!("sux RsSmall[u32:3]:");
+    let (content, tester) = build_bit_vec_u32(conf);
+    let rs = rank_small![u32: 3; content];
+    let rs_size = rs.mem_size(Default::default());
+    tester.raport_rank("sux RsSmall[u32:3]", rs_size, |index| rs.rank(index));
+    let sel = SelectSmall::<1, 10, _>::new(rs);
+    tester.raport_select1("sux RsSmall[u32:3]",
+        sel.mem_size(Default::default()) - rs_size,
+        |rank| unsafe { sel.select_unchecked(rank) });
+    let rs = sel.into_inner();
+    let sel = SelectZeroSmall::<1, 10, _>::new(rs);
+    tester.raport_select0("sux RsSmall[u32:3]",
         sel.mem_size(Default::default()) - rs_size,
         |rank| unsafe { sel.select_zero_unchecked(rank) });
 }
