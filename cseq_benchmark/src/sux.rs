@@ -97,53 +97,53 @@ pub fn benchmark_select_adapt(conf: &Conf) {
     );
 }
 
-pub fn benchmark_select_adapt_m1(conf: &Conf) {
-    println!("sux SelectAdapt (span-1):");
+pub fn benchmark_select_adapt_p1(conf: &Conf) {
+    println!("sux SelectAdapt (sparser):");
 
     let (mut content, tester) = build_bit_vec(conf);
     let content_size = content.mem_size(Default::default());
 
     let rs = SelectAdapt::with_span(content,
-        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY - 1),
+        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY + 1),
         DEFAULT_LOG2_WORDS_PER_SUBINVENTORY);
     tester.raport_select1(
-        "sux SelectAdapt (span-1)",
+        "sux SelectAdapt (sparser)",
         rs.mem_size(Default::default()) - content_size,
         |rank| unsafe { rs.select_unchecked(rank) },
     );
 
     content = rs.into_inner();
     let rs = SelectZeroAdapt::with_span(content,
-        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY - 1),
+        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY + 1),
         DEFAULT_LOG2_WORDS_PER_SUBINVENTORY);
     tester.raport_select0(
-        "sux SelectAdapt (span-1)",
+        "sux SelectAdapt (sparser)",
         rs.mem_size(Default::default()) - content_size,
         |rank| unsafe { rs.select_zero_unchecked(rank) },
     );
 }
 
-pub fn benchmark_select_adapt_m2(conf: &Conf) {
-    println!("sux SelectAdapt (span-2):");
+pub fn benchmark_select_adapt_p2(conf: &Conf) {
+    println!("sux SelectAdapt (sparsest):");
 
     let (mut content, tester) = build_bit_vec(conf);
     let content_size = content.mem_size(Default::default());
 
     let rs = SelectAdapt::with_span(content,
-        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY - 2),
+        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY + 2),
         DEFAULT_LOG2_WORDS_PER_SUBINVENTORY);
     tester.raport_select1(
-        "sux SelectAdapt (span-2)",
+        "sux SelectAdapt (sparsest)",
         rs.mem_size(Default::default()) - content_size,
         |rank| unsafe { rs.select_unchecked(rank) },
     );
 
     content = rs.into_inner();
     let rs = SelectZeroAdapt::with_span(content,
-        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY - 2),
+        default_target_inventory_span(DEFAULT_LOG2_WORDS_PER_SUBINVENTORY + 2),
         DEFAULT_LOG2_WORDS_PER_SUBINVENTORY);
     tester.raport_select0(
-        "sux SelectAdapt (span-2)",
+        "sux SelectAdapt (sparsest)",
         rs.mem_size(Default::default()) - content_size,
         |rank| unsafe { rs.select_zero_unchecked(rank) },
     );
