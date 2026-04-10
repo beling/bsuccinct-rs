@@ -4,7 +4,7 @@ mod elias_fano;
 mod bitm;
 #[cfg(target_pointer_width = "64")] mod sucds;
 #[cfg(target_pointer_width = "64")] mod succinct;
-#[cfg(target_pointer_width = "64")] mod sux;
+mod sux;
 #[cfg(feature = "vers-vecs")] mod vers;
 
 use std::{fs::{File, OpenOptions}, hint::black_box, num::{NonZeroU32, NonZeroU64}, ops::Range, time::Instant};
@@ -31,12 +31,35 @@ pub enum Structure {
     #[cfg(target_pointer_width = "64")]
     #[clap(visible_aliases = ["succ-rank9", "succ-r9"])]
     SuccinctRank9,
-    /// SelectFixed1 on uncompressed bit vector using sux crate
+    /// Rank9 on uncompressed bit vector using sux crate
+    #[clap(visible_alias = "sux-rank9")]
+    SuxRank9,
+    /// RankSmall[u64:2] on uncompressed bit vector using sux crate
     #[cfg(target_pointer_width = "64")]
+    #[clap(visible_alias = "sux-rs-u64-2")]
+    SuxRankSmallU64v2,
+    /// RankSmall[u64:3] on uncompressed bit vector using sux crate
+    #[cfg(target_pointer_width = "64")]
+    #[clap(visible_alias = "sux-rs-u64-3")]
+    SuxRankSmallU64v3,
+    /// RankSmall[u32:3] on uncompressed bit vector using sux crate
+    #[cfg(not(target_pointer_width = "64"))]
+    #[clap(visible_alias = "sux-rs-u32-3")]
+    SuxRankSmallU32v3,
+    /// RankSmall[u32:4] on uncompressed bit vector using sux crate
+    #[cfg(not(target_pointer_width = "64"))]
+    #[clap(visible_alias = "sux-rs-u32-4")]
+    SuxRankSmallU32v4,
+    /// SelectAdapt on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt")]
     SuxSelectAdapt,
-    /// SelectFixed2 on uncompressed bit vector using sux crate
-    #[cfg(target_pointer_width = "64")]
+    /// SelectAdapt with span-1 on uncompressed bit vector using sux crate
+    #[clap(visible_alias = "sux-adapt-m1")]
+    SuxSelectAdaptM1,
+    /// SelectAdapt with span-2 on uncompressed bit vector using sux crate
+    #[clap(visible_alias = "sux-adapt-m2")]
+    SuxSelectAdaptM2,
+    /// SelectAdaptConst on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt-const")]
     SuxSelectAdaptConst,
     /// Rank/Select on uncompressed bit vector using vers crate
@@ -442,8 +465,15 @@ fn main() {
         #[cfg(target_pointer_width = "64")] Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
         #[cfg(target_pointer_width = "64")] Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
         #[cfg(target_pointer_width = "64")] Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuxSelectAdapt => sux::benchmark_select_adapt_const(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuxSelectAdaptConst => sux::benchmark_select_adapt(&conf),
+        Structure::SuxRank9 => sux::benchmark_rank9(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuxRankSmallU64v2 => sux::benchmark_rank_small_u64_2(&conf),
+        #[cfg(target_pointer_width = "64")] Structure::SuxRankSmallU64v3 => sux::benchmark_rank_small_u64_3(&conf),
+        #[cfg(not(target_pointer_width = "64"))] Structure::SuxRankSmallU32v3 => sux::benchmark_rank_small_u32_3(&conf),
+        #[cfg(not(target_pointer_width = "64"))] Structure::SuxRankSmallU32v4 => sux::benchmark_rank_small_u32_4(&conf),
+        Structure::SuxSelectAdapt => sux::benchmark_select_adapt(&conf),
+        Structure::SuxSelectAdaptM1 => sux::benchmark_select_adapt_m1(&conf),
+        Structure::SuxSelectAdaptM2 => sux::benchmark_select_adapt_m2(&conf),
+        Structure::SuxSelectAdaptConst => sux::benchmark_select_adapt_const(&conf),
         #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf),
         Structure::BV => {
             bitm::benchmark_rank_select(&conf);
@@ -453,10 +483,15 @@ fn main() {
             succinct::benchmark_jacobson(&conf);
             }
             #[cfg(feature = "vers-vecs")] vers::benchmark_rank_select(&conf);
-            #[cfg(target_pointer_width = "64")] {
+            sux::benchmark_rank9(&conf);
+            #[cfg(target_pointer_width = "64")] sux::benchmark_rank_small_u64_2(&conf);
+            #[cfg(target_pointer_width = "64")] sux::benchmark_rank_small_u64_3(&conf);
+            #[cfg(not(target_pointer_width = "64"))] sux::benchmark_rank_small_u32_3(&conf);
+            #[cfg(not(target_pointer_width = "64"))] sux::benchmark_rank_small_u32_4(&conf);
             sux::benchmark_select_adapt(&conf);
+            sux::benchmark_select_adapt_m1(&conf);
+            sux::benchmark_select_adapt_m2(&conf);
             sux::benchmark_select_adapt_const(&conf);
-            }
         },
     }
 }

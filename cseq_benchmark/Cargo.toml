@@ -23,5 +23,5 @@ vers-vecs = { version="1.1", optional=true }
 [target.'cfg(target_pointer_width = "64")'.dependencies]
 sucds = "0.8"
 succinct = "0.5"
-sux="0.6"
-mem_dbg = "0.3" # required by sux MemSize
+sux= { git = "https://github.com/vigna/sux-rs" }
+mem_dbg = "0.4" # required by sux MemSize
