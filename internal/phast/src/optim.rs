@@ -76,7 +76,9 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
             80..100 => SumOfLogValuesFEval { free_values_weight: 0.87878, value_shift: 0.00331, free_shift: 4.10116, first_weight: 0.67052 }, // 0.55%
             100..128 => SumOfLogValuesFEval { free_values_weight: 0.86586, value_shift: 0.00344, free_shift: 4.10146, first_weight: 0.66337 },  // 0.60%
             128..256 => SumOfLogValuesFEval { free_values_weight: 0.84560, value_shift: 0.00332, free_shift: 4.22102, first_weight: 0.69698 },  // 0.68%
-            256.. => SumOfLogValuesFEval { free_values_weight: 0.87853, value_shift: 0.00384, free_shift: 5.43240, first_weight: 0.60892 }  // 1.16%
+            256..300 => SumOfLogValuesFEval { free_values_weight: 0.87853, value_shift: 0.00384, free_shift: 5.43240, first_weight: 0.60892 },  // 1.16%
+            300..400 => SumOfLogValuesFEval { free_values_weight: 0.94034, value_shift: 0.00279, free_shift: 8.08843, first_weight: 0.61947 }, // 1.34%
+            400.. => SumOfLogValuesFEval { free_values_weight: 0.86279, value_shift: 0.00392, free_shift: 5.79904, first_weight: 0.58109 }, // 1.79%
         }
     }
 }
