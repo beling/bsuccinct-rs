@@ -64,10 +64,10 @@ pub enum Structure {
     SuxSelectAdapt,
     /// SelectAdapt with sparser inventory on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt-sparser")]
-    SuxSelectAdaptP1,
+    SuxSelectAdaptSparser,
     /// SelectAdapt with sparsest inventory on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt-sparsest")]
-    SuxSelectAdaptP2,
+    SuxSelectAdaptSparsest,
     /// SelectAdaptConst on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt-const")]
     SuxSelectAdaptConst,
@@ -649,8 +649,8 @@ fn main() {
         #[cfg(not(target_pointer_width = "64"))]
         Structure::SuxRankSmallU32v4 => sux::benchmark_rank_small_u32_4(&conf),
         Structure::SuxSelectAdapt => sux::benchmark_select_adapt(&conf),
-        Structure::SuxSelectAdaptP1 => sux::benchmark_select_adapt_p1(&conf),
-        Structure::SuxSelectAdaptP2 => sux::benchmark_select_adapt_p2(&conf),
+        Structure::SuxSelectAdaptSparser => sux::benchmark_select_adapt_sparser(&conf),
+        Structure::SuxSelectAdaptSparsest => sux::benchmark_select_adapt_sparsest(&conf),
         Structure::SuxSelectAdaptConst => sux::benchmark_select_adapt_const(&conf),
         #[cfg(feature = "vers-vecs")]
         Structure::Vers => vers::benchmark_rank_select(&conf),
@@ -674,8 +674,8 @@ fn main() {
             #[cfg(not(target_pointer_width = "64"))]
             sux::benchmark_rank_small_u32_4(&conf);
             sux::benchmark_select_adapt(&conf);
-            sux::benchmark_select_adapt_p1(&conf);
-            sux::benchmark_select_adapt_p2(&conf);
+            sux::benchmark_select_adapt_sparser(&conf);
+            sux::benchmark_select_adapt_sparsest(&conf);
             sux::benchmark_select_adapt_const(&conf);
         }
     }

@@ -97,7 +97,7 @@ pub fn benchmark_select_adapt(conf: &Conf) {
     );
 }
 
-pub fn benchmark_select_adapt_p1(conf: &Conf) {
+pub fn benchmark_select_adapt_sparser(conf: &Conf) {
     println!("sux SelectAdapt (sparser):");
 
     let (mut content, tester) = build_bit_vec(conf);
@@ -123,7 +123,7 @@ pub fn benchmark_select_adapt_p1(conf: &Conf) {
     );
 }
 
-pub fn benchmark_select_adapt_p2(conf: &Conf) {
+pub fn benchmark_select_adapt_sparsest(conf: &Conf) {
     println!("sux SelectAdapt (sparsest):");
 
     let (mut content, tester) = build_bit_vec(conf);
