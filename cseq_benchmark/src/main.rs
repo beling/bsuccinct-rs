@@ -43,22 +43,22 @@ pub enum Structure {
     SuccinctRank9,
     /// Rank9 on uncompressed bit vector using sux crate
     SuxRank9,
-    /// RsSmall[u64:2] on uncompressed bit vector using sux crate
-    #[cfg(target_pointer_width = "64")]
-    #[clap(visible_alias = "sux-rs-u64-2")]
-    SuxRsSmallU64v2,
     /// RsSmall[u64:3] on uncompressed bit vector using sux crate
     #[cfg(target_pointer_width = "64")]
     #[clap(visible_alias = "sux-rs-u64-3")]
     SuxRsSmallU64v3,
-    /// RsSmall[u32:3] on uncompressed bit vector using sux crate
-    #[cfg(not(target_pointer_width = "64"))]
-    #[clap(visible_alias = "sux-rs-u32-3")]
-    SuxRsSmallU32v3,
+    /// RsSmall[u64:4] on uncompressed bit vector using sux crate
+    #[cfg(target_pointer_width = "64")]
+    #[clap(visible_alias = "sux-rs-u64-4")]
+    SuxRsSmallU64v4,
     /// RsSmall[u32:4] on uncompressed bit vector using sux crate
     #[cfg(not(target_pointer_width = "64"))]
     #[clap(visible_alias = "sux-rs-u32-4")]
     SuxRsSmallU32v4,
+    /// RsSmall[u32:5] on uncompressed bit vector using sux crate
+    #[cfg(not(target_pointer_width = "64"))]
+    #[clap(visible_alias = "sux-rs-u32-5")]
+    SuxRsSmallU32v5,
     /// SelectAdapt (default) on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt")]
     SuxSelectAdapt,
@@ -641,13 +641,13 @@ fn main() {
         Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
         Structure::SuxRank9 => sux::benchmark_rank9(&conf),
         #[cfg(target_pointer_width = "64")]
-        Structure::SuxRsSmallU64v2 => sux::benchmark_rs_small_u64_2(&conf),
-        #[cfg(target_pointer_width = "64")]
         Structure::SuxRsSmallU64v3 => sux::benchmark_rs_small_u64_3(&conf),
-        #[cfg(not(target_pointer_width = "64"))]
-        Structure::SuxRsSmallU32v3 => sux::benchmark_rs_small_u32_3(&conf),
+        #[cfg(target_pointer_width = "64")]
+        Structure::SuxRsSmallU64v4 => sux::benchmark_rs_small_u64_4(&conf),
         #[cfg(not(target_pointer_width = "64"))]
         Structure::SuxRsSmallU32v4 => sux::benchmark_rs_small_u32_4(&conf),
+        #[cfg(not(target_pointer_width = "64"))]
+        Structure::SuxRsSmallU32v5 => sux::benchmark_rs_small_u32_5(&conf),
         Structure::SuxSelectAdapt => sux::benchmark_select_adapt(&conf),
         Structure::SuxSelectAdaptSparser => sux::benchmark_select_adapt_sparser(&conf),
         Structure::SuxSelectAdaptSparsest => sux::benchmark_select_adapt_sparsest(&conf),
@@ -666,13 +666,13 @@ fn main() {
             vers::benchmark_rank_select(&conf);
             sux::benchmark_rank9(&conf);
             #[cfg(target_pointer_width = "64")]
-            sux::benchmark_rs_small_u64_2(&conf);
-            #[cfg(target_pointer_width = "64")]
             sux::benchmark_rs_small_u64_3(&conf);
-            #[cfg(not(target_pointer_width = "64"))]
-            sux::benchmark_rs_small_u32_3(&conf);
+            #[cfg(target_pointer_width = "64")]
+            sux::benchmark_rs_small_u64_4(&conf);
             #[cfg(not(target_pointer_width = "64"))]
             sux::benchmark_rs_small_u32_4(&conf);
+            #[cfg(not(target_pointer_width = "64"))]
+            sux::benchmark_rs_small_u32_5(&conf);
             sux::benchmark_select_adapt(&conf);
             sux::benchmark_select_adapt_sparser(&conf);
             sux::benchmark_select_adapt_sparsest(&conf);
