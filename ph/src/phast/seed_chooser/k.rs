@@ -2,7 +2,7 @@ use core::f64;
 
 use bitm::ceiling_div;
 
-use crate::phast::{ComparableF64, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}};
+use crate::phast::{ComparableF64, SeedChooserCore, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}};
 use super::SeedChooser;
 
 /// Returns approximation of lower bound of space (in bits/key)
@@ -146,6 +146,21 @@ impl KSeedEvaluator for SumOfLogValuesEvaluator {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct SeedKCore(pub u16);
+
+impl SeedChooserCore for SeedKCore {
+    
+    #[inline(always)] fn k(&self) -> u16 { self.0 }
+
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize {
+        core.f(primary_code, seed)
+    }
+
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
+    #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.0 as usize) }
+}
+
 
 /// [`SeedChooser`] to build `k`-perfect functions.
 /// `k` is given as a parameter of this chooser.
@@ -157,12 +172,12 @@ impl KSeedEvaluator for SumOfLogValuesEvaluator {
 #[derive(Clone, Copy)]
 pub struct SeedOnlyK<SE = SumOfLogValues> {
     pub seed_evaluator: SE,
-    pub k: u16,
+    pub core: SeedKCore,
 }
 
 impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
     pub fn new<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u16, seed_evaluator: SEC) -> Self {
-        Self { seed_evaluator: seed_evaluator.for_k(k), k }
+        Self { seed_evaluator: seed_evaluator.for_k(k), core: SeedKCore(k) }
     }
 }
 
@@ -172,7 +187,7 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
     //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let bucket_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, core);
-    for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
+    for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
             let value = seed_chooser.f(key, seed, core);
@@ -198,21 +213,17 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
 impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     type UsedValues = UsedValueMultiSetU16;
 
-    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(&self) -> u16 { self.k }
+    type Core = SeedKCore;
+    
+    #[inline(always)] fn core(&self) -> Self::Core { self.core }
 
-    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
-    #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.k() as usize) }
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize {
-        core.f(primary_code, seed)
-    }
 
     #[inline(always)]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;
         let mut best_value = SE::MAX;
-        best_seed_k(self.k, self, &self.seed_evaluator, &mut best_value, &mut best_seed, used_values, keys, core, 1<<bits_per_seed, bucket_nr, first_bucket_in_window);
+        best_seed_k(self.k(), self, &self.seed_evaluator, &mut best_value, &mut best_seed, used_values, keys, core, 1<<bits_per_seed, bucket_nr, first_bucket_in_window);
         if best_seed != 0 { // can assign seed to the bucket
             for key in keys {               
                 used_values.add(core.f(*key, best_seed));
@@ -220,5 +231,7 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
         };
         best_seed
     }
+    
+
 }
 

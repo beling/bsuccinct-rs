@@ -3,9 +3,7 @@ use std::io;
 use binout::{Serializer, VByte};
 use seedable_hash::map64_to_64;
 
-use crate::seeds::SeedSize;
-
-use super::SeedChooser;
+use crate::{phast::SeedChooserCore, seeds::SeedSize};
 
 /// The PHast core which is responsible for mapping key hashes to buckets and slices.
 pub trait Core: Copy+Sync {
@@ -111,8 +109,8 @@ pub trait Core: Copy+Sync {
     } 
 
     /// Returns output range of the function.
-    #[inline] fn output_range<SC: SeedChooser>(&self, seed_chooser: &SC, bits_per_seed: u8) -> usize {
-        self.num_of_slices() + self.slice_len_minus_one() as usize + seed_chooser.extra_shift(bits_per_seed) as usize
+    #[inline] fn output_range<SCC: SeedChooserCore>(&self, seed_chooser_core: SCC, bits_per_seed: u8) -> usize {
+        self.num_of_slices() + self.slice_len_minus_one() as usize + seed_chooser_core.extra_shift(bits_per_seed) as usize
     }
 
     #[inline] fn new_seeds_vec<SS: SeedSize>(&self, seed_size: SS) -> Box<[SS::VecElement]> {

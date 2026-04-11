@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{Generic, KSeedEvaluator, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::{Conf, Core}, function::{Level, SeedEx}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Generic, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, bits_per_seed_to_100_bucket_size, builder::{build_mt, build_st}, conf::{Conf, Core}, function::{Level, SeedEx}}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -15,16 +15,16 @@ use crate::{phast::{Generic, KSeedEvaluator, KSeedEvaluatorConf, ProdOfValues, S
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Perfect<SS: SeedSize, SC = SeedOnly, S = BuildDefaultSeededHasher>
+pub struct Perfect<SS: SeedSize, SCC = SeedCore, S = BuildDefaultSeededHasher>
 {
     level0: SeedEx<SS::VecElement>,
     levels: Box<[Level<SS::VecElement>]>,
     pub(crate) hasher: S,
-    seed_chooser: SC,
+    seed_chooser: SCC,
     seed_size: SS
 }
 
-impl<SC, SS: SeedSize, S> GetSize for Perfect<SS, SC, S> {
+impl<SCC, SS: SeedSize, S> GetSize for Perfect<SS, SCC, S> {
     fn size_bytes_dyn(&self) -> usize {
         self.level0.size_bytes_dyn() + self.levels.size_bytes_dyn()
     }
@@ -34,7 +34,7 @@ impl<SC, SS: SeedSize, S> GetSize for Perfect<SS, SC, S> {
     const USES_DYN_MEM: bool = true;
 }
 
-impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
+impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, S> {
     
     /// Returns value assigned to the given `key`.
     /// 
@@ -63,13 +63,13 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_p_hash_sc<K>(mut keys: Vec::<K>, params: &Generic<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash {
+    pub fn with_vec_p_hash_sc<K, SC>(mut keys: Vec::<K>, params: &Generic<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash, SC: SeedChooser<Core=SCC> {
         Self::_new(|h| {
             let level0 = Self::build_level_st(&mut keys, params, h, seed_chooser.clone(), 0);
             (keys, level0)
         }, |keys, level_nr, h| {
             Self::build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size)
+        }, hasher, seed_chooser.core(), params.seed_size)
     }
 
     /// Constructs [`Perfect`] function for given `keys`, using multiple (given number of) threads and given parameters:
@@ -77,15 +77,15 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_p_threads_hash_sc<K>(mut keys: Vec::<K>, params: &Generic<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send, S: Sync, SC: Sync {
+    pub fn with_vec_p_threads_hash_sc<K, SC>(mut keys: Vec::<K>, params: &Generic<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+        where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core=SCC> {
         if threads_num == 1 { return Self::with_vec_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
             let level0 = Self::build_level_mt(&mut keys, params, threads_num, &h, seed_chooser.clone(), 0);
             (keys, level0)
         }, |keys, level_nr, h| {
             Self::build_level_mt(keys, params, threads_num, &h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size)
+        }, hasher, seed_chooser.core(), params.seed_size)
     }
 
 
@@ -94,12 +94,12 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_p_hash_sc<K>(keys: &[K], params: &Generic<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash+Clone {
+    pub fn with_slice_p_hash_sc<K, SC>(keys: &[K], params: &Generic<SS>, hasher: S, seed_chooser: SC) -> Self where K: Hash+Clone, SC: SeedChooser<Core=SCC> {
         Self::_new(|h| {
             Self::build_level_from_slice_st(keys, params, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
             Self::build_level_st(keys, params, &h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size)
+        }, hasher, seed_chooser.core(), params.seed_size)
     }
 
 
@@ -108,28 +108,28 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_p_threads_hash_sc<K>(keys: &[K], params: &Generic<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync {
+    pub fn with_slice_p_threads_hash_sc<K, SC>(keys: &[K], params: &Generic<SS>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+        where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core=SCC> {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
             Self::build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
             Self::build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size)
+        }, hasher, seed_chooser.core(), params.seed_size)
     }
 
     #[inline]
-    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, seed_chooser: SC, seed_size: SS) -> Self
+    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, seed_chooser: SCC, seed_size: SS) -> Self
         where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS::VecElement>),
             BL: Fn(&mut Vec::<K>, u64, &S) -> SeedEx<SS::VecElement>,
             K: Hash
         {
         let (mut keys, level0) = build_first(&hasher);
-        let mut shift = level0.conf.output_range(&seed_chooser, seed_size.into());
+        let mut shift = level0.conf.output_range(seed_chooser, seed_size.into());
         let mut levels = Vec::with_capacity(16);
         while !keys.is_empty() {
             let seeds = build_level(&mut keys, levels.len() as u64+1, &hasher);
-            let out_range = seeds.conf.output_range(&seed_chooser, seed_size.into());
+            let out_range = seeds.conf.output_range(seed_chooser, seed_size.into());
             levels.push(Level { seeds, shift });
             shift += out_range;
         }
@@ -143,9 +143,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
     #[inline]
-    fn build_level_from_slice_st<K>(keys: &[K], params: &Generic<SS>, hasher: &S, seed_chooser: SC, level_nr: u64)
+    fn build_level_from_slice_st<K, SC>(keys: &[K], params: &Generic<SS>, hasher: &S, seed_chooser: SC, level_nr: u64)
         -> (Vec<K>, SeedEx<SS::VecElement>)
-        where K: Hash+Clone
+        where K: Hash+Clone, SC: SeedChooser<Core=SCC>
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         //radsort::unopt::sort(&mut hashes);
@@ -162,9 +162,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
     #[inline]
-    fn build_level_from_slice_mt<K>(keys: &[K], params: &Generic<SS>, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
+    fn build_level_from_slice_mt<K, SC>(keys: &[K], params: &Generic<SS>, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
         -> (Vec<K>, SeedEx<SS::VecElement>)
-        where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync
+        where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core=SCC>
     {
         let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
             keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
@@ -185,8 +185,8 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
     #[inline(always)]
-    fn build_level_st<K>(keys: &mut Vec::<K>, params: &Generic<SS>, hasher: &S, seed_chooser: SC, level_nr: u64) -> SeedEx<SS::VecElement>
-        where K: Hash
+    fn build_level_st<K, SC>(keys: &mut Vec::<K>, params: &Generic<SS>, hasher: &S, seed_chooser: SC, level_nr: u64) -> SeedEx<SS::VecElement>
+        where K: Hash, SC: SeedChooser<Core=SCC>
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
@@ -200,9 +200,9 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     }
 
     #[inline]
-    fn build_level_mt<K>(keys: &mut Vec::<K>, params: &Generic<SS>, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
+    fn build_level_mt<K, SC>(keys: &mut Vec::<K>, params: &Generic<SS>, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
         -> SeedEx<SS::VecElement>
-        where K: Hash+Sync+Send, S: Sync, SC: Sync
+        where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core=SCC>
     {
         let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
             //let mut k = Vec::with_capacity(keys.len());
@@ -236,14 +236,14 @@ impl<SS: SeedSize, SC: SeedChooser, S: BuildSeededHasher> Perfect<SS, SC, S> {
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
         if let Some(last_level) = self.levels.last() {
-            last_level.shift + last_level.seeds.conf.output_range(&self.seed_chooser, self.seed_size.into())
+            last_level.shift + last_level.seeds.conf.output_range(self.seed_chooser, self.seed_size.into())
         } else {
-            self.level0.conf.output_range(&self.seed_chooser, self.seed_size.into())
+            self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
         }
     }
 }
 
-impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
+impl Perfect<Bits8, SeedCore, BuildDefaultSeededHasher> {
     /// Constructs [`Perfect`] function for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.
@@ -277,13 +277,13 @@ impl Perfect<Bits8, SeedOnly, BuildDefaultSeededHasher> {
     }
 }
 
-impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher> {
+impl Perfect<Bits8, SeedKCore, BuildDefaultSeededHasher> {
     /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_vec_se_st<K, SEC>(k: u16, keys: Vec::<K>, seed_evaluator: SEC) -> Self
-        where K: Hash, SEC: KSeedEvaluatorConf<KSeedEvaluator = SE>
+        where K: Hash, SEC: KSeedEvaluatorConf
     {
         Self::with_vec_p_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
@@ -294,7 +294,7 @@ impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher>
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_vec_se_mt<K, SEC>(k: u16, keys: Vec::<K>, seed_evaluator: SEC) -> Self
-        where K: Hash+Send+Sync, SEC: KSeedEvaluatorConf<KSeedEvaluator = SE>
+        where K: Hash+Send+Sync, SEC: KSeedEvaluatorConf
     {
         Self::with_vec_p_threads_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
@@ -305,7 +305,7 @@ impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher>
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_slice_se_st<K, SEC>(k: u16, keys: &[K], seed_evaluator: SEC) -> Self 
-        where K: Hash+Clone, SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>
+        where K: Hash+Clone, SEC: KSeedEvaluatorConf
     {
         Self::with_slice_p_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
@@ -316,13 +316,13 @@ impl<SE: KSeedEvaluator> Perfect<Bits8, SeedOnlyK<SE>, BuildDefaultSeededHasher>
     /// 
     /// `keys` cannot contain duplicates.
     pub fn k_from_slice_se_mt<K, SEC>(k: u16, keys: &[K], seed_evaluator: SEC) -> Self 
-        where K: Hash+Clone+Send+Sync, SEC: KSeedEvaluatorConf<KSeedEvaluator = SE> {
+        where K: Hash+Clone+Send+Sync, SEC: KSeedEvaluatorConf {
         Self::with_slice_p_threads_hash_sc(keys, &Generic::new(Bits8, bits_per_seed_to_100_bucket_size(8)),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), SeedOnlyK::new(k, seed_evaluator))
     }
 }
 
-impl Perfect<Bits8, SeedOnlyK<SumOfValues>, BuildDefaultSeededHasher> {
+impl Perfect<Bits8, SeedKCore, BuildDefaultSeededHasher> {
     /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
@@ -365,13 +365,13 @@ pub(crate) mod tests {
 
     use super::*;
 
-    fn phf_test<SC, K, SS, S>(f: &Perfect<SS, SC, S>, keys: &[K])
-        where K: Display+Hash, SC: SeedChooser, SS: SeedSize, S: BuildSeededHasher
+    fn phf_test<SCC, K, SS, S>(f: &Perfect<SS, SCC, S>, keys: &[K])
+        where K: Display+Hash, SCC: SeedChooserCore, SS: SeedSize, S: BuildSeededHasher
     {
         verify_partial_phf(f.output_range(), keys, |key| Some(f.get(key)));
     }
 
-    fn kphf_test<K: Display+Hash, SS: SeedSize, SE: KSeedEvaluator, S: BuildSeededHasher>(f: &Perfect<SS, SeedOnlyK<SE>, S>, keys: &[K]) {
+    fn kphf_test<K: Display+Hash, SS: SeedSize, S: BuildSeededHasher>(f: &Perfect<SS, SeedKCore, S>, keys: &[K]) {
         verify_partial_kphf(f.k(), f.output_range(), keys, |key| Some(f.get(key)));
     }
     

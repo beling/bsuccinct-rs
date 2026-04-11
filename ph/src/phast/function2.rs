@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Conf, Generic, ProdOfValues, ShiftOnlyWrapped, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::SeedOnlyNoBump}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, Generic, ProdOfValues, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedOnlyNoBump, SeedNoBumpCore}}, seeds::{Bits8, SeedSize}};
 use super::{bits_per_seed_to_100_bucket_size, builder::build_last_level, conf::GenericCore, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;
@@ -25,7 +25,7 @@ use voracious_radix_sort::RadixSort;
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function2<C: Core, SS, SC = ShiftOnlyWrapped, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
+pub struct Function2<C: Core, SS, SCC = ShiftWrappedCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
     level0: SeedEx<SS::VecElement, C>,
@@ -34,7 +34,7 @@ pub struct Function2<C: Core, SS, SC = ShiftOnlyWrapped, CA = DefaultCompressedA
     hasher: S,
     last_level: Level<<Bits8 as SeedSize>::VecElement>,
     last_level_seed: u64,
-    seed_chooser: SC,
+    seed_chooser: SCC,
     seed_size: SS,
 }
 
@@ -54,7 +54,7 @@ impl<C: Core, SC, SS: SeedSize, CA, S> GetSize for Function2<C, SS, SC, CA, S> w
     const USES_DYN_MEM: bool = true;
 }
 
-impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeededHasher> Function2<C, SS, SC, CA, S> {
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildSeededHasher> Function2<C, SS, SCC, CA, S> {
     
     /// Returns value assigned to the given `key`.
     /// 
@@ -91,8 +91,8 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_p_hash_sc<K, P>(mut keys: Vec::<K>, params: &P, hasher: S, seed_chooser: SC) -> Self
-        where K: Hash, P: Conf<Core = C, SeedSize = SS> 
+    pub fn with_vec_p_hash_sc<K, P, SC>(mut keys: Vec::<K>, params: &P, hasher: S, seed_chooser: SC) -> Self
+        where K: Hash, SC: SeedChooser<Core = SCC>, P: Conf<Core = C, SeedSize = SS> 
     {
         let number_of_keys = keys.len();
         Self::_new(|h| {
@@ -101,7 +101,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size(), number_of_keys)
+        }, hasher, seed_chooser.core(), params.seed_size(), number_of_keys)
     }
 
     /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
@@ -109,8 +109,8 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_p_threads_hash_sc<K, P>(mut keys: Vec::<K>, params: &P, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send, S: Sync, SC: Sync, P: Conf<Core = C, SeedSize = SS>  {
+    pub fn with_vec_p_threads_hash_sc<K, P, SC>(mut keys: Vec::<K>, params: &P, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+        where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core = SCC>, P: Conf<Core = C, SeedSize = SS>  {
         if threads_num == 1 { return Self::with_vec_p_hash_sc(keys, params, hasher, seed_chooser); }
         let number_of_keys = keys.len();
         Self::_new(|h| {
@@ -119,7 +119,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size(), number_of_keys)
+        }, hasher, seed_chooser.core(), params.seed_size(), number_of_keys)
     }
 
 
@@ -128,13 +128,13 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_p_hash_sc<K, P>(keys: &[K], params: &P, hasher: S, seed_chooser: SC) -> Self
-    where K: Hash+Clone, P: Conf<Core = C, SeedSize = SS>  {
+    pub fn with_slice_p_hash_sc<K, P, SC>(keys: &[K], params: &P, hasher: S, seed_chooser: SC) -> Self
+    where K: Hash+Clone, SC: SeedChooser<Core = SCC>, P: Conf<Core = C, SeedSize = SS>  {
         Self::_new(|h| {
             build_level_from_slice_st(keys, params, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
             build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size(), keys.len())
+        }, hasher, seed_chooser.core(), params.seed_size(), keys.len())
     }
 
 
@@ -143,18 +143,18 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_p_threads_hash_sc<K, P>(keys: &[K], params: &P, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send+Clone, S: Sync, SC: Sync, P: Conf<Core = C, SeedSize = SS>  {
+    pub fn with_slice_p_threads_hash_sc<K, P, SC>(keys: &[K], params: &P, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+        where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core = SCC>, P: Conf<Core = C, SeedSize = SS>  {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser); }
         Self::_new(|h| {
             build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
             build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.clone(), params.seed_size(), keys.len())
+        }, hasher, seed_chooser.core(), params.seed_size(), keys.len())
     }
 
     #[inline]
-    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, seed_chooser: SC, seed_size: SS, number_of_keys: usize) -> Self
+    fn _new<K, BF, BL>(build_first: BF, build_level: BL, hasher: S, seed_chooser: SCC, seed_size: SS, number_of_keys: usize) -> Self
         where BF: FnOnce(&S) -> (Vec::<K>, SeedEx<SS::VecElement, C>, Box<[u64]>),
             BL: Fn(&mut Vec::<K>, u64, &S) -> (SeedEx<SS::VecElement, C>, Box<[u64]>),
             K: Hash
@@ -169,7 +169,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
         let mut levels = Vec::with_capacity(16);
         let mut last = 0;
         //let max_keys = 2048.max(SC::extra_shift(bits_p))
-        while keys.len() > SC::FUNCTION2_THRESHOLD /*2048*2*/ {
+        while keys.len() > SCC::FUNCTION2_THRESHOLD /*2048*2*/ {
             let keys_len = keys.len();
             //println!("{keys_len} {:.2}% keys bumped, {} {}% in {} self-collided buckets",
             //    keys_len as f64 / 100000.0,
@@ -207,7 +207,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
             last_shift = bumped_index_to_value.len();
-            for i in 0..last_seeds.conf.output_range(&SeedOnlyNoBump(ProdOfValues), Bits8.into()) {
+            for i in 0..last_seeds.conf.output_range(SeedNoBumpCore, Bits8.into()) {
                 if CA::MAX_FOR_UNUSED {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
@@ -268,7 +268,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.level0.conf.output_range(&self.seed_chooser, self.seed_size.into())
+        self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
     }
 
     /*#[inline(always)]
@@ -369,7 +369,7 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     }
 
     /// Read `Self` from the `input`. `hasher` and `seed_chooser` must be the same as used by the structure written.
-    pub fn read_with_hasher_sc(input: &mut dyn io::Read, hasher: S, seed_chooser: SC) -> io::Result<Self> {
+    pub fn read_with_hasher_sc(input: &mut dyn io::Read, hasher: S, seed_chooser: SCC) -> io::Result<Self> {
         let (seed_size, level0) = SeedEx::read(input)?;
         let unassigned = CA::read(input)?;
         let levels_num: usize = VByte::read(input)?;
@@ -383,15 +383,15 @@ impl<C: Core, SS: SeedSize, SC: SeedChooser, CA: CompressedArray, S: BuildSeeded
     }
 }
 
-impl<C: Core, SS: SeedSize> Function2<C, SS, ShiftOnlyWrapped, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl<C: Core, SS: SeedSize> Function2<C, SS, ShiftWrappedCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
 
     /// Read `Self` from the `input`. Uses default hasher and seed chooser.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
-        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
+        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), ShiftWrappedCore)
     }
 }
 
-impl Function2<GenericCore, Bits8, ShiftOnlyWrapped, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl Function2<GenericCore, Bits8, ShiftWrappedCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
     /// Constructs [`Function`] for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.

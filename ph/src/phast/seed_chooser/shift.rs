@@ -1,4 +1,4 @@
-use crate::phast::{Weights, conf::Core, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
+use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
 use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
@@ -28,6 +28,21 @@ use super::SeedChooser;
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct ShiftCore;
+
+impl SeedChooserCore for ShiftCore {
+    const FUNCTION2_THRESHOLD: usize = 8192;
+
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
+        conf.f_shift0(primary_code) + (seed-1) as usize
+    }
+
+    #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 {
+        (1 << bits_per_seed) - 2
+    }
+}
+
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ without wrapping*.
 /// 
 /// Must be used with [`Function2`].
@@ -41,9 +56,13 @@ pub struct ShiftOnly;
 //pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
 
 impl SeedChooser for ShiftOnly {
-    const FUNCTION2_THRESHOLD: usize = 8192;
+
 
     type UsedValues = UsedValueSetLarge;
+
+    type Core = ShiftCore;
+    
+    #[inline(always)] fn core(&self) -> Self::Core { ShiftCore }
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights(
@@ -89,13 +108,7 @@ impl SeedChooser for ShiftOnly {
         })
     }
 
-    #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 {
-        (1 << bits_per_seed) - 2
-    }
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.f_shift0(primary_code) + (seed-1) as usize
-    }
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
         slice_begin + conf.in_slice_noseed(primary_code) + (seed-1) as usize*MULTIPLIER as usize
@@ -127,5 +140,6 @@ impl SeedChooser for ShiftOnly {
         }
         0
     }
+
 }
 

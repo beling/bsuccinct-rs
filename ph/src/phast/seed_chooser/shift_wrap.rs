@@ -1,4 +1,4 @@
-use crate::phast::{Weights, conf::{Core, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
+use crate::phast::{SeedChooserCore, Weights, conf::{Core, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
 use super::SeedChooser;
 
 
@@ -67,6 +67,16 @@ impl<const MULTIPLIER: u8> Multiplier<MULTIPLIER> {
     }
 }
 
+
+#[derive(Clone, Copy)]
+pub struct ShiftWrappedCore<const MULTIPLIER: u8 = 1>;
+
+impl<const MULTIPLIER: u8> SeedChooserCore for ShiftWrappedCore<MULTIPLIER> {
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
+        conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one()) as usize
+        //conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
+    }
+}
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ with wrapping*.
 /// 
@@ -160,6 +170,10 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
 
     type UsedValues = UsedValueSet;
 
+    type Core = ShiftWrappedCore<MULTIPLIER>;
+
+    #[inline(always)] fn core(&self) -> Self::Core { ShiftWrappedCore::<MULTIPLIER> }
+
     //type UsedValues = UsedValueSetLarge;
     //const FUNCTION2_THRESHOLD: usize = 4096*2;
 
@@ -208,14 +222,6 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         }})
     }
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one()) as usize
-        //conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
-    }
-
-    /*#[inline(always)] fn f_slice<SS: SeedSize>(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf<SS>) -> usize {
-        slice_begin + ((primary_code as usize).wrapping_add((seed-1) as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
-    }*/
 
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {
@@ -275,6 +281,16 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
 }
 
 
+#[derive(Clone, Copy)]
+pub struct ShiftSeedCore<const MULTIPLIER: u8>(pub u8);
+
+impl<const MULTIPLIER: u8> SeedChooserCore for ShiftSeedCore<MULTIPLIER> {
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
+        conf.slice_begin(primary_code) +
+            ((mix_key_seed(primary_code, (seed>>self.0) + 1)
+             + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one()) as usize
+    }
+}
 
 /// [`SeedChooser`] to build (1-)perfect functions which uses both shifting with wrapping and regular hashing.
 /// The parameter points the number of bits of seed used for regular hashing.
@@ -294,6 +310,10 @@ pub struct ShiftSeedWrapped<const MULTIPLIER: u8>(pub u8);
 impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
     type UsedValues = UsedValueSet;
 
+    type Core = ShiftSeedCore<MULTIPLIER>;
+
+    #[inline(always)] fn core(&self) -> Self::Core { ShiftSeedCore::<MULTIPLIER>(self.0) }
+
     #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
                     n @ 0..64 => (n/2+1).next_power_of_two() as u16,
@@ -306,11 +326,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
     }
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.slice_begin(primary_code) +
-            ((mix_key_seed(primary_code, (seed>>self.0) + 1)
-             + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one()) as usize
-    }
+
 
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {
@@ -382,6 +398,8 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
             result
         }
     }
+    
+    
 }
 
 /*pub struct ShiftSeedWrapped<const BITS_PER_SEED: u8, const MULTIPLIER: u8>;

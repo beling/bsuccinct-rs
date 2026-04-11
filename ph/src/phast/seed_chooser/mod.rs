@@ -1,13 +1,13 @@
 mod k;
 use core::f64;
 
-pub use k::{SeedOnlyK, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier, space_lower_bound};
+pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier, space_lower_bound};
 
 mod shift;
-pub use shift::{ShiftOnly};
+pub use shift::{ShiftOnly, ShiftCore};
 
 mod shift_wrap;
-pub use shift_wrap::{ShiftOnlyWrapped, ShiftSeedWrapped};
+pub use shift_wrap::{ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore};
 
 use crate::{fmph::SeedSize, phast::{Weights, conf::{Core, Conf}, cyclic::{GenericUsedValue, UsedValueSet}}};
 
@@ -46,9 +46,8 @@ impl Ord for ComparableF64 {
     #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
 }
 
-
-/// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
-pub trait SeedChooser: Clone + Sync {
+/// Part of seed chooser stored in the function, without stuff needed only for constructing.
+pub trait SeedChooserCore: Copy {
     /// Specifies whether bumping is allowed.
     const BUMPING: bool = true;
 
@@ -58,20 +57,49 @@ pub trait SeedChooser: Clone + Sync {
     /// Size of last level of Function2. Important when `extra_shift()>0` (i.e. for `ShiftOnly`).
     const FUNCTION2_THRESHOLD: usize = 4096;
 
-    type UsedValues: GenericUsedValue;
+    /// Returns function value for given primary code and seed.
+    fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize;
+
+    #[inline(always)]
+    fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
+        let seed = unsafe { seed_size.get_seed(seeds, conf.bucket_for(primary_code)) };
+        (seed != 0).then(|| self.f(primary_code, seed, conf))
+    }
+
+    /// How much the chooser can add to value over slice length.
+    #[inline(always)] fn extra_shift(&self, _bits_per_seed: u8) -> u16 { 0 }
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
     #[inline(always)] fn k(&self) -> u16 { 1 }
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { num_of_keys }
+}
+
+
+/// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
+pub trait SeedChooser: Clone + Sync {
+
+    type Core: SeedChooserCore;
+
+    fn core(&self) -> Self::Core;
+
+
+
+    type UsedValues: GenericUsedValue;
+
+    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
+    #[inline(always)] fn k(&self) -> u16 { self.core().k() }
+
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
+    #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { self.core().minimal_output_range(num_of_keys) }
 
     #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights::new(bits_per_seed, slice_len)
     }
 
     /// How much the chooser can add to value over slice length.
-    #[inline(always)] fn extra_shift(&self, _bits_per_seed: u8) -> u16 { 0 }
+    #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 { self.core().extra_shift(bits_per_seed) }
 
     #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         slice_len(output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize), bits_per_seed, preferred_slice_len)
@@ -109,12 +137,13 @@ pub trait SeedChooser: Clone + Sync {
     }
 
     /// Returns function value for given primary code and seed.
-    fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize;
+    fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
+        self.core().f::<C>(primary_code, seed, conf)
+    }
 
     #[inline(always)]
     fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
-        let seed = unsafe { seed_size.get_seed(seeds, conf.bucket_for(primary_code)) };
-        (seed != 0).then(|| self.f(primary_code, seed, conf))
+        self.core().try_f::<SS, C>(seed_size, seeds, primary_code, conf)
     }
     
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
@@ -178,7 +207,7 @@ fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC,
     let simd_keys = keys.len() / 4 * 4;
     //assert!(simd_keys <= keys.len());
     let seed_eval_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, conf);
-    'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
+    'outer: for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for i in (0..simd_keys).step_by(4) {
             let values = [
@@ -226,7 +255,7 @@ fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &S
     assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let seed_eval_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, conf);
-    'outer: for seed in SC::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
+    'outer: for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
             let value = seed_chooser.f(key, seed, conf);
@@ -252,6 +281,20 @@ fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &S
 
 const SMALL_BUCKET_LIMIT: usize = 8;
 
+#[derive(Clone, Copy)]
+pub struct SeedCore;
+
+impl SeedChooserCore for SeedCore {
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
+        conf.f(primary_code, seed)
+    }
+
+    #[inline(always)]
+    fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
+        conf.try_f(seed_size, seeds, primary_code)
+    }
+}
+
 /// [`SeedChooser`] to build (1-)perfect functions.
 /// 
 /// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
@@ -264,14 +307,9 @@ pub struct SeedOnly<SE: SeedEvaluator = ProdOfValues>(pub SE);
 impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
     type UsedValues = UsedValueSet;
     
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.f(primary_code, seed)
-    }
+    type Core = SeedCore;
 
-    #[inline(always)]
-    fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
-        conf.try_f(seed_size, seeds, primary_code)
-    }
+    #[inline(always)] fn core(&self) -> Self::Core { SeedCore }
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
         slice_begin + conf.in_slice(primary_code, seed)
@@ -293,6 +331,20 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
         };
         best_seed
     }
+    
+    
+}
+
+#[derive(Clone, Copy)]
+pub struct SeedNoBumpCore;
+
+impl SeedChooserCore for SeedNoBumpCore {
+    const BUMPING: bool = false;
+    const FIRST_SEED: u16 = 0;
+
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
+        conf.f_nobump(primary_code, seed)
+    }
 }
 
 /// Choose best seed without shift component.
@@ -300,10 +352,11 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
 pub struct SeedOnlyNoBump<SE: SeedEvaluator = ProdOfValues>(pub SE);
 
 impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
-    const BUMPING: bool = false;
-    const FIRST_SEED: u16 = 0;
-
     type UsedValues = UsedValueSet;
+
+    type Core = SeedNoBumpCore;
+    
+    #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
 
     #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f_nobump(primary_code, seed)
@@ -326,6 +379,8 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
         };
         best_seed
     }
+    
+
 }
 
 

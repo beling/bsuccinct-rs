@@ -3,7 +3,7 @@ use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{phast::{ProdOfValues, conf::Core}, seeds::SeedSize};
-use super::{cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
+use super::{cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedChooserCore, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
 #[inline]
@@ -143,7 +143,7 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
     pub fn clear_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], bumped_len: &mut usize) {
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
         let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
-        if SC::BUMPING && seed == 0 { 
+        if SC::Core::BUMPING && seed == 0 { 
             *bumped_len += keys.len();
             return;
         }
@@ -155,7 +155,7 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
 
     /// Calculates bitmap (with length = output range) of free values of 1-perfect function and the number of bumped keys.
     pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
-        let mut unassigned_values = construct_unassigned(self.conf.output_range(&self.seed_chooser, self.seed_size.into()));
+        let mut unassigned_values = construct_unassigned(self.conf.output_range(self.seed_chooser.core(), self.seed_size.into()));
         let mut bumped_len = 0;
         for bucket in 0..self.bucket_begin.len()-1 {
             self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut bumped_len);
@@ -165,7 +165,7 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
 
     /// Calculates number of unassigned keys.
     pub fn bumped_len(&self, seeds: &[SS::VecElement]) -> usize {
-        if !SC::BUMPING { return 0; }
+        if !SC::Core::BUMPING { return 0; }
         (0..self.bucket_begin.len()-1)
             .filter(|bucket| unsafe{ self.seed_size.get_seed(&seeds, *bucket) } == 0)
             .map(|bucket| self.bucket_begin[bucket+1] - self.bucket_begin[bucket])
@@ -185,7 +185,7 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
     pub fn subtract_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], free_count: &mut [u16], bumped_keys: &mut usize) {
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
         let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
-        if SC::BUMPING && seed == 0 {
+        if SC::Core::BUMPING && seed == 0 {
             *bumped_keys += keys.len();
             return;
         }
@@ -198,7 +198,7 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
     /// Returns number of free values of k-perfect function as an array indexed by values and the total number of free values
     /// and the number of bumped keys.
     pub fn unassigned_values_k(&self, seeds: &[SS::VecElement]) -> (Box<[u16]>, usize) {
-        let output_range = self.conf.output_range(&self.seed_chooser, self.seed_size.into());
+        let output_range = self.conf.output_range(self.seed_chooser.core(), self.seed_size.into());
         let mut free_count = vec![self.seed_chooser.k(); output_range].into_boxed_slice();
         let mut bumped_len = 0;
         for bucket in 0..self.bucket_begin.len()-1 {
@@ -281,7 +281,7 @@ where C: Core + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync, BE:
     let mut bucket_begin = 0;
     let mut remaining_seeds = &mut seeds[..];
     let gap = gap_for(conf.slice_len() + builder.seed_chooser.extra_shift(seed_size.into()),
-        conf.buckets_num(), conf.output_range(&builder.seed_chooser, seed_size.into()));
+        conf.buckets_num(), conf.output_range(builder.seed_chooser.core(), seed_size.into()));
     //dbg!(conf.slice_len(), bucket_size100, gap);
     for _ in 0..threads_num-1 {
         let seeds;
@@ -300,7 +300,7 @@ where C: Core + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync, BE:
         let prev = next-1;
         for bucket in 0..gap {
             let seed = unsafe{ seed_size.get_seed(&thread_builders[next].seeds, bucket) } as u16;
-            if SC::BUMPING && seed == 0 { continue; }
+            if SC::Core::BUMPING && seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
                 thread_builders[prev].used_values.add(builder.seed_chooser.f(*key, seed, &builder.conf));
             }
@@ -445,7 +445,7 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> 
         //while let Some(best_bucket) = self.extract_best_bucket() {
             self.in_candidates_to_active.remove(best_bucket);
             let best_seed = self.best_seed(best_bucket);
-            if !SC::BUMPING && best_seed == u16::MAX { return; }
+            if !SC::Core::BUMPING && best_seed == u16::MAX { return; }
             //self.seeds.set_fragment(best_bucket, best_seed as u64, self.conf.conf.bits_per_seed());
             unsafe{ self.conf.seed_size.set_seed(&mut self.seeds, best_bucket, best_seed) };
             if best_bucket == self.span_begin {
