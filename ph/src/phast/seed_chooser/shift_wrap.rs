@@ -76,6 +76,43 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftWrappedCore<MULTIPLIER> {
         conf.slice_begin(primary_code) + ((primary_code as u16).wrapping_add(seed.wrapping_mul(MULTIPLIER as u16)) & conf.slice_len_minus_one()) as usize
         //conf.slice_begin(primary_code) + ((primary_code as usize).wrapping_add(seed as usize*MULTIPLIER as usize) & conf.slice_len_minus_one as usize)
     }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+            n @ 0..4096 => (n/2+1).next_power_of_two() as u16,
+            /*64..1300 => 64,
+            1300..1750 => 128,
+            1750..7500 => 256,
+            7500..150000 => 512,
+            150000..250000 => 1024,*/
+            //_ => 2048,
+            _ => /* 2* */ 4096,
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER {
+            1 => match bits_per_seed {
+                ..=5 => 256,
+                ..=7 => 512,   // or 6 => 256 for smaller size
+                ..=9 => 1024,   // or 8 => 512 for smaller size
+                ..=11 => 2048,   // or 10 => 1024 for smaller size(?)
+                _ => 4096,
+                //_ => 2*4096
+            },
+            2 => match bits_per_seed {
+                ..=5 => 256,
+                ..=7 => 512,
+                8 => 1024,
+                ..=10 => 2048,   // or 9 => 1024 for smaller size
+                _ => 4096   // only 11, do not use 12
+                //_ => 2*4096
+            },
+            _ => match bits_per_seed {
+                ..=4 => 256,
+                ..=7 => 512,
+                8 => 1024,
+                ..=10 => 2048,  // or (for MULTIPLIER=3) 10 => 4096 for faster construction
+                _ => 4096
+            },
+        }})
+    }
 }
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ with wrapping*.
@@ -185,42 +222,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         })
     }
 
-    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
-            n @ 0..4096 => (n/2+1).next_power_of_two() as u16,
-            /*64..1300 => 64,
-            1300..1750 => 128,
-            1750..7500 => 256,
-            7500..150000 => 512,
-            150000..250000 => 1024,*/
-            //_ => 2048,
-            _ => /* 2* */ 4096,
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER {
-            1 => match bits_per_seed {
-                ..=5 => 256,
-                ..=7 => 512,   // or 6 => 256 for smaller size
-                ..=9 => 1024,   // or 8 => 512 for smaller size
-                ..=11 => 2048,   // or 10 => 1024 for smaller size(?)
-                _ => 4096,
-                //_ => 2*4096
-            },
-            2 => match bits_per_seed {
-                ..=5 => 256,
-                ..=7 => 512,
-                8 => 1024,
-                ..=10 => 2048,   // or 9 => 1024 for smaller size
-                _ => 4096   // only 11, do not use 12
-                //_ => 2*4096
-            },
-            _ => match bits_per_seed {
-                ..=4 => 256,
-                ..=7 => 512,
-                8 => 1024,
-                ..=10 => 2048,  // or (for MULTIPLIER=3) 10 => 4096 for faster construction
-                _ => 4096
-            },
-        }})
-    }
+
 
 
     #[inline]
@@ -290,6 +292,18 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftSeedCore<MULTIPLIER> {
             ((mix_key_seed(primary_code, (seed>>self.0) + 1)
              + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one()) as usize
     }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+                    n @ 0..64 => (n/2+1).next_power_of_two() as u16,
+                    64..1300 => 64,
+                    1300..1750 => 128,
+                    1750..7500 => 256,
+                    7500..150000 => 512,
+                    150000..250000 => 1024,
+                    _ => 2048,
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
+    }
 }
 
 /// [`SeedChooser`] to build (1-)perfect functions which uses both shifting with wrapping and regular hashing.
@@ -314,17 +328,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
 
     #[inline(always)] fn core(&self) -> Self::Core { ShiftSeedCore::<MULTIPLIER>(self.0) }
 
-    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
-                    n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-                    64..1300 => 64,
-                    1300..1750 => 128,
-                    1750..7500 => 256,
-                    7500..150000 => 512,
-                    150000..250000 => 1024,
-                    _ => 2048,
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
-    }
+
 
 
 

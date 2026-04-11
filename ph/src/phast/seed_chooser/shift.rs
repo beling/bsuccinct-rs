@@ -41,6 +41,23 @@ impl SeedChooserCore for ShiftCore {
     #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 {
         (1 << bits_per_seed) - 2
     }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+            n @ ..8192 => (n/2+1).next_power_of_two() as u16,
+            _ => 8192
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
+            match bits_per_seed {
+                ..=4 => 128,
+                ..=7 => 256,
+                8 => 512,
+                9 => 1024,
+                10 => 2048,
+                11 => 4096,
+                _ => 8192
+            }
+        })
+    }
 }
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ without wrapping*.
@@ -87,23 +104,6 @@ impl SeedChooser for ShiftOnly {
                 (_, ..=2048) => [-1914, 10973, 70225, 173122, 240880, 305750, 293320],   // 12, 6.8, slice=2048
                 (_, ..=4096) => [-2651, -447, 16106, 163680, 223955, 353813, 339271],  // 12, 6.8, slice=4096
                 (_, _) => [-4309, -487, 21662, 26095, 83370, 157063, 543843],   // 12, 6.8, slice=8192
-            }
-        })
-    }
-
-    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
-            n @ ..8192 => (n/2+1).next_power_of_two() as u16,
-            _ => 8192
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
-            match bits_per_seed {
-                ..=4 => 128,
-                ..=7 => 256,
-                8 => 512,
-                9 => 1024,
-                10 => 2048,
-                11 => 4096,
-                _ => 8192
             }
         })
     }

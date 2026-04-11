@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
-use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedOnly, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
 use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{GenericProdOfValues, SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1, SumOfLogValuesFEval, WGenericProdOfValues, WeightsF}};
 
@@ -332,14 +332,14 @@ impl Conf {
         total.print_avg(self);
     }
 
-    fn optimizer<SC: SeedChooser>(&self, seed_chooser: &SC) -> (NelderMead, ph::phast::GenericCore) {
+    fn optimizer<SC: SeedChooserCore>(&self, seed_chooser_core: SC) -> (NelderMead, ph::phast::GenericCore) {
         let bucket_size = self.bucket_size().into();
         let minimizer = NelderMeadBuilder::default()
             .maxiter(self.optimization_iters() as usize) 
             .ulps(128)
             .build()
             .unwrap();
-        (minimizer, seed_chooser.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len))
+        (minimizer, seed_chooser_core.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len))
     }
 
     const KEY_SETS_NUM: u32 = 96;
@@ -355,7 +355,7 @@ impl Conf {
     }
 
     pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
-        let (minimizer, conf) = self.optimizer(&seed_chooser);
+        let (minimizer, conf) = self.optimizer(seed_chooser.core());
         let args = Array::from_vec(WeightsF::from(seed_chooser.bucket_evaluator(self.bits_per_seed, conf.slice_len())).size_weights.into_vec());
 
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
@@ -371,7 +371,7 @@ impl Conf {
     pub fn optimize_perfectlog0(&self) {
         let s = SumOfLogValuesF0.for_k(self.k);
         let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight]);
-        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, s));
+        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
         
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
@@ -384,7 +384,7 @@ impl Conf {
     pub fn optimize_perfectlog(&self) {
         let s = SumOfLogValuesF.for_k(self.k);
         let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight]);
-        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, s));
+        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
         
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[2], x[0], x[1], x[3]);
@@ -398,7 +398,7 @@ impl Conf {
     pub fn optimize_perfectlog1(&self) {
         let s = SumOfLogValuesF1.for_k(self.k);
         let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight]);
-        let (minimizer, conf) = self.optimizer(&SeedOnlyK::new(self.k, s));
+        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
         
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", x[2], x[0], x[1]);
@@ -460,7 +460,7 @@ impl Conf {
     }*/
 
     pub fn optimize_wgenericprod(&self) {
-        let (minimizer, conf) = self.optimizer(&SeedOnly(WGenericProdOfValues([181.0, 177.0, 108.0, 80.0])));
+        let (minimizer, conf) = self.optimizer(SeedCore);
         let args = Array::from_vec(vec![181.0, 177.0, 108.0, 80.0]);
         let ans = minimizer.minimize(|x: ArrayView1<f64>| {
             let slice = x.as_slice().unwrap();

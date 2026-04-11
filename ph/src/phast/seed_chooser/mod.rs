@@ -74,50 +74,10 @@ pub trait SeedChooserCore: Copy {
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { num_of_keys }
-}
-
-
-/// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
-pub trait SeedChooser: Clone + Sync {
-
-    type Core: SeedChooserCore;
-
-    fn core(&self) -> Self::Core;
-
-
-
-    type UsedValues: GenericUsedValue;
-
-    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(&self) -> u16 { self.core().k() }
-
-    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
-    #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { self.core().minimal_output_range(num_of_keys) }
-
-    #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        Weights::new(bits_per_seed, slice_len)
-    }
-
-    /// How much the chooser can add to value over slice length.
-    #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 { self.core().extra_shift(bits_per_seed) }
 
     #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         slice_len(output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize), bits_per_seed, preferred_slice_len)
     }
-
-/*     fn conf(&self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into(), preferred_slice_len);
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
-    }
-
-    #[inline(always)] fn conf_for_minimal(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
-    }
-
-    #[inline(always)] fn conf_for_minimal_p<SS: Copy+Into<u8>>(&self, num_of_keys: usize, params: &Params<SS>) -> Conf {
-        self.conf_for_minimal(num_of_keys, params.seed_size.into(), params.bucket_size100, params.preferred_slice_len)
-    } */
 
     fn conf(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
         GenericCore::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
@@ -134,6 +94,64 @@ pub trait SeedChooser: Clone + Sync {
 
     #[inline(always)] fn conf_for_minimal_p<P: Conf>(&self, num_of_keys: usize, params: &P) -> P::Core {
         self.conf_p(self.minimal_output_range(num_of_keys), num_of_keys, params)
+    }
+}
+
+
+/// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
+pub trait SeedChooser: Clone + Sync {
+
+    type Core: SeedChooserCore;
+
+    fn core(&self) -> Self::Core;
+
+    type UsedValues: GenericUsedValue;
+
+    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
+    #[inline(always)] fn k(&self) -> u16 { self.core().k() }
+
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
+    #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { self.core().minimal_output_range(num_of_keys) }
+
+    #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights::new(bits_per_seed, slice_len)
+    }
+
+    /// How much the chooser can add to value over slice length.
+    #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 { self.core().extra_shift(bits_per_seed) }
+
+    /*#[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        self.core().slice_len(output_range, bits_per_seed, preferred_slice_len)
+    }*/
+
+/*     fn conf(&self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
+        let max_shift = self.extra_shift(bits_per_seed);
+        let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into(), preferred_slice_len);
+        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
+    }
+
+    #[inline(always)] fn conf_for_minimal(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
+        self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
+    }
+
+    #[inline(always)] fn conf_for_minimal_p<SS: Copy+Into<u8>>(&self, num_of_keys: usize, params: &Params<SS>) -> Conf {
+        self.conf_for_minimal(num_of_keys, params.seed_size.into(), params.bucket_size100, params.preferred_slice_len)
+    } */
+
+    fn conf(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
+        self.core().conf(output_range, num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
+    }
+
+    #[inline(always)] fn conf_for_minimal(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
+        self.core().conf_for_minimal(num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
+    }
+
+    #[inline(always)] fn conf_p<P: Conf>(&self, output_range: usize, num_of_keys: usize, params: &P) -> P::Core {
+        self.core().conf_p::<P>(output_range, num_of_keys, params)
+    }
+
+    #[inline(always)] fn conf_for_minimal_p<P: Conf>(&self, num_of_keys: usize, params: &P) -> P::Core {
+        self.core().conf_for_minimal_p::<P>(num_of_keys, params)
     }
 
     /// Returns function value for given primary code and seed.
