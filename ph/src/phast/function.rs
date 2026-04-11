@@ -193,7 +193,7 @@ pub struct Function<C: Core, SS, SC = SeedCore, CA = DefaultCompressedArray, S =
     where SS: SeedSize
 {
     level0: SeedEx<SS::VecElement, C>,
-    unassigned: CA,
+    bumped_index_to_value: CA,
     levels: Box<[Level<SS::VecElement, C>]>,
     hasher: S,
     seed_chooser: SC,
@@ -203,12 +203,12 @@ pub struct Function<C: Core, SS, SC = SeedCore, CA = DefaultCompressedArray, S =
 impl<C: Core, SS: SeedSize, SC, CA, S> GetSize for Function<C, SS, SC, CA, S> where CA: GetSize {
     fn size_bytes_dyn(&self) -> usize {
         self.level0.size_bytes_dyn() +
-            self.unassigned.size_bytes_dyn() +
+            self.bumped_index_to_value.size_bytes_dyn() +
             self.levels.size_bytes_dyn()
     }
     fn size_bytes_content_dyn(&self) -> usize {
         self.level0.size_bytes_content_dyn() +
-            self.unassigned.size_bytes_content_dyn() +
+            self.bumped_index_to_value.size_bytes_content_dyn() +
             self.levels.size_bytes_content_dyn()
     }
     const USES_DYN_MEM: bool = true;
@@ -241,7 +241,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
             }*/
             if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.conf) {
-                return self.unassigned.get(result + l.shift);
+                return self.bumped_index_to_value.get(result + l.shift);
             }
         }
         unreachable!()
@@ -363,7 +363,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         drop(level0_unassigned);
         Self {
             level0,
-            unassigned: CA::new(bumped_index_to_value, last, number_of_keys),
+            bumped_index_to_value: CA::new(bumped_index_to_value, last, number_of_keys),
             levels: levels.into_boxed_slice(),
             hasher,
             seed_chooser,
@@ -456,7 +456,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         self.level0.write_bytes() +
-        self.unassigned.write_bytes() +
+        self.bumped_index_to_value.write_bytes() +
         VByte::size(self.levels.len()) +
         self.levels.iter().map(|l| l.size_bytes()).sum::<usize>()
     }
@@ -465,7 +465,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
     {
         self.level0.write(output, self.seed_size)?;
-        self.unassigned.write(output)?;
+        self.bumped_index_to_value.write(output)?;
         VByte::write(output, self.levels.len())?;
         for level in &self.levels {
             level.write(output, self.seed_size)?;
@@ -482,7 +482,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         for _ in 0..levels_num {
             levels.push(Level::read::<SS>(input)?.1);
         }
-        Ok(Self { level0, unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser: seed_chooser_core, seed_size })
+        Ok(Self { level0, bumped_index_to_value: unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser: seed_chooser_core, seed_size })
     }
 }
 
