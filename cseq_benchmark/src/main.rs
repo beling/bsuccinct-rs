@@ -1,14 +1,23 @@
 #![doc = include_str!("../README.md")]
 
-mod elias_fano;
 mod bitm;
-#[cfg(target_pointer_width = "64")] mod sucds;
-#[cfg(target_pointer_width = "64")] mod succinct;
-#[cfg(target_pointer_width = "64")] mod sux;
-#[cfg(feature = "vers-vecs")] mod vers;
+mod elias_fano;
+#[cfg(target_pointer_width = "64")]
+mod succinct;
+#[cfg(target_pointer_width = "64")]
+mod sucds;
+mod sux;
+#[cfg(feature = "vers-vecs")]
+mod vers;
 
-use std::{fs::{File, OpenOptions}, hint::black_box, num::{NonZeroU32, NonZeroU64}, ops::Range, time::Instant};
 use std::io::Write;
+use std::{
+    fs::{File, OpenOptions},
+    hint::black_box,
+    num::{NonZeroU32, NonZeroU64},
+    ops::Range,
+    time::Instant,
+};
 
 use butils::{UnitPrefix, XorShift64};
 use clap::{Parser, Subcommand, ValueEnum};
@@ -22,7 +31,8 @@ pub enum Structure {
     /// Rank/Select on uncompressed bit vector using bitm crate
     BitmBV,
     /// Rank/Select on uncompressed bit vector using sucds crate
-    #[cfg(target_pointer_width = "64")] SucdsBV,
+    #[cfg(target_pointer_width = "64")]
+    SucdsBV,
     /// Rank/Select on uncompressed bit vector using Jacobson from succinct crate
     #[cfg(target_pointer_width = "64")]
     #[clap(visible_alias = "succ-jacobson")]
@@ -31,18 +41,49 @@ pub enum Structure {
     #[cfg(target_pointer_width = "64")]
     #[clap(visible_aliases = ["succ-rank9", "succ-r9"])]
     SuccinctRank9,
-    /// SelectFixed1 on uncompressed bit vector using sux crate
+    /// Rank9 on uncompressed bit vector using sux crate
+    SuxRank9,
+    /// RsSmall[u64:2] on uncompressed bit vector using sux crate
     #[cfg(target_pointer_width = "64")]
+    #[clap(visible_alias = "sux-rs-u64-2")]
+    SuxRsSmallU64v2,
+    /// RsSmall[u64:3] on uncompressed bit vector using sux crate
+    #[cfg(target_pointer_width = "64")]
+    #[clap(visible_alias = "sux-rs-u64-3")]
+    SuxRsSmallU64v3,
+    /// RsSmall[u64:4] on uncompressed bit vector using sux crate
+    #[cfg(target_pointer_width = "64")]
+    #[clap(visible_alias = "sux-rs-u64-4")]
+    SuxRsSmallU64v4,
+    /// RsSmall[u32:3] on uncompressed bit vector using sux crate
+    #[cfg(not(target_pointer_width = "64"))]
+    #[clap(visible_alias = "sux-rs-u32-3")]
+    SuxRsSmallU32v3,
+    /// RsSmall[u32:4] on uncompressed bit vector using sux crate
+    #[cfg(not(target_pointer_width = "64"))]
+    #[clap(visible_alias = "sux-rs-u32-4")]
+    SuxRsSmallU32v4,
+    /// RsSmall[u32:5] on uncompressed bit vector using sux crate
+    #[cfg(not(target_pointer_width = "64"))]
+    #[clap(visible_alias = "sux-rs-u32-5")]
+    SuxRsSmallU32v5,
+    /// SelectAdapt (default) on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt")]
     SuxSelectAdapt,
-    /// SelectFixed2 on uncompressed bit vector using sux crate
-    #[cfg(target_pointer_width = "64")]
+    /// SelectAdapt with sparser inventory on uncompressed bit vector using sux crate
+    #[clap(visible_alias = "sux-adapt-sparser")]
+    SuxSelectAdaptSparser,
+    /// SelectAdapt with sparsest inventory on uncompressed bit vector using sux crate
+    #[clap(visible_alias = "sux-adapt-sparsest")]
+    SuxSelectAdaptSparsest,
+    /// SelectAdaptConst on uncompressed bit vector using sux crate
     #[clap(visible_alias = "sux-adapt-const")]
     SuxSelectAdaptConst,
     /// Rank/Select on uncompressed bit vector using vers crate
-    #[cfg(feature = "vers-vecs")] Vers,
+    #[cfg(feature = "vers-vecs")]
+    Vers,
     /// Rank and select on bit vectors using all supported methods and crates
-    BV
+    BV,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -60,11 +101,15 @@ pub enum Distribution {
 
 impl std::fmt::Display for Distribution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match *self {
-            Distribution::Uniform => "uniform",
-            Distribution::Adversarial => "adversarial",
-            Distribution::LinearlyDensified => "linearly densified",
-        })
+        write!(
+            f,
+            "{}",
+            match *self {
+                Distribution::Uniform => "uniform",
+                Distribution::Adversarial => "adversarial",
+                Distribution::LinearlyDensified => "linearly densified",
+            }
+        )
     }
 }
 
@@ -89,11 +134,11 @@ pub struct Conf {
     pub distribution: Distribution,
 
     /// Time (in seconds) of measuring and warming up the CPU cache before measuring
-    #[arg(short='t', long, default_value_t = 5)]
+    #[arg(short = 't', long, default_value_t = 5)]
     pub time: u16,
 
     /// Time (in seconds) of cooling (sleeping) before warming up and measuring
-    #[arg(short='c', long, default_value_t = 0)]
+    #[arg(short = 'c', long, default_value_t = 0)]
     pub cooling_time: u16,
 
     /// Whether to check the validity of built sequence
@@ -109,7 +154,7 @@ pub struct Conf {
     pub queries: NonZeroU32,
 
     /// Save detailed results to CSV file(s)
-    #[arg(short='f', long, default_value_t = false)]
+    #[arg(short = 'f', long, default_value_t = false)]
     pub save_details: bool,
 }
 
@@ -124,38 +169,63 @@ struct Tester<'c> {
     /// Real number of ones/items.
     number_of_ones: usize,
     /// Needed for validation of `rank` operation; 'false' by default, but can be changed after construction.
-    rank_includes_current: bool
+    rank_includes_current: bool,
 }
 
 /// Prints a message if `expected` differs from `got` and puts `structure_name`, `operation_name` and `argument` in the message,
-fn check<R: Into<Option<usize>>>(structure_name: &str, operation_name: &str, argument: usize, expected: usize, got: R) {
+fn check<R: Into<Option<usize>>>(
+    structure_name: &str,
+    operation_name: &str,
+    argument: usize,
+    expected: usize,
+    got: R,
+) {
     if let Some(got) = got.into() {
         if got != expected {
             eprintln!("{structure_name}: {operation_name}({argument}) returned {got}, but should {expected}");
         }
     } else {
-        eprintln!("{structure_name}: {operation_name}({argument}) returned None, but should {expected}")
+        eprintln!(
+            "{structure_name}: {operation_name}({argument}) returned None, but should {expected}"
+        )
     }
 }
 
 impl<'c> Tester<'c> {
     /// Tests function answering `rank` queries. Reports its speed and potentially validates.
-    #[inline(always)] pub fn raport_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, size_bytes: usize, rank: F)
-    where F: Fn(usize) -> R
+    #[inline(always)]
+    pub fn raport_rank<R: Into<Option<usize>>, F>(
+        &self,
+        method_name: &str,
+        size_bytes: usize,
+        rank: F,
+    ) where
+        F: Fn(usize) -> R,
     {
-        print!("  rank:  space overhead {:.2}%", self.conf.space_overhead(size_bytes));
-        let time = self.conf.queries_measure(&self.conf.rand_queries(self.conf.universe), &rank).as_nanos();
+        print!(
+            "  rank:  space overhead {:.2}%",
+            self.conf.space_overhead(size_bytes)
+        );
+        let time = self
+            .conf
+            .queries_measure(&self.conf.rand_queries(self.conf.universe), &rank)
+            .as_nanos();
         println!("  time/query {:.2}ns", time);
         self.conf.save_rank(method_name, size_bytes, time);
         self.verify_rank(method_name, rank);
     }
 
     /// If verification flag is set, validates function answering `rank` queries using all points of the universe.
-    fn verify_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, rank: F) where F: Fn(usize) -> R {
+    fn verify_rank<R: Into<Option<usize>>, F>(&self, method_name: &str, rank: F)
+    where
+        F: Fn(usize) -> R,
+    {
         if self.conf.verify {
             //print!("   verification of rank answers... ");
             self.conf.data_foreach(|index, mut expected_rank, value| {
-                if self.rank_includes_current && value { expected_rank += 1 }
+                if self.rank_includes_current && value {
+                    expected_rank += 1
+                }
                 check(method_name, "rank", index, expected_rank, rank(index))
             });
             //println!("DONE");
@@ -163,57 +233,98 @@ impl<'c> Tester<'c> {
     }
 
     /// Tests function answering `select` (one) queries. Reports its speed and potentially validates.
-    #[inline(always)] pub fn raport_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, extra_size_bytes: usize, select: F)
-    where F: Fn(usize) -> R
+    #[inline(always)]
+    pub fn raport_select1<R: Into<Option<usize>>, F>(
+        &self,
+        method_name: &str,
+        extra_size_bytes: usize,
+        select: F,
+    ) where
+        F: Fn(usize) -> R,
     {
         if self.number_of_ones == 0 {
             //println!("skipping select1 test as there are no ones");
             return;
         }
         print!("  select1:");
-        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", self.conf.extra_space_overhead(extra_size_bytes)); }
-        let time = self.conf.queries_measure(&self.conf.rand_queries(self.number_of_ones), &select).as_nanos();
+        if extra_size_bytes != 0 {
+            print!(
+                "  space overhead {:.2}%",
+                self.conf.extra_space_overhead(extra_size_bytes)
+            );
+        }
+        let time = self
+            .conf
+            .queries_measure(&self.conf.rand_queries(self.number_of_ones), &select)
+            .as_nanos();
         println!("  time/query {:.2}ns", time);
         self.conf.save_select1(method_name, extra_size_bytes, time);
         self.verify_select1(method_name, select);
     }
 
     /// If verification flag is set, validates function answering `select` (one) queries using all ones in the universe.
-    fn verify_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, select: F) where F: Fn(usize) -> R {
+    fn verify_select1<R: Into<Option<usize>>, F>(&self, method_name: &str, select: F)
+    where
+        F: Fn(usize) -> R,
+    {
         if self.conf.verify {
             //print!("   verification of select1 answers... ");
-            self.conf.data_foreach(|index, rank, value| if value {
-                check(method_name, "select", rank, index, select(rank))
+            self.conf.data_foreach(|index, rank, value| {
+                if value {
+                    check(method_name, "select", rank, index, select(rank))
+                }
             });
             //println!("DONE");
         }
     }
 
     /// Tests function answering `select0` queries. Reports its speed and potentially validates.
-    #[inline(always)] pub fn raport_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, extra_size_bytes: usize, select0: F)
-    where F: Fn(usize) -> R
+    #[inline(always)]
+    pub fn raport_select0<R: Into<Option<usize>>, F>(
+        &self,
+        method_name: &str,
+        extra_size_bytes: usize,
+        select0: F,
+    ) where
+        F: Fn(usize) -> R,
     {
         if self.conf.universe == self.number_of_ones {
             //println!("skipping select0 test as there are no zeros");
             return;
         }
         print!("  select0:");
-        if extra_size_bytes != 0 { print!("  space overhead {:.2}%", self.conf.extra_space_overhead(extra_size_bytes)); }
-        let time = self.conf.queries_measure(
-            &self.conf.rand_queries(self.conf.universe-self.number_of_ones),
-            &select0).as_nanos();
+        if extra_size_bytes != 0 {
+            print!(
+                "  space overhead {:.2}%",
+                self.conf.extra_space_overhead(extra_size_bytes)
+            );
+        }
+        let time = self
+            .conf
+            .queries_measure(
+                &self
+                    .conf
+                    .rand_queries(self.conf.universe - self.number_of_ones),
+                &select0,
+            )
+            .as_nanos();
         println!("  time/query {:.2}ns", time);
         self.conf.save_select0(method_name, extra_size_bytes, time);
         self.verify_select0(method_name, select0);
     }
 
     /// If verification flag is set, validates function answering `select0` queries using all zeros in the universe.
-    fn verify_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, select0: F) where F: Fn(usize) -> R {
+    fn verify_select0<R: Into<Option<usize>>, F>(&self, method_name: &str, select0: F)
+    where
+        F: Fn(usize) -> R,
+    {
         if self.conf.verify {
             //print!("   verification of select0 answers... ");
-            self.conf.data_foreach(|index, rank1, value| if !value {
-                let rank0 = index - rank1;
-                check(method_name, "select0", rank0, index, select0(rank0))
+            self.conf.data_foreach(|index, rank1, value| {
+                if !value {
+                    let rank0 = index - rank1;
+                    check(method_name, "select0", rank0, index, select0(rank0))
+                }
             });
             //println!("DONE");
         }
@@ -221,7 +332,15 @@ impl<'c> Tester<'c> {
 }
 
 impl Conf {
-    #[inline(always)] fn uniform_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F, gen: &mut XorShift64, total_ones: &mut usize, mut num: usize, universe: Range<usize>) {
+    #[inline(always)]
+    fn uniform_foreach<F: FnMut(usize, usize, bool)>(
+        &self,
+        mut f: F,
+        gen: &mut XorShift64,
+        total_ones: &mut usize,
+        mut num: usize,
+        universe: Range<usize>,
+    ) {
         let mut remain_universe = universe.len();
         for i in universe {
             let included = gen.get() as usize % remain_universe < num;
@@ -237,8 +356,8 @@ impl Conf {
     /// Returns real number of items, usually close to `self.num`.
     fn num(&self) -> usize {
         match self.distribution {
-            Distribution::Uniform|Distribution::Adversarial => self.num,
-            Distribution::LinearlyDensified => { self.data_foreach(|_, _, _| {}) }
+            Distribution::Uniform | Distribution::Adversarial => self.num,
+            Distribution::LinearlyDensified => self.data_foreach(|_, _, _| {}),
         }
     }
 
@@ -259,30 +378,48 @@ impl Conf {
     /// - number of items (ones) before the current position,
     /// - whether there is an item (one) at the current position.
     /// Returns number of items (ones) in the whole universe.
-    #[inline(always)] fn data_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F) -> usize {
+    #[inline(always)]
+    fn data_foreach<F: FnMut(usize, usize, bool)>(&self, mut f: F) -> usize {
         let mut gen = self.rand_gen();
         let mut number_of_ones = 0;
 
         match self.distribution {
-            Distribution::Uniform => self.uniform_foreach(f, &mut gen, &mut number_of_ones, self.num, 0..self.universe),
+            Distribution::Uniform => {
+                self.uniform_foreach(f, &mut gen, &mut number_of_ones, self.num, 0..self.universe)
+            }
             Distribution::Adversarial => {
                 let sparse_threshold = self.universe - self.num;
-                self.uniform_foreach(&mut f, &mut gen, &mut number_of_ones, (self.num+50)/100, 0..sparse_threshold);
+                self.uniform_foreach(
+                    &mut f,
+                    &mut gen,
+                    &mut number_of_ones,
+                    (self.num + 50) / 100,
+                    0..sparse_threshold,
+                );
                 let num = self.num - number_of_ones;
-                self.uniform_foreach(f, &mut gen, &mut number_of_ones, num, sparse_threshold..self.universe);
+                self.uniform_foreach(
+                    f,
+                    &mut gen,
+                    &mut number_of_ones,
+                    num,
+                    sparse_threshold..self.universe,
+                );
             }
-            Distribution::LinearlyDensified => {    // linear density increase
+            Distribution::LinearlyDensified => {
+                // linear density increase
                 let (reverse, num_dbl) = if self.num * 2 > self.universe {
-                    (true, (self.universe - self.num)*2)
+                    (true, (self.universe - self.num) * 2)
                 } else {
-                    (false, self.num*2)
+                    (false, self.num * 2)
                 };
                 for i in 0..self.universe {
                     /*let remain_universe = self.universe - i;
                     let remain_num = num - number_of_ones;
                     let included = (gen.get() as usize % remain_universe * (remain_universe-1) < 2 * remain_num * i) ^ reverse;*/
                     let j = if reverse { self.universe - i } else { i };
-                    let included = (gen.get() as usize % self.universe * (self.universe-1) < num_dbl * j) ^ reverse;
+                    let included = (gen.get() as usize % self.universe * (self.universe - 1)
+                        < num_dbl * j)
+                        ^ reverse;
                     f(i, number_of_ones, included);
                     number_of_ones += included as usize;
                 }
@@ -297,33 +434,67 @@ impl Conf {
     /// Print statistics about data. Returns tester.
     fn fill_data<F: FnMut(usize, bool)>(&'_ self, mut add: F) -> Tester<'_> {
         let number_of_ones = self.data_foreach(|index, _, v| add(index, v));
-        println!(" input: number of bit ones is {} / {} ({:.2}%), {} distribution",
-            number_of_ones, self.universe, percent_of(number_of_ones, self.universe), self.distribution);
-        Tester { conf: self, number_of_ones, rank_includes_current: false }
+        println!(
+            " input: number of bit ones is {} / {} ({:.2}%), {} distribution",
+            number_of_ones,
+            self.universe,
+            percent_of(number_of_ones, self.universe),
+            self.distribution
+        );
+        Tester {
+            conf: self,
+            number_of_ones,
+            rank_includes_current: false,
+        }
     }
 
-    #[inline] fn add_data<F: FnMut(usize)>(&'_ self, mut add: F) -> Tester<'_> {
-        self.fill_data(|i, v| if v { add(i) })
+    #[inline]
+    fn add_data<F: FnMut(usize)>(&'_ self, mut add: F) -> Tester<'_> {
+        self.fill_data(|i, v| {
+            if v {
+                add(i)
+            }
+        })
     }
 
     /// Either opens or crates (and than put headers inside) and returns the file with given `file_name` (+`csv` extension).
     fn file(&self, file_name: &str, extra_header: &str) -> Option<File> {
-        if !self.save_details { return None; }
+        if !self.save_details {
+            return None;
+        }
         let file_name = format!("{}.csv", file_name);
         let file_already_existed = std::path::Path::new(&file_name).exists();
-        let mut file = OpenOptions::new().append(true).create(true).open(&file_name).unwrap();
-        if !file_already_existed { writeln!(file, "{},{}", INPUT_HEADER, extra_header).unwrap(); }
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&file_name)
+            .unwrap();
+        if !file_already_existed {
+            writeln!(file, "{},{}", INPUT_HEADER, extra_header).unwrap();
+        }
         Some(file)
     }
 
     /// Saves `space_overhead` and `time` per *rank* or *select* query (in ns) of method with given `method_name`
     /// to file with given `file_name` (+`csv` extension).
-    fn save_rank_or_select(&self, header: &str, file_name: &str, method_name: &str, space: usize, time: f64) {
+    fn save_rank_or_select(
+        &self,
+        header: &str,
+        file_name: &str,
+        method_name: &str,
+        space: usize,
+        time: f64,
+    ) {
         if let Some(mut file) = self.file(file_name, header) {
-            writeln!(file, "{},{},{},{},{},{}", self.universe, self.num, self.distribution, method_name, space, time).unwrap();
+            writeln!(
+                file,
+                "{},{},{},{},{},{}",
+                self.universe, self.num, self.distribution, method_name, space, time
+            )
+            .unwrap();
         }
     }
-    
+
     /// Saves `space_overhead` and `time` per *rank* query (in ns) of method with given `method_name` to `rank.csv`.
     pub fn save_rank(&self, method_name: &str, space_bytes: usize, time: f64) {
         self.save_rank_or_select(RANK_HEADER, "rank", method_name, space_bytes, time)
@@ -331,25 +502,44 @@ impl Conf {
 
     /// Saves `space_overhead` and `time` per *select1* query (in ns) of method with given `method_name` to `select1.csv`.
     pub fn save_select1(&self, method_name: &str, extra_size_bytes: usize, time: f64) {
-        self.save_rank_or_select(SELECT_HEADER, "select1", method_name, extra_size_bytes, time)
+        self.save_rank_or_select(
+            SELECT_HEADER,
+            "select1",
+            method_name,
+            extra_size_bytes,
+            time,
+        )
     }
 
     /// Saves `space_overhead` and `time` per *select0* query (in ns) of method with given `method_name` to `select0.csv`.
     pub fn save_select0(&self, method_name: &str, extra_size_bytes: usize, time: f64) {
-        self.save_rank_or_select(SELECT_HEADER, "select0", method_name, extra_size_bytes, time)
+        self.save_rank_or_select(
+            SELECT_HEADER,
+            "select0",
+            method_name,
+            extra_size_bytes,
+            time,
+        )
     }
 
     /// Returns random number generator.
-    fn rand_gen(&self) -> XorShift64 { XorShift64(self.seed.get()) }
+    fn rand_gen(&self) -> XorShift64 {
+        XorShift64(self.seed.get())
+    }
 
     /// Returns query points drawn uniformly at random from the range [0, `query_universe`).
     fn rand_queries(&self, query_universe: usize) -> Box<[usize]> {
-        self.rand_gen().take(self.queries.get() as usize).map(|v| v as usize % query_universe).collect()
+        self.rand_gen()
+            .take(self.queries.get() as usize)
+            .map(|v| v as usize % query_universe)
+            .collect()
     }
 
     /// Measures and returns average time (in seconds) per `f` call. Cools down and warms up before measurements.
-    #[inline(always)] fn measure<F>(&self, f: F) -> f64
-     where F: Fn()
+    #[inline(always)]
+    fn measure<F>(&self, f: F) -> f64
+    where
+        F: Fn(),
     {
         if self.cooling_time > 0 {
             std::thread::sleep(std::time::Duration::from_secs(self.cooling_time as u64));
@@ -359,21 +549,31 @@ impl Conf {
             let time = Instant::now();
             loop {
                 f();
-                if time.elapsed().as_secs() > self.time as u64 { break; }
+                if time.elapsed().as_secs() > self.time as u64 {
+                    break;
+                }
                 iters += 1;
             }
         }
         let start_moment = Instant::now();
-        for _ in 0..iters { f(); }
-        return start_moment.elapsed().as_secs_f64() / iters as f64
+        for _ in 0..iters {
+            f();
+        }
+        return start_moment.elapsed().as_secs_f64() / iters as f64;
     }
 
     /// Measures and returns average time (in seconds) per `f` call, when `f` is called for each argument from `queries`.
     /// Cools down and warms up before measurements.
-    #[inline(always)] fn queries_measure<R, F>(&self, queries: &[usize], f: F) -> f64
-    where F: Fn(usize) -> R
+    #[inline(always)]
+    fn queries_measure<R, F>(&self, queries: &[usize], f: F) -> f64
+    where
+        F: Fn(usize) -> R,
     {
-        self.measure(|| for i in queries { black_box(f(*i)); }) / queries.len() as f64
+        self.measure(|| {
+            for i in queries {
+                black_box(f(*i));
+            }
+        }) / queries.len() as f64
     }
 
     /*#[inline(always)]pub fn raport_rank<R, F>(&self, method_name: &str, space_overhead: f64, f: F)
@@ -431,7 +631,9 @@ impl Conf {
     }*/
 }
 
-fn percent_of(overhead: usize, whole: usize) -> f64 { (overhead*100) as f64 / whole as f64 }
+fn percent_of(overhead: usize, whole: usize) -> f64 {
+    (overhead * 100) as f64 / whole as f64
+}
 //fn percent_of_diff(with_overhead: usize, whole: usize) -> f64 { percent_of(with_overhead-whole, whole) }
 
 fn main() {
@@ -439,24 +641,58 @@ fn main() {
     match conf.structure {
         Structure::EliasFano => elias_fano::benchmark(&conf),
         Structure::BitmBV => bitm::benchmark_rank_select(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuxSelectAdapt => sux::benchmark_select_adapt_const(&conf),
-        #[cfg(target_pointer_width = "64")] Structure::SuxSelectAdaptConst => sux::benchmark_select_adapt(&conf),
-        #[cfg(feature = "vers-vecs")] Structure::Vers => vers::benchmark_rank_select(&conf),
+        #[cfg(target_pointer_width = "64")]
+        Structure::SucdsBV => sucds::benchmark_rank9_select(&conf),
+        #[cfg(target_pointer_width = "64")]
+        Structure::SuccinctJacobson => succinct::benchmark_jacobson(&conf),
+        #[cfg(target_pointer_width = "64")]
+        Structure::SuccinctRank9 => succinct::benchmark_rank9(&conf),
+        Structure::SuxRank9 => sux::benchmark_rank9(&conf),
+        #[cfg(target_pointer_width = "64")]
+        Structure::SuxRsSmallU64v2 => sux::benchmark_rs_small_u64_2(&conf),
+        #[cfg(target_pointer_width = "64")]
+        Structure::SuxRsSmallU64v3 => sux::benchmark_rs_small_u64_3(&conf),
+        #[cfg(target_pointer_width = "64")]
+        Structure::SuxRsSmallU64v4 => sux::benchmark_rs_small_u64_4(&conf),
+        #[cfg(not(target_pointer_width = "64"))]
+        Structure::SuxRsSmallU32v3 => sux::benchmark_rs_small_u32_3(&conf),
+        #[cfg(not(target_pointer_width = "64"))]
+        Structure::SuxRsSmallU32v4 => sux::benchmark_rs_small_u32_4(&conf),
+        #[cfg(not(target_pointer_width = "64"))]
+        Structure::SuxRsSmallU32v5 => sux::benchmark_rs_small_u32_5(&conf),
+        Structure::SuxSelectAdapt => sux::benchmark_select_adapt(&conf),
+        Structure::SuxSelectAdaptSparser => sux::benchmark_select_adapt_sparser(&conf),
+        Structure::SuxSelectAdaptSparsest => sux::benchmark_select_adapt_sparsest(&conf),
+        Structure::SuxSelectAdaptConst => sux::benchmark_select_adapt_const(&conf),
+        #[cfg(feature = "vers-vecs")]
+        Structure::Vers => vers::benchmark_rank_select(&conf),
         Structure::BV => {
             bitm::benchmark_rank_select(&conf);
-            #[cfg(target_pointer_width = "64")] {
-            sucds::benchmark_rank9_select(&conf);
-            succinct::benchmark_rank9(&conf);
-            succinct::benchmark_jacobson(&conf);
+            #[cfg(target_pointer_width = "64")]
+            {
+                sucds::benchmark_rank9_select(&conf);
+                succinct::benchmark_rank9(&conf);
+                succinct::benchmark_jacobson(&conf);
             }
-            #[cfg(feature = "vers-vecs")] vers::benchmark_rank_select(&conf);
-            #[cfg(target_pointer_width = "64")] {
+            #[cfg(feature = "vers-vecs")]
+            vers::benchmark_rank_select(&conf);
+            sux::benchmark_rank9(&conf);
+            #[cfg(target_pointer_width = "64")]
+            sux::benchmark_rs_small_u64_2(&conf);
+            #[cfg(target_pointer_width = "64")]
+            sux::benchmark_rs_small_u64_3(&conf);
+            #[cfg(target_pointer_width = "64")]
+            sux::benchmark_rs_small_u64_4(&conf);
+            #[cfg(not(target_pointer_width = "64"))]
+            sux::benchmark_rs_small_u32_3(&conf);
+            #[cfg(not(target_pointer_width = "64"))]
+            sux::benchmark_rs_small_u32_4(&conf);
+            #[cfg(not(target_pointer_width = "64"))]
+            sux::benchmark_rs_small_u32_5(&conf);
             sux::benchmark_select_adapt(&conf);
+            sux::benchmark_select_adapt_sparser(&conf);
+            sux::benchmark_select_adapt_sparsest(&conf);
             sux::benchmark_select_adapt_const(&conf);
-            }
-        },
+        }
     }
 }
