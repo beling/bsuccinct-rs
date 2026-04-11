@@ -30,7 +30,7 @@ pub struct Function2<C: Core, SS, SCC = ShiftWrappedCore, CA = DefaultCompressed
 {
     level0: SeedEx<SS::VecElement, C>,
     bumped_index_to_value: CA,
-    levels: Box<[Level<SS::VecElement, C>]>,
+    bumped_to_index: Box<[Level<SS::VecElement, C>]>,
     hasher: S,
     last_level: Level<<Bits8 as SeedSize>::VecElement>,
     last_level_seed: u64,
@@ -42,13 +42,13 @@ impl<C: Core, SC, SS: SeedSize, CA, S> GetSize for Function2<C, SS, SC, CA, S> w
     fn size_bytes_dyn(&self) -> usize {
         self.level0.size_bytes_dyn() +
             self.bumped_index_to_value.size_bytes_dyn() +
-            self.levels.size_bytes_dyn() +
+            self.bumped_to_index.size_bytes_dyn() +
             self.last_level.size_bytes_dyn()
     }
     fn size_bytes_content_dyn(&self) -> usize {
         self.level0.size_bytes_content_dyn() +
             self.bumped_index_to_value.size_bytes_content_dyn() +
-            self.levels.size_bytes_content_dyn() +
+            self.bumped_to_index.size_bytes_content_dyn() +
             self.last_level.size_bytes_content_dyn()
     }
     const USES_DYN_MEM: bool = true;
@@ -69,8 +69,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
             return result;
         }
 
-        for level_nr in 0..self.levels.len() {
-            let l = &self.levels[level_nr];
+        for level_nr in 0..self.bumped_to_index.len() {
+            let l = &self.bumped_to_index[level_nr];
             /*let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
             let seed = unsafe { l.seeds.seed_for(self.seed_size, key_hash) };
             if seed != 0 {
@@ -230,7 +230,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         Self {
             level0,
             bumped_index_to_value: CA::new(bumped_index_to_value, last, number_of_keys),
-            levels: levels.into_boxed_slice(),
+            bumped_to_index: levels.into_boxed_slice(),
             hasher,
             seed_chooser,
             last_level: Level { seeds: last_seeds, shift: last_shift },
@@ -349,8 +349,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     {
         self.level0.write(output, self.seed_size)?;
         self.bumped_index_to_value.write(output)?;
-        VByte::write(output, self.levels.len())?;
-        for level in &self.levels {
+        VByte::write(output, self.bumped_to_index.len())?;
+        for level in &self.bumped_to_index {
             level.write(output, self.seed_size)?;
         }
         VByte::write(output, self.last_level_seed)?;
@@ -362,8 +362,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn write_bytes(&self) -> usize {
         self.level0.write_bytes() +
         self.bumped_index_to_value.write_bytes() +
-        VByte::size(self.levels.len()) +
-        self.levels.iter().map(|l| l.size_bytes()).sum::<usize>() +
+        VByte::size(self.bumped_to_index.len()) +
+        self.bumped_to_index.iter().map(|l| l.size_bytes()).sum::<usize>() +
         VByte::size(self.last_level_seed) +
         self.last_level.write_bytes()
     }
@@ -379,7 +379,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }
         let last_level_seed = VByte::read(input)?;
         let last_level = Level::read::<Bits8>(input)?.1;
-        Ok(Self { level0, bumped_index_to_value: unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser, seed_size, last_level, last_level_seed })
+        Ok(Self { level0, bumped_index_to_value: unassigned, bumped_to_index: levels.into_boxed_slice(), hasher, seed_chooser, seed_size, last_level, last_level_seed })
     }
 }
 
@@ -438,8 +438,8 @@ pub(crate) mod tests {
         //assert_eq!(buff.len(), h.write_bytes());
         let read = Function2::<C, SS>::read(&mut &buff[..]).unwrap();
         assert_eq!(h.level0.conf, read.level0.conf);
-        assert_eq!(h.levels.len(), read.levels.len());
-        for (hl, rl) in h.levels.iter().zip(&read.levels) {
+        assert_eq!(h.bumped_to_index.len(), read.bumped_to_index.len());
+        for (hl, rl) in h.bumped_to_index.iter().zip(&read.bumped_to_index) {
             assert_eq!(hl.shift, rl.shift);
             assert_eq!(hl.seeds.conf, rl.seeds.conf);
             assert_eq!(hl.seeds.seeds, rl.seeds.seeds);

@@ -284,7 +284,7 @@ pub trait Conf: Sync {
     /// Type of seed size to use.
     type SeedSize: SeedSize;
 
-    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core;
+    fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core;
 
     //fn bucket_size100(&self) -> u16;
     fn preferred_slice_len(&self) -> u16;
@@ -402,7 +402,7 @@ impl<SS: SeedSize> Conf for Generic<SS> {
     type Core = GenericCore;
     type SeedSize = SS;
     
-    fn conf(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
+    fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
         GenericCore::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
     }
 
@@ -447,7 +447,7 @@ impl<SS: SeedSize> Conf for Turbo<SS> {
     type Core = TurboCore;
     type SeedSize = SS;
     
-    fn conf(&self, output_range: usize, _num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
+    fn core(&self, output_range: usize, _num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
         TurboCore::new(output_range, slice_len, max_shift)
     }
     

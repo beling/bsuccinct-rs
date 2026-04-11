@@ -194,7 +194,7 @@ pub struct Function<C: Core, SS, SC = SeedCore, CA = DefaultCompressedArray, S =
 {
     level0: SeedEx<SS::VecElement, C>,
     bumped_index_to_value: CA,
-    levels: Box<[Level<SS::VecElement, C>]>,
+    bumped_to_index: Box<[Level<SS::VecElement, C>]>,
     hasher: S,
     seed_chooser: SC,
     seed_size: SS,  // seed size, K=2**bits_per_seed
@@ -204,12 +204,12 @@ impl<C: Core, SS: SeedSize, SC, CA, S> GetSize for Function<C, SS, SC, CA, S> wh
     fn size_bytes_dyn(&self) -> usize {
         self.level0.size_bytes_dyn() +
             self.bumped_index_to_value.size_bytes_dyn() +
-            self.levels.size_bytes_dyn()
+            self.bumped_to_index.size_bytes_dyn()
     }
     fn size_bytes_content_dyn(&self) -> usize {
         self.level0.size_bytes_content_dyn() +
             self.bumped_index_to_value.size_bytes_content_dyn() +
-            self.levels.size_bytes_content_dyn()
+            self.bumped_to_index.size_bytes_content_dyn()
     }
     const USES_DYN_MEM: bool = true;
 }
@@ -233,8 +233,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
             return result;
         }
 
-        for level_nr in 0..self.levels.len() {
-            let l = &self.levels[level_nr];
+        for level_nr in 0..self.bumped_to_index.len() {
+            let l = &self.bumped_to_index[level_nr];
             /*let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
             let seed = unsafe { l.seeds.seed_for(self.seed_size, key_hash) };
             if seed != 0 {
@@ -330,7 +330,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let mut bumped_index_to_value = Vec::with_capacity(keys.len() * 3 / 2);
 
         let mut levels = Vec::with_capacity(16);
-        let mut last = 0;
+        let mut last = 0;   // last value added to bumped_index_to_value
         while !keys.is_empty() {
             let keys_len = keys.len();
 
@@ -339,19 +339,19 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
                 //crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst),
                 //crate::phast::seed_chooser::SELF_COLLISION_KEYS.load(std::sync::atomic::Ordering::SeqCst) * 100 / keys_len as u64,
                 //crate::phast::seed_chooser::SELF_COLLISION_BUCKETS.load(std::sync::atomic::Ordering::SeqCst));
-            let (seeds, unassigned_values) =
+            let (seeds, level_free_values) =
                 build_level(&mut keys, levels.len() as u64+1, &hasher);
             let shift = bumped_index_to_value.len();
             for i in 0..keys_len {
                 if CA::MAX_FOR_UNUSED {
-                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                    if !unsafe{level_free_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
                         bumped_index_to_value.push(last);
                     } else {
                         bumped_index_to_value.push(usize::MAX);
                     }
                 } else {
-                    if !unsafe{unassigned_values.get_bit_unchecked(i)} {
+                    if !unsafe{level_free_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
                     }
                     bumped_index_to_value.push(last);
@@ -359,12 +359,12 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
             }
             levels.push(Level { seeds, shift });
         }
-        debug_assert!(level0_unassigned.next().is_none());
+        debug_assert!(level0_unassigned.next().is_none());  // only true for output range = number of keys
         drop(level0_unassigned);
         Self {
             level0,
             bumped_index_to_value: CA::new(bumped_index_to_value, last, number_of_keys),
-            levels: levels.into_boxed_slice(),
+            bumped_to_index: levels.into_boxed_slice(),
             hasher,
             seed_chooser,
             seed_size
@@ -457,8 +457,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn write_bytes(&self) -> usize {
         self.level0.write_bytes() +
         self.bumped_index_to_value.write_bytes() +
-        VByte::size(self.levels.len()) +
-        self.levels.iter().map(|l| l.size_bytes()).sum::<usize>()
+        VByte::size(self.bumped_to_index.len()) +
+        self.bumped_to_index.iter().map(|l| l.size_bytes()).sum::<usize>()
     }
 
     /// Writes `self` to the `output`.
@@ -466,8 +466,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     {
         self.level0.write(output, self.seed_size)?;
         self.bumped_index_to_value.write(output)?;
-        VByte::write(output, self.levels.len())?;
-        for level in &self.levels {
+        VByte::write(output, self.bumped_to_index.len())?;
+        for level in &self.bumped_to_index {
             level.write(output, self.seed_size)?;
         }
         Ok(())
@@ -482,7 +482,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         for _ in 0..levels_num {
             levels.push(Level::read::<SS>(input)?.1);
         }
-        Ok(Self { level0, bumped_index_to_value: unassigned, levels: levels.into_boxed_slice(), hasher, seed_chooser: seed_chooser_core, seed_size })
+        Ok(Self { level0, bumped_index_to_value: unassigned, bumped_to_index: levels.into_boxed_slice(), hasher, seed_chooser: seed_chooser_core, seed_size })
     }
 }
 
@@ -543,8 +543,8 @@ pub(crate) mod tests {
         //assert_eq!(buff.len(), h.write_bytes());
         let read = Function::<C, SS>::read(&mut &buff[..]).unwrap();
         assert_eq!(h.level0.conf, read.level0.conf);
-        assert_eq!(h.levels.len(), read.levels.len());
-        for (hl, rl) in h.levels.iter().zip(&read.levels) {
+        assert_eq!(h.bumped_to_index.len(), read.bumped_to_index.len());
+        for (hl, rl) in h.bumped_to_index.iter().zip(&read.bumped_to_index) {
             assert_eq!(hl.shift, rl.shift);
             assert_eq!(hl.seeds.conf, rl.seeds.conf);
             assert_eq!(hl.seeds.seeds, rl.seeds.seeds);
