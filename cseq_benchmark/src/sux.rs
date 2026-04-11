@@ -5,7 +5,7 @@ use sux::{
     rank_sel::{Rank9, SelectAdapt, SelectAdaptConst, SelectSmall, SelectZeroAdapt,
         SelectZeroAdaptConst, SelectZeroSmall,
         default_target_inventory_span, DEFAULT_LOG2_WORDS_PER_SUBINVENTORY},
-    traits::{BitVecOpsMut, Rank, SelectUnchecked, SelectZeroUnchecked},
+    traits::{BitVecOpsMut, RankUnchecked, SelectUnchecked, SelectZeroUnchecked},
 };
 use sux::rank_small;
 
@@ -33,7 +33,7 @@ pub fn benchmark_rank9(conf: &Conf) {
     let (content, tester) = build_bit_vec_u64(conf);
     let rs = Rank9::new(content);
     tester.raport_rank("sux Rank9", rs.mem_size(Default::default()),
-        |index| rs.rank(index));
+        |index| unsafe { rs.rank_unchecked(index) });
 }
 
 #[cfg(target_pointer_width = "64")]
@@ -42,7 +42,7 @@ pub fn benchmark_rs_small_u64_2(conf: &Conf) {
     let (content, tester) = build_bit_vec_u64(conf);
     let rs = rank_small![u64: 2; content];
     let rs_size = rs.mem_size(Default::default());
-    tester.raport_rank("sux RsSmall[u64:2]", rs_size, |index| rs.rank(index));
+    tester.raport_rank("sux RsSmall[u64:2]", rs_size, |index| unsafe { rs.rank_unchecked(index) });
     let sel = SelectSmall::<1, 10, _>::new(rs);
     tester.raport_select1("sux RsSmall[u64:2]",
         sel.mem_size(Default::default()) - rs_size,
@@ -60,7 +60,7 @@ pub fn benchmark_rs_small_u64_3(conf: &Conf) {
     let (content, tester) = build_bit_vec_u64(conf);
     let rs = rank_small![u64: 3; content];
     let rs_size = rs.mem_size(Default::default());
-    tester.raport_rank("sux RsSmall[u64:3]", rs_size, |index| rs.rank(index));
+    tester.raport_rank("sux RsSmall[u64:3]", rs_size, |index| unsafe { rs.rank_unchecked(index) });
     let sel = SelectSmall::<1, 11, _>::new(rs);
     tester.raport_select1("sux RsSmall[u64:3]",
         sel.mem_size(Default::default()) - rs_size,
@@ -78,7 +78,7 @@ pub fn benchmark_rs_small_u64_4(conf: &Conf) {
     let (content, tester) = build_bit_vec_u64(conf);
     let rs = rank_small![u64: 4; content];
     let rs_size = rs.mem_size(Default::default());
-    tester.raport_rank("sux RsSmall[u64:4]", rs_size, |index| rs.rank(index));
+    tester.raport_rank("sux RsSmall[u64:4]", rs_size, |index| unsafe { rs.rank_unchecked(index) });
     let sel = SelectSmall::<3, 13, _>::new(rs);
     tester.raport_select1("sux RsSmall[u64:4]",
         sel.mem_size(Default::default()) - rs_size,
@@ -96,7 +96,7 @@ pub fn benchmark_rs_small_u32_3(conf: &Conf) {
     let (content, tester) = build_bit_vec_u32(conf);
     let rs = rank_small![u32: 3; content];
     let rs_size = rs.mem_size(Default::default());
-    tester.raport_rank("sux RsSmall[u32:3]", rs_size, |index| rs.rank(index));
+    tester.raport_rank("sux RsSmall[u32:3]", rs_size, |index| unsafe { rs.rank_unchecked(index) });
     let sel = SelectSmall::<1, 10, _>::new(rs);
     tester.raport_select1("sux RsSmall[u32:3]",
         sel.mem_size(Default::default()) - rs_size,
@@ -114,7 +114,7 @@ pub fn benchmark_rs_small_u32_4(conf: &Conf) {
     let (content, tester) = build_bit_vec_u32(conf);
     let rs = rank_small![u32: 4; content];
     let rs_size = rs.mem_size(Default::default());
-    tester.raport_rank("sux RsSmall[u32:4]", rs_size, |index| rs.rank(index));
+    tester.raport_rank("sux RsSmall[u32:4]", rs_size, |index| unsafe { rs.rank_unchecked(index) });
     let sel = SelectSmall::<1, 11, _>::new(rs);
     tester.raport_select1("sux RsSmall[u32:4]",
         sel.mem_size(Default::default()) - rs_size,
@@ -132,7 +132,7 @@ pub fn benchmark_rs_small_u32_5(conf: &Conf) {
     let (content, tester) = build_bit_vec_u32(conf);
     let rs = rank_small![u32: 5; content];
     let rs_size = rs.mem_size(Default::default());
-    tester.raport_rank("sux RsSmall[u32:5]", rs_size, |index| rs.rank(index));
+    tester.raport_rank("sux RsSmall[u32:5]", rs_size, |index| unsafe { rs.rank_unchecked(index) });
     let sel = SelectSmall::<3, 13, _>::new(rs);
     tester.raport_select1("sux RsSmall[u32:5]",
         sel.mem_size(Default::default()) - rs_size,
