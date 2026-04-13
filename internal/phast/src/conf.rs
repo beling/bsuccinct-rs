@@ -60,9 +60,6 @@ pub enum Method {
     /// Optimize weights for selecting buckets by PHast+
     optplus,
 
-    /// Optimize score weights for k-perfect PHast
-    optscore,
-
     /// Optimize seed evaluation in perfectlog
     optperfectlog,
 
@@ -95,7 +92,6 @@ impl std::fmt::Display for Method {
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
-            Method::optscore => write!(f, "Optimize score weights for k-perfect PHast"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
             Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=1"),
