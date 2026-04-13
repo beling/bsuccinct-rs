@@ -12,7 +12,7 @@ use rayon::prelude::*;
 /// Represents map-or-bump function.
 pub(crate) struct SeedEx<SSVecElement, C = GenericCore> {
     pub(crate) seeds: Box<[SSVecElement]>,
-    pub(crate) conf: C, // ConfTrait
+    pub(crate) conf: C,
 }
 
 impl<SSVecElement, C: Core> SeedEx<SSVecElement, C> {
