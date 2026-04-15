@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand};
 use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{GenericProdOfValues, SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1, SumOfLogValuesFEval, WGenericProdOfValues, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{GenericProdOfValues, SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1, SumOfLogValuesFEval, SumOfLogValuesFW1, WGenericProdOfValues, WeightsF}};
 
 use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -69,6 +69,9 @@ pub enum Method {
     /// Optimize seed evaluation in perfectlog with first_weight=1
     optperfectlog1,
 
+    /// Optimize seed evaluation in perfectlog with free_values_weight=1
+    optperfectlogf1,
+
     optgenprod,
 
     optwgenprod,
@@ -95,6 +98,7 @@ impl std::fmt::Display for Method {
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
             Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=1"),
+            Method::optperfectlogf1 => write!(f, "Optimize seed evaluation in perfectlog with free_values_weight=1"),
             Method::optgenprod => write!(f, "Optimize GenericProdOfValues"),
             Method::optwgenprod => write!(f, "Optimize WGenericProdOfValues"),
             Method::none => write!(f, "Do nothing"),
@@ -403,6 +407,20 @@ impl Conf {
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
         println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
+    }
+
+    pub fn optimize_perfectlogf1(&self) {
+        let s = SumOfLogValuesFW1.for_k(self.k);
+        let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.first_weight]);
+        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
+        
+        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
+            println!("value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[0], x[1], x[2]);
+            let evaluator = SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: x[0], free_shift: x[1], first_weight: x[2] };
+            self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnlyK::new(self.k, evaluator)).1)
+        }, args.view());
+        println!("Optimal parameters: value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[0], ans[1], ans[3]);
     }
 
     /*pub fn optimize_genericprod(&self) {

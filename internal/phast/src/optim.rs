@@ -106,11 +106,22 @@ impl KSeedEvaluatorConf for SumOfLogValuesF1 {
                 SumOfLogValuesFEval { first_weight: 1.0, ..SumOfLogValuesF.for_k(k) }
             }
         }
-
-
     }
 }
 
+pub struct SumOfLogValuesFW1;
+
+impl KSeedEvaluatorConf for SumOfLogValuesFW1 {
+    type KSeedEvaluator = SumOfLogValuesFEval;
+
+    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
+        match k {
+            _ => {
+                SumOfLogValuesFEval { free_values_weight: 1.0, ..SumOfLogValuesF.for_k(k) }
+            }
+        }
+    }
+}
 
 /// Chooses seed that minimizes
 /// sum_{x in bucket} log(f(x,seed) - first_weight*minimum value in the window - (1-first_weight)*minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
