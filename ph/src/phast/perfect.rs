@@ -44,14 +44,14 @@ impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, 
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
         let key_hash = self.hasher.hash_one(key, 0);
         let seed = unsafe { self.level0.seed_for(self.seed_size, key_hash) };
-        if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }
+        if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.core); }
 
         for level_nr in 0..self.levels.len() {
             let l = &self.levels[level_nr];
             let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
             let seed = unsafe { l.seeds.seed_for(self.seed_size, key_hash) };
             if seed != 0 {
-                return self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift
+                return self.seed_chooser.f(key_hash, seed, &l.seeds.core) + l.shift
             }
         }
 
@@ -125,11 +125,11 @@ impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, 
             K: Hash
         {
         let (mut keys, level0) = build_first(&hasher);
-        let mut shift = level0.conf.output_range(seed_chooser, seed_size.into());
+        let mut shift = level0.core.output_range(seed_chooser, seed_size.into());
         let mut levels = Vec::with_capacity(16);
         while !keys.is_empty() {
             let seeds = build_level(&mut keys, levels.len() as u64+1, &hasher);
-            let out_range = seeds.conf.output_range(seed_chooser, seed_size.into());
+            let out_range = seeds.core.output_range(seed_chooser, seed_size.into());
             levels.push(Level { seeds, shift });
             shift += out_range;
         }
@@ -158,7 +158,7 @@ impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, 
         keys_vec.extend(keys.into_iter().filter(|key| {
             unsafe { params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
         }).cloned());
-        (keys_vec, SeedEx{ seeds, conf })
+        (keys_vec, SeedEx{ seeds, core: conf })
     }
 
     #[inline]
@@ -181,7 +181,7 @@ impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, 
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
             unsafe { params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
         }).cloned());
-        (keys_vec, SeedEx{ seeds, conf })
+        (keys_vec, SeedEx{ seeds, core: conf })
     }
 
     #[inline(always)]
@@ -196,7 +196,7 @@ impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, 
         keys.retain(|key| {
             unsafe { params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
         });
-        SeedEx{ seeds, conf }
+        SeedEx{ seeds, core: conf }
     }
 
     #[inline]
@@ -223,7 +223,7 @@ impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, 
         keys.par_extend(result.into_par_iter().filter(|key| {
             unsafe { params.seed_size.get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
         }));
-        SeedEx{ seeds, conf }
+        SeedEx{ seeds, core: conf }
     }
 
     /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
@@ -236,9 +236,9 @@ impl<SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<SS, SCC, 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
         if let Some(last_level) = self.levels.last() {
-            last_level.shift + last_level.seeds.conf.output_range(self.seed_chooser, self.seed_size.into())
+            last_level.shift + last_level.seeds.core.output_range(self.seed_chooser, self.seed_size.into())
         } else {
-            self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
+            self.level0.core.output_range(self.seed_chooser, self.seed_size.into())
         }
     }
 }

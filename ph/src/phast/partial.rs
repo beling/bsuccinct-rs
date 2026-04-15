@@ -133,7 +133,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> Partial<C, SS, SCC, S> {
     #[inline(always)]
     pub fn get_for_hash(&self, key_hash: u64) -> Option<usize> {
         let seed = unsafe { self.seeds.seed_for(self.seed_size, key_hash) };
-        (seed != 0).then(|| self.seed_chooser.f(key_hash, seed, &self.seeds.conf))
+        (seed != 0).then(|| self.seed_chooser.f(key_hash, seed, &self.seeds.core))
     }
 
     fn build_st<'k, BE, SC>(hashes: &'k mut [u64], seed_size: SS, conf: C, hasher: S, seed_chooser: SC, bucket_evaluator: BE)
@@ -143,7 +143,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> Partial<C, SS, SCC, S> {
         hashes.voracious_sort();
         let (seeds, build_conf) = build_st(hashes, conf, seed_size, bucket_evaluator, seed_chooser.clone());
         (Self {
-            seeds: SeedEx{ seeds, conf },
+            seeds: SeedEx{ seeds, core: conf },
             hasher,
             seed_chooser: seed_chooser.core(),
             seed_size
@@ -158,7 +158,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> Partial<C, SS, SCC, S> {
         hashes.voracious_mt_sort(threads_num);
         let (seeds, build_conf) = build_mt(hashes, conf, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser.clone(), threads_num);
         (Self {
-            seeds: SeedEx{ seeds, conf },
+            seeds: SeedEx{ seeds, core: conf },
             hasher,
             seed_chooser: seed_chooser.core(),
             seed_size,
@@ -175,7 +175,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> Partial<C, SS, SCC, S> {
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.seeds.conf.output_range(self.seed_chooser, self.seed_size.into())
+        self.seeds.core.output_range(self.seed_chooser, self.seed_size.into())
     }
 }
 

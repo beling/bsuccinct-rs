@@ -12,20 +12,20 @@ use rayon::prelude::*;
 /// Represents map-or-bump function.
 pub(crate) struct SeedEx<SSVecElement, C = GenericCore> {
     pub(crate) seeds: Box<[SSVecElement]>,
-    pub(crate) conf: C,
+    pub(crate) core: C,
 }
 
 impl<SSVecElement, C: Core> SeedEx<SSVecElement, C> {
     #[inline(always)]
     pub(crate) unsafe fn seed_for<SS>(&self, seed_size: SS, key: u64) -> u16 where SS: SeedSize<VecElement=SSVecElement> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
-        seed_size.get_seed(&self.seeds, self.conf.bucket_for(key))
+        seed_size.get_seed(&self.seeds, self.core.bucket_for(key))
     }
 
     /// Writes `self` to the `output`.
     pub fn write<SS: SeedSize<VecElement = SSVecElement>>(&self, output: &mut dyn io::Write, seed_size: SS) -> io::Result<()>
     {
-        self.conf.write(output)?;
+        self.core.write(output)?;
         seed_size.write_seed_vec(output, &self.seeds)
     }
 
@@ -33,14 +33,14 @@ impl<SSVecElement, C: Core> SeedEx<SSVecElement, C> {
     pub fn read<SS: SeedSize<VecElement = SSVecElement>>(input: &mut dyn io::Read) -> io::Result<(SS, Self)> {
         let conf = C::read(input)?;
         let (seed_size, seeds) = SS::read_seed_vec(input, conf.buckets_num())?;
-        Ok((seed_size, Self{ seeds, conf }))
+        Ok((seed_size, Self{ seeds, core: conf }))
     }
 }
 
 impl<SSVecElement: GetSize, C: Core> SeedEx<SSVecElement, C> {
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
-        self.conf.write_bytes() + GetSize::size_bytes_dyn(&self.seeds)
+        self.core.write_bytes() + GetSize::size_bytes_dyn(&self.seeds)
     }
 }
 
@@ -91,16 +91,16 @@ pub(crate) fn build_level_from_slice_st<K, P, SC, S>(keys: &[K], params: &P, has
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_sort();
-    let conf = seed_chooser.conf_for_minimal_p(hashes.len(), params);
+    let core = seed_chooser.conf_for_minimal_p(hashes.len(), params);
     let (seeds, builder) =
-        build_st(&hashes, conf, params.seed_size(), seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser);
+        build_st(&hashes, core, params.seed_size(), seed_chooser.bucket_evaluator(params.bits_per_seed(), core.slice_len()), seed_chooser);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(bumped_len);
     keys_vec.extend(keys.into_iter().filter(|key| {
-        unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
+        unsafe { params.seed_size().get_seed(&seeds, core.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     }).cloned());
-    (keys_vec, SeedEx{ seeds, conf }, unassigned_values)
+    (keys_vec, SeedEx{ seeds, core }, unassigned_values)
 }
 
 #[inline]
@@ -127,7 +127,7 @@ pub(crate) fn build_level_from_slice_mt<K, P, SC, S>(keys: &[K], params: &P, thr
     keys_vec.par_extend(keys.into_par_iter().filter(|key| {
         unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     }).cloned());
-    (keys_vec, SeedEx{ seeds, conf }, unassigned_values)
+    (keys_vec, SeedEx{ seeds, core: conf }, unassigned_values)
 }
 
 #[inline(always)]
@@ -145,7 +145,7 @@ pub(crate) fn build_level_st<K, P, SC, S>(keys: &mut Vec::<K>, params: &P, hashe
     keys.retain(|key| {
         unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     });
-    (SeedEx{ seeds, conf }, unassigned_values)
+    (SeedEx{ seeds, core: conf }, unassigned_values)
 }
 
 #[inline]
@@ -173,7 +173,7 @@ pub(crate) fn build_level_mt<K, P, SC, S>(keys: &mut Vec::<K>, params: &P, threa
     keys.par_extend(result.into_par_iter().filter(|key| {
         unsafe { params.seed_size().get_seed(&seeds, conf.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     }));
-    (SeedEx{ seeds, conf }, unassigned_values)
+    (SeedEx{ seeds, core: conf }, unassigned_values)
 }
 
 /// PHast (Perfect Hashing made fast) - Minimal Perfect Hash Function
@@ -229,7 +229,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         /*let key_hash = self.hasher.hash_one(key, 0);
         let seed = unsafe{ self.level0.seed_for(self.seed_size, key_hash) };
         if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }*/
-        if let Some(result) = self.seed_chooser.try_f(self.seed_size, &self.level0.seeds, self.hasher.hash_one(key, 0), &self.level0.conf) {
+        if let Some(result) = self.seed_chooser.try_f(self.seed_size, &self.level0.seeds, self.hasher.hash_one(key, 0), &self.level0.core) {
             return result;
         }
 
@@ -240,7 +240,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
             if seed != 0 {
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
             }*/
-            if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.conf) {
+            if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.core) {
                 return self.bumped_index_to_value.get(result + l.shift);
             }
         }
@@ -377,7 +377,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
+        self.level0.core.output_range(self.seed_chooser, self.seed_size.into())
     }
 
     /*#[inline(always)]
@@ -542,11 +542,11 @@ pub(crate) mod tests {
         h.write(&mut buff).unwrap();
         //assert_eq!(buff.len(), h.write_bytes());
         let read = Function::<C, SS>::read(&mut &buff[..]).unwrap();
-        assert_eq!(h.level0.conf, read.level0.conf);
+        assert_eq!(h.level0.core, read.level0.core);
         assert_eq!(h.bumped_to_index.len(), read.bumped_to_index.len());
         for (hl, rl) in h.bumped_to_index.iter().zip(&read.bumped_to_index) {
             assert_eq!(hl.shift, rl.shift);
-            assert_eq!(hl.seeds.conf, rl.seeds.conf);
+            assert_eq!(hl.seeds.core, rl.seeds.core);
             assert_eq!(hl.seeds.seeds, rl.seeds.seeds);
         }
     }

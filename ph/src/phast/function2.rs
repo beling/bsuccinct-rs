@@ -65,7 +65,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         /*let key_hash = self.hasher.hash_one(key, 0);
         let seed = unsafe { self.level0.seed_for(self.seed_size, key_hash) };
         if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }*/
-        if let Some(result) = self.seed_chooser.try_f(self.seed_size, &self.level0.seeds, self.hasher.hash_one(key, 0), &self.level0.conf) {
+        if let Some(result) = self.seed_chooser.try_f(self.seed_size, &self.level0.seeds, self.hasher.hash_one(key, 0), &self.level0.core) {
             return result;
         }
 
@@ -76,14 +76,14 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
             if seed != 0 {
                 return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
             }*/
-            if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.conf) {
+            if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.core) {
                 return self.bumped_index_to_value.get(result + l.shift);
             }
         }
 
         let key_hash = self.hasher.hash_one(key, self.last_level_seed);
         let seed = unsafe { self.last_level.seeds.seed_for(Bits8, key_hash) };
-        return self.bumped_index_to_value.get(SeedOnlyNoBump(ProdOfValues).f(key_hash, seed, &self.last_level.seeds.conf) + self.last_level.shift)
+        return self.bumped_index_to_value.get(SeedOnlyNoBump(ProdOfValues).f(key_hash, seed, &self.last_level.seeds.core) + self.last_level.shift)
     }
 
     /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
@@ -202,12 +202,12 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let last_seeds =
         if keys.is_empty() {
             last_shift = 0;
-            SeedEx::<<Bits8 as SeedSize>::VecElement>{ seeds: Box::default(), conf: GenericCore { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
+            SeedEx::<<Bits8 as SeedSize>::VecElement>{ seeds: Box::default(), core: GenericCore { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
         } else {
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &hasher, &mut last_seed);
             last_shift = bumped_index_to_value.len();
-            for i in 0..last_seeds.conf.output_range(SeedNoBumpCore, Bits8.into()) {
+            for i in 0..last_seeds.core.output_range(SeedNoBumpCore, Bits8.into()) {
                 if CA::MAX_FOR_UNUSED {
                     if !unsafe{unassigned_values.get_bit_unchecked(i)} {
                         last = level0_unassigned.next().unwrap();
@@ -255,7 +255,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
             if let Some((seeds, unassigned_values, unassigned_len)) =
                 build_last_level(&hashes, conf, bits_per_seed, evaluator.clone())
             {
-                return (SeedEx{ seeds, conf }, unassigned_values, unassigned_len);
+                return (SeedEx{ seeds, core: conf }, unassigned_values, unassigned_len);
             }
             *seed += 1;
             //dbg!(*seed);
@@ -268,7 +268,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
 
     /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return.
     pub fn output_range(&self) -> usize {
-        self.level0.conf.output_range(self.seed_chooser, self.seed_size.into())
+        self.level0.core.output_range(self.seed_chooser, self.seed_size.into())
     }
 
     /*#[inline(always)]
@@ -437,11 +437,11 @@ pub(crate) mod tests {
         h.write(&mut buff).unwrap();
         //assert_eq!(buff.len(), h.write_bytes());
         let read = Function2::<C, SS>::read(&mut &buff[..]).unwrap();
-        assert_eq!(h.level0.conf, read.level0.conf);
+        assert_eq!(h.level0.core, read.level0.core);
         assert_eq!(h.bumped_to_index.len(), read.bumped_to_index.len());
         for (hl, rl) in h.bumped_to_index.iter().zip(&read.bumped_to_index) {
             assert_eq!(hl.shift, rl.shift);
-            assert_eq!(hl.seeds.conf, rl.seeds.conf);
+            assert_eq!(hl.seeds.core, rl.seeds.core);
             assert_eq!(hl.seeds.seeds, rl.seeds.seeds);
         }
     }
