@@ -344,14 +344,18 @@ impl Conf {
 
     const KEY_SETS_NUM: u32 = 96;
 
-    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> f64 {
+    fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> usize {
         let unassigned_keys: usize = (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
             f(&mut self.keys_for_seed(200+i))
         }).sum();
         print!("{unassigned_keys} {:.2}%", unassigned_keys as f64 * 100.0 / (Self::KEY_SETS_NUM as f64 * self.keys_num as f64));
         for v in x { print!(" {v:.0}") }
         println!();
-        unassigned_keys as f64
+        unassigned_keys
+    }
+
+    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> f64 {
+        self.par_eval(x, f) as f64
     }
 
     pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
@@ -378,10 +382,43 @@ impl Conf {
             self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
-        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
+        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[2], ans[0], ans[1], ans[3]);
     }
 
     pub fn optimize_perfectlog(&self) {
+        //let s = SumOfLogValuesF.for_k(self.k);
+        //let args = vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight];
+        let (_, conf) = self.optimizer(SeedKCore(self.k));
+
+        let f = crate::optim::FromFn(|x| {
+            println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[2], x[0], x[1], x[3]);
+            let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
+            self.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
+                    conf, SeedOnlyK::new(self.k, evaluator)).1)
+        });
+        use argmin::{core::State, solver::particleswarm::ParticleSwarm};
+        let lower_bound: Vec<f64> = vec![0.00001, 1.0, 0.5, 0.0];
+        let upper_bound: Vec<f64> = vec![0.01, 10.0, 2.0, 1.0];
+        let pso: ParticleSwarm<Vec<f64>, f64, _> = ParticleSwarm::new((lower_bound, upper_bound), 10);
+        let executor = argmin::core::Executor::new(f, pso)/*.configure(|state|
+            state
+                // Set initial parameters (depending on the solver,
+                // this may be required)
+                .param(args)
+                // Set maximum iterations to 10
+                // (optional, set to `std::u64::MAX` if not provided)
+                .max_iters(10)
+                // Set target cost. The solver stops when this cost
+                // function value is reached (optional)
+                .target_cost(0.0)
+        )*/;
+        let res = executor.run().unwrap();
+        println!("{}", res);
+        let ans = &res.state().get_best_param().unwrap().position;
+        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
+    }
+
+    /*pub fn optimize_perfectlog(&self) {
         let s = SumOfLogValuesF.for_k(self.k);
         let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight]);
         let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
@@ -393,7 +430,7 @@ impl Conf {
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
         println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[2], ans[0], ans[1], ans[3]);
-    }
+    }*/
 
     pub fn optimize_perfectlog1(&self) {
         let s = SumOfLogValuesF1.for_k(self.k);
@@ -420,7 +457,7 @@ impl Conf {
             self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
                     conf, SeedOnlyK::new(self.k, evaluator)).1)
         }, args.view());
-        println!("Optimal parameters: value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[0], ans[1], ans[3]);
+        println!("Optimal parameters: value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[0], ans[1], ans[2]);
     }
 
     /*pub fn optimize_genericprod(&self) {

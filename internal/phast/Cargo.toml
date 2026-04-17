@@ -24,6 +24,8 @@ seedable_hash = { version="0.2", path="../../seedable_hash", default-features = 
 optimize = "0.1.0"
 ndarray = "0.11"
 minuit2 = "0.4"
+argmin   = "0.11"
+argmin-math = { version="0.5", features = ["vec"] }
 
 [features]
 default = ["sux", "gxhash"]
