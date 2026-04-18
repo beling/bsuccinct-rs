@@ -1,5 +1,37 @@
 use ph::phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, SeedEvaluator, SumOfLogValues, UsedValueMultiSetU16};
 
+use crate::conf::Conf;
+
+trait CostFn {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize;
+    fn init(&self, conf: &Conf) -> Vec<f64>;
+    fn bounds(&self, conf: &Conf) -> (Vec<f64>, Vec<f64>) {
+        let s = self.init(conf);
+        (
+            s.iter().map(|v| if *v > 0.0 { (v-1.0).max(0.0) } else { v-1.0 }).collect(),
+            s.iter().map(|v| v + 1.0).collect(),
+        )
+    }
+    fn print(&self, x: &[f64]) {
+        for v in x { print!(" {v:.0}") }
+    }
+}
+
+struct Weights;
+
+impl CostFn for Weights {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        todo!()
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        todo!()
+    }
+}
+
+
+
+
 pub struct FromFn<F: Fn(&[f64]) -> usize>(pub F);
 
 impl<F> argmin::core::CostFunction for FromFn<F>
@@ -141,6 +173,8 @@ impl KSeedEvaluatorConf for SumOfLogValuesFW1 {
             10 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00340, free_shift: 3.23864, first_weight: 0.73775 }, // 0.68%
             100 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }, // 0.61%
             200 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }, // 0.96%
+            300 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }, // 1.35%
+            400 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }, // 1.78%
             1000 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }, // 2.23%
             _ => {
                 SumOfLogValuesFEval { free_values_weight: 1.0, ..SumOfLogValuesF.for_k(k) }
