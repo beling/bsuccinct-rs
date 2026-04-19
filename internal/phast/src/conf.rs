@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{GenericProdOfValues, SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1, SumOfLogValuesFEval, SumOfLogValuesFW1, WGenericProdOfValues, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, GenericProdOfValues, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1, SumOfLogValuesFEval, SumOfLogValuesFW1, WGenericProdOfValues, WeightsCost, WeightsF}};
 
 use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -146,6 +146,26 @@ impl Into<u16> for BucketSize {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum Optimizer {
+    /// Nelder Mead
+    #[clap(alias = "nm")]
+    NelderMead,
+    /// Particle Swarm
+    #[clap(alias = "pso")]
+    ParticleSwarm,
+}
+
+impl std::fmt::Display for Optimizer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match *self {
+                Optimizer::NelderMead => "Nelder Mead",
+                Optimizer::ParticleSwarm => "Particle Swarm",
+            }
+        )
+    }
+}
+
 
 #[derive(Parser)]
 #[command(author="Piotr Beling", version, about, long_about = None)]
@@ -210,6 +230,10 @@ pub struct Conf {
     /// Print less, only average.
     #[arg(long, default_value_t = false)]
     pub less: bool,
+
+    /// Numerical Optimization algorithm to use
+    #[arg(short='o', long, value_enum, default_value_t = Optimizer::NelderMead)]
+    pub optimizer: Optimizer,
 }
 
 impl Conf {
@@ -342,108 +366,80 @@ impl Conf {
         (minimizer, seed_chooser_core.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len))
     }
 
-    const KEY_SETS_NUM: u32 = 96;
+    pub fn core<SC: SeedChooserCore>(&self, seed_chooser_core: SC) -> ph::phast::GenericCore {
+        seed_chooser_core.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
+    }
 
-    fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> usize {
+    pub const KEY_SETS_NUM: u32 = 96;
+
+    pub fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> usize {
+        (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
+            f(&mut self.keys_for_seed(200+i))
+        }).sum()
+    }
+
+    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> f64 {
         let unassigned_keys: usize = (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
             f(&mut self.keys_for_seed(200+i))
         }).sum();
         print!("{unassigned_keys} {:.2}%", unassigned_keys as f64 * 100.0 / (Self::KEY_SETS_NUM as f64 * self.keys_num as f64));
         for v in x { print!(" {v:.0}") }
         println!();
-        unassigned_keys
+        unassigned_keys as f64
     }
 
-    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> f64 {
-        self.par_eval(x, f) as f64
+    pub fn optimize<CF: CostFn>(&self, cost: CF) {
+        println!("{} optimization steps with {}", self.optimization_iters(), self.optimizer);
+        let cost = Cost::new(self, cost);
+        match self.optimizer {
+            Optimizer::NelderMead => {
+                let nm = NelderMeadBuilder::default()
+                    .maxiter(self.optimization_iters() as usize) 
+                    .ulps(128)
+                    .build()
+                    .unwrap();
+                let ans = nm.minimize(|x: ArrayView1<f64>| {
+                    cost.eval(x.as_slice().unwrap()) as f64
+                }, Array::from_vec(cost.init()).view());
+                println!("Optimal weights: {ans:.0}");
+            },
+            Optimizer::ParticleSwarm => {
+                use argmin::{solver::particleswarm::ParticleSwarm};
+                let pso: ParticleSwarm<Vec<f64>, f64, _> = ParticleSwarm::new(cost.bounds(), 10);
+                let executor = argmin::core::Executor::new(cost, pso)/*.configure(|state|
+                    state
+                        // Set initial parameters (depending on the solver,
+                        // this may be required)
+                        .param(args)
+                        // Set maximum iterations to 10
+                        // (optional, set to `std::u64::MAX` if not provided)
+                        .max_iters(10)
+                        // Set target cost. The solver stops when this cost
+                        // function value is reached (optional)
+                        .target_cost(0.0)
+                )*/;
+                let res = executor.run().unwrap();
+                println!("{}", res);
+            }
+        }
     }
 
-    pub fn optimize_weights<SC: SeedChooser + Sync>(&self, seed_chooser: SC) {
-        let (minimizer, conf) = self.optimizer(seed_chooser.core());
-        let args = Array::from_vec(WeightsF::from(seed_chooser.bucket_evaluator(self.bits_per_seed, conf.slice_len())).size_weights.into_vec());
-
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            let slice = x.as_slice().unwrap();
-            let evaluator = WeightsF{ size_weights: slice.try_into().unwrap() };
-            self.par_f_eval(slice, |keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(self.bits_per_seed),
-                    conf,
-                    seed_chooser.clone(), &evaluator).1)
-        }, args.view());
-        println!("Optimal weights: {ans:.0}");
-    }
-
-    pub fn optimize_perfectlog0(&self) {
-        let s = SumOfLogValuesF0.for_k(self.k);
-        let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight]);
-        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
-        
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
-            self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnlyK::new(self.k, evaluator)).1)
-        }, args.view());
-        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[2], ans[0], ans[1], ans[3]);
+    pub fn optimize_weights<SC: SeedChooser>(&self, seed_chooser: SC) {
+        self.optimize(WeightsCost(seed_chooser));
     }
 
     pub fn optimize_perfectlog(&self) {
-        //let s = SumOfLogValuesF.for_k(self.k);
-        //let args = vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight];
-        let (_, conf) = self.optimizer(SeedKCore(self.k));
-
-        let f = crate::optim::FromFn(|x| {
-            println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[2], x[0], x[1], x[3]);
-            let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
-            self.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnlyK::new(self.k, evaluator)).1)
-        });
-        use argmin::{core::State, solver::particleswarm::ParticleSwarm};
-        let lower_bound: Vec<f64> = vec![0.00001, 1.0, 0.5, 0.0];
-        let upper_bound: Vec<f64> = vec![0.01, 10.0, 2.0, 1.0];
-        let pso: ParticleSwarm<Vec<f64>, f64, _> = ParticleSwarm::new((lower_bound, upper_bound), 10);
-        let executor = argmin::core::Executor::new(f, pso)/*.configure(|state|
-            state
-                // Set initial parameters (depending on the solver,
-                // this may be required)
-                .param(args)
-                // Set maximum iterations to 10
-                // (optional, set to `std::u64::MAX` if not provided)
-                .max_iters(10)
-                // Set target cost. The solver stops when this cost
-                // function value is reached (optional)
-                .target_cost(0.0)
-        )*/;
-        let res = executor.run().unwrap();
-        println!("{}", res);
-        let ans = &res.state().get_best_param().unwrap().position;
-        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
+        self.optimize(PerfectLogCost)
+        //let ans = &res.state().get_best_param().unwrap().position;
+        //println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
     }
 
-    /*pub fn optimize_perfectlog(&self) {
-        let s = SumOfLogValuesF.for_k(self.k);
-        let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight]);
-        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
-        
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[2], x[0], x[1], x[3]);
-            let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
-            self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnlyK::new(self.k, evaluator)).1)
-        }, args.view());
-        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[2], ans[0], ans[1], ans[3]);
-    }*/
+    pub fn optimize_perfectlog0(&self) {
+        self.optimize(PerfectLog0Cost);
+    }
 
     pub fn optimize_perfectlog1(&self) {
-        let s = SumOfLogValuesF1.for_k(self.k);
-        let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.free_values_weight]);
-        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
-        
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            println!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", x[2], x[0], x[1]);
-            let evaluator = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
-            self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnlyK::new(self.k, evaluator)).1)
-        }, args.view());
-        println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
+        self.optimize(PerfectLog1Cost);
     }
 
     pub fn optimize_perfectlogf1(&self) {

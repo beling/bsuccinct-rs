@@ -1,10 +1,25 @@
-use ph::phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, SeedEvaluator, SumOfLogValues, UsedValueMultiSetU16};
+use std::{cell::RefCell, usize};
+
+use ph::{phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, Partial, SeedChooser, SeedEvaluator, SeedOnly, SeedOnlyK, SumOfLogValues, UsedValueMultiSetU16}, seeds::BitsFast};
 
 use crate::conf::Conf;
 
-trait CostFn {
+pub enum Constrain {
+    Weak(f64),
+    Strong(f64),
+}
+
+pub trait CostFn {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize;
     fn init(&self, conf: &Conf) -> Vec<f64>;
+    fn params(&self, conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        self.init(conf).iter().map(|v| (
+            "",
+            Constrain::Weak(if *v > 0.0 { (v-1.0).max(0.0) } else { v-1.0 }),
+            Constrain::Weak(v + 1.0),
+            1
+        )).collect()
+    }
     fn bounds(&self, conf: &Conf) -> (Vec<f64>, Vec<f64>) {
         let s = self.init(conf);
         (
@@ -12,16 +27,170 @@ trait CostFn {
             s.iter().map(|v| v + 1.0).collect(),
         )
     }
+    //fn names(&self, x: &[f64]) -> Vec<(&str, usize)>
     fn print(&self, x: &[f64]) {
         for v in x { print!(" {v:.0}") }
     }
 }
 
-struct Weights;
+pub struct Cost<'c, CF: CostFn> {
+    pub conf: &'c Conf,
+    pub cost: CF,
+    pub best_cost: RefCell<usize>
+}
 
-impl CostFn for Weights {
+impl<'c, CF: CostFn> Cost<'c, CF> {
+    #[inline] pub fn new(conf: &'c Conf, cost: CF) -> Self { Self { conf, cost, best_cost: RefCell::new(usize::MAX) } }
+    pub fn eval(&self, x: &[f64]) -> usize {
+        let v = self.cost.eval(self.conf, x);
+        print!("{v} {:.2}% ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        self.print(x);
+        if v < *self.best_cost.borrow() {
+            print!(" (best)");
+            *self.best_cost.borrow_mut() = v;
+        }
+        println!();
+        v
+    }
+    #[inline] pub fn init(&self) -> Vec<f64> { self.cost.init(self.conf) }
+    #[inline] pub fn bounds(&self) -> (Vec<f64>, Vec<f64>) { self.cost.bounds(&self.conf) }
+    #[inline] pub fn print(&self, x: &[f64]) { self.cost.print(x); }
+}
+
+impl<'c, CF: CostFn> argmin::core::CostFunction for Cost<'c, CF> {
+    type Param = Vec<f64>;
+    type Output = f64;
+
+    #[inline] fn cost(&self, param: &Self::Param) -> Result<Self::Output, argmin::core::Error> {
+        Ok(self.eval(param) as f64)
+    }
+}
+
+pub struct WeightsCost<SC: SeedChooser>(pub SC);
+
+impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        todo!()
+        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(self.0.core()),
+                    self.0.clone(), &WeightsF{ size_weights: x.into() }).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).size_weights.into()
+    }
+}
+
+
+pub struct PerfectLogCost;
+
+impl CostFn for PerfectLogCost {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
+        let s = SeedOnlyK::new(conf.k, e);
+        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+            conf.core(s.core()), s).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let s = SumOfLogValuesF.for_k(conf.k);
+        vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight]
+    }
+
+    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
+        (vec![0.00001, 1.0, 0.5, 0.0],
+         vec![0.01, 10.0, 2.0, 1.0])
+    }
+
+    fn print(&self, x: &[f64]) {
+        print!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[2], x[0], x[1], x[3]);
+    }
+}
+
+
+pub struct PerfectLog0Cost;
+
+impl CostFn for PerfectLog0Cost {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
+        let s = SeedOnlyK::new(conf.k, e);
+        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+            conf.core(s.core()), s).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let s = SumOfLogValuesF0.for_k(conf.k);
+        vec![s.value_shift, s.free_shift, s.free_values_weight]
+    }
+
+    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
+        (vec![0.00001, 1.0, 0.5],
+         vec![0.01, 10.0, 2.0])
+    }
+
+    fn print(&self, x: &[f64]) {
+        print!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", x[2], x[0], x[1]);
+    }
+}
+
+
+pub struct PerfectLog1Cost;
+
+impl CostFn for PerfectLog1Cost {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
+        let s = SeedOnlyK::new(conf.k, e);
+        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+            conf.core(s.core()), s).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let s = SumOfLogValuesF1.for_k(conf.k);
+        vec![s.value_shift, s.free_shift, s.free_values_weight]
+    }
+
+    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
+        (vec![0.00001, 1.0, 0.5],
+         vec![0.01, 10.0, 2.0])
+    }
+
+    fn print(&self, x: &[f64]) {
+        print!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", x[2], x[0], x[1]);
+    }
+}
+
+pub struct PerfectLogFW1Cost;
+
+impl CostFn for PerfectLogFW1Cost {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: x[0], free_shift: x[1], first_weight: x[2] };
+        let s = SeedOnlyK::new(conf.k, e);
+        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+            conf.core(s.core()), s).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let s = SumOfLogValuesFW1.for_k(conf.k);
+        vec![s.value_shift, s.free_shift, s.first_weight]
+    }
+
+    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
+        (vec![0.00001, 1.0, 0.5],
+         vec![0.01, 10.0, 2.0])
+    }
+
+    fn print(&self, x: &[f64]) {
+        println!("value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[0], x[1], x[2]);
+    }
+}
+
+
+struct ProdOfValuesCost;
+
+impl CostFn for ProdOfValuesCost {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let s = SeedOnly(GenericProdOfValues { first_weight: x[0], shift: x[1] });
+        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+            conf.core(s.core()), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -31,19 +200,6 @@ impl CostFn for Weights {
 
 
 
-
-pub struct FromFn<F: Fn(&[f64]) -> usize>(pub F);
-
-impl<F> argmin::core::CostFunction for FromFn<F>
-    where F: Fn(&[f64]) -> usize,
-{
-    type Param = Vec<f64>;
-    type Output = f64;
-
-    fn cost(&self, param: &Self::Param) -> Result<Self::Output, argmin::core::Error> {
-        Ok(self.0(param) as f64)
-    }
-}
 
 /// Weights version that uses f64 and works well with numerical optimization.
 pub struct WeightsF {
@@ -171,10 +327,15 @@ impl KSeedEvaluatorConf for SumOfLogValuesFW1 {
             8 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00305, free_shift: 2.93630, first_weight: 0.73511 }, // 0.81%
             9 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00334, free_shift: 3.00825, first_weight: 0.71309 }, // 0.73%
             10 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00340, free_shift: 3.23864, first_weight: 0.73775 }, // 0.68%
+            11 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }, // 0.63%
+            12 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }, // 0.60%
+            13 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }, // 0.57%
+            14 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }, // 0.56%
             100 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }, // 0.61%
             200 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }, // 0.96%
             300 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }, // 1.35%
             400 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }, // 1.78%
+            500 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }, // 2.22%
             1000 => SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }, // 2.23%
             _ => {
                 SumOfLogValuesFEval { free_values_weight: 1.0, ..SumOfLogValuesF.for_k(k) }
