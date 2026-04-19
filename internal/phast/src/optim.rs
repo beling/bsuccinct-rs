@@ -4,9 +4,19 @@ use ph::{phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator,
 
 use crate::conf::Conf;
 
+#[derive(Clone, Copy)]
 pub enum Constrain {
     Weak(f64),
     Strong(f64),
+}
+
+impl From<Constrain> for f64 {
+    fn from(value: Constrain) -> Self {
+        match value {
+            Constrain::Weak(v) => v,
+            Constrain::Strong(v) => v,
+        }
+    }
 }
 
 pub trait CostFn {
@@ -21,40 +31,50 @@ pub trait CostFn {
         )).collect()
     }
     fn bounds(&self, conf: &Conf) -> (Vec<f64>, Vec<f64>) {
-        let s = self.init(conf);
-        (
-            s.iter().map(|v| if *v > 0.0 { (v-1.0).max(0.0) } else { v-1.0 }).collect(),
-            s.iter().map(|v| v + 1.0).collect(),
-        )
+        let p = self.params(conf);
+        (p.iter().map(|(_, l, _, _)| (*l).into()).collect(),
+         p.iter().map(|(_, _, u, _)| (*u).into()).collect())
     }
-    //fn names(&self, x: &[f64]) -> Vec<(&str, usize)>
-    fn print(&self, x: &[f64]) {
-        for v in x { print!(" {v:.0}") }
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        for (v, (s, _, _, prec)) in x.iter().zip(self.params(conf)) {
+            if !s.is_empty() { print!(" {s}:") }
+            print!(" {:.*}", prec, v) 
+        }
     }
 }
 
 pub struct Cost<'c, CF: CostFn> {
     pub conf: &'c Conf,
     pub cost: CF,
-    pub best_cost: RefCell<usize>
+    pub best_cost: RefCell<usize>,
+    pub best: RefCell<Vec<f64>>
 }
 
 impl<'c, CF: CostFn> Cost<'c, CF> {
-    #[inline] pub fn new(conf: &'c Conf, cost: CF) -> Self { Self { conf, cost, best_cost: RefCell::new(usize::MAX) } }
+    #[inline] pub fn new(conf: &'c Conf, cost: CF) -> Self { Self { conf, cost, best_cost: RefCell::new(usize::MAX), best: RefCell::new(Vec::new()) } }
     pub fn eval(&self, x: &[f64]) -> usize {
         let v = self.cost.eval(self.conf, x);
-        print!("{v} {:.2}% ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
-        self.print(x);
+        print!("{v} {:.2}%", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
         if v < *self.best_cost.borrow() {
             print!(" (best)");
             *self.best_cost.borrow_mut() = v;
+            *self.best.borrow_mut() = x.into();
         }
+        self.print(x);
         println!();
         v
     }
     #[inline] pub fn init(&self) -> Vec<f64> { self.cost.init(self.conf) }
+    #[inline] pub fn params(&self) -> Vec<(&str, Constrain, Constrain, usize)> { self.cost.params(self.conf) }
     #[inline] pub fn bounds(&self) -> (Vec<f64>, Vec<f64>) { self.cost.bounds(&self.conf) }
-    #[inline] pub fn print(&self, x: &[f64]) { self.cost.print(x); }
+    #[inline] pub fn print(&self, x: &[f64]) { self.cost.print(self.conf, x); }
+
+    pub fn print_best(&self) {
+        let v =  *self.best_cost.borrow();
+        print!("Best {v} {:.2}% ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        self.cost.print(self.conf, &self.best.borrow());
+        println!();
+    }
 }
 
 impl<'c, CF: CostFn> argmin::core::CostFunction for Cost<'c, CF> {
@@ -70,7 +90,7 @@ pub struct WeightsCost<SC: SeedChooser>(pub SC);
 
 impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
                     self.0.clone(), &WeightsF{ size_weights: x.into() }).1)
     }
@@ -87,7 +107,7 @@ impl CostFn for PerfectLogCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
         let s = SeedOnlyK::new(conf.k, e);
-        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -96,13 +116,13 @@ impl CostFn for PerfectLogCost {
         vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight]
     }
 
-    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
-        (vec![0.00001, 1.0, 0.5, 0.0],
-         vec![0.01, 10.0, 2.0, 1.0])
-    }
-
-    fn print(&self, x: &[f64]) {
-        print!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[2], x[0], x[1], x[3]);
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(0.01), 5),
+            ("free_shift", Constrain::Strong(1.0), Constrain::Weak(10.0), 5),
+            ("free_values_weight", Constrain::Strong(0.5), Constrain::Weak(2.0), 5),
+            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
+        ]
     }
 }
 
@@ -113,7 +133,7 @@ impl CostFn for PerfectLog0Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
         let s = SeedOnlyK::new(conf.k, e);
-        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -122,13 +142,12 @@ impl CostFn for PerfectLog0Cost {
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
-    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
-        (vec![0.00001, 1.0, 0.5],
-         vec![0.01, 10.0, 2.0])
-    }
-
-    fn print(&self, x: &[f64]) {
-        print!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", x[2], x[0], x[1]);
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(0.01), 5),
+            ("free_shift", Constrain::Strong(1.0), Constrain::Weak(10.0), 5),
+            ("free_values_weight", Constrain::Strong(0.5), Constrain::Weak(2.0), 5),
+        ]
     }
 }
 
@@ -139,7 +158,7 @@ impl CostFn for PerfectLog1Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
         let s = SeedOnlyK::new(conf.k, e);
-        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -148,13 +167,12 @@ impl CostFn for PerfectLog1Cost {
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
-    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
-        (vec![0.00001, 1.0, 0.5],
-         vec![0.01, 10.0, 2.0])
-    }
-
-    fn print(&self, x: &[f64]) {
-        print!("free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", x[2], x[0], x[1]);
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(0.01), 5),
+            ("free_shift", Constrain::Strong(1.0), Constrain::Weak(10.0), 5),
+            ("free_values_weight", Constrain::Strong(0.5), Constrain::Weak(2.0), 5),
+        ]
     }
 }
 
@@ -164,7 +182,7 @@ impl CostFn for PerfectLogFW1Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: x[0], free_shift: x[1], first_weight: x[2] };
         let s = SeedOnlyK::new(conf.k, e);
-        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -173,28 +191,34 @@ impl CostFn for PerfectLogFW1Cost {
         vec![s.value_shift, s.free_shift, s.first_weight]
     }
 
-    fn bounds(&self, _conf: &Conf) -> (Vec<f64>, Vec<f64>) {
-        (vec![0.00001, 1.0, 0.5],
-         vec![0.01, 10.0, 2.0])
-    }
-
-    fn print(&self, x: &[f64]) {
-        println!("value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[0], x[1], x[2]);
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(0.01), 5),
+            ("free_shift", Constrain::Strong(1.0), Constrain::Weak(10.0), 5),
+            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
+        ]
     }
 }
 
 
-struct ProdOfValuesCost;
+pub struct ProdOfValuesCost;
 
 impl CostFn for ProdOfValuesCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let s = SeedOnly(GenericProdOfValues { first_weight: x[0], shift: x[1] });
-        conf.par_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
-    fn init(&self, conf: &Conf) -> Vec<f64> {
-        todo!()
+    fn init(&self, _conf: &Conf) -> Vec<f64> {
+        vec![0.5, 100.0]
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 2),
+            ("shift", Constrain::Strong(0.00001), Constrain::Weak(300.0), 5),
+        ]
     }
 }
 
@@ -433,5 +457,21 @@ impl SeedEvaluator for WGenericProdOfValues {
         ComparableF64(values_used_by_seed.iter().map(|v| {
             (*v as f64) - to_extract
         }).product())
+    }
+}
+
+impl CostFn for WGenericProdOfValues {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let s = SeedOnly(WGenericProdOfValues(*x.as_array::<4>().unwrap()));
+        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+            conf.core(s.core()), s).1)
+    }
+
+    fn init(&self, _conf: &Conf) -> Vec<f64> {
+        self.0.into()
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![("", Constrain::Strong(0.0001), Constrain::Weak(200.0), 4); 4]
     }
 }

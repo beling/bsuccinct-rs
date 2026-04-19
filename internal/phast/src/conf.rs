@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use ph::{phast::{Core, Generic, KSeedEvaluatorConf, Partial, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, Turbo, bucket_size_normalization_multiplier}, seeds::BitsFast, utils::verify_partial_kphf};
+use ph::{phast::{Generic, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, GenericProdOfValues, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1, SumOfLogValuesFEval, SumOfLogValuesFW1, WGenericProdOfValues, WeightsCost, WeightsF}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectLogFW1Cost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost}};
 
-use optimize::{Minimizer, NelderMead, NelderMeadBuilder};
+use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
 use rayon::{current_num_threads, iter::{IntoParallelIterator, ParallelIterator}};
 
@@ -151,6 +151,9 @@ pub enum Optimizer {
     /// Nelder Mead
     #[clap(alias = "nm")]
     NelderMead,
+    /// Bounded Nelder Mead
+    #[clap(alias = "bnm")]
+    BoundedNelderMead,
     /// Particle Swarm
     #[clap(alias = "pso")]
     ParticleSwarm,
@@ -160,6 +163,7 @@ impl std::fmt::Display for Optimizer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", match *self {
                 Optimizer::NelderMead => "Nelder Mead",
+                Optimizer::BoundedNelderMead => "Bounded Nelder Mead",
                 Optimizer::ParticleSwarm => "Particle Swarm",
             }
         )
@@ -356,41 +360,21 @@ impl Conf {
         total.print_avg(self);
     }
 
-    fn optimizer<SC: SeedChooserCore>(&self, seed_chooser_core: SC) -> (NelderMead, ph::phast::GenericCore) {
-        let bucket_size = self.bucket_size().into();
-        let minimizer = NelderMeadBuilder::default()
-            .maxiter(self.optimization_iters() as usize) 
-            .ulps(128)
-            .build()
-            .unwrap();
-        (minimizer, seed_chooser_core.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, bucket_size, self.slice_len))
-    }
-
     pub fn core<SC: SeedChooserCore>(&self, seed_chooser_core: SC) -> ph::phast::GenericCore {
         seed_chooser_core.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
     }
 
     pub const KEY_SETS_NUM: u32 = 96;
 
-    pub fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> usize {
+    pub fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, f: F) -> usize {
         (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
             f(&mut self.keys_for_seed(200+i))
         }).sum()
     }
 
-    fn par_f_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, x: &[f64], f: F) -> f64 {
-        let unassigned_keys: usize = (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
-            f(&mut self.keys_for_seed(200+i))
-        }).sum();
-        print!("{unassigned_keys} {:.2}%", unassigned_keys as f64 * 100.0 / (Self::KEY_SETS_NUM as f64 * self.keys_num as f64));
-        for v in x { print!(" {v:.0}") }
-        println!();
-        unassigned_keys as f64
-    }
-
     pub fn optimize<CF: CostFn>(&self, cost: CF) {
         println!("{} optimization steps with {}", self.optimization_iters(), self.optimizer);
-        let cost = Cost::new(self, cost);
+        let mut cost = Cost::new(self, cost);
         match self.optimizer {
             Optimizer::NelderMead => {
                 let nm = NelderMeadBuilder::default()
@@ -398,30 +382,47 @@ impl Conf {
                     .ulps(128)
                     .build()
                     .unwrap();
-                let ans = nm.minimize(|x: ArrayView1<f64>| {
-                    cost.eval(x.as_slice().unwrap()) as f64
-                }, Array::from_vec(cost.init()).view());
-                println!("Optimal weights: {ans:.0}");
+                nm.minimize(
+                    |x: ArrayView1<f64>| cost.eval(x.as_slice().unwrap()) as f64,
+                    Array::from_vec(cost.init()).view());
+                //cost.print(ans.as_slice().unwrap());
             },
             Optimizer::ParticleSwarm => {
                 use argmin::{solver::particleswarm::ParticleSwarm};
                 let pso: ParticleSwarm<Vec<f64>, f64, _> = ParticleSwarm::new(cost.bounds(), 10);
-                let executor = argmin::core::Executor::new(cost, pso)/*.configure(|state|
+                let executor = argmin::core::Executor::new(cost, pso).configure(|state|
                     state
                         // Set initial parameters (depending on the solver,
                         // this may be required)
-                        .param(args)
+                        //.param(args)
                         // Set maximum iterations to 10
                         // (optional, set to `std::u64::MAX` if not provided)
-                        .max_iters(10)
+                        .max_iters(self.optimization_iters() as u64)
                         // Set target cost. The solver stops when this cost
                         // function value is reached (optional)
-                        .target_cost(0.0)
-                )*/;
-                let res = executor.run().unwrap();
+                        //.target_cost(0.0)
+                );
+                let mut res = executor.run().unwrap();
                 println!("{}", res);
+                cost = res.problem.take_problem().unwrap();
+            },
+            Optimizer::BoundedNelderMead => {
+                let mut mn = MnSimplex::new().max_fcn(self.optimization_iters() as usize);
+                for (index, (value, (mut name, lo, up, prec))) in cost.init().into_iter().zip(cost.params()).enumerate() {
+                    let error = 0.1f64.powi(prec as i32);
+                    let name_buf;
+                    if name.is_empty() { name_buf = index.to_string(); name = &name_buf; }
+                    mn = match (lo, up) {
+                        (crate::optim::Constrain::Weak(_), crate::optim::Constrain::Weak(_)) => mn.add(name, value, error),
+                        (crate::optim::Constrain::Weak(_), crate::optim::Constrain::Strong(upper)) => mn.add_upper_limited(name, value, error, upper),
+                        (crate::optim::Constrain::Strong(lower), crate::optim::Constrain::Weak(_)) => mn.add_lower_limited(name, value, error, lower),
+                        (crate::optim::Constrain::Strong(lower), crate::optim::Constrain::Strong(upper)) => mn.add_limited(name, value, error, lower, upper),
+                    }
+                }
+                print!("{}", mn.minimize(&|x: &[f64]| cost.eval(x) as f64));
             }
         }
+        cost.print_best();
     }
 
     pub fn optimize_weights<SC: SeedChooser>(&self, seed_chooser: SC) {
@@ -430,8 +431,6 @@ impl Conf {
 
     pub fn optimize_perfectlog(&self) {
         self.optimize(PerfectLogCost)
-        //let ans = &res.state().get_best_param().unwrap().position;
-        //println!("Optimal parameters: free_values_weight: {:.5}, value_shift: {:.5}, free_shift: {:.5}", ans[2], ans[0], ans[1]);
     }
 
     pub fn optimize_perfectlog0(&self) {
@@ -443,78 +442,14 @@ impl Conf {
     }
 
     pub fn optimize_perfectlogf1(&self) {
-        let s = SumOfLogValuesFW1.for_k(self.k);
-        let args = Array::from_vec(vec![s.value_shift, s.free_shift, s.first_weight]);
-        let (minimizer, conf) = self.optimizer(SeedKCore(self.k));
-        
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            println!("value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", x[0], x[1], x[2]);
-            let evaluator = SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: x[0], free_shift: x[1], first_weight: x[2] };
-            self.par_f_eval(x.as_slice().unwrap(), |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnlyK::new(self.k, evaluator)).1)
-        }, args.view());
-        println!("Optimal parameters: value_shift: {:.5}, free_shift: {:.5}, first_weight: {:.5}", ans[0], ans[1], ans[2]);
+        self.optimize(PerfectLogFW1Cost);
     }
-
-    /*pub fn optimize_genericprod(&self) {
-        let s = GenericProdOfValues { first_weight: 0.0, shift: 70.0 };
-        let args = Array::from_vec(vec![s.first_weight, s.shift]);
-        let (minimizer, conf) = self.optimizer(&SeedOnly(s));
-        
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            let evaluator = GenericProdOfValues { first_weight: x[0], shift: x[1] };
-            println!("first_weight: {}, shift: {}", x[0], x[1]);
-            self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnly(evaluator)).1)
-        }, args.view());
-        println!("Optimal parameters: first_weight: {}, shift: {}", ans[0], ans[1]);
-    }*/
 
     pub fn optimize_genericprod(&self) {
-        let conf = SeedOnly(GenericProdOfValues { first_weight: 0.5, shift: 100.0 }).conf_for_minimal(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len);
-        let result = MnSimplex::new()
-            .add_limited("first_weight", 0.5, 0.01, 0.0, 1.0)
-            .add_lower_limited("shift", 100.0, 1.0, 1.0)
-            .max_fcn(if self.iters == 0 { 100 } else {self.iters as usize})
-            .minimize(&|x: &[f64]| {
-                println!("first_weight: {}, shift: {}", x[0], x[1]);
-                let evaluator = GenericProdOfValues { first_weight: x[0], shift: x[1] };
-                self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnly(evaluator)).1)
-            });
-        println!("{result}");
+        self.optimize(ProdOfValuesCost)
     }
 
-    /*pub fn optimize_wgenericprod(&self) {
-        let conf = SeedOnly(WGenericProdOfValues([145.0; 9])).conf_for_minimal(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len);
-        let result = MnSimplex::new()
-            .add_lower_limited("1", 145.0, 10.0, 1.0)
-            .add_lower_limited("2", 145.0, 10.0, 1.0)
-            .add_lower_limited("3", 145.0, 10.0, 1.0)
-            .add_lower_limited("4", 145.0, 10.0, 1.0)
-            .add_lower_limited("5", 145.0, 10.0, 1.0)
-            .add_lower_limited("6", 145.0, 10.0, 1.0)
-            .add_lower_limited("7", 145.0, 10.0, 1.0)
-            .add_lower_limited("8", 145.0, 10.0, 1.0)
-            .add_lower_limited("9", 145.0, 10.0, 1.0)
-            .max_fcn(if self.iters == 0 { 100 } else {self.iters as usize})
-            .minimize(&|x: &[f64]| {
-                let evaluator = WGenericProdOfValues(*x.as_array::<9>().unwrap());
-                self.par_f_eval(x, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnly(evaluator)).1)
-            });
-        println!("{result}");
-    }*/
-
     pub fn optimize_wgenericprod(&self) {
-        let (minimizer, conf) = self.optimizer(SeedCore);
-        let args = Array::from_vec(vec![181.0, 177.0, 108.0, 80.0]);
-        let ans = minimizer.minimize(|x: ArrayView1<f64>| {
-            let slice = x.as_slice().unwrap();
-            let evaluator = WGenericProdOfValues(*slice.as_array::<4>().unwrap());
-            self.par_f_eval(slice, |keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(self.bits_per_seed),
-                    conf, SeedOnly(evaluator)).1)
-        }, args.view());
-        println!("Optimal weights: {ans:.0}");
+        self.optimize(WGenericProdOfValues([181.0, 177.0, 108.0, 80.0]));
     }
 }
