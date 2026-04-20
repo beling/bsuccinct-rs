@@ -9,7 +9,7 @@ pub use shift::{ShiftOnly, ShiftCore};
 mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore};
 
-use crate::{fmph::SeedSize, phast::{Weights, conf::{Core, Conf}, cyclic::{GenericUsedValue, UsedValueSet}}};
+use crate::{fmph::SeedSize, phast::{Weights, conf::{Core, CoreConf}, cyclic::{GenericUsedValue, UsedValueSet}}};
 
 use super::conf::GenericCore;
 
@@ -87,13 +87,12 @@ pub trait SeedChooserCore: Copy {
         self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
-    #[inline(always)] fn conf_p<P: Conf>(&self, output_range: usize, num_of_keys: usize, params: &P) -> P::Core {
-        let bits_per_seed = params.bits_per_seed();
-        params.core(output_range, num_of_keys, self.slice_len(output_range, bits_per_seed, params.preferred_slice_len()), self.extra_shift(bits_per_seed))
+    #[inline(always)] fn conf_p<CC: CoreConf>(&self, output_range: usize, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
+        core.core(output_range, num_of_keys, self.slice_len(output_range, bits_per_seed, core.preferred_slice_len()), self.extra_shift(bits_per_seed))
     }
 
-    #[inline(always)] fn conf_for_minimal_p<P: Conf>(&self, num_of_keys: usize, params: &P) -> P::Core {
-        self.conf_p(self.minimal_output_range(num_of_keys), num_of_keys, params)
+    #[inline(always)] fn conf_for_minimal_p<CC: CoreConf>(&self, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
+        self.conf_p(self.minimal_output_range(num_of_keys), num_of_keys, core, bits_per_seed)
     }
 }
 
@@ -146,12 +145,12 @@ pub trait SeedChooser: Clone + Sync {
         self.core().conf_for_minimal(num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
-    #[inline(always)] fn conf_p<P: Conf>(&self, output_range: usize, num_of_keys: usize, params: &P) -> P::Core {
-        self.core().conf_p::<P>(output_range, num_of_keys, params)
+    #[inline(always)] fn conf_p<CC: CoreConf>(&self, output_range: usize, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
+        self.core().conf_p::<CC>(output_range, num_of_keys, core, bits_per_seed)
     }
 
-    #[inline(always)] fn conf_for_minimal_p<P: Conf>(&self, num_of_keys: usize, params: &P) -> P::Core {
-        self.core().conf_for_minimal_p::<P>(num_of_keys, params)
+    #[inline(always)] fn conf_for_minimal_p<CC: CoreConf>(&self, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
+        self.core().conf_for_minimal_p::<CC>(num_of_keys, core, bits_per_seed)
     }
 
     /// Returns function value for given primary code and seed.

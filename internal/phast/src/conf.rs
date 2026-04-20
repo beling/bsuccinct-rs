@@ -271,12 +271,18 @@ impl Conf {
         butils::XorShift64(seed as u64).take(self.keys_num as usize).collect()
     }
 
-    pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> Generic<SS> {
-        Generic { seed_size, bucket_size100, preferred_slice_len: self.slice_len }
+    pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic> {
+        ph::phast::Conf {
+            seed_size,
+            core_conf: Generic { bucket_size100, preferred_slice_len: self.slice_len }
+        }
     }
 
-    pub fn params_turbo<SS>(&self, seed_size: SS) -> Turbo<SS> {
-        Turbo { seed_size, preferred_slice_len: self.slice_len }
+    pub fn params_turbo<SS>(&self, seed_size: SS) -> ph::phast::Conf<SS, Turbo> {
+        ph::phast::Conf {
+            seed_size,
+            core_conf: Turbo { preferred_slice_len: self.slice_len }
+        }
     }
 
     pub fn threads(&self) -> usize { if self.multiple_threads { current_num_threads() } else { 1 } }

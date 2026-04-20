@@ -277,22 +277,14 @@ impl GenericCore {
     }*/
 }
 
-pub trait Conf: Sync {
+pub trait CoreConf: Sync {
     /// PHast Core to use.
     type Core: Core;
-
-    /// Type of seed size to use.
-    type SeedSize: SeedSize;
 
     fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core;
 
     //fn bucket_size100(&self) -> u16;
     fn preferred_slice_len(&self) -> u16;
-
-    fn seed_size(&self) -> Self::SeedSize;
-
-    /// Returns number of bits used to store each seed.
-    fn bits_per_seed(&self) -> u8;
 }
 
 
@@ -374,21 +366,20 @@ impl Core for TurboCore {
 
 
 #[derive(Clone, Copy)]
-pub struct Generic<SS> {
-    pub seed_size: SS,
+pub struct Generic {
     pub bucket_size100: u16,
     pub preferred_slice_len: u16
 }
 
-impl<SS> Generic<SS> {
+impl Generic {
     #[inline]
-    pub fn new(seed_size: SS, bucket_size100: u16) -> Self {
-        Self { seed_size, bucket_size100, preferred_slice_len: 0 }
+    pub fn new(bucket_size100: u16) -> Self {
+        Self { bucket_size100, preferred_slice_len: 0 }
     }
 
     #[inline]
-    pub fn new_psl(seed_size: SS, bucket_size100: u16, preferred_slice_len: u16) -> Self {
-        Self { seed_size, bucket_size100, preferred_slice_len }
+    pub fn new_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
+        Self { bucket_size100, preferred_slice_len }
     }
 
     /*#[inline]
@@ -397,10 +388,9 @@ impl<SS> Generic<SS> {
     }*/
 }
 
-impl<SS: SeedSize> Conf for Generic<SS> {
+impl CoreConf for Generic {
     
     type Core = GenericCore;
-    type SeedSize = SS;
     
     fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
         GenericCore::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
@@ -410,30 +400,25 @@ impl<SS: SeedSize> Conf for Generic<SS> {
         self.preferred_slice_len
     }
     
-    #[inline(always)] fn seed_size(&self) -> Self::SeedSize {
-        self.seed_size
-    }
 
-    #[inline(always)] fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
 }
 
 
 
 #[derive(Clone, Copy)]
-pub struct Turbo<SS> {
-    pub seed_size: SS,
+pub struct Turbo {
     pub preferred_slice_len: u16
 }
 
-impl<SS> Turbo<SS> {
+impl Turbo {
     #[inline]
-    pub fn new(seed_size: SS) -> Self {
-        Self { seed_size, preferred_slice_len: 0 }
+    pub fn new() -> Self {
+        Self { preferred_slice_len: 0 }
     }
 
     #[inline]
-    pub fn new_psl(seed_size: SS, preferred_slice_len: u16) -> Self {
-        Self { seed_size, preferred_slice_len }
+    pub fn new_psl(preferred_slice_len: u16) -> Self {
+        Self { preferred_slice_len }
     }
 
     /*#[inline]
@@ -442,10 +427,9 @@ impl<SS> Turbo<SS> {
     }*/
 }
 
-impl<SS: SeedSize> Conf for Turbo<SS> {
+impl CoreConf for Turbo {
     
     type Core = TurboCore;
-    type SeedSize = SS;
     
     fn core(&self, output_range: usize, _num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
         TurboCore::new(output_range, slice_len, max_shift)
@@ -454,10 +438,20 @@ impl<SS: SeedSize> Conf for Turbo<SS> {
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
         self.preferred_slice_len
     }
-    
-    #[inline(always)] fn seed_size(&self) -> Self::SeedSize {
-        self.seed_size
-    }
+}
 
-    #[inline(always)] fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
+
+pub struct Conf<SS, CC> {
+    pub seed_size: SS,
+    pub core_conf: CC
+}
+
+impl<SS: SeedSize, CC: CoreConf> Conf<SS, CC> {
+    #[inline(always)] pub fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
+}
+
+impl<SS: SeedSize> Conf<SS, Generic> {
+    pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
+        Self { seed_size, core_conf: Generic::new(bucket_size100) }
+    }
 }
