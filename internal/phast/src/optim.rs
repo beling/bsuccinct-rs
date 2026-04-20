@@ -216,7 +216,7 @@ impl CostFn for ProdOfValuesCost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 2),
+            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
             ("shift", Constrain::Strong(0.00001), Constrain::Weak(300.0), 5),
         ]
     }
