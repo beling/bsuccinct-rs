@@ -389,7 +389,7 @@ impl Conf {
             },
             Optimizer::ParticleSwarm => {
                 use argmin::{solver::particleswarm::ParticleSwarm};
-                let pso: ParticleSwarm<Vec<f64>, f64, _> = ParticleSwarm::new(cost.bounds(), 30);
+                let pso: ParticleSwarm<Vec<f64>, f64, _> = ParticleSwarm::new(cost.bounds(), 40);
                 let executor = argmin::core::Executor::new(cost, pso).configure(|state|
                     state
                         // Set initial parameters (depending on the solver,
