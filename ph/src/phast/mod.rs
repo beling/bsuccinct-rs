@@ -24,8 +24,8 @@ pub use perfect::Perfect;
 mod partial;
 pub use partial::Partial;
 
-//mod kfunction;
-//pub use kfunction::KFunction;
+mod kfunction;
+pub use kfunction::KFunction;
 
 mod seed_chooser;
 pub use seed_chooser::{SeedChooser, SeedChooserCore, SeedEvaluator, ProdOfValues, SeedOnly, SeedCore, ShiftOnly, ShiftCore,

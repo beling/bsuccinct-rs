@@ -106,7 +106,7 @@ pub struct PerfectLogCost;
 impl CostFn for PerfectLogCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
-        let s = SeedOnlyK::new(conf.k, e);
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
@@ -132,7 +132,7 @@ pub struct PerfectLog0Cost;
 impl CostFn for PerfectLog0Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
-        let s = SeedOnlyK::new(conf.k, e);
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
@@ -157,7 +157,7 @@ pub struct PerfectLog1Cost;
 impl CostFn for PerfectLog1Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
-        let s = SeedOnlyK::new(conf.k, e);
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
@@ -181,7 +181,7 @@ pub struct PerfectLogFW1Cost;
 impl CostFn for PerfectLogFW1Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: 1.0, value_shift: x[0], free_shift: x[1], first_weight: x[2] };
-        let s = SeedOnlyK::new(conf.k, e);
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }

@@ -24,7 +24,7 @@ pub fn verify_partial_phf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(expect
     }
 }
 
-/// Checks if `phf` is valid k-perfect hash function. Panics if it is not (also if `phf` returns `None` for any key).
+/// Checks if `phf` is valid perfect hash function. Panics if it is not (also if `phf` returns `None` for any key).
 pub fn verify_phf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(expected_range: usize, keys: impl IntoIterator<Item=K>, phf: G) {
     verify_partial_phf(expected_range, keys, |key| {
         let v = phf(key);
@@ -58,10 +58,14 @@ pub fn verify_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u16, expec
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::verify_phf;
+    use super::{verify_phf, verify_kphf};
 
     pub fn test_mphf<K: std::fmt::Display+Clone, G: Fn(&K)->Option<usize>>(mphf_keys: &[K], mphf: G) {
         verify_phf(mphf_keys.len(), mphf_keys.iter().cloned(), mphf);
+    }
+
+    pub fn test_kmphf<K: std::fmt::Display+Clone, G: Fn(&K)->Option<usize>>(k: u16, mphf_keys: &[K], kmphf: G) {
+        verify_kphf(k, mphf_keys.len(), mphf_keys.iter().cloned(), kmphf);
     }
 
     pub fn test_mphf_u64<K: std::fmt::Display+Clone, G: Fn(&K)->Option<u64>>(mphf_keys: &[K], mphf: G) {

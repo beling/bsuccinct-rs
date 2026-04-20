@@ -3,7 +3,7 @@ use std::io;
 use binout::{Serializer, VByte};
 use seedable_hash::map64_to_64;
 
-use crate::{phast::SeedChooserCore, seeds::SeedSize};
+use crate::{fmph::Bits8, phast::SeedChooserCore, seeds::SeedSize};
 
 /// The PHast core which is responsible for mapping key hashes to buckets and slices.
 pub trait Core: Copy+Sync {
@@ -451,7 +451,17 @@ impl<SS: SeedSize, CC: CoreConf> Conf<SS, CC> {
 }
 
 impl<SS: SeedSize> Conf<SS, Generic> {
-    pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
+    #[inline] pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
         Self { seed_size, core_conf: Generic::new(bucket_size100) }
+    }
+}
+
+impl Conf<Bits8, Generic> {
+    #[inline] pub fn generic8(bucket_size100: u16) -> Self {
+        Self { seed_size: Bits8, core_conf: Generic::new(bucket_size100) }
+    }
+
+    #[inline] pub fn default_generic8() -> Self {
+        Self::generic8(bits_per_seed_to_100_bucket_size(8))
     }
 }

@@ -1,5 +1,7 @@
 use core::f64;
+use std::io;
 
+use binout::{AsIs, Serializer};
 use bitm::ceiling_div;
 
 use crate::phast::{ComparableF64, SeedChooserCore, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}};
@@ -159,25 +161,44 @@ impl SeedChooserCore for SeedKCore {
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { ceiling_div(num_of_keys, self.0 as usize) }
+
+    /// Writes `self` to the `output`.
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> { 
+        AsIs::write(output, self.0)
+    }
+
+    /// Returns number of bytes which `write` will write.
+    fn write_bytes(&self) -> usize { AsIs::size(self.0) }
+
+    /// Read `Self` from the `input`.
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        Ok(Self(AsIs::read(input)?)) 
+    }
 }
 
 
 /// [`SeedChooser`] to build `k`-perfect functions.
 /// `k` is given as a parameter of this chooser.
 /// 
-/// Should be used with [`Perfect`].
+/// Should be used with [`KFunction`] or [`Perfect`].
 /// 
 /// It chooses best seed with quite strong hasher, without shift component,
 /// which should lead to quite small size, but long construction time.
 #[derive(Clone, Copy)]
-pub struct SeedOnlyK<SE = SumOfLogValues> {
+pub struct SeedOnlyK<SE = SumOfLogValuesEvaluator> {
     pub seed_evaluator: SE,
     pub core: SeedKCore,
 }
 
+impl SeedOnlyK<SumOfLogValuesEvaluator> {
+    pub fn new(k: u16) -> Self {
+        Self::with_evaluator(k, SumOfLogValues)
+    }
+}
+
 impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
-    pub fn new<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u16, seed_evaluator: SEC) -> Self {
-        Self { seed_evaluator: seed_evaluator.for_k(k), core: SeedKCore(k) }
+    pub fn with_evaluator<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u16, seed_evaluator_conf: SEC) -> Self {
+        Self { seed_evaluator: seed_evaluator_conf.for_k(k), core: SeedKCore(k) }
     }
 }
 
@@ -217,8 +238,6 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     
     #[inline(always)] fn core(&self) -> Self::Core { self.core }
 
-
-
     #[inline(always)]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;
@@ -231,7 +250,5 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
         };
         best_seed
     }
-    
-
 }
 

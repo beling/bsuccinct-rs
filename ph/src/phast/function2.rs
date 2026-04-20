@@ -1,7 +1,7 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Conf, CoreConf, Generic, ProdOfValues, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
-use super::{bits_per_seed_to_100_bucket_size, builder::build_last_level, conf::GenericCore, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
+use crate::{phast::{Conf, CoreConf, ProdOfValues, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
+use super::{builder::build_last_level, conf::GenericCore, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -347,6 +347,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Writes `self` to the `output`.
     pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
     {
+        self.seed_chooser.write(output)?;
         self.level0.write(output, self.seed_size)?;
         self.bumped_index_to_value.write(output)?;
         VByte::write(output, self.bumped_to_index.len())?;
@@ -360,6 +361,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
 
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
+        self.seed_chooser.write_bytes() +
         self.level0.write_bytes() +
         self.bumped_index_to_value.write_bytes() +
         VByte::size(self.bumped_to_index.len()) +
@@ -368,8 +370,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         self.last_level.write_bytes()
     }
 
-    /// Read `Self` from the `input`. `hasher` and `seed_chooser` must be the same as used by the structure written.
-    pub fn read_with_hasher_sc(input: &mut dyn io::Read, hasher: S, seed_chooser: SCC) -> io::Result<Self> {
+    /// Read `Self` from the `input`. `hasher` must be the same as used by the structure written.
+    pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self> {
+        let seed_chooser = SCC::read(input)?;
         let (seed_size, level0) = SeedEx::read(input)?;
         let unassigned = CA::read(input)?;
         let levels_num: usize = VByte::read(input)?;
@@ -387,7 +390,7 @@ impl<C: Core, SS: SeedSize> Function2<C, SS, ShiftWrappedCore, DefaultCompressed
 
     /// Read `Self` from the `input`. Uses default hasher and seed chooser.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
-        Self::read_with_hasher_sc(input, BuildDefaultSeededHasher::default(), ShiftWrappedCore)
+        Self::read_with_hasher(input, BuildDefaultSeededHasher::default())
     }
 }
 
@@ -396,7 +399,7 @@ impl Function2<GenericCore, Bits8, ShiftWrappedCore, DefaultCompressedArray, Bui
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_st<K>(keys: Vec::<K>) -> Self where K: Hash {
-        Self::with_vec_p_hash_sc(keys, &Conf { seed_size: Bits8::default(), core_conf: Generic::new(bits_per_seed_to_100_bucket_size(8)) },
+        Self::with_vec_p_hash_sc(keys, &Conf::default_generic8(),
         BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 
@@ -404,7 +407,7 @@ impl Function2<GenericCore, Bits8, ShiftWrappedCore, DefaultCompressedArray, Bui
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_mt<K>(keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
-        Self::with_vec_p_threads_hash_sc(keys, &Conf { seed_size: Bits8::default(), core_conf: Generic::new(bits_per_seed_to_100_bucket_size(8)) },
+        Self::with_vec_p_threads_hash_sc(keys, &Conf::default_generic8(),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 
@@ -412,7 +415,7 @@ impl Function2<GenericCore, Bits8, ShiftWrappedCore, DefaultCompressedArray, Bui
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K]) -> Self where K: Hash+Clone {
-        Self::with_slice_p_hash_sc(keys, &Conf { seed_size: Bits8::default(), core_conf: Generic::new(bits_per_seed_to_100_bucket_size(8)) },
+        Self::with_slice_p_hash_sc(keys, &Conf::default_generic8(),
         BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 
@@ -420,7 +423,7 @@ impl Function2<GenericCore, Bits8, ShiftWrappedCore, DefaultCompressedArray, Bui
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
-        Self::with_slice_p_threads_hash_sc(keys, &Conf { seed_size: Bits8::default(), core_conf: Generic::new(bits_per_seed_to_100_bucket_size(8)) },
+        Self::with_slice_p_threads_hash_sc(keys, &Conf::default_generic8(),
         std::thread::available_parallelism().map_or(1, |v| v.into()), BuildDefaultSeededHasher::default(), ShiftOnlyWrapped)
     }
 }

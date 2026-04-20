@@ -1,3 +1,7 @@
+use std::io;
+
+use binout::{AsIs, Serializer};
+
 use crate::phast::{SeedChooserCore, Weights, conf::{Core, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
 use super::SeedChooser;
 
@@ -113,6 +117,8 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftWrappedCore<MULTIPLIER> {
             },
         }})
     }
+
+    #[inline(always)] fn read(_input: &mut dyn io::Read) -> io::Result<Self> { Ok(Self) }
 }
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ with wrapping*.
@@ -303,6 +309,19 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftSeedCore<MULTIPLIER> {
                     150000..250000 => 1024,
                     _ => 2048,
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
+    }
+
+    /// Writes `self` to the `output`.
+    fn write(&self, output: &mut dyn io::Write) -> io::Result<()> { 
+        AsIs::write(output, self.0)
+    }
+
+    /// Returns number of bytes which `write` will write.
+    fn write_bytes(&self) -> usize { AsIs::size(self.0) }
+
+    /// Read `Self` from the `input`.
+    fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        Ok(Self(AsIs::read(input)?)) 
     }
 }
 

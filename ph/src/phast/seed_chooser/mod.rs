@@ -1,5 +1,6 @@
 mod k;
 use core::f64;
+use std::io;
 
 pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier, space_lower_bound};
 
@@ -94,6 +95,15 @@ pub trait SeedChooserCore: Copy {
     #[inline(always)] fn conf_for_minimal_p<CC: CoreConf>(&self, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
         self.conf_p(self.minimal_output_range(num_of_keys), num_of_keys, core, bits_per_seed)
     }
+
+    /// Writes `self` to the `output`.
+    fn write(&self, _output: &mut dyn io::Write) -> io::Result<()> { Ok(()) }
+
+    /// Returns number of bytes which `write` will write.
+    fn write_bytes(&self) -> usize { 0 }
+
+    /// Read `Self` from the `input`.
+    fn read(input: &mut dyn io::Read) -> io::Result<Self>;
 }
 
 
@@ -310,6 +320,9 @@ impl SeedChooserCore for SeedCore {
     fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
         conf.try_f(seed_size, seeds, primary_code)
     }
+
+    /// Read `Self` from the `input`.
+    #[inline(always)] fn read(_input: &mut dyn io::Read) -> io::Result<Self> { Ok(Self) }
 }
 
 /// [`SeedChooser`] to build (1-)perfect functions.
@@ -362,6 +375,8 @@ impl SeedChooserCore for SeedNoBumpCore {
     #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f_nobump(primary_code, seed)
     }
+
+    #[inline(always)] fn read(_input: &mut dyn io::Read) -> io::Result<Self> { Ok(Self) }
 }
 
 /// Choose best seed without shift component.

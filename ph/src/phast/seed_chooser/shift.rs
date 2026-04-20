@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
 use super::SeedChooser;
 
@@ -58,6 +60,9 @@ impl SeedChooserCore for ShiftCore {
             }
         })
     }
+
+    /// Read `Self` from the `input`.
+    #[inline(always)] fn read(_input: &mut dyn io::Read) -> io::Result<Self> { Ok(Self) }
 }
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ without wrapping*.
