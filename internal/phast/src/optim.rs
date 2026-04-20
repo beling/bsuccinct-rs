@@ -144,9 +144,9 @@ impl CostFn for PerfectLog0Cost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(0.01), 5),
-            ("free_shift", Constrain::Strong(1.0), Constrain::Weak(10.0), 5),
-            ("free_values_weight", Constrain::Strong(0.5), Constrain::Weak(2.0), 5),
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 5),
+            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
+            ("free_values_weight", Constrain::Strong(/*0.5*/0.2), Constrain::Weak(5.0/*2.0*/), 5),
         ]
     }
 }
@@ -169,9 +169,9 @@ impl CostFn for PerfectLog1Cost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(0.01), 5),
-            ("free_shift", Constrain::Strong(1.0), Constrain::Weak(10.0), 5),
-            ("free_values_weight", Constrain::Strong(0.5), Constrain::Weak(2.0), 5),
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 5),
+            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
+            ("free_values_weight", Constrain::Strong(/*0.5*/0.2), Constrain::Weak(5.0/*2.0*/), 5),
         ]
     }
 }
@@ -193,8 +193,8 @@ impl CostFn for PerfectLogFW1Cost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(0.01), 5),
-            ("free_shift", Constrain::Strong(1.0), Constrain::Weak(10.0), 5),
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 5),
+            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
             ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
         ]
     }
