@@ -54,13 +54,13 @@ impl<'c, CF: CostFn> Cost<'c, CF> {
     #[inline] pub fn new(conf: &'c Conf, cost: CF) -> Self { Self { conf, cost, best_cost: RefCell::new(usize::MAX), best: RefCell::new(Vec::new()) } }
     pub fn eval(&self, x: &[f64]) -> usize {
         let v = self.cost.eval(self.conf, x);
-        print!("{v} {:.2}%", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        print!("{v} {:.2}% ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        self.print(x);
         if v < *self.best_cost.borrow() {
             print!(" (best)");
             *self.best_cost.borrow_mut() = v;
             *self.best.borrow_mut() = x.into();
         }
-        self.print(x);
         println!();
         v
     }
