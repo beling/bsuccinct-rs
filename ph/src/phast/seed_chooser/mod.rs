@@ -14,6 +14,36 @@ use crate::{fmph::SeedSize, phast::{Weights, conf::{Core, CoreConf}, cyclic::{Ge
 
 use super::conf::GenericCore;
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct ProdCmp {
+    sum_of_exponents: u64,   // sum of exponents + 1023 * number of multiplied numbers
+    mantissa: ComparableF64, // mantissa of product, normalized to the range [1, 2)
+}
+
+impl Default for ProdCmp {
+    #[inline] fn default() -> Self { Self { sum_of_exponents: 0, mantissa: ComparableF64(1.0) } }
+}
+
+impl std::ops::MulAssign<f64> for ProdCmp {
+    fn mul_assign(&mut self, rhs: f64) {
+        self.mantissa.0 *= rhs;
+        let bits = self.mantissa.0.to_bits();
+        self.mantissa.0 = f64::from_bits((bits & ((1u64 << 52) - 1)) | (1023u64 << 52)); // set exponent to 1023 = normalization to [1, 2)
+        self.sum_of_exponents += (bits >> 52) & 0x7ff;  // += exponent + 1023
+        //self.sum_of_exponents += bits >> 52;    // zakladamy dodatniosc liczby, bit znaku = 0
+
+        /*let bits = rhs.to_bits();
+        self.sum_of_exponents += (bits >> 52) & 0x7ff;  // += exponent + 1023
+        self.mantissa.0 *= f64::from_bits((bits & ((1u64 << 52) - 1)) | (1023u64 << 52));   // *= float in range [1, 2)
+        if self.mantissa.0 >= 2.0 { // normalization of mantissa to [1,2)
+            self.mantissa.0 *= 0.5;
+            self.sum_of_exponents += 1;
+        }*/
+    }
+}
+
+
+
 /// Returns slice length for regular PHast.
 pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
     match output_without_shift_range {
