@@ -381,7 +381,7 @@ impl KSeedEvaluatorConf for ProdOfValuesK {
     type KSeedEvaluator = ProdOfValuesKEval;
 
     fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
-        match k {
+        let mut r = match k {
             ..=2 => ProdOfValuesKEval { value_shift: 0.00440, free_shift: 1.67344, first_weight: 0.12821 }, // 1.02%
             3 => ProdOfValuesKEval { value_shift: 0.00353, free_shift: 1.79754, first_weight: 0.21056 }, // 1.08%
             4 => ProdOfValuesKEval { value_shift: 0.00414, free_shift: 2.05039, first_weight: 0.42381 }, // 1.09%
@@ -407,7 +407,9 @@ impl KSeedEvaluatorConf for ProdOfValuesK {
                 let f = SumOfLogValuesF.for_k(k);
                 ProdOfValuesKEval { value_shift: f.value_shift, free_shift: f.free_shift, first_weight: f.first_weight }
             }
-        }
+        };
+        r.free_shift += k as f64;
+        r
     }
 }
 
@@ -422,7 +424,7 @@ pub struct ProdOfValuesKEval {
 
 impl KSeedEvaluatorConf for ProdOfValuesKEval {
     type KSeedEvaluator = Self;
-    fn for_k(&self, _k: u16) -> Self { *self }
+    fn for_k(&self, k: u16) -> Self { let mut r= *self; r.free_shift += k as f64; r }
 }
 
 impl KSeedEvaluator for ProdOfValuesKEval {
@@ -437,10 +439,10 @@ impl KSeedEvaluator for ProdOfValuesKEval {
         - self.value_shift
     }
 
-    fn eval(&self, k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
+    fn eval(&self, _k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = ProdCmp::default();
         for value in values_used_by_seed.iter().copied() {
-            let free_values = self.free_shift + k as f64 - used_values[value] as f64;
+            let free_values = self.free_shift /*+k*/ - used_values[value] as f64;
             result *= (value as f64 - to_subtract_from_value) / free_values;
         }
         result
