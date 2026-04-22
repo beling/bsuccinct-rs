@@ -6,7 +6,7 @@ use crate::conf::{Conf, Method};
 mod function;
 
 mod perfect;
-use crate::optim::{SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1};
+use crate::optim::{SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1, ProdOfValuesK};
 use crate::perfect::perfect;
 
 mod phast;
@@ -48,14 +48,14 @@ fn main() {
         //(Method::perfect, 1, 8, false, bucket_size100, true) => conf.run(|keys| perfect(&keys, conf.params_turbo(Bits8, bucket_size100), threads_num, SeedOnly)),
         (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
         (Method::perfect, 1, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::perfect, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))), 
+        (Method::perfect, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValuesK))), 
         (Method::perfectlog, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
         (Method::perfectlog0, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
         (Method::perfectlog1, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
-        (Method::perfect, k, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
+        (Method::perfect, k, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValuesK))),
         (Method::perfectlog, k, b, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
         (Method::perfectlog0, k, b, false, bucket_size100, false) =>
@@ -65,11 +65,11 @@ fn main() {
 
         (Method::phast|Method::phast2|Method::perfect, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
         (Method::phast|Method::phast2|Method::perfect, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::phast|Method::phast2|Method::perfect, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
+        (Method::phast|Method::phast2|Method::perfect, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValuesK))),
         (Method::perfectlog, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
         (Method::perfectlog0, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
         (Method::perfectlog1, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
-        (Method::phast|Method::phast2|Method::perfect, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
+        (Method::phast|Method::phast2|Method::perfect, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValuesK))),
         (Method::perfectlog, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
         (Method::perfectlog0, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
         (Method::perfectlog1, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),

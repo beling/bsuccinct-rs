@@ -14,10 +14,16 @@ use crate::{fmph::SeedSize, phast::{Weights, conf::{Core, CoreConf}, cyclic::{Ge
 
 use super::conf::GenericCore;
 
+/// A type designed for comparing the products (of fixed length) of positive floating-point numbers,
+/// which is much more resistant to overflow and underflow than `f64`.
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-struct ProdCmp {
+pub struct ProdCmp {
     sum_of_exponents: u64,   // sum of exponents + 1023 * number of multiplied numbers
     mantissa: ComparableF64, // mantissa of product, normalized to the range [1, 2)
+}
+
+impl ProdCmp {
+    pub const MAX: Self = Self { sum_of_exponents: u64::MAX, mantissa: ComparableF64(f64::MAX) };
 }
 
 impl Default for ProdCmp {
