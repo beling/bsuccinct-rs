@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand, ValueEnum};
 use ph::{phast::{Generic, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectLogFW1Cost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -70,9 +70,7 @@ pub enum Method {
     optperfectlog1,
 
     /// Optimize seed evaluation in perfectlog with free_values_weight=1
-    optperfectlogf1,
-
-    optgenprod,
+    optprod,
 
     optwgenprod,
 
@@ -98,8 +96,7 @@ impl std::fmt::Display for Method {
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
             Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=1"),
-            Method::optperfectlogf1 => write!(f, "Optimize seed evaluation in perfectlog with free_values_weight=1"),
-            Method::optgenprod => write!(f, "Optimize GenericProdOfValues"),
+            Method::optprod => write!(f, "Optimize seed evaluation in ProdOfValues"),
             Method::optwgenprod => write!(f, "Optimize WGenericProdOfValues"),
             Method::none => write!(f, "Do nothing"),
         }
@@ -447,8 +444,8 @@ impl Conf {
         self.optimize(PerfectLog1Cost);
     }
 
-    pub fn optimize_perfectlogf1(&self) {
-        self.optimize(PerfectLogFW1Cost);
+    pub fn optimize_kprod(&self) {
+        self.optimize(PerfectProdKCost);
     }
 
     pub fn optimize_genericprod(&self) {
