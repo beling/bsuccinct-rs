@@ -78,7 +78,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                Self::build_level0_st(&mut keys, params, number_of_keys, h, seed_chooser.clone());
+                Self::build_level0_st(&mut keys, params, number_of_keys, h, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             build_level_st(keys, &Conf::default_generic8(), h, seed_chooser.clone(), level_nr)
@@ -97,7 +97,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                Self::build_level0_mt(&mut keys, params, threads_num, number_of_keys, h, seed_chooser.clone());
+                Self::build_level0_mt(&mut keys, params, threads_num, number_of_keys, h, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             build_level_mt(keys, &Conf::default_generic8(), threads_num, h, seed_chooser.clone(), level_nr)
