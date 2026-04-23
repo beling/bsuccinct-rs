@@ -4,10 +4,8 @@ use std::io;
 use binout::{AsIs, Serializer};
 use bitm::ceiling_div;
 
-use crate::phast::{ComparableF64, SeedChooserCore, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}};
+use crate::phast::{ComparableF64, SeedChooserCore, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}, space_lower_bound};
 use super::SeedChooser;
-
-
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
 pub fn bucket_size_normalization_multiplier(k: u16) -> f64 {
