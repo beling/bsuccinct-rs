@@ -7,22 +7,7 @@ use bitm::ceiling_div;
 use crate::phast::{ComparableF64, SeedChooserCore, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}};
 use super::SeedChooser;
 
-/// Returns approximation of lower bound of space (in bits/key)
-/// needed to represent minimal `k`-perfect function.
-pub fn space_lower_bound(k: u16) -> f64 {
-    match k {
-        0|1 => 1.4426950408889634,  // TODO? 0 should panic
-        2 => 0.9426950408889634,
-        3 => 0.7193867070748593,
-        _ => {
-            const LOG2PI: f64 = 2.651496129472319;
-            let k = k as f64;
-            //let k2 = 2.0 * k;
-            //log2(pi*k2)/k2 + 0.12/(k*k)
-            0.5 * (LOG2PI + k.log2()) / k + 0.12/(k*k)
-        }
-    }
-}
+
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
 pub fn bucket_size_normalization_multiplier(k: u16) -> f64 {

@@ -79,7 +79,6 @@ pub struct ShiftOnly;
 
 impl SeedChooser for ShiftOnly {
 
-
     type UsedValues = UsedValueSetLarge;
 
     type Core = ShiftCore;
@@ -112,8 +111,6 @@ impl SeedChooser for ShiftOnly {
             }
         })
     }
-
-
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
         slice_begin + conf.in_slice_noseed(primary_code) + (seed-1) as usize*MULTIPLIER as usize

@@ -1,8 +1,11 @@
+mod utils;
+pub use utils::{ComparableF64, ProdCmp, space_lower_bound};
+
 mod k;
 use core::f64;
 use std::io;
 
-pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier, space_lower_bound};
+pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier};
 
 mod shift;
 pub use shift::{ShiftOnly, ShiftCore};
@@ -14,39 +17,6 @@ use crate::{fmph::SeedSize, phast::{Weights, conf::{Core, CoreConf}, cyclic::{Ge
 
 use super::conf::GenericCore;
 
-/// A type designed for comparing the products (of fixed length) of positive floating-point numbers,
-/// which is much more resistant to overflow and underflow than `f64`.
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-pub struct ProdCmp {
-    sum_of_exponents: u64,   // sum of exponents + 1023 * number of multiplied numbers
-    mantissa: ComparableF64, // mantissa of product, normalized to the range [1, 2)
-}
-
-impl ProdCmp {
-    pub const MAX: Self = Self { sum_of_exponents: u64::MAX, mantissa: ComparableF64(f64::MAX) };
-}
-
-impl Default for ProdCmp {
-    #[inline] fn default() -> Self { Self { sum_of_exponents: 0, mantissa: ComparableF64(1.0) } }
-}
-
-impl std::ops::MulAssign<f64> for ProdCmp {
-    fn mul_assign(&mut self, rhs: f64) {
-        self.mantissa.0 *= rhs;
-        let bits = self.mantissa.0.to_bits();
-        self.mantissa.0 = f64::from_bits((bits & ((1u64 << 52) - 1)) | (1023u64 << 52)); // set exponent to 1023 = normalization to [1, 2)
-        self.sum_of_exponents += (bits >> 52) & 0x7ff;  // += exponent + 1023
-        //self.sum_of_exponents += bits >> 52;    // zakladamy dodatniosc liczby, bit znaku = 0
-
-        /*let bits = rhs.to_bits();
-        self.sum_of_exponents += (bits >> 52) & 0x7ff;  // += exponent + 1023
-        self.mantissa.0 *= f64::from_bits((bits & ((1u64 << 52) - 1)) | (1023u64 << 52));   // *= float in range [1, 2)
-        if self.mantissa.0 >= 2.0 { // normalization of mantissa to [1,2)
-            self.mantissa.0 *= 0.5;
-            self.sum_of_exponents += 1;
-        }*/
-    }
-}
 
 
 
@@ -62,25 +32,6 @@ pub(crate) fn slice_len(output_without_shift_range: usize, bits_per_seed: u8, pr
         _ if bits_per_seed < 12 => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
         _ => if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
     }
-}
-
-/// Wrapper over `f64` with compare operators.
-#[derive(Default, Clone, Copy)]
-#[repr(transparent)]
-pub struct ComparableF64(pub f64);
-
-impl PartialEq for ComparableF64 {
-    #[inline(always)] fn eq(&self, other: &Self) -> bool { self.cmp(other).is_eq() }
-}
-
-impl PartialOrd for ComparableF64 {
-    #[inline(always)] fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
-}
-
-impl Eq for ComparableF64 {}
-
-impl Ord for ComparableF64 {
-    #[inline(always)] fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.0.total_cmp(&other.0) }
 }
 
 /// Part of seed chooser stored in the function, without stuff needed only for constructing.
