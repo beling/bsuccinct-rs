@@ -4,7 +4,7 @@ use std::io;
 use binout::{AsIs, Serializer};
 use bitm::ceiling_div;
 
-use crate::phast::{ProdCmp, ProdOfValues, SeedChooserCore, SumOfValues, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}, space_lower_bound};
+use crate::phast::{ProdCmp, ProdOfValues, SeedChooserCore, SumOfValues, Weights, conf::Core, cyclic::{GenericUsedValue, UsedValueMultiSetU16}, space_lower_bound};
 use super::SeedChooser;
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
@@ -39,6 +39,10 @@ pub trait KSeedEvaluator: Clone + Sync {
 
     /// Evaluate (harness of) seed that used given `values`.
     fn eval(&self, k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, bucket_data: Self::BucketData) -> Self::Value;
+
+    fn bucket_evaluator(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights::new(bits_per_seed, slice_len)
+    }
 }
 
 pub trait KSeedEvaluatorConf {
@@ -65,6 +69,10 @@ impl KSeedEvaluator for SumOfValues {
     #[inline]
     fn eval(&self, _k: u16, values_used_by_seed: &[usize], _used_values: &UsedValueMultiSetU16, _bucket_data: Self::BucketData) -> Self::Value {
         values_used_by_seed.iter().sum()
+    }
+
+    fn bucket_evaluator(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights::new(bits_per_seed, slice_len)
     }
 }
 
@@ -303,6 +311,10 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
             }
         };
         best_seed
+    }
+
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        self.seed_evaluator.bucket_evaluator(self.k(), bits_per_seed, slice_len)
     }
 }
 

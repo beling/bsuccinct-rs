@@ -184,7 +184,9 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
         best_seed
     }
     
-    
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
+        self.0.bucket_evaluator(bits_per_seed, slice_len)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -234,7 +236,9 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
         best_seed
     }
     
-
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
+        self.0.bucket_evaluator(bits_per_seed, slice_len)
+    }
 }
 
 

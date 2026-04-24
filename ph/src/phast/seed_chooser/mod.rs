@@ -184,4 +184,8 @@ pub trait SeedEvaluator: Clone + Sync {
 
     /// Evaluate (harness of) seed that used given `values`.
     fn eval(&self, values_used_by_seed: &[usize], bucket_data: Self::BucketData) -> Self::Value;
+
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights::new(bits_per_seed, slice_len)
+    }
 }
