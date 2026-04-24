@@ -33,6 +33,23 @@ impl SeedEvaluator for ProdOfValues {   // bumps 1.17% for S=8, lambda=4.5
     
 }
 
+#[derive(Clone)]
+pub struct SumOfValues;
+
+impl SeedEvaluator for SumOfValues {
+    type Value = usize;
+
+    const MAX: Self::Value = usize::MAX;
+
+    type BucketData = ();
+
+    #[inline] fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData { () }
+
+    fn eval(&self, values_used_by_seed: &[usize], _bucket_data: Self::BucketData) -> Self::Value {
+        values_used_by_seed.iter().sum()
+    }
+}
+
 #[inline(always)]
 fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());

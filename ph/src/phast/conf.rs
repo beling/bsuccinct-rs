@@ -399,7 +399,6 @@ impl CoreConf for Generic {
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
         self.preferred_slice_len
     }
-    
 
 }
 

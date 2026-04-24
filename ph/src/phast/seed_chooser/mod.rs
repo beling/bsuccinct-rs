@@ -5,9 +5,9 @@ mod k;
 use std::io;
 
 mod seed;
-pub use seed::{SeedOnly, SeedCore, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues};
+pub use seed::{SeedOnly, SeedCore, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues, SumOfValues};
 
-pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, SumOfValues, SumOfLogValues, bucket_size_normalization_multiplier};
+pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, ProdOfValuesKEval, bucket_size_normalization_multiplier};
 
 mod shift;
 pub use shift::{ShiftOnly, ShiftCore};
