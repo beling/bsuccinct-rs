@@ -27,7 +27,7 @@ pub trait CostFn {
             "",
             Constrain::Weak(if *v > 0.0 { (v-1.0).max(0.0) } else { v-1.0 }),
             Constrain::Weak(v + 1.0),
-            1
+            0
         )).collect()
     }
     fn bounds(&self, conf: &Conf) -> (Vec<f64>, Vec<f64>) {
@@ -36,9 +36,11 @@ pub trait CostFn {
          p.iter().map(|(_, _, u, _)| (*u).into()).collect())
     }
     fn print(&self, conf: &Conf, x: &[f64]) {
+        let mut first = true;
         for (v, (s, _, _, prec)) in x.iter().zip(self.params(conf)) {
-            if !s.is_empty() { print!(" {s}:") }
-            print!(" {:.*}", prec, v) 
+            if first { first = false; } else { print!(", "); }
+            if !s.is_empty() { print!("{s}: ") }
+            print!("{:.*}", prec, v) 
         }
     }
 }
@@ -54,7 +56,7 @@ impl<'c, CF: CostFn> Cost<'c, CF> {
     #[inline] pub fn new(conf: &'c Conf, cost: CF) -> Self { Self { conf, cost, best_cost: RefCell::new(usize::MAX), best: RefCell::new(Vec::new()) } }
     pub fn eval(&self, x: &[f64]) -> usize {
         let v = self.cost.eval(self.conf, x);
-        print!("{v} {:.2}% ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        print!("{v} {:.2}%  ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
         self.print(x);
         if v < *self.best_cost.borrow() {
             print!(" (best)");
@@ -71,7 +73,7 @@ impl<'c, CF: CostFn> Cost<'c, CF> {
 
     pub fn print_best(&self) {
         let v =  *self.best_cost.borrow();
-        print!("Best {v} {:.2}% ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        print!("Best {v} {:.2}%  ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
         self.cost.print(self.conf, &self.best.borrow());
         println!();
     }
