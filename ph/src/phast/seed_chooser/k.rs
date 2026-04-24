@@ -89,30 +89,34 @@ impl KSeedEvaluatorConf for ProdOfValues {
     fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         //let mut r = 
         match k {
-            ..=2 => ProdOfValuesKEval { value_shift: 0.00440, free_shift: 1.67344, first_weight: 0.12821 }, // 1.02%
-            3 => ProdOfValuesKEval { value_shift: 0.00353, free_shift: 1.79754, first_weight: 0.21056 }, // 1.08%
-            4 => ProdOfValuesKEval { value_shift: 0.00414, free_shift: 2.05039, first_weight: 0.42381 }, // 1.09%
-            5 => ProdOfValuesKEval { value_shift: 0.00362, free_shift: 2.41147, first_weight: 0.63314 }, // 1.05%
-            6 => ProdOfValuesKEval { value_shift: 0.00322, free_shift: 2.64235, first_weight: 0.76291 }, // 0.97%
-            7 => ProdOfValuesKEval { value_shift: 0.00316, free_shift: 2.86673, first_weight: 0.76727 }, // 0.89%
-            8 => ProdOfValuesKEval { value_shift: 0.00305, free_shift: 2.93630, first_weight: 0.73511 }, // 0.81%
-            9 => ProdOfValuesKEval { value_shift: 0.00334, free_shift: 3.00825, first_weight: 0.71309 }, // 0.73%
-            10 => ProdOfValuesKEval { value_shift: 0.00340, free_shift: 3.23864, first_weight: 0.73775 }, // 0.68%
+            ..=2 => ProdOfValuesKEval { value_shift: 0.00459, free_shift: 1.67556, first_weight: 0.12312 }, // 1.02%
+            3 => ProdOfValuesKEval { value_shift: 0.00372, free_shift: 1.80978, first_weight: 0.20042 }, // 1.08%
+            4 => ProdOfValuesKEval { value_shift: 0.00411, free_shift: 2.07543, first_weight: 0.42212 }, // 1.09%
+            5 => ProdOfValuesKEval { value_shift: 0.00374, free_shift: 2.38977, first_weight: 0.63411 }, // 1.05%
+            6 => ProdOfValuesKEval { value_shift: 0.00336, free_shift: 2.65310, first_weight: 0.75036 }, // 0.97%
+            7 => ProdOfValuesKEval { value_shift: 0.00339, free_shift: 2.76276, first_weight: 0.71752 }, // 0.89%
+            8 => ProdOfValuesKEval { value_shift: 0.00305, free_shift: 2.93629, first_weight: 0.73965 }, // 0.81%
+            9 => ProdOfValuesKEval { value_shift: 0.00339, free_shift: 3.01388, first_weight: 0.71301 }, // 0.73%
+            10 => ProdOfValuesKEval { value_shift: 0.00348, free_shift: 3.23864, first_weight: 0.73775 }, // 0.68%
             11 => ProdOfValuesKEval { value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }, // 0.63%
             12 => ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }, // 0.60%
             13 => ProdOfValuesKEval { value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }, // 0.57%
             14 => ProdOfValuesKEval { value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }, // 0.56%
             15 => ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.54152, first_weight: 0.66301 }, // 0.55%
-            16 => ProdOfValuesKEval { value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }, // 0.54%
-            100 => ProdOfValuesKEval { value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }, // 0.61%
-            200 => ProdOfValuesKEval { value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }, // 0.96%
-            300 => ProdOfValuesKEval { value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }, // 1.35%
-            400 => ProdOfValuesKEval { value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }, // 1.78%
-            500 => ProdOfValuesKEval { value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }, // 2.22%
-            1000 => ProdOfValuesKEval { value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }, // 2.23%
-            _ => {
-                todo!()
-            }
+            16..32 => ProdOfValuesKEval { value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }, // 0.54%
+            32..50 => ProdOfValuesKEval { value_shift: 0.00293, free_shift: 4.49759, first_weight: 0.61174 }, // 0.64%
+            50..64 => ProdOfValuesKEval { value_shift: 0.00269, free_shift: 5.52251, first_weight: 0.60593 }, // 0.76%
+            64..100 => ProdOfValuesKEval { value_shift: 0.00178, free_shift: 6.20194, first_weight: 0.61392 }, // 0.84%
+            100..128 => ProdOfValuesKEval { value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }, // 0.61%
+            128..200 => ProdOfValuesKEval { value_shift: 0.00288, free_shift: 6.69688, first_weight: 0.56534 }, // 0.69%
+            200..256 => ProdOfValuesKEval { value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }, // 0.96%
+            256..300 => ProdOfValuesKEval { value_shift: 0.00648, free_shift: 10.29860, first_weight: 0.66279 }, // 1.16%
+            300..400 => ProdOfValuesKEval { value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }, // 1.35%
+            400..500 => ProdOfValuesKEval { value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }, // 1.78%
+            500..512 => ProdOfValuesKEval { value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }, // 2.22%
+            512..1000 => ProdOfValuesKEval { value_shift: 0.00517, free_shift: 7.42601, first_weight: 0.28980 }, // 2.27%
+            1000..1024 => ProdOfValuesKEval { value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }, // 2.23%
+            1024.. => ProdOfValuesKEval { value_shift: 0.00415, free_shift: 6.90779, first_weight: 0.45051 }, // 2.28%
         }
         //r.free_shift += k as f64;
         //r
