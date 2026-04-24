@@ -364,7 +364,7 @@ impl Conf {
     }
 
     pub fn core<SC: SeedChooserCore>(&self, seed_chooser_core: SC) -> ph::phast::GenericCore {
-        seed_chooser_core.conf_for_minimal(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
+        seed_chooser_core.minimal_generic_f_core(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
     }
 
     pub const KEY_SETS_NUM: u32 = 96;

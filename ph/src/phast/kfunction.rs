@@ -142,7 +142,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, 0)).collect();
         hashes.voracious_sort();
-        let core = seed_chooser.conf_p(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
+        let core = seed_chooser.f_core(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
         let (seeds, builder) =
             build_st(&hashes, core, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), core.slice_len()), seed_chooser);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
@@ -166,7 +166,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let core = seed_chooser.conf_p(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
+        let core = seed_chooser.f_core(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
         let (seeds, builder) =
             build_mt(&hashes, core, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), core.slice_len()), seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
@@ -185,7 +185,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, 0)).collect();
         hashes.voracious_sort();
-        let core = seed_chooser.conf_p(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
+        let core = seed_chooser.f_core(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
         let (seeds, builder) =
             build_st(&hashes, core, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), core.slice_len()), seed_chooser);
         let (free_count, _) = builder.unassigned_values_k(&seeds);
@@ -210,7 +210,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let core = seed_chooser.conf_p(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
+        let core = seed_chooser.f_core(output_range, hashes.len(), &params.core_conf, params.bits_per_seed());
         let (seeds, builder) =
             build_mt(&hashes, core, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), core.slice_len()), seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);

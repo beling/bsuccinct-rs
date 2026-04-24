@@ -65,14 +65,14 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     pub fn with_hashes_p_sc_be_u<'k, CC, BE, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, seed_chooser: SC, bucket_evaluator: BE) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>, BE: BucketToActivateEvaluator
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         Self::with_hashes_bps_conf_sc_be_u(hashes, params.seed_size, conf, seed_chooser, bucket_evaluator)
     }
 
     pub fn with_hashes_p_threads_sc_be_u<'k, CC, BE, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC, bucket_evaluator: BE) -> (Self, usize)
         where CC: CoreConf<Core = C>, BE: BucketToActivateEvaluator + Sync, SC: SeedChooser<Core = SCC>, BE::Value: Send
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         Self::with_hashes_bps_conf_bs_threads_sc_be_u(hashes, params.seed_size, conf, threads_num, seed_chooser, bucket_evaluator)
     }
 
@@ -80,14 +80,14 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     pub fn with_hashes_p_sc_be<'k, CC, BE, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, seed_chooser: SC, bucket_evaluator: BE) -> Self
         where CC: CoreConf<Core = C>, BE: BucketToActivateEvaluator, SC: SeedChooser<Core = SCC>
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         Self::with_hashes_bps_conf_sc_be(hashes, params.seed_size, conf, seed_chooser, bucket_evaluator)
     }
 
     pub fn with_hashes_p_threads_sc_be<'k, CC, BE, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC, bucket_evaluator: BE) -> Self
         where CC: CoreConf<Core = C>, BE: BucketToActivateEvaluator + Sync, SC: SeedChooser<Core = SCC>, BE::Value: Send
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         Self::with_hashes_bps_conf_bs_threads_sc_be(hashes, params.seed_size, conf, threads_num, seed_chooser, bucket_evaluator)
     }
 
@@ -95,7 +95,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     pub fn with_hashes_p_sc_u<'k, CC, BE, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>, BE: BucketToActivateEvaluator
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_sc_be_u(hashes, params.seed_size, conf, seed_chooser, bucket_evaluator)
     }
@@ -103,7 +103,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     pub fn with_hashes_p_threads_sc_u<'k, CC, BE, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, BE: BucketToActivateEvaluator + Sync, SC: SeedChooser<Core = SCC>, BE::Value: Send
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_bs_threads_sc_be_u(hashes, params.seed_size, conf, threads_num, seed_chooser, bucket_evaluator)
     }
@@ -112,7 +112,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     pub fn with_hashes_p_sc<'k, CC, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, seed_chooser: SC) -> Self
         where CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_sc_be(hashes, params.seed_size, conf, seed_chooser, bucket_evaluator)
     }
@@ -120,7 +120,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     pub fn with_hashes_p_threads_sc<'k, CC, SC>(hashes: &'k mut [u64], params: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> Self
         where CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>
     {
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         let bucket_evaluator = seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len());
         Self::with_hashes_bps_conf_bs_threads_sc_be(hashes, params.seed_size, conf, threads_num, seed_chooser, bucket_evaluator)
     }
@@ -196,7 +196,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildHasher> Partial<C, SS,
         where K: Hash, CC: CoreConf<Core = C>, BE: BucketToActivateEvaluator, SC: SeedChooser<Core=SCC>
     {
         let mut hashes: Box<[_]> = keys.map(|k| hasher.hash_one(k)).collect();
-        let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+        let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
         let (f, build_conf) = Self::build_st(&mut hashes, params.seed_size, conf, hasher, seed_chooser, bucket_evaluator);
         let unassigned = build_conf.bumped_len(&f.seeds.seeds);
         (f, unassigned)

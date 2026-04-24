@@ -91,7 +91,7 @@ pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], params: &C
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_sort();
-    let core = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+    let core = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
     let (seeds, builder) =
         build_st(&hashes, core, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), core.slice_len()), seed_chooser);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
@@ -118,7 +118,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], params: &C
     };
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
-    let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+    let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
     let (seeds, builder) =
         build_mt(&hashes, conf, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
@@ -137,7 +137,7 @@ pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, params: &Con
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     hashes.voracious_sort();
-    let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+    let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
     let (seeds, builder) =
         build_st(&hashes, conf, params.seed_size, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser);
     let (unassigned_values, _) = builder.unassigned_values(&seeds);
@@ -163,7 +163,7 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, params: &Con
     };
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
-    let conf = seed_chooser.conf_for_minimal_p(hashes.len(), &params.core_conf, params.bits_per_seed());
+    let conf = seed_chooser.minimal_f_core(hashes.len(), &params.core_conf, params.bits_per_seed());
     let (seeds, builder) =
         build_mt(&hashes, conf, params.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(params.bits_per_seed(), conf.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);

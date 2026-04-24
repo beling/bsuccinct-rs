@@ -246,7 +246,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     {
         let bits_per_seed = Bits8;
         let len100 = (keys.len()+10)*120;
-        let conf = SeedOnly(ProdOfValues).conf_for_minimal((len100+50)/100,
+        let conf = SeedOnly(ProdOfValues).minimal_generic_f_core((len100+50)/100,
             bits_per_seed.into(), 400, 0);  // TODO use turbo variant here
         let evaluator = SeedOnly(ProdOfValues).bucket_evaluator(bits_per_seed.into(), conf.slice_len());
         loop {
