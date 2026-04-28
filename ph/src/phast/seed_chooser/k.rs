@@ -87,7 +87,7 @@ impl KSeedEvaluatorConf for ProdOfValues {
     type KSeedEvaluator = ProdOfValuesKEval;
 
     fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
-        const VALUES: [(u16, ProdOfValuesKEval); 28] = [
+        const VALUES: [(u16, ProdOfValuesKEval); 30] = [
             (2, ProdOfValuesKEval { value_shift: 0.00459, free_shift: 1.67556, first_weight: 0.12312 }), // 1.02%
             (3, ProdOfValuesKEval { value_shift: 0.00372, free_shift: 1.80978, first_weight: 0.20042 }), // 1.08%
             (4, ProdOfValuesKEval { value_shift: 0.00411, free_shift: 2.07543, first_weight: 0.42212 }), // 1.09%
@@ -114,8 +114,15 @@ impl KSeedEvaluatorConf for ProdOfValues {
             (400, ProdOfValuesKEval { value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }), // 1.78%
             (500, ProdOfValuesKEval { value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }), // 2.22%
             (512, ProdOfValuesKEval { value_shift: 0.00523, free_shift: 7.70449, first_weight: 0.28980 }), // 2.27%
+            (750, ProdOfValuesKEval { value_shift: 0.00520, free_shift: 7.10482, first_weight: 0.31508 }), // 3.27%
             (1000, ProdOfValuesKEval { value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }), // 2.23%
             (1024, ProdOfValuesKEval { value_shift: 0.00416, free_shift: 6.90059, first_weight: 0.45755 }), // 2.28%
+            (1500, ProdOfValuesKEval { value_shift: 0.00412, free_shift: 6.96199, first_weight: 0.48575 }), // 1.68%
+            //(2000, ProdOfValuesKEval { value_shift: 0.00440, free_shift: 7.16988, first_weight: 0.44569 }), // 2.24%
+            //(3000, ProdOfValuesKEval { value_shift: 0.00437, free_shift: 6.90033, first_weight: 0.45772 }), // 3.29%
+            //(4000, ProdOfValuesKEval { value_shift: 0.00423, free_shift: 7.45927, first_weight: 0.38573 }), // 4.33%
+            //(5000, ProdOfValuesKEval { value_shift: 0.00423, free_shift: 7.18835, first_weight: 0.44610 }), // 5.34%
+            //(10000, ProdOfValuesKEval { value_shift: 0.00430, free_shift: 7.13072, first_weight: 0.43468 }), // 5.63%
         ];
         for (i, (nk, nv)) in VALUES.iter().enumerate() {
             if *nk >= k {
