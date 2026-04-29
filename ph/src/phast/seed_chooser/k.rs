@@ -120,10 +120,10 @@ impl KSeedEvaluatorConf for ProdOfValues {
             (1500, ProdOfValuesKEval { value_shift: 0.00412, free_shift: 6.96199, first_weight: 0.48575 }), // 1.68%
             (2000, ProdOfValuesKEval { value_shift: 0.00440, free_shift: 7.16988, first_weight: 0.44569 }), // 2.24%
                 // or value_shift: 0.00422, free_shift: 7.59856, first_weight: 0.43189
-            (3000, ProdOfValuesKEval { value_shift: 0.00437, free_shift: 6.90033, first_weight: 0.45772 }), // 3.29%
+            (3000, ProdOfValuesKEval { value_shift: 0.00446, free_shift: 7.39262, first_weight: 0.45036 }), // 3.27%
             (4000, ProdOfValuesKEval { value_shift: 0.00423, free_shift: 7.45927, first_weight: 0.38573 }), // 4.33%
-            (5000, ProdOfValuesKEval { value_shift: 0.00423, free_shift: 7.18835, first_weight: 0.44610 }), // 5.34%
-            (10000, ProdOfValuesKEval { value_shift: 0.00430, free_shift: 7.13072, first_weight: 0.43468 }), // 5.63%
+            (5000, ProdOfValuesKEval { value_shift: 0.00462, free_shift: 7.16991, first_weight: 0.44570 }), // 5.33%
+            (10000, ProdOfValuesKEval { value_shift: 0.00473, free_shift: 7.37058, first_weight: 0.45678 }), // 5.62%
         ];
         for (i, (nk, nv)) in VALUES.iter().enumerate() {
             if *nk >= k {
