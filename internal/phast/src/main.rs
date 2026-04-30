@@ -10,7 +10,7 @@ use crate::optim::{SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1};
 use crate::perfect::perfect;
 
 mod phast;
-use crate::phast::{phast, phast2};
+use crate::phast::{kphast, phast, phast2};
 
 mod partial;
 use crate::partial::partial;
@@ -40,6 +40,10 @@ fn main() {
         (Method::phast, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
         (Method::phast, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
         (Method::phast, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        
+        (Method::phast, k, 8, false, _, true) => conf.run(|keys| kphast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::phast, k, 8, false, bucket_size100, false) => conf.run(|keys| kphast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::phast, k, b, false, bucket_size100, false) => conf.run(|keys| kphast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
 
         (Method::phast2, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
         (Method::phast2, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),

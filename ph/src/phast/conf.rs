@@ -1,7 +1,7 @@
 use std::io;
 
 use binout::{Serializer, VByte};
-use seedable_hash::map64_to_64;
+use seedable_hash::{BuildDefaultSeededHasher, map64_to_64};
 
 use crate::{fmph::Bits8, phast::SeedChooserCore, seeds::SeedSize};
 
@@ -440,24 +440,28 @@ impl CoreConf for Turbo {
 }
 
 
-pub struct Conf<SS, CC> {
+pub struct Conf<SS, CC, S = BuildDefaultSeededHasher> {
     pub seed_size: SS,
-    pub core_conf: CC
+    pub core_conf: CC,
+    pub hasher: S,
+    /// 1000 * desired loading factor
+    pub loading_factor_1000: u16,
+
 }
 
-impl<SS: SeedSize, CC: CoreConf> Conf<SS, CC> {
+impl<SS: SeedSize, CC, S> Conf<SS, CC, S> {
     #[inline(always)] pub fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
 }
 
-impl<SS: SeedSize> Conf<SS, Generic> {
+impl<SS: SeedSize> Conf<SS, Generic, BuildDefaultSeededHasher> {
     #[inline] pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
-        Self { seed_size, core_conf: Generic::new(bucket_size100) }
+        Self { seed_size, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 }
 
-impl Conf<Bits8, Generic> {
+impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
     #[inline] pub fn generic8(bucket_size100: u16) -> Self {
-        Self { seed_size: Bits8, core_conf: Generic::new(bucket_size100) }
+        Self { seed_size: Bits8, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 
     #[inline] pub fn default_generic8() -> Self {

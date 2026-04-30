@@ -69,3 +69,9 @@ pub fn space_lower_bound(k: u16) -> f64 {
         }
     }
 }
+
+/// Returns output range of 1-perfect hash function for given number of keys, and 1000*loading factor.
+pub fn perfect_output_range(number_of_keys: usize, loading_factor_1000: u16) -> usize {
+    let loading_factor_1000 = loading_factor_1000 as usize;
+    (number_of_keys * 1000 + loading_factor_1000/2) / loading_factor_1000
+}

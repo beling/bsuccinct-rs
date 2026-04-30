@@ -235,6 +235,10 @@ pub struct Conf {
     /// Numerical Optimization algorithm to use
     #[arg(short='o', long, value_enum, default_value_t = Optimizer::NelderMead)]
     pub optimizer: Optimizer,
+
+    /// Desired loading factor * 1000
+    #[arg(short='a', long, default_value_t = 1000, value_parser = clap::value_parser!(u16).range(1..=1000))]
+    pub alpha: u16
 }
 
 impl Conf {
@@ -271,14 +275,18 @@ impl Conf {
     pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic> {
         ph::phast::Conf {
             seed_size,
-            core_conf: Generic { bucket_size100, preferred_slice_len: self.slice_len }
+            core_conf: Generic { bucket_size100, preferred_slice_len: self.slice_len },
+            hasher: Default::default(),
+            loading_factor_1000: self.alpha
         }
     }
 
     pub fn params_turbo<SS>(&self, seed_size: SS) -> ph::phast::Conf<SS, Turbo> {
         ph::phast::Conf {
             seed_size,
-            core_conf: Turbo { preferred_slice_len: self.slice_len }
+            core_conf: Turbo { preferred_slice_len: self.slice_len },
+            hasher: Default::default(),
+            loading_factor_1000: self.alpha
         }
     }
 

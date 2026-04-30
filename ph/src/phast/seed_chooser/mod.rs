@@ -1,5 +1,5 @@
 mod utils;
-pub use utils::{ComparableF64, ProdCmp, space_lower_bound};
+pub use utils::{ComparableF64, ProdCmp, space_lower_bound, perfect_output_range};
 
 mod k;
 use std::io;
@@ -49,6 +49,11 @@ pub trait SeedChooserCore: Copy {
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { num_of_keys }
+
+    /// Returns output range of (perfect or k-perfect) function for given number of keys and 1000*loading factor.
+    #[inline(always)] fn output_range(&self, number_of_keys: usize, loading_factor_1000: u16) -> usize {
+        self.minimal_output_range(perfect_output_range(number_of_keys, loading_factor_1000))
+    }
 
     /// Returns slice length suitable to given `output_range`, `bits_per_seed` and `preferred_slice_len`.
     /// 
@@ -108,6 +113,11 @@ pub trait SeedChooser: Clone + Sync {
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { self.core().minimal_output_range(num_of_keys) }
+
+    /// Returns output range of (perfect or k-perfect) function for given number of keys and 1000*loading factor.
+    #[inline(always)] fn output_range(&self, number_of_keys: usize, loading_factor_1000: u16) -> usize {
+        self.core().output_range(number_of_keys, loading_factor_1000)
+    }
 
     #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights::new(bits_per_seed, slice_len)
