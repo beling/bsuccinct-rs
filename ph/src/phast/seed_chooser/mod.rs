@@ -88,6 +88,10 @@ pub trait SeedChooserCore: Copy {
         self.f_core(self.minimal_output_range(num_of_keys), num_of_keys, core, bits_per_seed)
     }
 
+    #[inline(always)] fn f_core_lf<CC: CoreConf>(&self, num_of_keys: usize, loading_factor_1000: u16, core: &CC, bits_per_seed: u8) -> CC::Core {
+        self.f_core(self.output_range(num_of_keys, loading_factor_1000), num_of_keys, core, bits_per_seed)
+    }
+
     /// Writes `self` to the `output`.
     fn write(&self, _output: &mut dyn io::Write) -> io::Result<()> { Ok(()) }
 
@@ -158,6 +162,10 @@ pub trait SeedChooser: Clone + Sync {
 
     #[inline(always)] fn minimal_f_core<CC: CoreConf>(&self, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
         self.core().minimal_f_core::<CC>(num_of_keys, core, bits_per_seed)
+    }
+
+    #[inline(always)] fn f_core_lf<CC: CoreConf>(&self, num_of_keys: usize, loading_factor_1000: u16, core: &CC, bits_per_seed: u8) -> CC::Core {
+        self.core().f_core_lf::<CC>(num_of_keys, loading_factor_1000, core, bits_per_seed)
     }
 
     /// Returns function value for given primary code and seed.

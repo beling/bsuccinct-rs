@@ -147,7 +147,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_sort();
-        let core = seed_chooser.minimal_f_core(hashes.len(), &conf.core_conf, conf.bits_per_seed());
+        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (seeds, builder) =
             build_st(&hashes, core, conf.seed_size, seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()), seed_chooser);
         let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
@@ -170,7 +170,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let core = seed_chooser.minimal_f_core(hashes.len(), &conf.core_conf, conf.bits_per_seed());
+        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (seeds, builder) =
             build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()), seed_chooser, threads_num);
         let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
@@ -187,7 +187,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
     {
         let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
         hashes.voracious_sort();
-        let core = seed_chooser.minimal_f_core(hashes.len(), &conf.core_conf, conf.bits_per_seed());
+        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (seeds, _) =
             build_st(&hashes, core, conf.seed_size, seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()), seed_chooser);
         keys.retain(|key| {
@@ -211,7 +211,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         };
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
-        let core = seed_chooser.minimal_f_core(hashes.len(), &conf.core_conf, conf.bits_per_seed());
+        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (seeds, builder) =
             build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()), seed_chooser, threads_num);
         let mut result = Vec::with_capacity(builder.bumped_len(&seeds));
