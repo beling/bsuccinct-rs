@@ -33,7 +33,7 @@ fn main() {
         if conf.head { println!("{}", conf::CSV_HEADER); }
     } else {
         println!("{} k={}   space lower bound ≈ {:.3} bits/key", conf.method, conf.k, space_lower_bound(conf.k));
-        println!("n={} bits/seed={} lambda={:.2} slice={} threads={threads_num}",
+        println!("n={} bits/seed={} λ={:.2} slice={} threads={threads_num}",
         conf.keys_num, conf.bits_per_seed, bucket_size, conf.slice_len);
     }
     match (conf.method, conf.k, conf.bits_per_seed, conf.one, bucket_size.into(), conf.is_turbo()) {

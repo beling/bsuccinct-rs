@@ -66,7 +66,9 @@ impl Result {
             print!(", {:.2}% bumped, α={:.1}%", bumped_percent, 100.0-bumped_percent);
         }
         if self.range != minimum_range_x_tries {
-            print!(", {:.2}% over the minimum range", ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64)
+            print!(", {:.2}% over the minimum range, α={:.1}%",
+                ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64,
+                minimum_range_x_tries as f64 * 100.0 / self.range as f64)
         }
         print!(", {:#.2?} build", self.build_time / tries as u32);
         if evals_per_try != 0 {
