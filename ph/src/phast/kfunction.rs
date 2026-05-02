@@ -80,7 +80,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
                 Self::build_level0_st(&mut keys, conf, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_st(keys, &Generic::new_for_bps(8), Bits8, h, SeedOnly(ProdOfValues), level_nr)
+            let sc = SeedOnly(ProdOfValues);
+            build_level_st(keys, sc.minimal_output_range(keys.len()), &Generic::new_for_bps(8), Bits8, h, sc, level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -99,7 +100,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
                 Self::build_level0_mt(&mut keys, conf, threads_num, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &Generic::new_for_bps(8), Bits8, threads_num, h, SeedOnly(ProdOfValues), level_nr)
+            let sc = SeedOnly(ProdOfValues);
+            build_level_mt(keys, sc.minimal_output_range(keys.len()), &Generic::new_for_bps(8), Bits8, threads_num, h, sc, level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -114,7 +116,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         Self::_new(|conf| {
             Self::build_level0_from_slice_st(keys, conf, seed_chooser.clone())
         }, |keys, level_nr, h| {
-            build_level_st(keys, &Generic::new_for_bps(8), Bits8, h, SeedOnly(ProdOfValues), level_nr)
+            let sc = SeedOnly(ProdOfValues);
+            build_level_st(keys, sc.minimal_output_range(keys.len()), &Generic::new_for_bps(8), Bits8, h, sc, level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 
@@ -130,7 +133,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         Self::_new(|conf| {
             Self::build_level0_from_slice_mt(keys, conf, threads_num, seed_chooser.clone())
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &Generic::new_for_bps(8), Bits8, threads_num, h, SeedOnly(ProdOfValues), level_nr)
+            let sc = SeedOnly(ProdOfValues);
+            build_level_mt(keys, sc.minimal_output_range(keys.len()), &Generic::new_for_bps(8), Bits8, threads_num, h, sc, level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 

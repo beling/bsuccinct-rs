@@ -97,10 +97,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                build_level_st(&mut keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0);
+                build_level_st(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
+            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, number_of_keys)
     }
 
@@ -115,10 +115,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                build_level_mt(&mut keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0);
+                build_level_mt(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
+            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, number_of_keys)
     }
 
@@ -131,9 +131,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn with_slice_p_hash_sc<K, CC, SC>(keys: &[K], conf: &Conf<SS, CC>, hasher: S, seed_chooser: SC) -> Self
     where K: Hash+Clone, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
         Self::_new(|h| {
-            build_level_from_slice_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0)
+            build_level_from_slice_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
+            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, keys.len())
     }
 
@@ -147,9 +147,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, conf, hasher, seed_chooser); }
         Self::_new(|h| {
-            build_level_from_slice_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0)
+            build_level_from_slice_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
+            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, keys.len())
     }
 

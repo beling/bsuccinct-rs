@@ -84,14 +84,14 @@ impl<SSVecElement, C: Core> Level<SSVecElement, C> {
 }
 
 #[inline]
-pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
+pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash+Clone, SC: SeedChooser, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_sort();
-    let core = seed_chooser.minimal_f_core(hashes.len(), core_conf, seed_size.into());
+    let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
     let (seeds, builder) =
         build_st(&hashes, core, seed_size, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
@@ -104,7 +104,7 @@ pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], core_conf:
 }
 
 #[inline]
-pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
+pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash+Sync+Send+Clone, SC: SeedChooser, SS: SeedSize, CC: CoreConf, SC: SeedChooser, S: BuildSeededHasher+Sync
 {
@@ -118,7 +118,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], core_conf:
     };
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
-    let core = seed_chooser.minimal_f_core(hashes.len(), core_conf, seed_size.into());
+    let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
     let (seeds, builder) =
         build_mt(&hashes, core, seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
@@ -131,13 +131,13 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], core_conf:
 }
 
 #[inline(always)]
-pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
+pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash,SC: SeedChooser, SS: SeedSize, SC: SeedChooser, CC: CoreConf, S: BuildSeededHasher
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     hashes.voracious_sort();
-    let core = seed_chooser.minimal_f_core(hashes.len(), core_conf, seed_size.into());
+    let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
     let (seeds, builder) =
         build_st(&hashes, core, seed_size, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser);
     let (unassigned_values, _) = builder.unassigned_values(&seeds);
@@ -149,7 +149,7 @@ pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, core_conf: &
 }
 
 #[inline]
-pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
+pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash+Sync+Send, SC: SeedChooser, SS: SeedSize, CC: CoreConf, SC: SeedChooser, S: BuildSeededHasher+Sync
 {
@@ -163,7 +163,7 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, core_conf: &
     };
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
-    let core = seed_chooser.minimal_f_core(hashes.len(), core_conf, seed_size.into());
+    let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
     let (seeds, builder) =
         build_mt(&hashes, core, seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
@@ -258,10 +258,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                build_level_st(&mut keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0);
+                build_level_st(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
+            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, number_of_keys)
     }
 
@@ -277,10 +277,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                build_level_mt(&mut keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0);
+                build_level_mt(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
+            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, number_of_keys)
     }
 
@@ -294,9 +294,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         where K: Hash+Clone, CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>
     {
         Self::_new(|h| {
-            build_level_from_slice_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0)
+            build_level_from_slice_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
+            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, keys.len())
     }
 
@@ -310,9 +310,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C> {
         if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, conf, hasher, seed_chooser); }
         Self::_new(|h| {
-            build_level_from_slice_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0)
+            build_level_from_slice_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
+            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
         }, hasher, seed_chooser.core(), conf.seed_size, keys.len())
     }
 
