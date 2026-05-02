@@ -13,8 +13,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> PartialFunction for Partial<C,
     }
 }
 
-pub fn partial<SS: SeedSize, CC: CoreConf, SC: SeedChooser>(keys: &[u64], params: ph::phast::Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> Partial<CC::Core, SS, SC::Core, ()>
+pub fn partial<SS: SeedSize, CC: CoreConf, SC: SeedChooser>(keys: &[u64], conf: ph::phast::Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> Partial<CC::Core, SS, SC::Core, ()>
 {
-    Partial::with_hashes_p_threads_sc(keys.to_owned().as_mut_slice(), &params,
-     threads_num, seed_chooser)
+    Partial::with_hashes_conf_threads_sc(keys.to_owned().as_mut_slice(), &conf, threads_num, seed_chooser)
 }

@@ -61,14 +61,13 @@ impl Result {
                 // if k>1 we assume that we build MPHF for keys with values >minimum_range from scratch, using 2.0 bits/key
         }
         if repair_cost_per_key != 0.0 { print!(" (≈{:.3} MPHF)", bits_per_key + repair_cost_per_key) }
-        if self.bumped_keys != 0 {
-            let bumped_percent = bumped_share * 100.0;
-            print!(", {:.2}% bumped, α={:.1}%", bumped_percent, 100.0-bumped_percent);
-        }
+        if self.bumped_keys != 0 { print!(", {:.2}% bumped", bumped_share * 100.0); }
         if self.range != minimum_range_x_tries {
-            print!(", {:.2}% over the minimum range, α={:.1}%",
-                ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64,
-                minimum_range_x_tries as f64 * 100.0 / self.range as f64)
+            print!(", {:.2}% over the minimum range", ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64)
+        }
+        if self.bumped_keys != 0 || self.range != minimum_range_x_tries {
+            // TODO check the formula
+            print!(", α={:.1}%", 100.0 * (1.0-bumped_share) * minimum_range_x_tries as f64 / self.range as f64);
         }
         print!(", {:#.2?} build", self.build_time / tries as u32);
         if evals_per_try != 0 {

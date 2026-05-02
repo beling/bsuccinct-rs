@@ -92,7 +92,7 @@ pub struct WeightsCost<SC: SeedChooser>(pub SC);
 
 impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
                     self.0.clone(), &WeightsF{ size_weights: x.into() }).1)
     }
@@ -109,7 +109,7 @@ impl CostFn for PerfectLogCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -135,7 +135,7 @@ impl CostFn for PerfectLog0Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -160,7 +160,7 @@ impl CostFn for PerfectLog1Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -184,7 +184,7 @@ impl CostFn for PerfectProdKCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = ProdOfValuesKEval { value_shift: x[0], free_shift: x[1], first_weight: x[2] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -208,7 +208,7 @@ pub struct ProdOfValuesCost;
 impl CostFn for ProdOfValuesCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let s = SeedOnly(GenericProdOfValues { first_weight: x[0], shift: x[1] });
-        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
@@ -431,7 +431,7 @@ impl SeedEvaluator for WGenericProdOfValues {
 impl CostFn for WGenericProdOfValues {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let s = SeedOnly(WGenericProdOfValues(*x.as_array::<4>().unwrap()));
-        conf.par_eval(|keys| Partial::with_hashes_bps_conf_sc_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
     }
 
