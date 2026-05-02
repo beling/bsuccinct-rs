@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{CoreConf, ProdOfValues, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st}}, seeds::{Bits8, SeedSize}};
 use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -80,7 +80,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
                 Self::build_level0_st(&mut keys, conf, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_st(keys, &Conf::default_generic8(), h, SeedOnly(ProdOfValues), level_nr)
+            build_level_st(keys, &Generic::new_for_bps(8), Bits8, h, SeedOnly(ProdOfValues), level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -99,7 +99,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
                 Self::build_level0_mt(&mut keys, conf, threads_num, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &Conf::default_generic8(), threads_num, h, SeedOnly(ProdOfValues), level_nr)
+            build_level_mt(keys, &Generic::new_for_bps(8), Bits8, threads_num, h, SeedOnly(ProdOfValues), level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -114,7 +114,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         Self::_new(|conf| {
             Self::build_level0_from_slice_st(keys, conf, seed_chooser.clone())
         }, |keys, level_nr, h| {
-            build_level_st(keys, &Conf::default_generic8(), h, SeedOnly(ProdOfValues), level_nr)
+            build_level_st(keys, &Generic::new_for_bps(8), Bits8, h, SeedOnly(ProdOfValues), level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 
@@ -130,7 +130,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         Self::_new(|conf| {
             Self::build_level0_from_slice_mt(keys, conf, threads_num, seed_chooser.clone())
         }, |keys, level_nr, h| {
-            build_level_mt(keys, &Conf::default_generic8(), threads_num, h, SeedOnly(ProdOfValues), level_nr)
+            build_level_mt(keys, &Generic::new_for_bps(8), Bits8, threads_num, h, SeedOnly(ProdOfValues), level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 

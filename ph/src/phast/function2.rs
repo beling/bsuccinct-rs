@@ -91,17 +91,17 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_p_hash_sc<K, CC, SC>(mut keys: Vec::<K>, params: &Conf<SS, CC>, hasher: S, seed_chooser: SC) -> Self
+    pub fn with_vec_p_hash_sc<K, CC, SC>(mut keys: Vec::<K>, conf: &Conf<SS, CC>, hasher: S, seed_chooser: SC) -> Self
         where K: Hash, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C> 
     {
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                build_level_st(&mut keys, params, h, seed_chooser.clone(), 0);
+                build_level_st(&mut keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.core(), params.seed_size, number_of_keys)
+            build_level_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.core(), conf.seed_size, number_of_keys)
     }
 
     /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
@@ -109,17 +109,17 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_vec_p_threads_hash_sc<K, CC, SC>(mut keys: Vec::<K>, params: &Conf<SS, CC>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+    pub fn with_vec_p_threads_hash_sc<K, CC, SC>(mut keys: Vec::<K>, conf: &Conf<SS, CC>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
-        if threads_num == 1 { return Self::with_vec_p_hash_sc(keys, params, hasher, seed_chooser); }
+        if threads_num == 1 { return Self::with_vec_p_hash_sc(keys, conf, hasher, seed_chooser); }
         let number_of_keys = keys.len();
         Self::_new(|h| {
             let (level0, unassigned_values) =
-                build_level_mt(&mut keys, params, threads_num, h, seed_chooser.clone(), 0);
+                build_level_mt(&mut keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.core(), params.seed_size, number_of_keys)
+            build_level_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.core(), conf.seed_size, number_of_keys)
     }
 
 
@@ -128,13 +128,13 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_p_hash_sc<K, CC, SC>(keys: &[K], params: &Conf<SS, CC>, hasher: S, seed_chooser: SC) -> Self
+    pub fn with_slice_p_hash_sc<K, CC, SC>(keys: &[K], conf: &Conf<SS, CC>, hasher: S, seed_chooser: SC) -> Self
     where K: Hash+Clone, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
         Self::_new(|h| {
-            build_level_from_slice_st(keys, params, h, seed_chooser.clone(), 0)
+            build_level_from_slice_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_st(keys, params, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.core(), params.seed_size, keys.len())
+            build_level_st(keys, &conf.core_conf, conf.seed_size, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.core(), conf.seed_size, keys.len())
     }
 
 
@@ -143,14 +143,14 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// 
     /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_p_threads_hash_sc<K, CC, SC>(keys: &[K], params: &Conf<SS, CC>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
+    pub fn with_slice_p_threads_hash_sc<K, CC, SC>(keys: &[K], conf: &Conf<SS, CC>, threads_num: usize, hasher: S, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
-        if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, params, hasher, seed_chooser); }
+        if threads_num == 1 { return Self::with_slice_p_hash_sc(keys, conf, hasher, seed_chooser); }
         Self::_new(|h| {
-            build_level_from_slice_mt(keys, params, threads_num, h, seed_chooser.clone(), 0)
+            build_level_from_slice_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), 0)
         }, |keys, level_nr, h| {
-            build_level_mt(keys, params, threads_num, h, seed_chooser.clone(), level_nr)
-        }, hasher, seed_chooser.core(), params.seed_size, keys.len())
+            build_level_mt(keys, &conf.core_conf, conf.seed_size, threads_num, h, seed_chooser.clone(), level_nr)
+        }, hasher, seed_chooser.core(), conf.seed_size, keys.len())
     }
 
     #[inline]

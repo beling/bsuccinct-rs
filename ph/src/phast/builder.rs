@@ -234,12 +234,12 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
 }*/
 
 #[inline(always)]
-pub(crate) fn build_last_level<'k, C, BE, SS>(keys: &'k [u64], conf: C, seed_size: SS, evaluator: BE)
+pub(crate) fn build_last_level<'k, C, BE, SS>(keys: &'k [u64], core: C, seed_size: SS, evaluator: BE)
 -> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
 where C: Core, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send, SS: SeedSize
 {
-    let (builder, mut seeds) = BuildConf::new(keys, conf, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &conf), SeedOnlyNoBump(ProdOfValues));
-    let mut tb = ThreadBuilder::<C, SeedOnlyNoBump, _, _>::new(&builder, 0..conf.buckets_num(), 0, &mut seeds);
+    let (builder, mut seeds) = BuildConf::new(keys, core, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &core), SeedOnlyNoBump(ProdOfValues));
+    let mut tb = ThreadBuilder::<C, SeedOnlyNoBump, _, _>::new(&builder, 0..core.buckets_num(), 0, &mut seeds);
     tb.build();
     if !tb.finished() { return None; }
     drop(tb);

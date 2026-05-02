@@ -382,6 +382,11 @@ impl Generic {
         Self { bucket_size100, preferred_slice_len }
     }
 
+    #[inline]
+    pub fn new_for_bps(bits_per_seed: u8) -> Self {
+        Self::new(bits_per_seed_to_100_bucket_size(bits_per_seed))
+    }
+
     /*#[inline]
     pub fn slice_len(&self, default: u16) -> u16 {
         if self.preferred_slice_len == 0 { default } else { self.preferred_slice_len }
