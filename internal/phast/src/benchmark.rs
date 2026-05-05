@@ -41,7 +41,8 @@ fn elias_fano_cost(keys_to_map: f64, output_range: u32) -> f64 {
 impl Result {
 
     #[inline(never)]
-    pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, minimum_range: u32, k: u16) {
+    pub fn print(&self, tries: u32, key_num: u32, evals_per_try: u32, k: u16) {
+        let minimum_range = key_num.div_ceil(k as u32);
         let total_keys = tries as usize * key_num as usize;
         
         let bits_per_key = (8*self.size_bytes) as f64 / total_keys as f64;
@@ -66,8 +67,8 @@ impl Result {
             print!(", {:.2}% over the minimum range", ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64)
         }
         if self.bumped_keys != 0 || self.range != minimum_range_x_tries {
-            // TODO check the formula
-            print!(", α={:.1}%", 100.0 * (1.0-bumped_share) * minimum_range_x_tries as f64 / self.range as f64);
+            let minimum_range_for_mapped = ((total_keys - self.bumped_keys as usize + tries as usize/2) / tries as usize).div_ceil(k as usize) as u32;
+            print!(", α={:.1}%", 100.0 * minimum_range_for_mapped as f64 / self.range as f64);
         }
         print!(", {:#.2?} build", self.build_time / tries as u32);
         if evals_per_try != 0 {
@@ -108,7 +109,7 @@ impl Result {
     pub fn print_try(&self, try_nr: u32, conf: &Conf) {
         if conf.csv || conf.less { return; }
         if conf.many_tries() { print!("{try_nr}: "); }
-        self.print(1, conf.keys_num, conf.evaluations, conf.minimum_range(), conf.k);
+        self.print(1, conf.keys_num, conf.evaluations, conf.k);
     }
 
     #[inline(never)]
@@ -116,7 +117,7 @@ impl Result {
         if conf.csv { self.print_avg_csv(conf); return; }
         if !conf.many_tries() { return; }
         print!("Average: ");
-        self.print(conf.tries(), conf.keys_num, conf.evaluations, conf.minimum_range(), conf.k);
+        self.print(conf.tries(), conf.keys_num, conf.evaluations, conf.k);
     }
 }
 
