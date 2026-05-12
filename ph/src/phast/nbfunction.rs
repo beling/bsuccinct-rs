@@ -40,8 +40,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     pub fn with_slice_conf_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, seed_evaluator: SE) -> Self
         where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator
     {
-        let number_of_keys = keys.len();
-        Self::new(number_of_keys, conf, seed_evaluator, 1, |hasher, seed|
+        Self::new(keys.len(), conf, seed_evaluator, 1, |hasher, seed|
             keys.iter().map(|k| hasher.hash_one(k, seed)).collect()
         )
     }
@@ -50,10 +49,9 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_threads_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_evaluator: SE) -> Self
-        where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator, K: Hash+Sync+Send+Clone, S: Sync
+        where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator, K: Hash+Sync+Send, S: Sync
     {
-        let number_of_keys = keys.len();
-        Self::new(number_of_keys, conf, seed_evaluator, threads_num, |hasher, seed|
+        Self::new(keys.len(), conf, seed_evaluator, threads_num, |hasher, seed|
             hash_all_par(&keys, hasher, seed)
         )
     }
@@ -106,7 +104,7 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn from_slice_st<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash+Clone {
+    pub fn from_slice_st<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash {
         Self::with_slice_conf_se(keys, Conf::generic8_nobump(loading_factor_1000), ProdOfValues)
     }
 
@@ -116,7 +114,7 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// multithreading is used only for key hashing, sorting, and determining bucket sizes.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn from_slice_mt<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash+Clone+Send+Sync {
+    pub fn from_slice_mt<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash+Send+Sync {
         Self::with_slice_conf_threads_se(keys, Conf::generic8_nobump(loading_factor_1000),
         std::thread::available_parallelism().map_or(1, |v| v.into()), ProdOfValues)
     }
