@@ -464,6 +464,12 @@ impl<SS: SeedSize> Conf<SS, Generic, BuildDefaultSeededHasher> {
     }
 }
 
+impl<SS: SeedSize, S> Conf<SS, Generic, S> {
+    #[inline] pub fn generic_with_hash(seed_size: SS, bucket_size100: u16, hasher: S) -> Self {
+        Self { seed_size, core_conf: Generic::new(bucket_size100), hasher, loading_factor_1000: 1000 }
+    }
+}
+
 impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
     #[inline] pub fn generic8(bucket_size100: u16) -> Self {
         Self { seed_size: Bits8, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }

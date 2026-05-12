@@ -247,10 +247,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         unreachable!()
     }
 
-    /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
-    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
-    /// 
-    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// Constructs [`Function`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_conf_sc<K, CC, SC>(mut keys: Vec::<K>, conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
         where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>
