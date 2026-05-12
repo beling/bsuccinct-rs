@@ -218,7 +218,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     
     /// Returns value assigned to the given `key`.
     /// 
-    /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key collection (exclusive).
+    /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key `self.output_range()` (exclusive).
     /// `key` must come from the input key collection given during construction.
     #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
@@ -262,10 +262,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
-    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
-    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
-    /// 
-    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_conf_threads_sc<K, CC, SC>(mut keys: Vec::<K>, conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>
@@ -282,10 +279,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     }
 
 
-    /// Constructs [`Function`] for given `keys`, using a single thread and given parameters:
-    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
-    /// 
-    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// Constructs [`Function`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
         where K: Hash+Clone, CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>
@@ -298,10 +292,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     }
 
 
-    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given parameters:
-    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
-    /// 
-    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_threads_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C> {
@@ -494,7 +485,7 @@ impl<C: Core, SS: SeedSize> Function<C, SS, SeedCore, DefaultCompressedArray, Bu
     }
 }
 
-// TODO switch Conf to ConfTurbo ?
+// TODO switch CoreConf to Turbo ?
 impl Function<GenericCore, Bits8, SeedCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
     /// Constructs [`Function`] for given `keys`, using a single thread.
     /// 

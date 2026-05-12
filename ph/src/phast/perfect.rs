@@ -38,7 +38,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
     
     /// Returns value assigned to the given `key`.
     /// 
-    /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key collection (exclusive).
+    /// The returned value is in the range from `0` (inclusive) to the number of elements in the input key `self.output_range()` (exclusive).
     /// `key` must come from the input key collection given during construction.
     #[inline(always)]   //inline(always) is important here
     pub fn get<K>(&self, key: &K) -> usize where K: Hash + ?Sized {
