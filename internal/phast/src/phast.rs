@@ -56,6 +56,5 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Function for ph::phast::KFunct
 pub fn phast2<SS, CC, SC>(keys: &[u64], params: ph::phast::Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> ph::phast::Function2<CC::Core, SS, SC::Core, DefaultCompressedArray, Hasher>
 where SS: SeedSize, CC: CoreConf, SC: SeedChooser
 {
-    ph::phast::Function2::with_slice_p_threads_hash_sc(keys, &params,
-     threads_num, Hasher::default(), seed_chooser)
+    ph::phast::Function2::with_slice_conf_threads_sc(keys, params, threads_num, seed_chooser)
 }
