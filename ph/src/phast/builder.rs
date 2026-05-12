@@ -234,15 +234,23 @@ pub fn build_st<'k, BE>(keys: &'k [u64], conf: Conf, span_limit: u16, evaluator:
 }*/
 
 #[inline(always)]
+pub(crate) fn try_nobump_build_st<'k, SC, BE, C, SS>(keys: &'k [u64], core: C, seed_size: SS, evaluator: BE, seed_chooser: SC, bucket_begin: Box<[usize]>)
+-> Option<(Box<[SS::VecElement]>, BuildConf<'k, C, BE, SS, SC>)>
+where C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize
+{
+    let (builder, mut seeds) = BuildConf::new(keys, core, seed_size, WINDOW_SIZE, evaluator, bucket_begin, seed_chooser);
+    let mut tb = ThreadBuilder::<C, SC, _, _>::new(&builder, 0..core.buckets_num(), 0, &mut seeds);
+    tb.build();
+    if !tb.finished() { return None; }
+    Some((seeds, builder))
+}
+
+#[inline(always)]
 pub(crate) fn build_last_level<'k, C, BE, SS>(keys: &'k [u64], core: C, seed_size: SS, evaluator: BE)
 -> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
 where C: Core, BE: BucketToActivateEvaluator + Send + Sync, BE::Value: Send, SS: SeedSize
 {
-    let (builder, mut seeds) = BuildConf::new(keys, core, seed_size, WINDOW_SIZE, evaluator, bucket_begin_st(keys, &core), SeedOnlyNoBump(ProdOfValues));
-    let mut tb = ThreadBuilder::<C, SeedOnlyNoBump, _, _>::new(&builder, 0..core.buckets_num(), 0, &mut seeds);
-    tb.build();
-    if !tb.finished() { return None; }
-    drop(tb);
+    let (seeds, builder) = try_nobump_build_st(keys, core, seed_size, evaluator, SeedOnlyNoBump(ProdOfValues), bucket_begin_st(keys, &core))?;
     let (unassigned_values, unassigned_len) = builder.unassigned_values(&seeds);
     Some((seeds, unassigned_values, unassigned_len))
 }

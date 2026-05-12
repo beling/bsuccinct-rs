@@ -33,7 +33,7 @@ impl SeedEvaluator for ProdOfValues {   // bumps 1.17% for S=8, lambda=4.5
     
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct SumOfValues;
 
 impl SeedEvaluator for SumOfValues {

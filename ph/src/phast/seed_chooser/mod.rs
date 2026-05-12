@@ -186,7 +186,7 @@ pub trait SeedChooser: Clone + Sync {
 
 /// Evaluate (harness of) seed for (1-)perfect function.
 /// Seed with the lowest value is used.
-pub trait SeedEvaluator: Clone + Sync {
+pub trait SeedEvaluator: Copy + Sync {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord;
 

@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}}, seeds::{Bits8, SeedSize}};
 use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -113,7 +113,6 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }, conf, seed_chooser.core(), keys.len())
     }
 
-
     /// Constructs [`KFunction`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_threads_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
@@ -151,11 +150,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         -> (Vec<K>, SeedEx<SS::VecElement, C>, Box<[u16]>)
         where K: Hash+Sync+Send+Clone, CC: CoreConf<Core=C>, S: Sync, SC: SeedChooser<Core = SCC>
     {
-        let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
-            keys.par_iter().with_min_len(256).map(|k| conf.hasher.hash_one(k, 0)).collect()
-        } else {
-            keys.iter().map(|k| conf.hasher.hash_one(k, 0)).collect()
-        };
+        let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, 0);
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
@@ -192,14 +187,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         -> (SeedEx<SS::VecElement, C>, Box<[u16]>)
         where K: Hash+Sync+Send, CC: CoreConf<Core=C>, S: Sync, SC: SeedChooser<Core = SCC>
     {
-        let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
-            //let mut k = Vec::with_capacity(keys.len());
-            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
-            //k.into_boxed_slice()
-            keys.par_iter().with_min_len(256).map(|k| conf.hasher.hash_one(k, 0)).collect()
-        } else {
-            keys.iter().map(|k| conf.hasher.hash_one(k, 0)).collect()
-        };
+        let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, 0);
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());

@@ -27,6 +27,9 @@ pub use partial::Partial;
 mod kfunction;
 pub use kfunction::KFunction;
 
+mod nbfunction;
+pub use nbfunction::NBFunction;
+
 mod seed_chooser;
 pub use seed_chooser::{SeedChooser, SeedChooserCore, SeedEvaluator, ProdOfValues, SeedOnly, SeedCore, ShiftOnly, ShiftCore,
     ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore, SeedOnlyK, SeedKCore, KSeedEvaluator, ProdOfValuesKEval, SumOfValues,

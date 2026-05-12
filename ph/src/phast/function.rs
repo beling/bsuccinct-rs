@@ -104,18 +104,23 @@ pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], output_ran
 }
 
 #[inline]
+pub(crate) fn hash_all_par<K: Hash+Sync, S: BuildSeededHasher+Sync>(keys: &[K], hasher: &S, seed: u64) -> Box<[u64]> {
+    if keys.len() > 4*2048 {    //maybe better for string keys
+        //let mut k = Vec::with_capacity(keys.len());
+        //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
+        //k.into_boxed_slice()
+        keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, seed)).collect()
+    } else {
+        keys.iter().map(|k| hasher.hash_one(k, seed)).collect()
+    }
+}
+
+#[inline]
 pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash+Sync+Send+Clone, SC: SeedChooser, SS: SeedSize, CC: CoreConf, SC: SeedChooser, S: BuildSeededHasher+Sync
 {
-    let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
-        //let mut k = Vec::with_capacity(keys.len());
-        //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
-        //k.into_boxed_slice()
-        keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
-    } else {
-        keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
-    };
+    let mut hashes = hash_all_par(keys, hasher, level_nr);
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
@@ -129,6 +134,8 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_ran
     }).cloned());
     (keys_vec, SeedEx{ seeds, core }, unassigned_values)
 }
+
+
 
 #[inline(always)]
 pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
@@ -153,14 +160,7 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
     -> (SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash+Sync+Send, SC: SeedChooser, SS: SeedSize, CC: CoreConf, SC: SeedChooser, S: BuildSeededHasher+Sync
 {
-    let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
-        //let mut k = Vec::with_capacity(keys.len());
-        //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
-        //k.into_boxed_slice()
-        keys.par_iter().with_min_len(256).map(|k| hasher.hash_one(k, level_nr)).collect()
-    } else {
-        keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect()
-    };
+    let mut hashes: Box<[_]> = hash_all_par(keys, hasher, level_nr);
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());

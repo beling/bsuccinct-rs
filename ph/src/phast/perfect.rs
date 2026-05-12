@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -163,11 +163,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> (Vec<K>, SeedEx<SS::VecElement, C>)
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
-            keys.par_iter().with_min_len(256).map(|k| conf.hasher.hash_one(k, level_nr)).collect()
-        } else {
-            keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect()
-        };
+        let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
@@ -201,14 +197,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> SeedEx<SS::VecElement, C>
         where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let mut hashes: Box<[_]> = if keys.len() > 4*2048 {    //maybe better for string keys
-            //let mut k = Vec::with_capacity(keys.len());
-            //k.par_extend(keys.par_iter().with_min_len(10000).map(|k| hasher.hash_one_s64(k, level_nr)));
-            //k.into_boxed_slice()
-            keys.par_iter().with_min_len(256).map(|k| conf.hasher.hash_one(k, level_nr)).collect()
-        } else {
-            keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect()
-        };
+        let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());

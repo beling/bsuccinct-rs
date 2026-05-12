@@ -1,7 +1,7 @@
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{Conf, CoreConf, ProdOfValues, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
-use super::{builder::build_last_level, conf::GenericCore, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray};
+use super::{builder::build_last_level, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -227,23 +227,22 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }
     }
 
-    #[inline(always)]
     fn build_last_level<K>(keys: Vec::<K>, hasher: &S, seed: &mut u64)
         -> (SeedEx<<Bits8 as SeedSize>::VecElement>, Box<[u64]>, usize)
         where K: Hash
     {
         let bits_per_seed = Bits8;
         let len100 = (keys.len()+10)*120;
-        let conf = SeedOnly(ProdOfValues).minimal_generic_f_core((len100+50)/100,
+        let core = SeedOnlyNoBump(ProdOfValues).minimal_generic_f_core((len100+50)/100,
             bits_per_seed.into(), 400, 0);  // TODO use turbo variant here
-        let evaluator = SeedOnly(ProdOfValues).bucket_evaluator(bits_per_seed.into(), conf.slice_len());
+        let evaluator = SeedOnlyNoBump(ProdOfValues).bucket_evaluator(bits_per_seed.into(), core.slice_len());
         loop {
             let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
             hashes.voracious_sort();    // maybe standard sort here?
             if let Some((seeds, unassigned_values, unassigned_len)) =
-                build_last_level(&hashes, conf, bits_per_seed, evaluator.clone())
+                build_last_level(&hashes, core, bits_per_seed, evaluator.clone())
             {
-                return (SeedEx{ seeds, core: conf }, unassigned_values, unassigned_len);
+                return (SeedEx{ seeds, core }, unassigned_values, unassigned_len);
             }
             *seed += 1;
             //dbg!(*seed);

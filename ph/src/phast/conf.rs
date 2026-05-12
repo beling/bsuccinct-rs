@@ -478,4 +478,15 @@ impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
     #[inline] pub fn default_generic8() -> Self {
         Self::generic8(bits_per_seed_to_100_bucket_size(8))
     }
+
+    /// Configuration used by default by `NBFunction`.
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
+    #[inline] pub fn generic8_nobump(loading_factor_1000: u16) -> Self {
+        Self {
+            seed_size: Bits8,
+            core_conf: Generic::new_psl(300, 4096),
+            hasher: Default::default(),
+            loading_factor_1000
+        }
+    }
 }
