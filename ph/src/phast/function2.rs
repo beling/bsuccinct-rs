@@ -54,6 +54,10 @@ impl<C: Core, SC, SS: SeedSize, CA, S> GetSize for Function2<C, SS, SC, CA, S> w
     const USES_DYN_MEM: bool = true;
 }
 
+impl<C: Core, SS: SeedSize, SC, CA, S> Function2<C, SS, SC, CA, S> {
+    #[inline] pub fn levels(&self) -> usize { self.bumped_to_index.len()+1 }
+}
+
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildSeededHasher> Function2<C, SS, SCC, CA, S> {
     
     /// Returns value assigned to the given `key`.

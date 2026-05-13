@@ -34,6 +34,10 @@ impl<C: Core, SCC, SS: SeedSize, S> GetSize for Perfect<C, SS, SCC, S> {
     const USES_DYN_MEM: bool = true;
 }
 
+impl<C: Core, SS: SeedSize, SCC, S> Perfect<C, SS, SCC, S> {
+    #[inline] pub fn levels(&self) -> usize { self.levels.len()+1 }
+}
+
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<C, SS, SCC, S> {
     
     /// Returns value assigned to the given `key`.

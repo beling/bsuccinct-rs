@@ -1,9 +1,13 @@
 use ph::{phast::{CoreConf, Core, DefaultCompressedArray, SeedChooser, SeedChooserCore}, seeds::SeedSize};
-use crate::function::{Function, Hasher, OutputRange};
+use crate::function::{Function, Hasher, FunctionProperties};
 
-impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> OutputRange for ph::phast::Function<C, SS, SCC, DefaultCompressedArray, Hasher> {
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> FunctionProperties for ph::phast::Function<C, SS, SCC, DefaultCompressedArray, Hasher> {
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
+    }
+    
+    fn levels(&self) -> usize {
+        self.levels()
     }
 }
 
@@ -28,10 +32,16 @@ where SS: SeedSize, CC: CoreConf, SC: SeedChooser
 
 
 
-impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> OutputRange for ph::phast::Function2<C, SS, SCC, DefaultCompressedArray, Hasher> {
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> FunctionProperties for ph::phast::Function2<C, SS, SCC, DefaultCompressedArray, Hasher> {
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
     }
+    
+    fn levels(&self) -> usize {
+        self.levels()
+    }
+
+    
 }
 
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Function for ph::phast::Function2<C, SS, SCC, DefaultCompressedArray, Hasher> {
@@ -41,9 +51,13 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Function for ph::phast::Functi
 }
 
 
-impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> OutputRange for ph::phast::KFunction<C, SS, SCC, DefaultCompressedArray, Hasher> {
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> FunctionProperties for ph::phast::KFunction<C, SS, SCC, DefaultCompressedArray, Hasher> {
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
+    }
+    
+    fn levels(&self) -> usize {
+        self.levels()
     }
 }
 

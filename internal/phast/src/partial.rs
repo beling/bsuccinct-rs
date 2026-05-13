@@ -1,9 +1,13 @@
 use ph::{phast::{CoreConf, Core, Partial, SeedChooser, SeedChooserCore}, seeds::SeedSize};
-use crate::function::{OutputRange, PartialFunction};
+use crate::function::{FunctionProperties, PartialFunction};
 
-impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> OutputRange for Partial<C, SS, SCC, ()> {
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> FunctionProperties for Partial<C, SS, SCC, ()> {
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
+    }
+    
+    fn levels(&self) -> usize {
+        1
     }
 }
 

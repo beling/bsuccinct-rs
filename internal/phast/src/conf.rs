@@ -325,7 +325,8 @@ impl Conf {
                 evaluation_time,
                 bumped_keys: 0,
                 bumpless_builds: 1,
-                range: f.output_range()
+                range: f.output_range(),
+                levels: f.levels()
             };
             result.print_try(try_nr, self);
             total += result;
@@ -362,6 +363,7 @@ impl Conf {
                 bumped_keys: self.keys_num as usize - assigned_keys,
                 bumpless_builds: (self.keys_num as usize == assigned_keys) as u32,
                 range: f.output_range(),
+                levels: f.levels()
             };
             /*let range = f.output_range();
             if max_value+1 != range {

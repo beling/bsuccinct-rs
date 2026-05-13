@@ -1,9 +1,13 @@
 use ph::{phast::{Core, CoreConf, Perfect, SeedChooser, SeedChooserCore}, seeds::SeedSize};
-use crate::function::{Function, Hasher, OutputRange};
+use crate::function::{Function, Hasher, FunctionProperties};
 
-impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> OutputRange for Perfect<C, SS, SCC, Hasher> {
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> FunctionProperties for Perfect<C, SS, SCC, Hasher> {
     #[inline(always)] fn output_range(&self) -> usize {
         self.output_range()
+    }
+    
+    fn levels(&self) -> usize {
+        self.levels()
     }
 }
 

@@ -23,6 +23,9 @@ pub struct Result {
 
     /// Total output range, sum of output ranges of tries
     pub range: usize,
+
+    /// Number of levels or tries to build
+    pub levels: usize,
 }
 
 impl std::ops::AddAssign for Result {
@@ -33,6 +36,7 @@ impl std::ops::AddAssign for Result {
         self.bumped_keys += rhs.bumped_keys;
         self.bumpless_builds += rhs.bumpless_builds;
         self.range += rhs.range;
+        self.levels += rhs.levels;
     }
 }
 
@@ -68,6 +72,7 @@ impl Result {
         if repair_cost_per_key != 0.0 { print!(" (≈{:.3} MPHF)", bits_per_key + repair_cost_per_key) }
         if self.bumped_keys != 0 { print!(", {:.2}% bumped", bumped_share * 100.0); }
         if tries > 1 && self.bumpless_builds != tries { print!(", {}/{tries}={:.0}% bumpless", self.bumpless_builds, 100.0 * self.bumpless_builds as f64 / tries as f64) }
+        if tries == 1 { print!(", {} levels", self.levels) } else { print!(", {:.2} levels", self.levels as f64 / tries as f64); }
         if self.range != minimum_range_x_tries {
             print!(", {:.2}% over the minimum range", ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64)
         }

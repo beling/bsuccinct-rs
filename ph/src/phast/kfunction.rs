@@ -41,6 +41,10 @@ impl<C: Core, SS: SeedSize, SC, CA, S> GetSize for KFunction<C, SS, SC, CA, S> w
     const USES_DYN_MEM: bool = true;
 }
 
+impl<C: Core, SS: SeedSize, SC, CA, S> KFunction<C, SS, SC, CA, S> {
+    #[inline] pub fn levels(&self) -> usize { self.bumped_to_index.len()+1 }
+}
+
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildSeededHasher> KFunction<C, SS, SCC, CA, S> {
     
     //const L0_SEED: u64 = 0xFF_FF_FF_FE_FF_FF_FF_FE;
