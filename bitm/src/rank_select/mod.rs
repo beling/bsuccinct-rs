@@ -222,7 +222,8 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
         #[cfg(target_pointer_width = "64")] { r += unsafe{ *self.l1ranks.get_unchecked(index >> 32) } + (block_content & 0xFFFFFFFFu64) as usize; } // 32 lowest bits   // for 34 bits: 0x3FFFFFFFFu64
         #[cfg(target_pointer_width = "32")] { r += (block_content & 0xFFFFFFFFu64) as usize; }
 
-        r += (((block_content >> (11 * (!block & 3))) >> 32) & 0b1_11111_11111) as usize;
+        r += (((block_content >> (11 * (!block & 3))) >> 32) & 0b1_11111_11111) as usize; // uses bitwise NAND
+        //r += (((block_content >> (11 * (block ^ 3))) >> 32) & 0b1_11111_11111) as usize; // uses bitwise XOR
 
         //Some(r + count_bits_in(unsafe {self.content.get_unchecked(block * 8/*word_idx&!7*/..word_idx)}))
         Some(r + count_bits_in(unsafe {self.content.get_unchecked(word_idx&!7..word_idx)}))
