@@ -1,5 +1,6 @@
 use std::hash::Hash;
 
+use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 
@@ -14,8 +15,8 @@ use crate::{fmph::Bits8, phast::{Conf, Core, CoreConf, GenericCore, ProdOfValues
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct NBFunction<C: Core, SS, S = BuildDefaultSeededHasher>
-    where SS: SeedSize
+pub struct NBFunction<C, SS, S = BuildDefaultSeededHasher>
+    where C: Core, SS: SeedSize
 {
     seeds: SeedEx<SS::VecElement, C>,
     seed: u64,
@@ -24,7 +25,11 @@ pub struct NBFunction<C: Core, SS, S = BuildDefaultSeededHasher>
     seed_size: SS,  // seed size, K=2**bits_per_seed
 }
 
-
+impl<C: Core, SS: SeedSize, S> GetSize for NBFunction<C, SS, S> {
+    fn size_bytes_dyn(&self) -> usize { self.seeds.size_bytes_dyn() }
+    fn size_bytes_content_dyn(&self) -> usize { self.seeds.size_bytes_content_dyn() }
+    const USES_DYN_MEM: bool = true;
+}
 
 impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     /// Returns value assigned to the given `key`.
@@ -54,6 +59,23 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
         Self::new(keys.len(), conf, seed_evaluator, threads_num, |hasher, seed|
             hash_all_par(&keys, hasher, seed)
         )
+    }
+
+    /// Constructs [`NBFunction`] for given `keys`, using a single thread and given configuration.
+    /// `keys` cannot contain duplicates.
+    #[inline] pub fn with_slice_conf<K, CC>(keys: &[K], conf: Conf<SS, CC, S>) -> Self
+        where K: Hash, CC: CoreConf<Core = C>
+    {
+        Self::with_slice_conf_se(keys, conf, ProdOfValues)
+    }
+
+    /// Constructs [`NBFunction`] for given `keys`, using multiple (given number of) threads and given configuration.
+    /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
+    /// `keys` cannot contain duplicates.
+    #[inline] pub fn with_slice_conf_threads<K, CC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize) -> Self
+        where K: Hash, CC: CoreConf<Core = C>, K: Hash+Sync+Send, S: Sync
+    {
+        Self::with_slice_conf_threads_se(keys, conf, threads_num, ProdOfValues)
     }
 
     /// Constructs [`NBFunction`] for given number of keys and configuration.
@@ -97,6 +119,11 @@ impl<C: Core, SS: SeedSize, S> NBFunction<C, SS, S> {
     pub fn output_range(&self) -> usize {
         self.seeds.core.output_range(self.seed_chooser, self.seed_size.into())
     }
+
+    /// Seed used by the function to hash keys.
+    #[inline] pub fn seed(&self) -> u64 { self.seed }
+
+
 }
 
 impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
@@ -105,7 +132,7 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash {
-        Self::with_slice_conf_se(keys, Conf::generic8_nobump(loading_factor_1000), ProdOfValues)
+        Self::with_slice_conf(keys, Conf::generic8_nobump(loading_factor_1000))
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
@@ -115,7 +142,7 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash+Send+Sync {
-        Self::with_slice_conf_threads_se(keys, Conf::generic8_nobump(loading_factor_1000),
-        std::thread::available_parallelism().map_or(1, |v| v.into()), ProdOfValues)
+        Self::with_slice_conf_threads(keys, Conf::generic8_nobump(loading_factor_1000),
+        std::thread::available_parallelism().map_or(1, |v| v.into()))
     }
 }

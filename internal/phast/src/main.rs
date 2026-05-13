@@ -10,7 +10,7 @@ use crate::optim::{SumOfLogValuesF, SumOfLogValuesF0, SumOfLogValuesF1};
 use crate::perfect::perfect;
 
 mod phast;
-use crate::phast::{kphast, phast, phast2};
+use crate::phast::{kphast, nbphast, phast, phast2};
 
 mod partial;
 use crate::partial::partial;
@@ -37,29 +37,31 @@ fn main() {
         conf.keys_num, conf.bits_per_seed, bucket_size, conf.slice_len);
     }
     match (conf.method, conf.k, conf.bits_per_seed, conf.one, bucket_size.into(), conf.is_turbo()) {
-        (Method::phast, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
-        (Method::phast, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::phast, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast, 1, 8, false, _, true) => conf.run(|keys| phast(keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
         
-        (Method::phast, k, 8, false, _, true) => conf.run(|keys| kphast(&keys, conf.params_turbo(Bits8), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
-        (Method::phast, k, 8, false, bucket_size100, false) => conf.run(|keys| kphast(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
-        (Method::phast, k, b, false, bucket_size100, false) => conf.run(|keys| kphast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::phast, k, 8, false, _, true) => conf.run(|keys| kphast(keys, conf.params_turbo(Bits8), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::phast, k, 8, false, bucket_size100, false) => conf.run(|keys| kphast(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::phast, k, b, false, bucket_size100, false) => conf.run(|keys| kphast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
 
-        (Method::phast2, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
-        (Method::phast2, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::phast2, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast2, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(Bits8), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast2, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast2, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+
+        (Method::nbphast, 1, b, false, bucket_size100, false) => conf.run(|keys| nbphast(keys, conf.params(BitsFast(b), bucket_size100), threads_num)),
 
         //(Method::perfect, 1, 8, false, bucket_size100, true) => conf.run(|keys| perfect(&keys, conf.params_turbo(Bits8, bucket_size100), threads_num, SeedOnly)),
-        (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::perfect, 1, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::perfect, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))), 
+        (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::perfect, 1, b, false, bucket_size100, false) => conf.run(|keys| perfect(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::perfect, k, 8, false, bucket_size100, false) => conf.run(|keys| perfect(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))), 
         (Method::perfectlog, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
         (Method::perfectlog0, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
         (Method::perfectlog1, k, 8, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
-        (Method::perfect, k, b, false, bucket_size100, false) => conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::perfect, k, b, false, bucket_size100, false) => conf.run(|keys| perfect(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
         (Method::perfectlog, k, b, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
         (Method::perfectlog0, k, b, false, bucket_size100, false) =>
@@ -67,77 +69,77 @@ fn main() {
         (Method::perfectlog1, k, b, false, bucket_size100, false) =>
             conf.run(|keys| perfect(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
 
-        (Method::phast|Method::phast2|Method::perfect, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::phast|Method::phast2|Method::perfect, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
-        (Method::phast|Method::phast2|Method::perfect, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
-        (Method::perfectlog, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
-        (Method::perfectlog0, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
-        (Method::perfectlog1, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
-        (Method::phast|Method::phast2|Method::perfect, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
-        (Method::perfectlog, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
-        (Method::perfectlog0, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
-        (Method::perfectlog1, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
+        (Method::phast|Method::phast2|Method::perfect, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast|Method::phast2|Method::perfect, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
+        (Method::phast|Method::phast2|Method::perfect, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::perfectlog, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
+        (Method::perfectlog0, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
+        (Method::perfectlog1, k, 8, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
+        (Method::phast|Method::phast2|Method::perfect, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, ProdOfValues))),
+        (Method::perfectlog, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF))),
+        (Method::perfectlog0, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF0))),
+        (Method::perfectlog1, k, b, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnlyK::with_evaluator(k, SumOfLogValuesF1))),
 
-        (Method::pluswrap { multiplier: 1 }, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap { multiplier: 2 }, 1, 8, false, _levels, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap { multiplier: 3 }, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap { multiplier: 5 }, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<5>)),
-        (Method::pluswrap { multiplier: 7 }, 1, 8, false, _, true) => conf.run(|keys| phast(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap { multiplier: 1 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap { multiplier: 2 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap { multiplier: 3 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap { multiplier: 5 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
-        (Method::pluswrap { multiplier: 7 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap { multiplier: 1 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap { multiplier: 2 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap { multiplier: 3 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap { multiplier: 5 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
-        (Method::pluswrap { multiplier: 7 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
+        (Method::pluswrap { multiplier: 1 }, 1, 8, false, _, true) => conf.run(|keys| phast(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }, 1, 8, false, _levels, true) => conf.run(|keys| phast(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }, 1, 8, false, _, true) => conf.run(|keys| phast(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap { multiplier: 5 }, 1, 8, false, _, true) => conf.run(|keys| phast(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<5>)),
+        (Method::pluswrap { multiplier: 7 }, 1, 8, false, _, true) => conf.run(|keys| phast(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<7>)),
+        (Method::pluswrap { multiplier: 1 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap { multiplier: 5 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
+        (Method::pluswrap { multiplier: 7 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
+        (Method::pluswrap { multiplier: 1 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap { multiplier: 2 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap { multiplier: 3 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap { multiplier: 5 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
+        (Method::pluswrap { multiplier: 7 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
 
-        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<5>)),
-        (Method::pluswrap2 { multiplier: 7 }, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
-        (Method::pluswrap2 { multiplier: 7 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
-        (Method::pluswrap2 { multiplier: 1 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
-        (Method::pluswrap2 { multiplier: 2 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
-        (Method::pluswrap2 { multiplier: 3 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
-        (Method::pluswrap2 { multiplier: 5 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
-        (Method::pluswrap2 { multiplier: 7 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
+        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<5>)),
+        (Method::pluswrap2 { multiplier: 7 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(Bits8), threads_num, ShiftOnlyWrapped::<7>)),
+        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
+        (Method::pluswrap2 { multiplier: 7 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
+        (Method::pluswrap2 { multiplier: 1 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
+        (Method::pluswrap2 { multiplier: 2 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
+        (Method::pluswrap2 { multiplier: 3 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
+        (Method::pluswrap2 { multiplier: 5 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
+        (Method::pluswrap2 { multiplier: 7 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
 
         (Method::pluswrap { multiplier: 1 } | Method::pluswrap2 { multiplier: 1 }, 1, 8, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
+            conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
         (Method::pluswrap { multiplier: 2 } | Method::pluswrap2 { multiplier: 2 }, 1, 8, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
+            conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
         (Method::pluswrap { multiplier: 3 } | Method::pluswrap2 { multiplier: 3 }, 1, 8, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
+            conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
         (Method::pluswrap { multiplier: 5 } | Method::pluswrap2 { multiplier: 5 }, 1, 8, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
+            conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap { multiplier: 7 } | Method::pluswrap2 { multiplier: 7 }, 1, 8, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
+            conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
 
         (Method::pluswrap { multiplier: 1 }| Method::pluswrap2 { multiplier: 1 }, 1, b, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
+            conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),
         (Method::pluswrap { multiplier: 2 }| Method::pluswrap2 { multiplier: 2 }, 1, b, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
+            conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<2>)),
         (Method::pluswrap { multiplier: 3 }| Method::pluswrap2 { multiplier: 3 }, 1, b, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
+            conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
         (Method::pluswrap { multiplier: 5 }| Method::pluswrap2 { multiplier: 5 }, 1, b, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
+            conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap { multiplier: 7 }| Method::pluswrap2 { multiplier: 7 }, 1, b, true, bucket_size100, false) =>
-            conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
+            conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
 
-        (Method::plus, 1, 8, false, _, true) => conf.run(|keys| phast2(&keys, conf.params_turbo(Bits8), threads_num, ShiftOnly)),
-        (Method::plus, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnly)),
-        (Method::plus, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnly)),
+        (Method::plus, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(Bits8), threads_num, ShiftOnly)),
+        (Method::plus, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnly)),
+        (Method::plus, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnly)),
 
-        (Method::plus, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnly)),
-        (Method::plus, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(&keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnly)),
+        (Method::plus, 1, 8, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnly)),
+        (Method::plus, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnly)),
 
         (Method::optphast, 1, _, _, _, _) => conf.optimize_weights(SeedOnly(ProdOfValues)),
         (Method::optphast, k, _, _, _, _) => conf.optimize_weights(SeedOnlyK::with_evaluator(k, ProdOfValues)),

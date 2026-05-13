@@ -72,7 +72,6 @@ impl Result {
         if repair_cost_per_key != 0.0 { print!(" (≈{:.3} MPHF)", bits_per_key + repair_cost_per_key) }
         if self.bumped_keys != 0 { print!(", {:.2}% bumped", bumped_share * 100.0); }
         if tries > 1 && self.bumpless_builds != tries { print!(", {}/{tries}={:.0}% bumpless", self.bumpless_builds, 100.0 * self.bumpless_builds as f64 / tries as f64) }
-        if tries == 1 { print!(", {} levels", self.levels) } else { print!(", {:.2} levels", self.levels as f64 / tries as f64); }
         if self.range != minimum_range_x_tries {
             print!(", {:.2}% over the minimum range", ((self.range - minimum_range_x_tries) * 100) as f64 / minimum_range_x_tries as f64)
         }
@@ -80,6 +79,7 @@ impl Result {
             let minimum_range_for_mapped = ((total_keys - self.bumped_keys as usize + tries as usize/2) / tries as usize).div_ceil(k as usize) as u32;
             print!(", α={:.1}%", 100.0 * minimum_range_for_mapped as f64 / self.range as f64);
         }
+        if tries == 1 { print!(", {} levels", self.levels) } else { print!(", {:.2} levels", self.levels as f64 / tries as f64); }
         print!(", {:#.2?} build", self.build_time / tries as u32);
         if evals_per_try != 0 {
             print!(", {:.2?}ns/key evaluation", self.evaluation_time.as_secs_f64().as_nanos() / (total_keys * evals_per_try as usize) as f64)
