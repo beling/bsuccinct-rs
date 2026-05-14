@@ -232,18 +232,18 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
 
 
     #[inline]
-    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {
+    fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;
         let mut without_shift_box: Box<[(usize, u16)]>;
         let without_shift: &mut [(usize, u16)] = if keys.len() > 16 {   // we add MULTIPLIER to key as shift=0 is invalid (reserved for bumping)
-            without_shift_box = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one())).collect();
+            without_shift_box = keys.iter().map(|key| (core.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & core.slice_len_minus_one())).collect();
             &mut without_shift_box
         } else {
-            without_shift_arrayvec = keys.iter().map(|key| (conf.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & conf.slice_len_minus_one())).collect();
+            without_shift_arrayvec = keys.iter().map(|key| (core.slice_begin(*key), (*key as u16).wrapping_add(MULTIPLIER as u16) & core.slice_len_minus_one())).collect();
             &mut without_shift_arrayvec
         };
 
-        let slice_len = conf.slice_len();
+        let slice_len = core.slice_len();
         let mut score_without_shift: usize = 1<<20; // this is not a real score as we only need relative scores
         let mut best_score = usize::MAX;
         let mut total_end_shift = ((MULTIPLIER as u16) << bits_per_seed) - MULTIPLIER as u16;
@@ -281,7 +281,7 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
         } else {
             let best_plus_multiplier = best_total_shift as usize + MULTIPLIER as usize;
             for key in keys {
-                used_values.add(conf.slice_begin(*key) + ((*key as usize).wrapping_add(best_plus_multiplier)&conf.slice_len_minus_one() as usize));
+                used_values.add(core.slice_begin(*key) + ((*key as usize).wrapping_add(best_plus_multiplier)&core.slice_len_minus_one() as usize));
             }
             (best_plus_multiplier / MULTIPLIER as usize) as u16
         }
@@ -293,10 +293,10 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
 pub struct ShiftSeedCore<const MULTIPLIER: u8>(pub u8);
 
 impl<const MULTIPLIER: u8> SeedChooserCore for ShiftSeedCore<MULTIPLIER> {
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.slice_begin(primary_code) +
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize {
+        core.slice_begin(primary_code) +
             ((mix_key_seed(primary_code, (seed>>self.0) + 1)
-             + MULTIPLIER as u16 * seed) & conf.slice_len_minus_one()) as usize
+             + MULTIPLIER as u16 * seed) & core.slice_len_minus_one()) as usize
     }
 
     #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
@@ -346,10 +346,6 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
     type Core = ShiftSeedCore<MULTIPLIER>;
 
     #[inline(always)] fn core(&self) -> Self::Core { ShiftSeedCore::<MULTIPLIER>(self.0) }
-
-
-
-
 
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {

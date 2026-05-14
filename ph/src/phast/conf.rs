@@ -5,6 +5,9 @@ use seedable_hash::{BuildDefaultSeededHasher, map64_to_64};
 
 use crate::{fmph::Bits8, phast::SeedChooserCore, seeds::SeedSize};
 
+//pub trait Placement {
+//}
+
 /// The PHast core which is responsible for mapping key hashes to buckets and slices.
 pub trait Core: Copy+Sync {
 
