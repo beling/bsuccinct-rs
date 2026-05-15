@@ -1,15 +1,80 @@
-use std::io;
+use std::{fmt::Debug, io, marker::PhantomData};
 
 use binout::{Serializer, VByte};
 use seedable_hash::{BuildDefaultSeededHasher, map64_to_64};
 
 use crate::{fmph::Bits8, phast::SeedChooserCore, seeds::SeedSize};
 
-//pub trait Placement {
-//}
+/// Returns most significant 64-bit half of `a*b`.
+#[inline(always)]
+pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
+    let r = (a as u128) * (b as u128);
+    //((r >> 64) ^ r) as u64
+    (r >> 64) as u64
+}    // compiles to one 64-bit multiplication
+
+/// Returns the value that mix `key` and `seed`. Fast.
+#[inline(always)]
+pub(crate) fn mix_key_seed(key: u64, seed: u16) -> u16 {
+    mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16
+}   // 0x51_7c_c1_b7_27_22_0a_95 is from FXHash
+
+/// Returns the value that mix `a` and `b` by multiplication and xoring.
+#[inline(always)]
+pub(crate) fn mix(a: u64, b: u64) -> u64 {
+    let r = (a as u128) * (b as u128);
+    ((r >> 64) ^ r) as u64
+    //(r >> 64) as u64
+}   // compiles to one 64-bit multiplication + one xor
+
+pub trait Placement: Copy+Sync+Send+PartialEq+Eq+Debug {
+
+    fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize;
+
+    fn without_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize;
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct FastPlacement;
+
+impl Placement for FastPlacement {
+    #[inline(always)]
+    fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
+        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & slice_len_minus_one) as usize // 1.899
+        //(mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.899
+        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize
+    }
+
+    #[inline(always)]
+    fn without_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
+        (mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.2 for 99 BEST
+        //(mix((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //10.2 for 99
+        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //2.00 for 99
+        //(mult_hi((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize //83.1 for 98.5
+        //(mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize //vunusable
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct RandomPlacement;
+
+impl Placement for RandomPlacement {
+    #[inline(always)]
+    fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
+        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & slice_len_minus_one) as usize
+    }
+
+    #[inline(always)]
+    fn without_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
+        //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
+        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize
+    }
+}
 
 /// The PHast core which is responsible for mapping key hashes to buckets and slices.
 pub trait Core: Copy+Sync {
+
+    type Placement: Placement;
 
     /// Returns the number of buckets.
     fn buckets_num(&self) -> usize;
@@ -56,7 +121,8 @@ pub trait Core: Copy+Sync {
     /// Returns index of `key` in its slice.
     #[inline(always)]
     fn in_slice(&self, key: u64, seed: u16) -> usize {
-        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & self.slice_len_minus_one()) as usize
+        Self::Placement::with_bumping(key, seed, self.slice_len_minus_one())
+        //(mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & self.slice_len_minus_one()) as usize
         //((key.wrapping_add(seed as u64 * 2)) as u16 & self.slice_len_minus_one) as usize
         //((key.wrapping_mul(0x1d8e_4e27_c47d_124f).wrapping_add(seed as u64)) as u16 & self.slice_len_minus_one) as usize
         /*const P: u16 = 0;
@@ -74,7 +140,8 @@ pub trait Core: Copy+Sync {
     #[inline(always)]
     fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
         //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
-        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one()) as usize
+        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one()) as usize
+        Self::Placement::without_bumping(key, seed, self.slice_len_minus_one())
     }
 
     /// Returns seed independent index of `key` in its partition.
@@ -132,13 +199,16 @@ pub trait Core: Copy+Sync {
 
 /// Generic PHast core that supports many configurations.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct GenericCore {
+pub struct GenericCore<P = FastPlacement> {
     pub(crate) buckets_num: usize, // number of buckets, B
     pub(crate) slice_len_minus_one: u16,  // slice length L - 1
     pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
+    placement: PhantomData<P>
 }
 
-impl Core for GenericCore {
+impl<P: Placement> Core for GenericCore<P> {
+
+    type Placement = FastPlacement;
 
     #[inline(always)]
     fn buckets_num(&self) -> usize {
@@ -176,6 +246,7 @@ impl Core for GenericCore {
             buckets_num,
             slice_len_minus_one,
             num_of_slices,
+            placement: Default::default()
         })
     }
 }
@@ -196,27 +267,7 @@ fn mix16fast(mut x: u16) -> u16 {
     x
 }*/
 
-/// Returns most significant 64-bit half of `a*b`.
-#[inline(always)]
-pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
-    let r = (a as u128) * (b as u128);
-    //((r >> 64) ^ r) as u64
-    (r >> 64) as u64
-}
 
-/// Returns the value that mix `key` and `seed`. Fast.
-#[inline(always)]
-pub(crate) fn mix_key_seed(key: u64, seed: u16) -> u16 {
-    mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16
-}   // 0x51_7c_c1_b7_27_22_0a_95 is from FXHash
-
-/// Returns the value that mix `a` and `b` by multiplication and xoring.
-#[inline(always)]
-pub(crate) fn mix(a: u64, b: u64) -> u64 {
-    let r = (a as u128) * (b as u128);
-    ((r >> 64) ^ r) as u64
-    //(r >> 64) as u64
-}
 
 //const SEEDS_MAP: [u64; 256] = std::array::from_fn(|i| mix64(i as u64));
 
@@ -238,7 +289,7 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
     }
 }
 
-impl GenericCore {
+impl<P: Placement> GenericCore<P> {
 
     pub(crate) fn new(output_range: usize, num_of_keys: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
         let bucket_size_100 = bucket_size_100 as usize;
@@ -246,7 +297,12 @@ impl GenericCore {
             buckets_num: 1.max((num_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
             slice_len_minus_one: slice_len - 1,
             num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
+            placement: Default::default()
         }
+    }
+
+    #[inline] pub(crate) fn empty() -> Self {
+        Self { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0, placement: Default::default() }
     }
 
     // configuration for "turbo" function that assume that input=output range and bucket_size_100 is about 400.
@@ -280,25 +336,16 @@ impl GenericCore {
     }*/
 }
 
-pub trait CoreConf: Sync {
-    /// PHast Core to use.
-    type Core: Core;
-
-    fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core;
-
-    //fn bucket_size100(&self) -> u16;
-    fn preferred_slice_len(&self) -> u16;
-}
-
 
 /// PHast map-or-bump turbo function configuration.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct TurboCore {
+pub struct TurboCore<P> {
     pub(crate) slice_len_minus_one: u16,  // slice length L - 1
     pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
+    placement: PhantomData<P>
 }
 
-impl TurboCore {
+impl<P> TurboCore<P> {
 
     pub(crate) fn new(output_range: usize, mut slice_len: u16, max_shift: u16) -> Self {
         let max_allowed_slice_len = output_range/5+1;   // or output_range/4+1;
@@ -306,11 +353,14 @@ impl TurboCore {
         Self {
             slice_len_minus_one: slice_len - 1,
             num_of_slices: output_range + 1 - slice_len as usize - max_shift as usize,
+            placement: Default::default()
         }
     }
 }
 
-impl Core for TurboCore {
+impl<P: Placement> Core for TurboCore<P> {
+
+    type Placement = P;
 
     #[inline(always)]
     fn try_f<SS>(&self, seed_size: SS, seeds: &[SS::VecElement], key: u64) -> Option<usize> where SS: SeedSize {
@@ -361,28 +411,40 @@ impl Core for TurboCore {
         Ok(Self {
             slice_len_minus_one,
             num_of_slices,
+            placement: Default::default()
         })
     }
 }
 
 
 
+pub trait CoreConf: Sync {
+    /// PHast Core to use.
+    type Core: Core;
 
-#[derive(Clone, Copy)]
-pub struct Generic {
-    pub bucket_size100: u16,
-    pub preferred_slice_len: u16
+    fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core;
+
+    //fn bucket_size100(&self) -> u16;
+    fn preferred_slice_len(&self) -> u16;
 }
 
-impl Generic {
+
+#[derive(Clone, Copy)]
+pub struct Generic<P = FastPlacement> {
+    pub bucket_size100: u16,
+    pub preferred_slice_len: u16,
+    placement: PhantomData<P>
+}
+
+impl<P> Generic<P> {
     #[inline]
     pub fn new(bucket_size100: u16) -> Self {
-        Self { bucket_size100, preferred_slice_len: 0 }
+        Self { bucket_size100, preferred_slice_len: 0, placement: Default::default() }
     }
 
     #[inline]
     pub fn new_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
-        Self { bucket_size100, preferred_slice_len }
+        Self { bucket_size100, preferred_slice_len, placement: Default::default() }
     }
 
     #[inline]
@@ -396,9 +458,9 @@ impl Generic {
     }*/
 }
 
-impl CoreConf for Generic {
+impl<P: Placement> CoreConf for Generic<P> {
     
-    type Core = GenericCore;
+    type Core = GenericCore<P>;
     
     fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
         GenericCore::new(output_range, num_of_keys, self.bucket_size100, slice_len, max_shift)
@@ -413,19 +475,20 @@ impl CoreConf for Generic {
 
 
 #[derive(Clone, Copy)]
-pub struct Turbo {
-    pub preferred_slice_len: u16
+pub struct Turbo<P = FastPlacement> {
+    pub preferred_slice_len: u16,
+    placement: PhantomData<P>
 }
 
-impl Turbo {
+impl<P> Turbo<P> {
     #[inline]
     pub fn new() -> Self {
-        Self { preferred_slice_len: 0 }
+        Self { preferred_slice_len: 0, placement: Default::default() }
     }
 
     #[inline]
     pub fn new_psl(preferred_slice_len: u16) -> Self {
-        Self { preferred_slice_len }
+        Self { preferred_slice_len, placement: Default::default() }
     }
 
     /*#[inline]
@@ -434,9 +497,9 @@ impl Turbo {
     }*/
 }
 
-impl CoreConf for Turbo {
+impl<P: Placement> CoreConf for Turbo<P> {
     
-    type Core = TurboCore;
+    type Core = TurboCore<P>;
     
     fn core(&self, output_range: usize, _num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core {
         TurboCore::new(output_range, slice_len, max_shift)

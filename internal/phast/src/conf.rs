@@ -279,7 +279,7 @@ impl Conf {
     pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic> {
         ph::phast::Conf {
             seed_size,
-            core_conf: Generic { bucket_size100, preferred_slice_len: self.slice_len },
+            core_conf: Generic::new_psl(bucket_size100, self.slice_len),
             hasher: Default::default(),
             loading_factor_1000: self.alpha
         }
@@ -288,7 +288,7 @@ impl Conf {
     pub fn params_turbo<SS>(&self, seed_size: SS) -> ph::phast::Conf<SS, Turbo> {
         ph::phast::Conf {
             seed_size,
-            core_conf: Turbo { preferred_slice_len: self.slice_len },
+            core_conf: Turbo::new_psl(self.slice_len),
             hasher: Default::default(),
             loading_factor_1000: self.alpha
         }

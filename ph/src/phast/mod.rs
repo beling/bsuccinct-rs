@@ -5,7 +5,7 @@ pub use compressed_array::{CompressedArray, CompressedBuilder, DefaultCompressed
 
 mod builder;
 mod conf;
-pub use conf::{Generic, GenericCore, Turbo, TurboCore, bits_per_seed_to_100_bucket_size, Core, CoreConf, Conf};
+pub use conf::{Generic, GenericCore, Turbo, TurboCore, Placement, FastPlacement, RandomPlacement, bits_per_seed_to_100_bucket_size, Core, CoreConf, Conf};
 
 mod cyclic;
 pub use cyclic::UsedValueMultiSetU16;

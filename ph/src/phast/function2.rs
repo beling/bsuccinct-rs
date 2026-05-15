@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Conf, CoreConf, ProdOfValues, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, CoreConf, ProdOfValues, RandomPlacement, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
 use super::{builder::build_last_level, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;
@@ -32,7 +32,7 @@ pub struct Function2<C: Core, SS, SCC = ShiftWrappedCore, CA = DefaultCompressed
     bumped_index_to_value: CA,
     bumped_to_index: Box<[Level<SS::VecElement, C>]>,
     hasher: S,
-    last_level: Level<<Bits8 as SeedSize>::VecElement>,
+    last_level: Level<<Bits8 as SeedSize>::VecElement, GenericCore<RandomPlacement>>,
     last_level_seed: u64,
     seed_chooser: SCC,
     seed_size: SS,
@@ -194,7 +194,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let last_seeds =
         if keys.is_empty() {
             last_shift = 0;
-            SeedEx::<<Bits8 as SeedSize>::VecElement>{ seeds: Box::default(), core: GenericCore { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0 } }
+            SeedEx{ seeds: Box::default(), core: GenericCore::<RandomPlacement>::empty() }
         } else {
             let (last_seeds, unassigned_values, _unassigned_len) =
                 Self::build_last_level(keys, &conf.hasher, &mut last_seed);
@@ -232,7 +232,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     }
 
     fn build_last_level<K>(keys: Vec::<K>, hasher: &S, seed: &mut u64)
-        -> (SeedEx<<Bits8 as SeedSize>::VecElement>, Box<[u64]>, usize)
+        -> (SeedEx<<Bits8 as SeedSize>::VecElement, GenericCore<RandomPlacement>>, Box<[u64]>, usize)
         where K: Hash
     {
         let bits_per_seed = Bits8;

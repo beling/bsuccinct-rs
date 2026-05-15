@@ -15,9 +15,7 @@ pub use shift::{ShiftOnly, ShiftCore};
 mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore};
 
-use crate::{fmph::SeedSize, phast::{Weights, conf::{Core, CoreConf}, cyclic::GenericUsedValue}};
-
-use super::conf::GenericCore;
+use crate::{fmph::SeedSize, phast::{Placement, Weights, conf::{Core, CoreConf, GenericCore}, cyclic::GenericUsedValue}};
 
 
 
@@ -72,11 +70,11 @@ pub trait SeedChooserCore: Copy {
         }
     }
 
-    fn generic_f_core(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
+    fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
         GenericCore::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
     }
 
-    #[inline(always)] fn minimal_generic_f_core(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
+    #[inline(always)] fn minimal_generic_f_core<P: Placement>(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
         self.generic_f_core(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
@@ -148,12 +146,12 @@ pub trait SeedChooser: Clone + Sync {
         self.conf_for_minimal(num_of_keys, params.seed_size.into(), params.bucket_size100, params.preferred_slice_len)
     } */
 
-    fn generic_f_core(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
-        self.core().generic_f_core(output_range, num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
+    fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
+        self.core().generic_f_core::<P>(output_range, num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
-    #[inline(always)] fn minimal_generic_f_core(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore {
-        self.core().minimal_generic_f_core(num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
+    #[inline(always)] fn minimal_generic_f_core<P: Placement>(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
+        self.core().minimal_generic_f_core::<P>(num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
     #[inline(always)] fn f_core<CC: CoreConf>(&self, output_range: usize, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
