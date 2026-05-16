@@ -40,16 +40,18 @@ pub struct FastPlacement;
 impl Placement for FastPlacement {
     #[inline(always)]
     fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
-        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & slice_len_minus_one) as usize // 1.899
-        //(mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.899
+        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & slice_len_minus_one) as usize // 1.899 | 1.991 for 100k | 2.450 for 10k
+
+        //(mult_hi(mix(seed as u64, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize // | 2.449 for 10k
+        //(mult_hi(mix(seed as u64, 0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize // 1.990 for 100k | 2.446 for 10k
     }
 
     #[inline(always)]
     fn without_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
+        (mult_hi((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize //83.1 for 98.5
         //(mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.2 for 99, 8.2 for 99.5 BEST
         //(mix((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //10.2 for 99
-        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //2.00 for 99
-        (mult_hi((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize //83.1 for 98.5
+        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //2.00 for 99        
         //(mult_hi((seed as u64 + 1).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize // unusable
         //(mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize // unusable
     }
@@ -61,7 +63,8 @@ pub struct RandomPlacement;
 impl Placement for RandomPlacement {
     #[inline(always)]
     fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
-        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.898
+        (mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.899 | 1.989 for 100k | 2.441 for 10k
+        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.898 | 1.989 for 100k | 2.444 for 10k
     }
 
     #[inline(always)]
