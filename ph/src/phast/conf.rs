@@ -42,16 +42,16 @@ impl Placement for FastPlacement {
     fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
         (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & slice_len_minus_one) as usize // 1.899
         //(mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.899
-        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize
     }
 
     #[inline(always)]
     fn without_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
-        (mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.2 for 99 BEST
+        //(mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.2 for 99, 8.2 for 99.5 BEST
         //(mix((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //10.2 for 99
         //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //2.00 for 99
-        //(mult_hi((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize //83.1 for 98.5
-        //(mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize //vunusable
+        (mult_hi((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize //83.1 for 98.5
+        //(mult_hi((seed as u64 + 1).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize // unusable
+        //(mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95), key) as u16 & slice_len_minus_one) as usize // unusable
     }
 }
 
@@ -61,13 +61,13 @@ pub struct RandomPlacement;
 impl Placement for RandomPlacement {
     #[inline(always)]
     fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
-        (mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16 & slice_len_minus_one) as usize
+        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.898
     }
 
     #[inline(always)]
     fn without_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize {
-        //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
-        (mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize
+        (mult_hi(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize //1.2 for 99, 8.2 for 99.5 BEST
+        //(mix(mix(seed as u64 ^ 0xa076_1d64_78bd_642f, 0x1d8e_4e27_c47d_124f), key) as u16 & slice_len_minus_one) as usize
     }
 }
 
