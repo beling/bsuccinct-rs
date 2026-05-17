@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use ph::{phast::{Generic, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
+use ph::{fmph::Bits8, phast::{Generic, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
 use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost}};
 
@@ -285,9 +285,9 @@ impl Conf {
         }
     }
 
-    pub fn params_turbo<SS>(&self, seed_size: SS) -> ph::phast::Conf<SS, Turbo> {
+    pub fn params_turbo(&self) -> ph::phast::Conf<Bits8, Turbo> {
         ph::phast::Conf {
-            seed_size,
+            seed_size: Bits8,
             core_conf: Turbo::new_psl(self.slice_len),
             hasher: Default::default(),
             loading_factor_1000: self.alpha
