@@ -2,6 +2,54 @@ use std::io;
 
 use crate::{fmph::SeedSize, phast::{ComparableF64, Core, SeedChooser, SeedChooserCore, SeedEvaluator, cyclic::{GenericUsedValue, UsedValueSet}}};
 
+#[derive(Clone, Copy)]
+pub struct ProdOfValuesTurbo;
+
+impl SeedEvaluator for ProdOfValuesTurbo {
+
+    type Value = ComparableF64;
+
+    const MAX: Self::Value = ComparableF64(f64::MAX);
+        
+    type BucketData = usize;
+    
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
+       core.slice_begin_for_bucket(bucket_nr).wrapping_sub(96) / 4
+    }
+
+    fn eval(&self, values_used_by_seed: &[usize], to_extract: Self::BucketData) -> Self::Value {
+        /*values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+            //2048.0 * ((v - min) as f64).log2()    // 1.905
+            4096.0 * (v.wrapping_sub(self.min_bucket_value_minus_100) as f64).log2()    // 1.905 (0,2) 1.903 (10) 1.901 (20) 1.900 (30) 1.899 (40) 1.898 (50,60,80,100,120,150), 1.899 (200), 1.900 (250), 1.901 (300)
+            //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
+        }).sum::<f64>() as usize*/
+        ComparableF64(values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+            //2048.0 * ((v - min) as f64).log2()    // 1.905
+            (v / 4).wrapping_sub(to_extract) as f64    // 1.905 (0,2) 1.903 (10) 1.901 (20) 1.900 (30) 1.899 (40) 1.898 (50,60,80,100,120,150), 1.899 (200), 1.900 (250), 1.901 (300)
+            //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
+        }).product())
+    }
+    
+}
+
+
+#[derive(Clone, Copy)]
+pub struct SumOfValuesTurbo;
+
+impl SeedEvaluator for SumOfValuesTurbo {
+    type Value = usize;
+
+    const MAX: Self::Value = usize::MAX;
+
+    type BucketData = ();
+
+    #[inline] fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData { () }
+
+    fn eval(&self, values_used_by_seed: &[usize], _bucket_data: Self::BucketData) -> Self::Value {
+        values_used_by_seed.iter().map(|v| v/4).sum()
+    }
+}
+
 
 #[derive(Clone, Copy)]
 pub struct ProdOfValues;

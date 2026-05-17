@@ -5,7 +5,7 @@ mod k;
 use std::io;
 
 mod seed;
-pub use seed::{SeedOnly, SeedCore, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues, SumOfValues};
+pub use seed::{SeedOnly, SeedCore, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues, SumOfValues, ProdOfValuesTurbo, SumOfValuesTurbo};
 
 pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, ProdOfValuesKEval, bucket_size_normalization_multiplier};
 
