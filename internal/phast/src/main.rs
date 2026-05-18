@@ -49,7 +49,7 @@ fn main() {
         (Method::phast2, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
         (Method::phast2, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(ProdOfValues))),
 
-        (Method::nbphast, 1, b, false, bucket_size100, false) => conf.run(|keys| nbphast(keys, conf.params(BitsFast(b), bucket_size100), threads_num)),
+        (Method::nbphast, 1, b, false, bucket_size100, false) => conf.run(|keys| nbphast(keys, conf.params_random(BitsFast(b), bucket_size100), threads_num)),
 
         //(Method::perfect, 1, 8, false, bucket_size100, true) => conf.run(|keys| perfect(&keys, conf.params_turbo(Bits8, bucket_size100), threads_num, SeedOnly)),
         (Method::perfect, 1, 8, false, bucket_size100, false) => conf.run(|keys| perfect(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),
