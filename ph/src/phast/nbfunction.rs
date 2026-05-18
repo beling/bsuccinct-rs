@@ -4,7 +4,7 @@ use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 
-use crate::{fmph::Bits8, phast::{Conf, Core, CoreConf, GenericCore, ProdOfValues, SeedChooser, SeedChooserCore, SeedEvaluator, builder::{bucket_begin_mt, bucket_begin_st, try_nobump_build_st}, function::{SeedEx, hash_all_par}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::SeedSize};
+use crate::{fmph::Bits8, phast::{Conf, Core, CoreConf, GenericCore, ProdOfValues, RandomPlacement, SeedChooser, SeedChooserCore, SeedEvaluator, builder::{bucket_begin_mt, bucket_begin_st, try_nobump_build_st}, function::{SeedEx, hash_all_par}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::SeedSize};
 
 /// NBFunction (No Bump Function) is a variant of PHast (Perfect Hashing made fast)
 /// that do not use bumping.
@@ -128,7 +128,32 @@ impl<C: Core, SS: SeedSize, S> NBFunction<C, SS, S> {
 
 impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// Constructs [`NBFunction`] for given `keys`, using a single thread and given loading factor.
+    /// In comparison to `from_slice_st`, the function constructed by `from_slice_st_fast` is faster to evaluate
+    /// but requires smaller `loading_factor_1000`.
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn from_slice_st_fast<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash {
+        Self::with_slice_conf(keys, Conf::generic8_nobump_fast(loading_factor_1000))
+    }
+
+    /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
+    /// In comparison to `from_slice_st`, the function constructed by `from_slice_st_fast` is faster to evaluate
+    /// but requires smaller `loading_factor_1000`.
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
+    /// 
+    /// multithreading is used only for key hashing, sorting, and determining bucket sizes.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn from_slice_mt_fast<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash+Send+Sync {
+        Self::with_slice_conf_threads(keys, Conf::generic8_nobump_fast(loading_factor_1000),
+        std::thread::available_parallelism().map_or(1, |v| v.into()))
+    }
+}
+
+impl NBFunction<GenericCore<RandomPlacement>, Bits8, BuildDefaultSeededHasher> {
+    /// Constructs [`NBFunction`] for given `keys`, using a single thread and given loading factor.
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `995` (for small range).
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash {
@@ -136,7 +161,7 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
-    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `995` (for small range).
     /// 
     /// multithreading is used only for key hashing, sorting, and determining bucket sizes.
     /// 

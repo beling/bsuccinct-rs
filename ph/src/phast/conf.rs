@@ -550,10 +550,23 @@ impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
 
     /// Configuration used by default by `NBFunction`.
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
-    #[inline] pub fn generic8_nobump(loading_factor_1000: u16) -> Self {
+    #[inline] pub fn generic8_nobump_fast(loading_factor_1000: u16) -> Self {
         Self {
             seed_size: Bits8,
             core_conf: Generic::new_psl(300, 4096),
+            hasher: Default::default(),
+            loading_factor_1000
+        }
+    }
+}
+
+impl Conf<Bits8, Generic::<RandomPlacement>, BuildDefaultSeededHasher> {
+    /// Configuration used by default by `NBFunction`.
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
+    #[inline] pub fn generic8_nobump(loading_factor_1000: u16) -> Self {
+        Self {
+            seed_size: Bits8,
+            core_conf: Generic::<RandomPlacement>::new_psl(300, 4096),
             hasher: Default::default(),
             loading_factor_1000
         }

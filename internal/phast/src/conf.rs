@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use ph::{fmph::Bits8, phast::{Generic, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
+use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
 use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost}};
 
@@ -277,6 +277,15 @@ impl Conf {
     }
 
     pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic> {
+        ph::phast::Conf {
+            seed_size,
+            core_conf: Generic::new_psl(bucket_size100, self.slice_len),
+            hasher: Default::default(),
+            loading_factor_1000: self.alpha
+        }
+    }
+
+    pub fn params_random<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic<RandomPlacement>> {
         ph::phast::Conf {
             seed_size,
             core_conf: Generic::new_psl(bucket_size100, self.slice_len),
