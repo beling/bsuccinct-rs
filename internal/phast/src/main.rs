@@ -22,7 +22,7 @@ mod benchmark;
 use clap::Parser;
 
 use ph::seeds::{Bits8, BitsFast};
-use ph::phast::{ProdOfValues, ProdOfValuesTurbo, SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, space_lower_bound};
+use ph::phast::{ProdOfValues, ProdOfValuesTurbo, SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, Experimental, space_lower_bound};
 
 fn main() {
     let conf = Conf::parse();
@@ -37,6 +37,9 @@ fn main() {
         conf.keys_num, conf.bits_per_seed, bucket_size, conf.slice_len);
     }
     match (conf.method, conf.k, conf.bits_per_seed, conf.one, bucket_size.into(), conf.is_turbo()) {
+        (Method::phastexp { a }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(Experimental(a)))),
+        (Method::phastexp { a }, 1, b, true, bucket_size100, false) => conf.runp(|keys| partial(keys, conf.params(BitsFast(b), bucket_size100), threads_num, SeedOnly(Experimental(a)))),
+        
         (Method::phast, 1, 8, false, _, true) => conf.run(|keys| phast(keys, conf.params_turbo(), threads_num, SeedOnly(ProdOfValuesTurbo))),
         (Method::phast|Method::phast2|Method::perfect, 1, 8, true, _, true) => conf.runp(|keys| partial(keys, conf.params_turbo(), threads_num, SeedOnly(ProdOfValuesTurbo))),
         (Method::phast, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast(keys, conf.params(Bits8, bucket_size100), threads_num, SeedOnly(ProdOfValues))),

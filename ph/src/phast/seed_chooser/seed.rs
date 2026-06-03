@@ -98,6 +98,27 @@ impl SeedEvaluator for SumOfValues {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct Experimental(pub usize);
+
+impl SeedEvaluator for Experimental {
+    type Value = ComparableF64;
+
+    const MAX: Self::Value = ComparableF64(f64::MAX);
+
+    type BucketData = usize;
+
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
+        core.slice_begin_for_bucket(bucket_nr).wrapping_sub(self.0)
+    }
+
+    fn eval(&self, values_used_by_seed: &[usize], to_extract: Self::BucketData) -> Self::Value {
+        ComparableF64(values_used_by_seed.iter().map(|v| {
+            (v.wrapping_sub(to_extract) as f64).powf(0.1)
+        }).sum())
+    }
+}
+
 #[inline(always)]
 fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());

@@ -15,6 +15,11 @@ use minuit2::MnSimplex;
 //#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[derive(Subcommand, Clone, Copy)]
 pub enum Method {
+    /// Experimental PHast
+    phastexp {
+        #[arg(default_value_t = 1)] a: usize
+    },
+
     /// PHast
     phast,
 
@@ -84,6 +89,7 @@ pub enum Method {
 impl std::fmt::Display for Method {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Method::phastexp { a } => write!(f, "PHast exp {a}"),
             Method::phast => write!(f, "PHast"),
             Method::phast2 => write!(f, "PHast2"),
             Method::nbphast => write!(f, "PHast without bumping"),
