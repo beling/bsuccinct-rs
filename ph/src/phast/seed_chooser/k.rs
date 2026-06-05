@@ -94,7 +94,7 @@ impl KSeedEvaluatorConf for ProdOfValues {
     fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         const VALUES: [(u16, ProdOfValuesKEval); 35] = [
             (2, ProdOfValuesKEval { value_shift: 0.00459, free_shift: 1.67556, first_weight: 0.12312 }), // 1.02%
-            (3, ProdOfValuesKEval { value_shift: 0.00372, free_shift: 1.80978, first_weight: 0.20042 }), // 1.08%
+            (3, ProdOfValuesKEval { value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
             (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
             (5, ProdOfValuesKEval { value_shift: 0.00374, free_shift: 2.38977, first_weight: 0.63411 }), // 1.05%
             (6, ProdOfValuesKEval { value_shift: 0.00336, free_shift: 2.65310, first_weight: 0.75036 }), // 0.97%
