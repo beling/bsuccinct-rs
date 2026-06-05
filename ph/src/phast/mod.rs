@@ -32,7 +32,7 @@ pub use nbfunction::NBFunction;
 
 mod seed_chooser;
 pub use seed_chooser::{SeedChooser, SeedChooserCore, SeedEvaluator, ProdOfValues, SeedOnly, SeedCore, ShiftOnly, ShiftCore,
-    ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore, SeedOnlyK, SeedKCore, KSeedEvaluator, ProdOfValuesKEval, SumOfValues,
+    ShiftOnlyWrapped, ShiftOnlyProdWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore, SeedOnlyK, SeedKCore, KSeedEvaluator, ProdOfValuesKEval, SumOfValues,
     KSeedEvaluatorConf, bucket_size_normalization_multiplier, space_lower_bound, ComparableF64, ProdCmp};
 
 /// Power of two grater or equal than `WINDOW_SIZE`.

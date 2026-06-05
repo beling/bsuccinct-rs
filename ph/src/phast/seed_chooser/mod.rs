@@ -15,6 +15,9 @@ pub use shift::{ShiftOnly, ShiftCore};
 mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore};
 
+mod shift_wrap_prod;
+pub use shift_wrap_prod::ShiftOnlyProdWrapped;
+
 use crate::{fmph::SeedSize, phast::{Placement, Weights, conf::{Core, CoreConf, GenericCore}}};
 
 
