@@ -95,7 +95,7 @@ impl KSeedEvaluatorConf for ProdOfValues {
         const VALUES: [(u16, ProdOfValuesKEval); 35] = [
             (2, ProdOfValuesKEval { value_shift: 0.00459, free_shift: 1.67556, first_weight: 0.12312 }), // 1.02%
             (3, ProdOfValuesKEval { value_shift: 0.00372, free_shift: 1.80978, first_weight: 0.20042 }), // 1.08%
-            (4, ProdOfValuesKEval { value_shift: 0.00411, free_shift: 2.07543, first_weight: 0.42212 }), // 1.09%
+            (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
             (5, ProdOfValuesKEval { value_shift: 0.00374, free_shift: 2.38977, first_weight: 0.63411 }), // 1.05%
             (6, ProdOfValuesKEval { value_shift: 0.00336, free_shift: 2.65310, first_weight: 0.75036 }), // 0.97%
             (7, ProdOfValuesKEval { value_shift: 0.00339, free_shift: 2.76276, first_weight: 0.71752 }), // 0.89%
