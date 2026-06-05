@@ -335,26 +335,24 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
     //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let bucket_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, core);
-    for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
+    'outer: for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
             let value = seed_chooser.f(key, seed, core);
             if free_values[value] == 0 {
-                for v in &values_used_by_seed {
-                    free_values[*v] += 1;
-                }
-                break;
+                for v in &values_used_by_seed { free_values[*v] += 1; }
+                continue 'outer;
             }
             //used_values.add(value);
             free_values[value] -= 1;
             values_used_by_seed.push(value);
         }
-        if values_used_by_seed.len() == keys.len() {
-            let seed_value = seed_evaluator.eval_and_remove(k, &values_used_by_seed, free_values, bucket_data);
-            if seed_value < *best_value {
-                *best_value = seed_value;
-                *best_seed = seed;
-            }
+        unsafe{std::hint::assert_unchecked(values_used_by_seed.len() == keys.len());}   // this speeds up the code!
+        //assert_eq!(values_used_by_seed.len(), keys.len());
+        let seed_value = seed_evaluator.eval_and_remove(k, &values_used_by_seed, free_values, bucket_data);
+        if seed_value < *best_value {
+            *best_value = seed_value;
+            *best_seed = seed;
         }
     }
 }
