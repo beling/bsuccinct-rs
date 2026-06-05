@@ -366,11 +366,11 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
         - self.value_shift
     }
 
-    fn eval(&self, _k: u16, values_used_by_seed: &[usize], free_values: &FreeValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
+    fn eval_and_remove(&self, _k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = 0.0;
         for value in values_used_by_seed.iter().copied() {
-            let free_values = self.free_shift + free_values[value] as f64;
-            result += (value as f64 - to_subtract_from_value).log2() - self.free_values_weight * free_values.log2();
+            result += (value as f64 - to_subtract_from_value).log2() - self.free_values_weight * (self.free_shift + free_values[value] as f64).log2();
+            free_values[value] += 1;
         }
         ComparableF64(result)
     }

@@ -22,7 +22,7 @@ mod benchmark;
 use clap::Parser;
 
 use ph::seeds::{Bits8, BitsFast};
-use ph::phast::{ProdOfValues, SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, space_lower_bound};
+use ph::phast::{ProdOfValues, SeedOnly, SeedOnlyK, ShiftOnly, ShiftOnlyWrapped, ShiftOnlyProdWrapped, space_lower_bound};
 
 fn main() {
     let conf = Conf::parse();
@@ -111,6 +111,19 @@ fn main() {
         (Method::pluswrap2 { multiplier: 3 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<3>)),
         (Method::pluswrap2 { multiplier: 5 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<5>)),
         (Method::pluswrap2 { multiplier: 7 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyWrapped::<7>)),
+
+        (Method::pluswrap2prod { multiplier: 1 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(), threads_num, ShiftOnlyProdWrapped::<1>)),
+        (Method::pluswrap2prod { multiplier: 2 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(), threads_num, ShiftOnlyProdWrapped::<2>)),
+        (Method::pluswrap2prod { multiplier: 3 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(), threads_num, ShiftOnlyProdWrapped::<3>)),
+        (Method::pluswrap2prod { multiplier: 5 }, 1, 8, false, _, true) => conf.run(|keys| phast2(keys, conf.params_turbo(), threads_num, ShiftOnlyProdWrapped::<5>)),
+        (Method::pluswrap2prod { multiplier: 1 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyProdWrapped::<1>)),
+        (Method::pluswrap2prod { multiplier: 2 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyProdWrapped::<2>)),
+        (Method::pluswrap2prod { multiplier: 3 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyProdWrapped::<3>)),
+        (Method::pluswrap2prod { multiplier: 5 }, 1, 8, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyProdWrapped::<5>)),
+        (Method::pluswrap2prod { multiplier: 1 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyProdWrapped::<1>)),
+        (Method::pluswrap2prod { multiplier: 2 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyProdWrapped::<2>)),
+        (Method::pluswrap2prod { multiplier: 3 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyProdWrapped::<3>)),
+        (Method::pluswrap2prod { multiplier: 5 }, 1, b, false, bucket_size100, false) => conf.run(|keys| phast2(keys, conf.params(BitsFast(b), bucket_size100), threads_num, ShiftOnlyProdWrapped::<5>)),
 
         (Method::pluswrap { multiplier: 1 } | Method::pluswrap2 { multiplier: 1 }, 1, 8, true, bucket_size100, false) =>
             conf.runp(|keys| partial(keys, conf.params(Bits8, bucket_size100), threads_num, ShiftOnlyWrapped::<1>)),

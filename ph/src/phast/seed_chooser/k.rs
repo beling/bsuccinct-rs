@@ -38,7 +38,7 @@ pub trait KSeedEvaluator: Clone + Sync {
     fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData;
 
     /// Evaluate (harness of) seed that used given `values`.
-    fn eval(&self, k: u16, values_used_by_seed: &[usize], free_values: &FreeValueMultiSetU16, bucket_data: Self::BucketData) -> Self::Value;
+    fn eval_and_remove(&self, k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, bucket_data: Self::BucketData) -> Self::Value;
 
     fn bucket_evaluator(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights::new(bits_per_seed, slice_len)
@@ -67,8 +67,13 @@ impl KSeedEvaluator for SumOfValues {
     }
 
     #[inline]
-    fn eval(&self, _k: u16, values_used_by_seed: &[usize], _used_values: &FreeValueMultiSetU16, _bucket_data: Self::BucketData) -> Self::Value {
-        values_used_by_seed.iter().sum()
+    fn eval_and_remove(&self, _k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, _bucket_data: Self::BucketData) -> Self::Value {
+        let mut result = 0;
+        for value in values_used_by_seed {
+            result += *value;
+            free_values[*value] += 1;
+        }
+        result
     }
 
     fn bucket_evaluator(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
@@ -88,9 +93,9 @@ impl KSeedEvaluatorConf for ProdOfValues {
 
     fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         const VALUES: [(u16, ProdOfValuesKEval); 35] = [
-            (2, ProdOfValuesKEval { value_shift: 0.00459, free_shift: 1.67556, first_weight: 0.12312 }), // 1.02%
-            (3, ProdOfValuesKEval { value_shift: 0.00372, free_shift: 1.80978, first_weight: 0.20042 }), // 1.08%
-            (4, ProdOfValuesKEval { value_shift: 0.00411, free_shift: 2.07543, first_weight: 0.42212 }), // 1.09%
+            (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
+            (3, ProdOfValuesKEval { value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
+            (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
             (5, ProdOfValuesKEval { value_shift: 0.00374, free_shift: 2.38977, first_weight: 0.63411 }), // 1.05%
             (6, ProdOfValuesKEval { value_shift: 0.00336, free_shift: 2.65310, first_weight: 0.75036 }), // 0.97%
             (7, ProdOfValuesKEval { value_shift: 0.00339, free_shift: 2.76276, first_weight: 0.71752 }), // 0.89%
@@ -208,10 +213,11 @@ impl KSeedEvaluator for ProdOfValuesKEval {
         - self.value_shift
     }
 
-    fn eval(&self, _k: u16, values_used_by_seed: &[usize], free_values: &FreeValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
+    fn eval_and_remove(&self, _k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = ProdCmp::default();
         for value in values_used_by_seed.iter().copied() {
             result *= (value as f64 - to_subtract_from_value) / (self.free_shift + free_values[value] as f64);
+            free_values[value] += 1;
         }
         result
     }
@@ -329,24 +335,24 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
     //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let bucket_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, core);
-    for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
+    'outer: for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
         values_used_by_seed.clear();
         for key in keys.iter().copied() {
             let value = seed_chooser.f(key, seed, core);
-            if free_values[value] == 0 { break; }
+            if free_values[value] == 0 {
+                for v in &values_used_by_seed { free_values[*v] += 1; }
+                continue 'outer;
+            }
             //used_values.add(value);
             free_values[value] -= 1;
             values_used_by_seed.push(value);
         }
-        if values_used_by_seed.len() == keys.len() {
-            let seed_value = seed_evaluator.eval(k, &values_used_by_seed, free_values, bucket_data);
-            if seed_value < *best_value {
-                *best_value = seed_value;
-                *best_seed = seed;
-            }
-        }
-        for v in &values_used_by_seed {
-            free_values[*v] += 1;
+        unsafe{std::hint::assert_unchecked(values_used_by_seed.len() == keys.len());}   // this speeds up the code!
+        //assert_eq!(values_used_by_seed.len(), keys.len());
+        let seed_value = seed_evaluator.eval_and_remove(k, &values_used_by_seed, free_values, bucket_data);
+        if seed_value < *best_value {
+            *best_value = seed_value;
+            *best_seed = seed;
         }
     }
 }
