@@ -15,7 +15,7 @@ pub use shift::{ShiftOnly, ShiftCore};
 mod shift_wrap;
 pub use shift_wrap::{ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore};
 
-use crate::{fmph::SeedSize, phast::{Placement, Weights, conf::{Core, CoreConf, GenericCore}, cyclic::GenericUsedValue}};
+use crate::{fmph::SeedSize, phast::{Placement, Weights, conf::{Core, CoreConf, GenericCore}}};
 
 
 
@@ -108,7 +108,13 @@ pub trait SeedChooser: Clone + Sync {
 
     fn core(&self) -> Self::Core;
 
-    type UsedValues: GenericUsedValue;
+    type UsedValues: Send;
+
+    fn empty_used_values(&self) -> Self::UsedValues;
+
+    fn add_used(&self, used_values: &mut Self::UsedValues, value: usize);
+
+    fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize);
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
     #[inline(always)] fn k(&self) -> u16 { self.core().k() }

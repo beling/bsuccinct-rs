@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, GenericUsedValue, UsedValueSetLarge}};
+use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, UsedValueSetLarge}};
 use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
@@ -82,6 +82,12 @@ impl SeedChooser for ShiftOnly {
     type UsedValues = UsedValueSetLarge;
 
     type Core = ShiftCore;
+
+    #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
+
+    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
+
+    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
     
     #[inline(always)] fn core(&self) -> Self::Core { ShiftCore }
 

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, usize};
 
-use ph::{phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, Partial, ProdOfValues, ProdOfValuesKEval, SeedChooser, SeedEvaluator, SeedOnly, SeedOnlyK, UsedValueMultiSetU16}, seeds::BitsFast};
+use ph::{phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, Partial, ProdOfValues, ProdOfValuesKEval, SeedChooser, SeedEvaluator, SeedOnly, SeedOnlyK, FreeValueMultiSetU16}, seeds::BitsFast};
 
 use crate::conf::Conf;
 
@@ -366,10 +366,10 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
         - self.value_shift
     }
 
-    fn eval(&self, k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
+    fn eval(&self, _k: u16, values_used_by_seed: &[usize], free_values: &FreeValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = 0.0;
         for value in values_used_by_seed.iter().copied() {
-            let free_values = self.free_shift + k as f64 - used_values[value] as f64;
+            let free_values = self.free_shift + free_values[value] as f64;
             result += (value as f64 - to_subtract_from_value).log2() - self.free_values_weight * free_values.log2();
         }
         ComparableF64(result)

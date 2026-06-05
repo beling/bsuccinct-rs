@@ -3,7 +3,7 @@ use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{phast::{ProdOfValues, conf::Core}, seeds::SeedSize};
-use super::{cyclic::CyclicSet, cyclic::GenericUsedValue, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedChooserCore, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
+use super::{cyclic::CyclicSet, evaluator::BucketToActivateEvaluator, seed_chooser::{SeedChooser, SeedChooserCore, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
 #[inline]
@@ -310,7 +310,8 @@ where C: Core + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync, BE:
             let seed = unsafe{ seed_size.get_seed(&thread_builders[next].seeds, bucket) } as u16;
             if SC::Core::BUMPING && seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
-                thread_builders[prev].used_values.add(builder.seed_chooser.f(*key, seed, &builder.conf));
+                //thread_builders[prev].used_values.add(builder.seed_chooser.f(*key, seed, &builder.conf));
+                builder.seed_chooser.add_used(&mut thread_builders[prev].used_values, builder.seed_chooser.f(*key, seed, &builder.conf));
             }
         }
         thread_builders[prev].buckets_num += gap;
@@ -432,7 +433,7 @@ struct ThreadBuilder<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator
 impl<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> ThreadBuilder<'k, C, SC, BE, SS> {
     pub(crate) fn new(conf: &'k BuildConf<'k, C, BE, SS, SC>, buckets: Range<usize>, gap: usize, seeds: &'k mut [SS::VecElement]) -> Self {
         Self {
-            used_values: SC::UsedValues::default(),
+            used_values: conf.seed_chooser.empty_used_values(),
             conf,
             span_begin: 0,
             buckets_num: buckets.len()-gap,
@@ -505,7 +506,8 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> 
     pub fn clear_used(&mut self) {
         let end = self.slice_begin(self.span_begin); // / 64;
         while self.value_to_clear != end {  // TODO clear in 64-bit steps
-            self.used_values.remove(self.value_to_clear);
+            //self.used_values.remove(self.value_to_clear);
+            self.conf.seed_chooser.clear_used(&mut self.used_values, self.value_to_clear);
             //self.used_values.remove_fragment_64(self.value_to_clear);
             self.value_to_clear += 1;
         }

@@ -2,7 +2,7 @@ use std::io;
 
 use binout::{AsIs, Serializer};
 
-use crate::phast::{SeedChooserCore, Weights, conf::{Core, mix_key_seed}, cyclic::{CyclicSet, GenericUsedValue, UsedValueSet}};
+use crate::phast::{SeedChooserCore, Weights, conf::{Core, mix_key_seed}, cyclic::{CyclicSet, UsedValueSet}};
 use super::SeedChooser;
 
 
@@ -215,6 +215,12 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
 
     type Core = ShiftWrappedCore<MULTIPLIER>;
 
+    #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
+
+    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
+
+    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
+
     #[inline(always)] fn core(&self) -> Self::Core { ShiftWrappedCore::<MULTIPLIER> }
 
     //type UsedValues = UsedValueSetLarge;
@@ -344,6 +350,12 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
     type UsedValues = UsedValueSet;
 
     type Core = ShiftSeedCore<MULTIPLIER>;
+
+    #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
+
+    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
+
+    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
 
     #[inline(always)] fn core(&self) -> Self::Core { ShiftSeedCore::<MULTIPLIER>(self.0) }
 

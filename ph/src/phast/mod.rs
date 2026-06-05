@@ -8,7 +8,7 @@ mod conf;
 pub use conf::{Generic, GenericCore, Turbo, TurboCore, Placement, FastPlacement, RandomPlacement, bits_per_seed_to_100_bucket_size, Core, CoreConf, Conf};
 
 mod cyclic;
-pub use cyclic::UsedValueMultiSetU16;
+pub use cyclic::FreeValueMultiSetU16;
 mod evaluator;
 pub use evaluator::{BucketToActivateEvaluator, Weights};
 

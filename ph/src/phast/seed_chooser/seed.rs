@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::{fmph::SeedSize, phast::{ComparableF64, Core, SeedChooser, SeedChooserCore, SeedEvaluator, cyclic::{GenericUsedValue, UsedValueSet}}};
+use crate::{fmph::SeedSize, phast::{ComparableF64, Core, SeedChooser, SeedChooserCore, SeedEvaluator, cyclic::UsedValueSet}};
 
 
 #[derive(Clone, Copy)]
@@ -161,6 +161,12 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
     
     type Core = SeedCore;
 
+    #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
+
+    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
+
+    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
+
     #[inline(always)] fn core(&self) -> Self::Core { SeedCore }
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
@@ -211,6 +217,12 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
     type UsedValues = UsedValueSet;
 
     type Core = SeedNoBumpCore;
+
+    #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
+
+    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
+
+    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
     
     #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
 
