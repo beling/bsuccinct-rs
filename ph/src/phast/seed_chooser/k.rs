@@ -96,9 +96,9 @@ impl KSeedEvaluatorConf for ProdOfValues {
             (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
             (3, ProdOfValuesKEval { value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
             (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
-            (5, ProdOfValuesKEval { value_shift: 0.00374, free_shift: 2.38977, first_weight: 0.63411 }), // 1.05%
-            (6, ProdOfValuesKEval { value_shift: 0.00336, free_shift: 2.65310, first_weight: 0.75036 }), // 0.97%
-            (7, ProdOfValuesKEval { value_shift: 0.00339, free_shift: 2.76276, first_weight: 0.71752 }), // 0.89%
+            (5, ProdOfValuesKEval { value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
+            (6, ProdOfValuesKEval { value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
+            (7, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
             (8, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 2.93629, first_weight: 0.73965 }), // 0.81%
             (9, ProdOfValuesKEval { value_shift: 0.00339, free_shift: 3.01388, first_weight: 0.71301 }), // 0.73%
             (10, ProdOfValuesKEval { value_shift: 0.00348, free_shift: 3.23864, first_weight: 0.73775 }), // 0.68%
