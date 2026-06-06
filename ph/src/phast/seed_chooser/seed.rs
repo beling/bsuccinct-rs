@@ -113,13 +113,11 @@ fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &S
         }
         let seed_value = seed_evaluator.eval(&values_used_by_seed, seed_eval_data);
         if seed_value < *best_value {
-            values_used_by_seed.sort_unstable();
             for i in 1..values_used_by_seed.len() {
-                if values_used_by_seed[i-1] == values_used_by_seed[i] {
-                    //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
-                    //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    //if SC::BUMPING { return; }
-                    continue 'outer;
+                for j in 0..i {
+                    if values_used_by_seed[i] == values_used_by_seed[j] {
+                        continue 'outer;
+                    }
                 }
             }
             *best_value = seed_value;
