@@ -160,8 +160,10 @@ fn main() {
         (Method::optpluswrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
         (Method::optpluswrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<2>),
         (Method::optpluswrap { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<3>),
-        (Method::optpluswrap { multiplier: 5 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<5>),
-        (Method::optpluswrap { multiplier: 7 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<7>),
+
+        (Method::optplusprodwrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<1>),
+        (Method::optplusprodwrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<2>),
+        (Method::optplusprodwrap { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<3>),
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
         (Method::optperfectlog0, _, _, _, _, _) => conf.optimize_perfectlog0(),

@@ -66,6 +66,12 @@ pub enum Method {
         multiplier: u8
     },
 
+    /// Optimize weights for selecting buckets by PHast+ with wrapping and product based seed evaluation
+    optplusprodwrap {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
+
     /// Optimize weights for selecting buckets by PHast+
     optplus,
 
@@ -103,6 +109,7 @@ impl std::fmt::Display for Method {
             Method::perfectlog1 => write!(f, "Perfect with: log(f(x) - minimum in window + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
+            Method::optplusprodwrap { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
