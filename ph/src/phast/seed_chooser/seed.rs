@@ -113,8 +113,10 @@ fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &S
         }
         let seed_value = seed_evaluator.eval(&values_used_by_seed, seed_eval_data);
         if seed_value < *best_value {
-            for i in 1..values_used_by_seed.len() {
-                for j in 0..i {
+            //for i in 1..values_used_by_seed.len() {
+            //    for j in 0..i {
+            for i in 0..values_used_by_seed.len() {
+                for j in i+1..values_used_by_seed.len() {
                     if values_used_by_seed[i] == values_used_by_seed[j] {
                         continue 'outer;
                     }
