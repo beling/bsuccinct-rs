@@ -101,7 +101,7 @@ impl KSeedEvaluatorConf for ProdOfValues {
             (7, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
             (8, ProdOfValuesKEval { value_shift: 0.00320, free_shift: 2.91581, first_weight: 0.73696 }), // 0.80%
             (9, ProdOfValuesKEval { value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // 0.73%
-            (10, ProdOfValuesKEval { value_shift: 0.00348, free_shift: 3.23864, first_weight: 0.73775 }), // 0.68%
+            (10, ProdOfValuesKEval { value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // 0.67%
             (11, ProdOfValuesKEval { value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // 0.63%
             (12, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }), // 0.60%
             (13, ProdOfValuesKEval { value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }), // 0.57%
