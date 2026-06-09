@@ -157,6 +157,9 @@ fn main() {
         (Method::optphast, 1, _, _, _, _) => conf.optimize_weights(SeedOnly(ProdOfValues)),
         (Method::optphast, k, _, _, _, _) => conf.optimize_weights(SeedOnlyK::with_evaluator(k, ProdOfValues)),
 
+        (Method::optphastdelta, 1, _, _, _, _) => conf.optimize_weights_delta(SeedOnly(ProdOfValues)),
+        (Method::optphastdelta, k, _, _, _, _) => conf.optimize_weights_delta(SeedOnlyK::with_evaluator(k, ProdOfValues)),
+
         (Method::optpluswrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
         (Method::optpluswrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<2>),
         (Method::optpluswrap { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<3>),
@@ -164,6 +167,10 @@ fn main() {
         (Method::optplusprodwrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<1>),
         (Method::optplusprodwrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<2>),
         (Method::optplusprodwrap { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<3>),
+
+        (Method::optplusprodwrapdelta { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights_delta(ShiftOnlyProdWrapped::<1>),
+        (Method::optplusprodwrapdelta { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights_delta(ShiftOnlyProdWrapped::<2>),
+        (Method::optplusprodwrapdelta { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights_delta(ShiftOnlyProdWrapped::<3>),
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
         (Method::optperfectlog0, _, _, _, _, _) => conf.optimize_perfectlog0(),

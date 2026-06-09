@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand, ValueEnum};
 use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -60,6 +60,9 @@ pub enum Method {
     /// Optimize weights for selecting buckets by PHast
     optphast,
 
+    /// Optimize weights for selecting buckets by PHast, using delta encoding
+    optphastdelta,
+
     /// Optimize weights for selecting buckets by PHast+ with wrapping
     optpluswrap {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
@@ -68,6 +71,12 @@ pub enum Method {
 
     /// Optimize weights for selecting buckets by PHast+ with wrapping and product based seed evaluation
     optplusprodwrap {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
+
+    /// Optimize weights for selecting buckets by PHast+ with wrapping and product based seed evaluation, delta
+    optplusprodwrapdelta {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
         multiplier: u8
     },
@@ -108,8 +117,10 @@ impl std::fmt::Display for Method {
             Method::perfectlog0 => write!(f, "Perfect with: log(f(x) - minimum in bucket + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
             Method::perfectlog1 => write!(f, "Perfect with: log(f(x) - minimum in window + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
             Method::optphast => write!(f, "Optimize PHast weights"),
+            Method::optphastdelta => write!(f, "Optimize PHast weights (delta)"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplusprodwrap { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights"),
+            Method::optplusprodwrapdelta { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights, delta encoding"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
@@ -469,6 +480,10 @@ impl Conf {
 
     pub fn optimize_weights<SC: SeedChooser>(&self, seed_chooser: SC) {
         self.optimize(WeightsCost(seed_chooser));
+    }
+
+    pub fn optimize_weights_delta<SC: SeedChooser>(&self, seed_chooser: SC) {
+        self.optimize(DeltaWeightsCost(seed_chooser));
     }
 
     pub fn optimize_perfectlog(&self) {

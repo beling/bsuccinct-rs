@@ -19,9 +19,24 @@ impl From<Constrain> for f64 {
     }
 }
 
+fn print_vec(x: &[f64], params: &[(&str, Constrain, Constrain, usize)]) {
+    let mut first = true;
+    for (v, (s, _, _, prec)) in x.iter().zip(params) {
+        if first { first = false; } else { print!(", "); }
+        if !s.is_empty() { print!("{s}: ") }
+        print!("{:.*}", prec, v) 
+    }
+}
+
+/// Cost function that can work with many optimizers via `Cost`.
 pub trait CostFn {
+    /// Returns the value of the function at `x`.
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize;
+
+    /// Returns starting point used by some optimizers.
     fn init(&self, conf: &Conf) -> Vec<f64>;
+
+    /// Returns description of the parameters: names, lower and upper bounds, printing precisions.
     fn params(&self, conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         self.init(conf).iter().map(|v| (
             "",
@@ -30,21 +45,21 @@ pub trait CostFn {
             0
         )).collect()
     }
+
+    /// Returns lower and upper bounds of the parameters, converted to floats.
     fn bounds(&self, conf: &Conf) -> (Vec<f64>, Vec<f64>) {
         let p = self.params(conf);
         (p.iter().map(|(_, l, _, _)| (*l).into()).collect(),
          p.iter().map(|(_, _, u, _)| (*u).into()).collect())
     }
+
+    /// Prints `x`.
     fn print(&self, conf: &Conf, x: &[f64]) {
-        let mut first = true;
-        for (v, (s, _, _, prec)) in x.iter().zip(self.params(conf)) {
-            if first { first = false; } else { print!(", "); }
-            if !s.is_empty() { print!("{s}: ") }
-            print!("{:.*}", prec, v) 
-        }
+        print_vec(x, &self.params(conf))
     }
 }
 
+/// Wraps `CostFn`, stores the best value and cost, works with many optimization framework.
 pub struct Cost<'c, CF: CostFn> {
     pub conf: &'c Conf,
     pub cost: CF,
@@ -53,7 +68,12 @@ pub struct Cost<'c, CF: CostFn> {
 }
 
 impl<'c, CF: CostFn> Cost<'c, CF> {
-    #[inline] pub fn new(conf: &'c Conf, cost: CF) -> Self { Self { conf, cost, best_cost: RefCell::new(usize::MAX), best: RefCell::new(Vec::new()) } }
+    /// Constructs cost with given configuration and cost function.
+    #[inline] pub fn new(conf: &'c Conf, cost: CF) -> Self {
+        Self { conf, cost, best_cost: RefCell::new(usize::MAX), best: RefCell::new(Vec::new()) }
+    }
+
+    /// Evaluates the function at `x`, updates `best` and prints `x`.
     pub fn eval(&self, x: &[f64]) -> usize {
         let v = self.cost.eval(self.conf, x);
         print!("{v} {:.2}%  ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
@@ -66,11 +86,20 @@ impl<'c, CF: CostFn> Cost<'c, CF> {
         println!();
         v
     }
+
+    /// Returns starting point used by some optimizers.
     #[inline] pub fn init(&self) -> Vec<f64> { self.cost.init(self.conf) }
+
+    /// Returns description of the parameters: names, lower and upper bounds, printing precisions.
     #[inline] pub fn params(&self) -> Vec<(&str, Constrain, Constrain, usize)> { self.cost.params(self.conf) }
+
+    /// Returns lower and upper bounds of the parameters, converted to floats.
     #[inline] pub fn bounds(&self) -> (Vec<f64>, Vec<f64>) { self.cost.bounds(&self.conf) }
+
+    /// Prints `x`.
     #[inline] pub fn print(&self, x: &[f64]) { self.cost.print(self.conf, x); }
 
+    /// Prints the best argument found.
     pub fn print_best(&self) {
         let v =  *self.best_cost.borrow();
         print!("Best {v} {:.2}%  ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
@@ -88,17 +117,52 @@ impl<'c, CF: CostFn> argmin::core::CostFunction for Cost<'c, CF> {
     }
 }
 
+/// Cost function for direct bucket weights optimization.
 pub struct WeightsCost<SC: SeedChooser>(pub SC);
 
 impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF{ size_weights: x.into() }).1)
+                    self.0.clone(), &WeightsF(x.into())).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).size_weights.into()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).0.into()
+    }
+}
+
+/// Cost function for bucket weights optimization that exposes weights as deltas.
+pub struct DeltaWeightsCost<SC: SeedChooser>(pub SC);
+
+impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(self.0.core()),
+                    self.0.clone(), &WeightsF::from_deltas(x)).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to_deltas().into_vec()
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        let params = self.params(conf);
+        print_vec(x, &params);
+        print!(" -> ");
+        print_vec(&WeightsF::from_deltas(x).0, &params);
+    }
+
+    fn params(&self, conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        let init = self.init(conf);
+        let mut result = Vec::with_capacity(init.len());
+        let d0 = init[0].abs();
+        result.push(("", Constrain::Weak(init[0] - d0), Constrain::Weak(init[0] + d0), 0));
+        let max_delta = init[1].abs() * 2.0;
+        for i in 1..init.len() {
+            result.push(("", Constrain::Strong(0.9), Constrain::Weak(max_delta / i as f64), 0));
+        }
+        result
     }
 }
 
@@ -228,13 +292,26 @@ impl CostFn for ProdOfValuesCost {
 
 
 /// Weights version that uses f64 and works well with numerical optimization.
-pub struct WeightsF {
-    pub size_weights: Box<[f64]>,
+pub struct WeightsF(Box<[f64]>);
+
+impl WeightsF {
+    fn from_deltas(deltas: &[f64]) -> Self {
+        Self(
+            deltas.iter().scan(0.0, |sum, delta| {
+                *sum += *delta;
+                Some(*sum)
+            }).collect()
+        )
+    }
+
+    fn to_deltas(&self) -> Box<[f64]> {
+        std::iter::once(self.0[0]).chain(self.0.windows(2).map(|pair| pair[1]-pair[0])).collect()
+    }
 }
 
 impl From<ph::phast::Weights> for WeightsF {
     fn from(value: ph::phast::Weights) -> Self {
-        Self { size_weights: value.0.iter().map(|v| *v as f64).collect() }
+        Self(value.0.iter().map(|v| *v as f64).collect())
     }
 }
 
@@ -244,11 +321,11 @@ impl BucketToActivateEvaluator for &WeightsF {
     const MIN: Self::Value = ComparableF64(f64::MIN);
 
     fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value {
-        let sw = self.size_weights.get(bucket_size-1).copied()
+        let sw = self.0.get(bucket_size-1).copied()
             .unwrap_or_else(|| {
-                let len = self.size_weights.len();
-                let l = self.size_weights[len-1];
-                let p = self.size_weights[len-2];
+                let len = self.0.len();
+                let l = self.0[len-1];
+                let p = self.0[len-2];
                 l + (l-p) * (bucket_size - len) as f64
             });
         ComparableF64(sw - 1024.0 * bucket_nr as f64)
