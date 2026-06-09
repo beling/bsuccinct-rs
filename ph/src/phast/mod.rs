@@ -36,11 +36,11 @@ pub use seed_chooser::{SeedChooser, SeedChooserCore, SeedEvaluator, ProdOfValues
     KSeedEvaluatorConf, bucket_size_normalization_multiplier, space_lower_bound, ComparableF64, ProdCmp};
 
 /// Power of two grater or equal than `WINDOW_SIZE`.
-const MAX_WINDOW_SIZE: usize = 256;
+const MAX_WINDOW_SIZE: usize = 512;//256;
 
 /// Power of two grater or equal then range of values covered by the window.
 //const MAX_VALUES: usize = 4096;
 const MAX_VALUES: usize = 4096 * 2  *2; // TODO only MT require last *2; maybe switch to dynamic allocation?
 
 /// Window size. Maximum number of elements in the priority queue.
-const WINDOW_SIZE: u16 = 256;
+const WINDOW_SIZE: u16 = 512;//256;
