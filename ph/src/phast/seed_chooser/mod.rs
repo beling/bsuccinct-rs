@@ -68,7 +68,7 @@ pub trait SeedChooserCore: Copy {
             9500..12000 => 256,
             12000..140000 => 512,
             _ if bits_per_seed < 6 => if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
-            _ if bits_per_seed < 12 => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
+            _ if bits_per_seed < 9 => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
             _ => if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
         }
     }
