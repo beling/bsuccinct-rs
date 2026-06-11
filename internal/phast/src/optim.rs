@@ -167,6 +167,44 @@ impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
 }
 
 
+/// Cost function for bucket weights optimization that exposes 5 weights:
+/// first as absolute, last as relative, middle and rest as weighted average coefficients
+pub struct WeightsCost5<SC: SeedChooser>(pub SC);
+
+impl<SC: SeedChooser> CostFn for WeightsCost5<SC> {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(self.0.core()),
+                    self.0.clone(), &WeightsF::from5(x)).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to5().into()
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print_vec(x, &self.params(conf));
+        print!(" -> ");
+        let weights = WeightsF::from5(x).0;
+        for w in &weights { print!("{w:.0}, "); }
+        let l = weights[4];
+        let d = l - weights[3];
+        print!(" {:.0}, {:.0}", l+d, l+2.0*d);
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("", Constrain::Weak(-200_000.0), Constrain::Weak(0.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
+        ]
+    }
+}
+
+
+
 pub struct PerfectLogCost;
 
 impl CostFn for PerfectLogCost {
@@ -294,6 +332,9 @@ impl CostFn for ProdOfValuesCost {
 /// Weights version that uses f64 and works well with numerical optimization.
 pub struct WeightsF(Box<[f64]>);
 
+#[inline] fn to_avg_coefficient(before: f64, target: f64, after: f64) -> f64 { (target - before) / (after - before) }
+#[inline] fn from_avg_coefficient(before: f64, w: f64, after: f64) -> f64 { before + w * (after - before) }
+
 impl WeightsF {
     fn from_deltas(deltas: &[f64]) -> Self {
         Self(
@@ -306,6 +347,28 @@ impl WeightsF {
 
     fn to_deltas(&self) -> Box<[f64]> {
         std::iter::once(self.0[0]).chain(self.0.windows(2).map(|pair| pair[1]-pair[0])).collect()
+    }
+
+    fn from5(five: &[f64]) -> Self {
+        let last = five[0] + five[4];
+        let mid = from_avg_coefficient(five[0], five[2], last);
+        WeightsF([
+            five[0],
+            from_avg_coefficient(five[0], five[1], mid),
+            mid,
+            from_avg_coefficient(mid, five[3], last),
+            last
+        ].into())
+    }
+
+    fn to5(&self) -> [f64; 5] {
+        [
+            self.0[0],
+            to_avg_coefficient(self.0[0], self.0[1], self.0[2]),
+            to_avg_coefficient(self.0[0], self.0[2], self.0[4]),
+            to_avg_coefficient(self.0[2], self.0[3], self.0[4]),
+            self.0[4]-self.0[0]
+        ]
     }
 }
 
