@@ -2,6 +2,7 @@ target/
 /.idea/
 /.vscode/
 /Cargo.lock
+/notes/
 csf_benchmark_results/
 cseq_benchmark/utils/*.html
 cseq_benchmark/utils/*.csv
