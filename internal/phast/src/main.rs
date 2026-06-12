@@ -163,6 +163,9 @@ fn main() {
         (Method::optphast5, 1, _, _, _, _) => conf.optimize_weights5(SeedOnly(ProdOfValues)),
         (Method::optphast5, k, _, _, _, _) => conf.optimize_weights5(SeedOnlyK::with_evaluator(k, ProdOfValues)),
 
+        (Method::optphast7, 1, _, _, _, _) => conf.optimize_weights7(SeedOnly(ProdOfValues)),
+        (Method::optphast7, k, _, _, _, _) => conf.optimize_weights7(SeedOnlyK::with_evaluator(k, ProdOfValues)),
+
         (Method::optpluswrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
         (Method::optpluswrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<2>),
         (Method::optpluswrap { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<3>),

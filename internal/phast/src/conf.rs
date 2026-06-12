@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand, ValueEnum};
 use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost5}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost5, WeightsCost7}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -66,6 +66,9 @@ pub enum Method {
     /// Optimize weights for selecting buckets by PHast, using "5" encoding
     optphast5,
 
+    /// Optimize weights for selecting buckets by PHast, using "7" encoding
+    optphast7,
+
     /// Optimize weights for selecting buckets by PHast+ with wrapping
     optpluswrap {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
@@ -122,6 +125,7 @@ impl std::fmt::Display for Method {
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optphastdelta => write!(f, "Optimize PHast weights (delta)"),
             Method::optphast5 => write!(f, "Optimize PHast weights (5)"),
+            Method::optphast7 => write!(f, "Optimize PHast weights (7)"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplusprodwrap { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights"),
             Method::optplusprodwrapdelta { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights, delta encoding"),
@@ -493,6 +497,11 @@ impl Conf {
     pub fn optimize_weights5<SC: SeedChooser>(&self, seed_chooser: SC) {
         self.optimize(WeightsCost5(seed_chooser));
     }
+
+    pub fn optimize_weights7<SC: SeedChooser>(&self, seed_chooser: SC) {
+        self.optimize(WeightsCost7(seed_chooser));
+    }
+
 
     pub fn optimize_perfectlog(&self) {
         self.optimize(PerfectLogCost)

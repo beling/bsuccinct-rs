@@ -204,6 +204,39 @@ impl<SC: SeedChooser> CostFn for WeightsCost5<SC> {
 }
 
 
+/// Cost function for bucket weights optimization that exposes 7 weights:
+/// first as absolute, last as relative, middle and rest as weighted average coefficients
+pub struct WeightsCost7<SC: SeedChooser>(pub SC);
+
+impl<SC: SeedChooser> CostFn for WeightsCost7<SC> {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(self.0.core()),
+                    self.0.clone(), &WeightsF::from7(x)).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to7().into()
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print_vec(x, &self.params(conf));
+        print!(" -> {}", WeightsF::from7(x).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("", Constrain::Weak(-200_000.0), Constrain::Weak(0.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
+        ]
+    }
+}
+
 
 pub struct PerfectLogCost;
 
@@ -368,6 +401,32 @@ impl WeightsF {
             to_avg_coefficient(self.0[0], self.0[2], self.0[4]),
             to_avg_coefficient(self.0[2], self.0[3], self.0[4]),
             self.0[4]-self.0[0]
+        ]
+    }
+
+    fn from7(seven: &[f64]) -> Self {
+        let last = seven[0] + seven[6];
+        let mid = from_avg_coefficient(seven[0], seven[3], last);
+        WeightsF([
+            seven[0],
+            from_avg_coefficient(seven[0], seven[1], mid),
+            from_avg_coefficient(seven[0], seven[2], mid),
+            mid,
+            from_avg_coefficient(mid, seven[4], last),
+            from_avg_coefficient(mid, seven[5], last),
+            last
+        ].into())
+    }
+
+    fn to7(&self) -> [f64; 7] {
+        [
+            self.0[0],
+            to_avg_coefficient(self.0[0], self.0[1], self.0[3]),
+            to_avg_coefficient(self.0[0], self.0[2], self.0[3]),
+            to_avg_coefficient(self.0[0], self.0[3], self.0[6]),
+            to_avg_coefficient(self.0[3], self.0[4], self.0[6]),
+            to_avg_coefficient(self.0[3], self.0[5], self.0[6]),
+            self.0[6]-self.0[0]
         ]
     }
 }
