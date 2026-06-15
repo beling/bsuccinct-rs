@@ -383,14 +383,13 @@ impl WeightsF {
     }
 
     fn from5(five: &[f64]) -> Self {
-        let last = five[0] + five[4];
-        let mid = from_avg_coefficient(five[0], five[2], last);
+        let mid = from_avg_coefficient(five[0], five[2], five[4]);
         WeightsF([
             five[0],
             from_avg_coefficient(five[0], five[1], mid),
             mid,
-            from_avg_coefficient(mid, five[3], last),
-            last
+            from_avg_coefficient(mid, five[3], five[4]),
+            five[4]
         ].into())
     }
 
@@ -400,21 +399,20 @@ impl WeightsF {
             to_avg_coefficient(self.0[0], self.0[1], self.0[2]),
             to_avg_coefficient(self.0[0], self.0[2], self.0[4]),
             to_avg_coefficient(self.0[2], self.0[3], self.0[4]),
-            self.0[4]-self.0[0]
+            self.0[4]
         ]
     }
 
     fn from7(seven: &[f64]) -> Self {
-        let last = seven[0] + seven[6];
-        let mid = from_avg_coefficient(seven[0], seven[3], last);
+        let mid = from_avg_coefficient(seven[0], seven[3], seven[6]);
         WeightsF([
             seven[0],
             from_avg_coefficient(seven[0], seven[1], mid),
             from_avg_coefficient(seven[0], seven[2], mid),
             mid,
-            from_avg_coefficient(mid, seven[4], last),
-            from_avg_coefficient(mid, seven[5], last),
-            last
+            from_avg_coefficient(mid, seven[4], seven[6]),
+            from_avg_coefficient(mid, seven[5], seven[6]),
+            seven[6]
         ].into())
     }
 
@@ -426,7 +424,7 @@ impl WeightsF {
             to_avg_coefficient(self.0[0], self.0[3], self.0[6]),
             to_avg_coefficient(self.0[3], self.0[4], self.0[6]),
             to_avg_coefficient(self.0[3], self.0[5], self.0[6]),
-            self.0[6]-self.0[0]
+            self.0[6]
         ]
     }
 }
