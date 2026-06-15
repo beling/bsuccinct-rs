@@ -221,6 +221,10 @@ pub struct Conf {
     #[arg(short='b')]
     pub bucket_size: Option<BucketSize>,
 
+    /// Desired loading factor * 1000
+    #[arg(short='a', long, default_value_t = 1000, value_parser = clap::value_parser!(u16).range(1..=1000))]
+    pub alpha: u16,
+
     /// Number of times to perform evaluation (over all keys) test
     #[arg(short='e', long, default_value_t = 1)]
     pub evaluations: u32,
@@ -269,13 +273,13 @@ pub struct Conf {
     #[arg(long, default_value_t = false)]
     pub less: bool,
 
-    /// Numerical Optimization algorithm to use
+    /// Numerical optimization algorithm to use
     #[arg(short='o', long, value_enum, default_value_t = Optimizer::NelderMead)]
     pub optimizer: Optimizer,
 
-    /// Desired loading factor * 1000
-    #[arg(short='a', long, default_value_t = 1000, value_parser = clap::value_parser!(u16).range(1..=1000))]
-    pub alpha: u16
+    /// Sample size for numerical optimization 
+    #[arg(long, aliases=["ss", "sample"], default_value_t = 96)]
+    pub sample_size: u32,
 }
 
 impl Conf {
@@ -425,10 +429,8 @@ impl Conf {
         seed_chooser_core.minimal_generic_f_core(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
     }
 
-    pub const KEY_SETS_NUM: u32 = 96;
-
     pub fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, f: F) -> usize {
-        (0..Self::KEY_SETS_NUM).into_par_iter().map(|i| {
+        (0..self.sample_size).into_par_iter().map(|i| {
             f(&mut self.keys_for_seed(200+i))
         }).sum()
     }

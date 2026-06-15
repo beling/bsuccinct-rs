@@ -76,7 +76,7 @@ impl<'c, CF: CostFn> Cost<'c, CF> {
     /// Evaluates the function at `x`, updates `best` and prints `x`.
     pub fn eval(&self, x: &[f64]) -> usize {
         let v = self.cost.eval(self.conf, x);
-        print!("{v} {:.2}%  ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        print!("{v} {:.2}%  ", v as f64 * 100.0 / (self.conf.sample_size as f64 * self.conf.keys_num as f64));
         self.print(x);
         if v < *self.best_cost.borrow() {
             print!(" (best)");
@@ -102,7 +102,7 @@ impl<'c, CF: CostFn> Cost<'c, CF> {
     /// Prints the best argument found.
     pub fn print_best(&self) {
         let v =  *self.best_cost.borrow();
-        print!("Best {v} {:.2}%  ", v as f64 * 100.0 / (Conf::KEY_SETS_NUM as f64 * self.conf.keys_num as f64));
+        print!("Best {v} {:.2}%  ", v as f64 * 100.0 / (self.conf.sample_size as f64 * self.conf.keys_num as f64));
         self.cost.print(self.conf, &self.best.borrow());
         println!();
     }
