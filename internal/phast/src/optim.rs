@@ -149,7 +149,7 @@ impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
     fn print(&self, conf: &Conf, x: &[f64]) {
         let params = self.params(conf);
         print_vec(x, &params);
-        print!(" -> ");
+        print!(" → ");
         print_vec(&WeightsF::from_deltas(x).0, &params);
     }
 
@@ -184,7 +184,7 @@ impl<SC: SeedChooser> CostFn for WeightsCost4<SC> {
 
     fn print(&self, conf: &Conf, x: &[f64]) {
         print_vec(x, &self.params(conf));
-        print!(" -> ");
+        print!(" → ");
         let weights = WeightsF::from4(x).0;
         for w in &weights { print!("{w:.0}, "); }
         let l = weights[4];
@@ -220,7 +220,7 @@ impl<SC: SeedChooser> CostFn for WeightsCost6<SC> {
 
     fn print(&self, conf: &Conf, x: &[f64]) {
         print_vec(x, &self.params(conf));
-        print!(" -> {}", WeightsF::from6(x).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print!(" → {}", WeightsF::from6(x).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
     }
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
