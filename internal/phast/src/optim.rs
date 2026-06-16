@@ -169,23 +169,23 @@ impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
 
 /// Cost function for bucket weights optimization that exposes 5 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
-pub struct WeightsCost5<SC: SeedChooser>(pub SC);
+pub struct WeightsCost4<SC: SeedChooser>(pub SC);
 
-impl<SC: SeedChooser> CostFn for WeightsCost5<SC> {
+impl<SC: SeedChooser> CostFn for WeightsCost4<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF::from5(x)).1)
+                    self.0.clone(), &WeightsF::from4(x)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to5().into()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to4().into()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
         print_vec(x, &self.params(conf));
         print!(" -> ");
-        let weights = WeightsF::from5(x).0;
+        let weights = WeightsF::from4(x).0;
         for w in &weights { print!("{w:.0}, "); }
         let l = weights[4];
         let d = l - weights[3];
@@ -194,7 +194,6 @@ impl<SC: SeedChooser> CostFn for WeightsCost5<SC> {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("", Constrain::Weak(-200_000.0), Constrain::Weak(0.0), 0),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
@@ -206,27 +205,26 @@ impl<SC: SeedChooser> CostFn for WeightsCost5<SC> {
 
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
-pub struct WeightsCost7<SC: SeedChooser>(pub SC);
+pub struct WeightsCost6<SC: SeedChooser>(pub SC);
 
-impl<SC: SeedChooser> CostFn for WeightsCost7<SC> {
+impl<SC: SeedChooser> CostFn for WeightsCost6<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF::from7(x)).1)
+                    self.0.clone(), &WeightsF::from6(x)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to7().into()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to6().into()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
         print_vec(x, &self.params(conf));
-        print!(" -> {}", WeightsF::from7(x).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print!(" -> {}", WeightsF::from6(x).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
     }
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("", Constrain::Weak(-200_000.0), Constrain::Weak(0.0), 0),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
@@ -382,49 +380,47 @@ impl WeightsF {
         std::iter::once(self.0[0]).chain(self.0.windows(2).map(|pair| pair[1]-pair[0])).collect()
     }
 
-    fn from5(five: &[f64]) -> Self {
-        let mid = from_avg_coefficient(five[0], five[2], five[4]);
+    fn from4(f: &[f64]) -> Self {
+        let mid = from_avg_coefficient(0.0, f[1], f[3]);
         WeightsF([
-            five[0],
-            from_avg_coefficient(five[0], five[1], mid),
+            0.0,
+            from_avg_coefficient(0.0, f[0], mid),
             mid,
-            from_avg_coefficient(mid, five[3], five[4]),
-            five[4]
+            from_avg_coefficient(mid, f[2], f[3]),
+            f[3]
         ].into())
     }
 
-    fn to5(&self) -> [f64; 5] {
+    fn to4(&self) -> [f64; 4] {
         [
-            self.0[0],
             to_avg_coefficient(self.0[0], self.0[1], self.0[2]),
             to_avg_coefficient(self.0[0], self.0[2], self.0[4]),
             to_avg_coefficient(self.0[2], self.0[3], self.0[4]),
-            self.0[4]
+            self.0[4] - self.0[0]
         ]
     }
 
-    fn from7(seven: &[f64]) -> Self {
-        let mid = from_avg_coefficient(seven[0], seven[3], seven[6]);
+    fn from6(six: &[f64]) -> Self {
+        let mid = from_avg_coefficient(0.0, six[2], six[5]);
         WeightsF([
-            seven[0],
-            from_avg_coefficient(seven[0], seven[1], mid),
-            from_avg_coefficient(seven[0], seven[2], mid),
+            0.0,
+            from_avg_coefficient(0.0, six[0], mid),
+            from_avg_coefficient(0.0, six[1], mid),
             mid,
-            from_avg_coefficient(mid, seven[4], seven[6]),
-            from_avg_coefficient(mid, seven[5], seven[6]),
-            seven[6]
+            from_avg_coefficient(mid, six[3], six[5]),
+            from_avg_coefficient(mid, six[4], six[5]),
+            six[5]
         ].into())
     }
 
-    fn to7(&self) -> [f64; 7] {
+    fn to6(&self) -> [f64; 6] {
         [
-            self.0[0],
             to_avg_coefficient(self.0[0], self.0[1], self.0[3]),
             to_avg_coefficient(self.0[0], self.0[2], self.0[3]),
             to_avg_coefficient(self.0[0], self.0[3], self.0[6]),
             to_avg_coefficient(self.0[3], self.0[4], self.0[6]),
             to_avg_coefficient(self.0[3], self.0[5], self.0[6]),
-            self.0[6]
+            self.0[6] - self.0[0]
         ]
     }
 }

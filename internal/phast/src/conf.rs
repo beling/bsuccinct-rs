@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand, ValueEnum};
 use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost5, WeightsCost7}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -63,11 +63,11 @@ pub enum Method {
     /// Optimize weights for selecting buckets by PHast, using delta encoding
     optphastdelta,
 
-    /// Optimize weights for selecting buckets by PHast, using "5" encoding
-    optphast5,
+    /// Optimize weights for selecting buckets by PHast, using "4" encoding
+    optphast4,
 
-    /// Optimize weights for selecting buckets by PHast, using "7" encoding
-    optphast7,
+    /// Optimize weights for selecting buckets by PHast, using "6" encoding
+    optphast6,
 
     /// Optimize weights for selecting buckets by PHast+ with wrapping
     optpluswrap {
@@ -124,8 +124,8 @@ impl std::fmt::Display for Method {
             Method::perfectlog1 => write!(f, "Perfect with: log(f(x) - minimum in window + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),
             Method::optphast => write!(f, "Optimize PHast weights"),
             Method::optphastdelta => write!(f, "Optimize PHast weights (delta)"),
-            Method::optphast5 => write!(f, "Optimize PHast weights (5)"),
-            Method::optphast7 => write!(f, "Optimize PHast weights (7)"),
+            Method::optphast4 => write!(f, "Optimize PHast weights (5)"),
+            Method::optphast6 => write!(f, "Optimize PHast weights (7)"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplusprodwrap { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights"),
             Method::optplusprodwrapdelta { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights, delta encoding"),
@@ -497,11 +497,11 @@ impl Conf {
     }
 
     pub fn optimize_weights5<SC: SeedChooser>(&self, seed_chooser: SC) {
-        self.optimize(WeightsCost5(seed_chooser));
+        self.optimize(WeightsCost4(seed_chooser));
     }
 
     pub fn optimize_weights7<SC: SeedChooser>(&self, seed_chooser: SC) {
-        self.optimize(WeightsCost7(seed_chooser));
+        self.optimize(WeightsCost6(seed_chooser));
     }
 
 
