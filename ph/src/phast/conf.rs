@@ -281,7 +281,7 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
         0..=4 => 250,
         5 => 290,
         6 => 320,
-        7 => 370,
+        7 => 380,
         8 => 450,
         9 => 530,
         10 => 590,
