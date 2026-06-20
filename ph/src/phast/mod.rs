@@ -43,4 +43,4 @@ const MAX_WINDOW_SIZE: usize = 512;//256;
 const MAX_VALUES: usize = 4096 * 2  *2; // TODO only MT require last *2; maybe switch to dynamic allocation?
 
 /// Window size. Maximum number of elements in the priority queue.
-const WINDOW_SIZE: u16 = 512;//256;
+const WINDOW_SIZE: u16 = 256;//256;
