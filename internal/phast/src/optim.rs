@@ -124,11 +124,20 @@ impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF(x.into())).1)
+                    self.0.clone(), &WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect())).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).0.into()
+        let all = self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len()).0;
+        all[1..].iter().map(|v| *v as f64 - all[0] as f64).collect()
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print!("0, "); print_vec(x, &self.params(conf))
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0); 6]
     }
 }
 
