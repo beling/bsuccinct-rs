@@ -61,16 +61,17 @@ pub trait SeedChooserCore: Copy {
     /// Usually it returns `preferred_slice_len` (if its not `0`; `0` is for chooser-dependent default)
     /// or lower value for small `output_range`.
     fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+        let max_res = match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
             1300..9500 => 128,
             9500..12000 => 256,
             12000..140000 => 512,
-            _ if bits_per_seed < 6 => if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
-            _ if bits_per_seed < 12 => if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
-            _ => if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
-        }
+            _ if bits_per_seed < 6 => return if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
+            _ if bits_per_seed < 12 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
+            _ => return if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
+        };
+        if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
     }
 
     fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
