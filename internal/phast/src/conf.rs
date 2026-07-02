@@ -82,7 +82,7 @@ pub enum Method {
     },
 
     /// Optimize weights for selecting buckets by PHast+ with wrapping and product based seed evaluation, delta
-    optplusprodwrapdelta {
+    optplusprodwrap6 {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
         multiplier: u8
     },
@@ -128,7 +128,7 @@ impl std::fmt::Display for Method {
             Method::optphast6 => write!(f, "Optimize PHast weights (6)"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
             Method::optplusprodwrap { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights"),
-            Method::optplusprodwrapdelta { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights, delta encoding"),
+            Method::optplusprodwrap6 { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights (6)"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
@@ -500,7 +500,7 @@ impl Conf {
         self.optimize(WeightsCost4(seed_chooser));
     }
 
-    pub fn optimize_weights7<SC: SeedChooser>(&self, seed_chooser: SC) {
+    pub fn optimize_weights6<SC: SeedChooser>(&self, seed_chooser: SC) {
         self.optimize(WeightsCost6(seed_chooser));
     }
 

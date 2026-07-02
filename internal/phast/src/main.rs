@@ -163,8 +163,8 @@ fn main() {
         (Method::optphast4, 1, _, _, _, _) => conf.optimize_weights5(SeedOnly(ProdOfValues)),
         (Method::optphast4, k, _, _, _, _) => conf.optimize_weights5(SeedOnlyK::with_evaluator(k, ProdOfValues)),
 
-        (Method::optphast6, 1, _, _, _, _) => conf.optimize_weights7(SeedOnly(ProdOfValues)),
-        (Method::optphast6, k, _, _, _, _) => conf.optimize_weights7(SeedOnlyK::with_evaluator(k, ProdOfValues)),
+        (Method::optphast6, 1, _, _, _, _) => conf.optimize_weights6(SeedOnly(ProdOfValues)),
+        (Method::optphast6, k, _, _, _, _) => conf.optimize_weights6(SeedOnlyK::with_evaluator(k, ProdOfValues)),
 
         (Method::optpluswrap { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<1>),
         (Method::optpluswrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyWrapped::<2>),
@@ -174,9 +174,9 @@ fn main() {
         (Method::optplusprodwrap { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<2>),
         (Method::optplusprodwrap { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights(ShiftOnlyProdWrapped::<3>),
 
-        (Method::optplusprodwrapdelta { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights_delta(ShiftOnlyProdWrapped::<1>),
-        (Method::optplusprodwrapdelta { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights_delta(ShiftOnlyProdWrapped::<2>),
-        (Method::optplusprodwrapdelta { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights_delta(ShiftOnlyProdWrapped::<3>),
+        (Method::optplusprodwrap6 { multiplier: 1 }, 1, _, _, _, _) => conf.optimize_weights6(ShiftOnlyProdWrapped::<1>),
+        (Method::optplusprodwrap6 { multiplier: 2 }, 1, _, _, _, _) => conf.optimize_weights6(ShiftOnlyProdWrapped::<2>),
+        (Method::optplusprodwrap6 { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights6(ShiftOnlyProdWrapped::<3>),
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
         (Method::optperfectlog0, _, _, _, _, _) => conf.optimize_perfectlog0(),
