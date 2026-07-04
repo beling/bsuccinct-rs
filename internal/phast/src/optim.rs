@@ -117,14 +117,20 @@ impl<'c, CF: CostFn> argmin::core::CostFunction for Cost<'c, CF> {
     }
 }
 
+fn non_increasing_penalty(x: &[f64], per_dim: f64) -> f64 {
+    x.windows(2).map(|d| if d[1]>d[0] { 0.0 } else {per_dim + d[0] - d[1]}).sum()
+}
+
 /// Cost function for direct bucket weights optimization.
 pub struct WeightsCost<SC: SeedChooser>(pub SC);
 
 impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let w = WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect());
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect())).1)
+                    self.0.clone(), &w).1)
+                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -146,9 +152,11 @@ pub struct DeltaWeightsCost<SC: SeedChooser>(pub SC);
 
 impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let w = WeightsF::from_deltas(x);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF::from_deltas(x)).1)
+                    self.0.clone(), &w).1)
+                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -182,9 +190,11 @@ pub struct WeightsCost4<SC: SeedChooser>(pub SC);
 
 impl<SC: SeedChooser> CostFn for WeightsCost4<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let w = WeightsF::from4(x);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF::from4(x)).1)
+                    self.0.clone(), &w).1)
+                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -211,16 +221,17 @@ impl<SC: SeedChooser> CostFn for WeightsCost4<SC> {
     }
 }
 
-
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
 pub struct WeightsCost6<SC: SeedChooser>(pub SC);
 
 impl<SC: SeedChooser> CostFn for WeightsCost6<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let w = WeightsF::from6(x);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(self.0.core()),
-                    self.0.clone(), &WeightsF::from6(x)).1)
+                    self.0.clone(), &w).1)
+                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
