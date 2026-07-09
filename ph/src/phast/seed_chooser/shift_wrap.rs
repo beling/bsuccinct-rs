@@ -83,14 +83,14 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftWrappedCore<MULTIPLIER> {
 
     #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
-            n @ 0..4096 => (n/2+1).next_power_of_two() as u16,
+            n @ 0..8192 => (n/2+1).next_power_of_two() as u16,
             /*64..1300 => 64,
             1300..1750 => 128,
             1750..7500 => 256,
             7500..150000 => 512,
             150000..250000 => 1024,*/
             //_ => 2048,
-            _ => /* 2* */ 4096,
+            _ => /* 2* */ 8192,
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER {
             1 => match bits_per_seed {
                 ..=5 => 256,
