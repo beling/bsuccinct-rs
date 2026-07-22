@@ -94,7 +94,7 @@ pub trait Select0ForRank101111 {
 /// The implementation is based on the one contained in folly library by Meta.
 #[inline] pub unsafe fn select64(n: u64, rank: u8) -> u8 {
     #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2"))]
-    { unsafe { arch::_pdep_u64(1u64 << rank, n) }.trailing_zeros() as u8 }
+    { arch::_pdep_u64(1u64 << rank, n).trailing_zeros() as u8 }
     #[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))] {
         use std::num::Wrapping as W;
 
@@ -113,7 +113,7 @@ pub trait Select0ForRank101111 {
         let geq_step8 = ((step8 | MSB_STEP8) - byte_sums) & MSB_STEP8;
         let place = geq_step8.0.count_ones() as u8 * 8;
         let byte_rank = rank.0 - (((byte_sums.0 << 8) >> place) & 0xFF);
-        place + unsafe { SELECT_U8.get_unchecked((((n >> place) & 0xFF) | (byte_rank << 8)) as usize) } 
+        place + SELECT_U8.get_unchecked((((n >> place) & 0xFF) | (byte_rank << 8)) as usize)
 
         /*let mut res = 0;
         sel_step(&mut res, &mut n, &mut r, 32);
