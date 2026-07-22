@@ -77,6 +77,7 @@ pub trait Select0ForRank101111 {
 
 /// Returns the position of the `rank`-th (counting from 0) one in the bit representation of `n`,
 /// i.e. the index of the one with the given rank.
+/// `rank` must be in range `[0, 64)`.
 /// 
 /// On x86-64 CPU with the BMI2 instruction set, it uses the method described in:
 /// - Prashant Pandey, Michael A. Bender, Rob Johnson, and Rob Patro,
@@ -91,7 +92,7 @@ pub trait Select0ForRank101111 {
 /// - Sebastiano Vigna, The selection problem <https://sux4j.di.unimi.it/select.php>
 /// 
 /// The implementation is based on the one contained in folly library by Meta.
-#[inline] pub fn select64(n: u64, rank: u8) -> u8 {
+#[inline] pub unsafe fn select64(n: u64, rank: u8) -> u8 {
     #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2"))]
     { unsafe { arch::_pdep_u64(1u64 << rank, n) }.trailing_zeros() as u8 }
     #[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))] {
@@ -588,7 +589,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
                     // Each l2 entry covers 2^11 bits, we need 32-11=21 bit to store it.
                     // Rest 11 bit we use to store relative index of the next one
                     // (or 2^11-1 if the relative index is greater than this number).
-                    let l2index = (bit_index + select64(if ONE {*c} else {!c}, rank as u8) as u32) >> 11;
+                    let l2index = (bit_index + unsafe{select64(if ONE {*c} else {!c}, rank as u8)} as u32) >> 11;
                     if second_half {
                         let prev: &mut u32 = unsafe{ ones_positions.last_mut().unwrap_unchecked() };
                         *prev |= (l2index - *prev).min((1u32<<11)-1) << 21;
@@ -749,24 +750,24 @@ mod tests {
 
     #[test]
     fn test_select64() {
-        assert_eq!(select64(1<<0, 0), 0);
-        assert_eq!(select64(1<<1, 0), 1);
-        assert_eq!(select64(1<<7, 0), 7);
-        assert_eq!(select64(1<<12, 0), 12);
-        assert_eq!(select64(1<<23, 0), 23);
-        assert_eq!(select64(1<<31, 0), 31);
-        assert_eq!(select64(1<<46, 0), 46);
-        assert_eq!(select64(1<<53, 0), 53);
-        assert_eq!(select64(1<<63, 0), 63);
+        assert_eq!(unsafe{select64(1<<0, 0)}, 0);
+        assert_eq!(unsafe{select64(1<<1, 0)}, 1);
+        assert_eq!(unsafe{select64(1<<7, 0)}, 7);
+        assert_eq!(unsafe{select64(1<<12, 0)}, 12);
+        assert_eq!(unsafe{select64(1<<23, 0)}, 23);
+        assert_eq!(unsafe{select64(1<<31, 0)}, 31);
+        assert_eq!(unsafe{select64(1<<46, 0)}, 46);
+        assert_eq!(unsafe{select64(1<<53, 0)}, 53);
+        assert_eq!(unsafe{select64(1<<63, 0)}, 63);
         const N: u64 = (1<<2) | (1<<7) | (1<<15) | (1<<25) | (1<<33) | (1<<47) | (1<<60) | (1<<61);
-        assert_eq!(select64(N, 0), 2);
-        assert_eq!(select64(N, 1), 7);
-        assert_eq!(select64(N, 2), 15);
-        assert_eq!(select64(N, 3), 25);
-        assert_eq!(select64(N, 4), 33);
-        assert_eq!(select64(N, 5), 47);
-        assert_eq!(select64(N, 6), 60);
-        assert_eq!(select64(N, 7), 61);
+        assert_eq!(unsafe{select64(N, 0)}, 2);
+        assert_eq!(unsafe{select64(N, 1)}, 7);
+        assert_eq!(unsafe{select64(N, 2)}, 15);
+        assert_eq!(unsafe{select64(N, 3)}, 25);
+        assert_eq!(unsafe{select64(N, 4)}, 33);
+        assert_eq!(unsafe{select64(N, 5)}, 47);
+        assert_eq!(unsafe{select64(N, 6)}, 60);
+        assert_eq!(unsafe{select64(N, 7)}, 61);
     }
 }
 
