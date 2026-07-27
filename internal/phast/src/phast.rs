@@ -94,5 +94,6 @@ impl<C: Core, SS: SeedSize> Function for ph::phast::NBFunction<C, SS, Hasher> {
 pub fn nbphast<SS, CC>(keys: &[u64], params: ph::phast::Conf<SS, CC, Hasher>, threads_num: usize) -> ph::phast::NBFunction<CC::Core, SS, Hasher>
 where SS: SeedSize, CC: CoreConf
 {
-    ph::phast::NBFunction::with_slice_conf_threads(keys, params, threads_num)
+    ph::phast::NBFunction::with_slice_conf_threads(keys, params, u64::MAX, threads_num)
+        .expect("could not construct NBFunction, try decrease loading factor or λ")
 }

@@ -42,10 +42,10 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
 
     /// Constructs [`NBFunction`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_conf_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, seed_evaluator: SE) -> Self
+    pub fn with_slice_conf_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, seed_evaluator: SE, tries: u64) -> Option<Self>
         where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator
     {
-        Self::new(keys.len(), conf, seed_evaluator, 1, |hasher, seed|
+        Self::new(keys.len(), conf, seed_evaluator, tries, 1, |hasher, seed|
             keys.iter().map(|k| hasher.hash_one(k, seed)).collect()
         )
     }
@@ -53,60 +53,58 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     /// Constructs [`NBFunction`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
     /// `keys` cannot contain duplicates.
-    pub fn with_slice_conf_threads_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_evaluator: SE) -> Self
+    pub fn with_slice_conf_threads_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64, threads_num: usize, seed_evaluator: SE) -> Option<Self>
         where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator, K: Hash+Sync+Send, S: Sync
     {
-        Self::new(keys.len(), conf, seed_evaluator, threads_num, |hasher, seed|
+        Self::new(keys.len(), conf, seed_evaluator, tries, threads_num, |hasher, seed|
             hash_all_par(&keys, hasher, seed)
         )
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
-    #[inline] pub fn with_slice_conf<K, CC>(keys: &[K], conf: Conf<SS, CC, S>) -> Self
+    #[inline] pub fn with_slice_conf<K, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64) -> Option<Self>
         where K: Hash, CC: CoreConf<Core = C>
     {
-        Self::with_slice_conf_se(keys, conf, ProdOfValues)
+        Self::with_slice_conf_se(keys, conf, ProdOfValues, tries)
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
     /// `keys` cannot contain duplicates.
-    #[inline] pub fn with_slice_conf_threads<K, CC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize) -> Self
+    #[inline] pub fn with_slice_conf_threads<K, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64, threads_num: usize) -> Option<Self>
         where K: Hash, CC: CoreConf<Core = C>, K: Hash+Sync+Send, S: Sync
     {
-        Self::with_slice_conf_threads_se(keys, conf, threads_num, ProdOfValues)
+        Self::with_slice_conf_threads_se(keys, conf, tries, threads_num, ProdOfValues)
     }
 
     /// Constructs [`NBFunction`] for given number of keys and configuration.
     /// `hashes(hasher, seed)` must return `num_of_keys` hashes.
-    pub fn new<H, SE, CC>(num_of_keys: usize, conf: Conf<SS, CC, S>, seed_evaluator: SE, threads_num: usize, hashes: H) -> Self 
+    pub fn new<H, SE, CC>(num_of_keys: usize, conf: Conf<SS, CC, S>, seed_evaluator: SE, tries: u64, threads_num: usize, hashes: H) -> Option<Self>
         where H: Fn(&S, u64) -> Box<[u64]>, CC: CoreConf<Core = C>, SE: SeedEvaluator
     {
         let seed_chooser = SeedOnlyNoBump(seed_evaluator);
         let core = SeedNoBumpCore.f_core_lf(num_of_keys, conf.loading_factor_1000, &conf.core_conf, conf.seed_size.into());
-        let mut seed = 0;
         if threads_num > 1 {
-            loop {
+            for seed in 0..tries {
                 let mut hashes = hashes(&conf.hasher, seed);
                 hashes.voracious_mt_sort(threads_num);
                 let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len());
                 if let Some((seeds, _)) = try_nobump_build_st(&hashes, core, conf.seed_size, evaluator, seed_chooser, bucket_begin_mt(&hashes, &core, threads_num)) {
-                    return Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher, seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size };
+                    return Some(Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher, seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size });
                 }
-                seed += 1;
             }
         } else {
-            loop {
+            for seed in 0..tries {
                 let mut hashes = hashes(&conf.hasher, seed);
                 hashes.voracious_sort();
                 let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len());
                 if let Some((seeds, _)) = try_nobump_build_st(&hashes, core, conf.seed_size, evaluator, seed_chooser, bucket_begin_st(&hashes, &core)) {
-                    return Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher, seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size };
+                    return Some(Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher, seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size });
                 }
-                seed += 1;
             }
         }
+        None
     }
 }
 
@@ -133,8 +131,8 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn from_slice_st_fast<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash {
-        Self::with_slice_conf(keys, Conf::generic8_nobump_fast(loading_factor_1000))
+    pub fn from_slice_st_fast<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash {
+        Self::with_slice_conf(keys, Conf::generic8_nobump_fast(loading_factor_1000), tries)
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
@@ -145,8 +143,8 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// multithreading is used only for key hashing, sorting, and determining bucket sizes.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn from_slice_mt_fast<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash+Send+Sync {
-        Self::with_slice_conf_threads(keys, Conf::generic8_nobump_fast(loading_factor_1000),
+    pub fn from_slice_mt_fast<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash+Send+Sync {
+        Self::with_slice_conf_threads(keys, Conf::generic8_nobump_fast(loading_factor_1000), tries,
         std::thread::available_parallelism().map_or(1, |v| v.into()))
     }
 }
@@ -156,8 +154,8 @@ impl NBFunction<GenericCore<RandomPlacement>, Bits8, BuildDefaultSeededHasher> {
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `995` (for small range).
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn from_slice_st<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash {
-        Self::with_slice_conf(keys, Conf::generic8_nobump(loading_factor_1000))
+    pub fn from_slice_st<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash {
+        Self::with_slice_conf(keys, Conf::generic8_nobump(loading_factor_1000), tries)
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
@@ -166,8 +164,8 @@ impl NBFunction<GenericCore<RandomPlacement>, Bits8, BuildDefaultSeededHasher> {
     /// multithreading is used only for key hashing, sorting, and determining bucket sizes.
     /// 
     /// `keys` cannot contain duplicates.
-    pub fn from_slice_mt<K>(keys: &[K], loading_factor_1000: u16) -> Self where K: Hash+Send+Sync {
-        Self::with_slice_conf_threads(keys, Conf::generic8_nobump(loading_factor_1000),
+    pub fn from_slice_mt<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash+Send+Sync {
+        Self::with_slice_conf_threads(keys, Conf::generic8_nobump(loading_factor_1000), tries,
         std::thread::available_parallelism().map_or(1, |v| v.into()))
     }
 }
