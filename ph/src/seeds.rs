@@ -12,7 +12,7 @@ where E: Into<Box<dyn std::error::Error + Send + Sync>> {
 }
 
 /// Implementations of `SeedSize` represent seed size in fingerprinting-based minimal perfect hashing with group optimization.
-pub trait SeedSize: Copy + Into<u8> + Sync + TryFrom<u8, Error=&'static str> {
+pub trait SeedSize: Copy + Into<u8> + Sync + Send + TryFrom<u8, Error=&'static str> {
     type VecElement: Copy + Send + Sync + Sized + GetSize;
     const VEC_ELEMENT_BIT_SIZE: usize = size_of::<Self::VecElement>() * 8;
 

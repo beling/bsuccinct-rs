@@ -75,7 +75,7 @@ impl Placement for RandomPlacement {
 }
 
 /// The PHast core which is responsible for mapping key hashes to buckets and slices.
-pub trait Core: Copy+Sync {
+pub trait Core: Copy+Sync+Send {
 
     type Placement: Placement;
 
@@ -421,7 +421,7 @@ impl<P: Placement> Core for TurboCore<P> {
 
 
 
-pub trait CoreConf: Sync {
+pub trait CoreConf: Sync+Send {
     /// PHast Core to use.
     type Core: Core;
 

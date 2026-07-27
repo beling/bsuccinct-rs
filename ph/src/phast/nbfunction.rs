@@ -72,7 +72,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     /// 
     /// `keys` should not contain duplicates.
     pub fn with_slice_conf_mt_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64, seed_evaluator: SE) -> Option<Self>
-        where K: Hash, CC: CoreConf<Core = C> + Send, SE: SeedEvaluator, K: Hash+Sync+Send, S: Send+Sync+Clone, SS: Send, C: Send
+        where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator, K: Hash+Sync+Send, S: Send+Sync+Clone
     {
         Self::new_mt(keys.len(), conf, seed_evaluator, tries, |hasher, seed|
             keys.iter().map(|k| hasher.hash_one(k, seed)).collect())
@@ -105,7 +105,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     /// 
     /// `keys` should not contain duplicates.
     #[inline] pub fn with_slice_conf_mt<K, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64) -> Option<Self>
-        where K: Hash, CC: CoreConf<Core = C> + Send, K: Hash+Sync+Send, S: Send+Sync+Clone, SS: Send, C: Send
+        where K: Hash, CC: CoreConf<Core = C>, K: Hash+Sync+Send, S: Send+Sync+Clone
     {
         Self::with_slice_conf_mt_se(keys, conf, tries, ProdOfValues)
     }
@@ -148,7 +148,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     }
 
     pub fn new_mt<H, SE, CC>(num_of_keys: usize, conf: Conf<SS, CC, S>, seed_evaluator: SE, tries: u64, hashes: H) -> Option<Self>
-        where H: Fn(&S, u64) -> Box<[u64]>, CC: CoreConf<Core = C> + Send, SE: SeedEvaluator, S: Send+Sync+Clone, SS: Send, C: Send, H: Sync
+        where H: Fn(&S, u64) -> Box<[u64]>, CC: CoreConf<Core = C>, SE: SeedEvaluator, S: Send+Sync+Clone, H: Sync
     {
         let seed_chooser = SeedOnlyNoBump(seed_evaluator);
         let core = SeedNoBumpCore.f_core_lf(num_of_keys, conf.loading_factor_1000, &conf.core_conf, conf.seed_size.into());
