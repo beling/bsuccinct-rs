@@ -3,6 +3,7 @@ use std::hash::Hash;
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
+use rayon::prelude::*;
 
 use crate::{fmph::Bits8, phast::{Conf, Core, CoreConf, GenericCore, ProdOfValues, RandomPlacement, SeedChooser, SeedChooserCore, SeedEvaluator, builder::{bucket_begin_mt, bucket_begin_st, try_nobump_build_st}, function::{SeedEx, hash_all_par}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::SeedSize};
 
@@ -51,14 +52,30 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using multiple (given number of) threads and given configuration.
+    /// 
     /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
-    /// `keys` cannot contain duplicates.
+    /// Therefore, using this ('threads') version is recommended only when the expected number of build attempts is very small.
+    /// Otherwise, as long as the key set is small enough to fit its hashes for different seeds into memory, it is better to use the regular 'mt' version.
+    /// 
+    /// `keys` should not contain duplicates.
     pub fn with_slice_conf_threads_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64, threads_num: usize, seed_evaluator: SE) -> Option<Self>
         where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator, K: Hash+Sync+Send, S: Sync
     {
         Self::new(keys.len(), conf, seed_evaluator, tries, threads_num, |hasher, seed|
             hash_all_par(&keys, hasher, seed)
         )
+    }
+
+    /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given configuration.
+    /// 
+    /// Multithreading is used to perform parallel construction attempts with different hash function seeds.
+    /// 
+    /// `keys` should not contain duplicates.
+    pub fn with_slice_conf_mt_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64, seed_evaluator: SE) -> Option<Self>
+        where K: Hash, CC: CoreConf<Core = C> + Send, SE: SeedEvaluator, K: Hash+Sync+Send, S: Send+Sync+Clone, SS: Send, C: Send
+    {
+        Self::new_mt(keys.len(), conf, seed_evaluator, tries, |hasher, seed|
+            keys.iter().map(|k| hasher.hash_one(k, seed)).collect())
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using a single thread and given configuration.
@@ -70,12 +87,38 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     }
 
     /// Constructs [`NBFunction`] for given `keys`, using multiple (given number of) threads and given configuration.
+    /// 
     /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
-    /// `keys` cannot contain duplicates.
+    /// Therefore, using this ('threads') version is recommended only when the expected number of build attempts is very small.
+    /// Otherwise, as long as the key set is small enough to fit its hashes for different seeds into memory, it is better to use the regular 'mt' version.
+    /// 
+    /// `keys` should not contain duplicates.
     #[inline] pub fn with_slice_conf_threads<K, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64, threads_num: usize) -> Option<Self>
         where K: Hash, CC: CoreConf<Core = C>, K: Hash+Sync+Send, S: Sync
     {
         Self::with_slice_conf_threads_se(keys, conf, tries, threads_num, ProdOfValues)
+    }
+
+    /// Constructs [`NBFunction`] for given `keys`, using multiple (given number of) threads and given configuration.
+    /// 
+    /// Multithreading is used to perform parallel construction attempts with different hash function seeds.
+    /// 
+    /// `keys` should not contain duplicates.
+    #[inline] pub fn with_slice_conf_mt<K, CC>(keys: &[K], conf: Conf<SS, CC, S>, tries: u64) -> Option<Self>
+        where K: Hash, CC: CoreConf<Core = C> + Send, K: Hash+Sync+Send, S: Send+Sync+Clone, SS: Send, C: Send
+    {
+        Self::with_slice_conf_mt_se(keys, conf, tries, ProdOfValues)
+    }
+
+    pub fn build_st<SE, CC>(hashes: &mut [u64], conf: &Conf<SS, CC, S>, seed_chooser: &SeedOnlyNoBump<SE>, core: &C) -> Option<Box<[SS::VecElement]>>
+    where SE: SeedEvaluator, CC: CoreConf<Core = C>
+    {
+        hashes.voracious_sort();
+        let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len());
+        try_nobump_build_st(hashes, *core, conf.seed_size, evaluator, *seed_chooser, bucket_begin_st(&hashes, core)).map(|(seeds, _)| seeds)
+        /*.map(|(seeds, _)| {
+            Self { seeds: SeedEx{ seeds, core: *core }, seed, hasher: conf.hasher.clone(), seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size }
+        })*/
     }
 
     /// Constructs [`NBFunction`] for given number of keys and configuration.
@@ -96,15 +139,23 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
             }
         } else {
             for seed in 0..tries {
-                let mut hashes = hashes(&conf.hasher, seed);
-                hashes.voracious_sort();
-                let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len());
-                if let Some((seeds, _)) = try_nobump_build_st(&hashes, core, conf.seed_size, evaluator, seed_chooser, bucket_begin_st(&hashes, &core)) {
-                    return Some(Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher, seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size });
+                if let Some(seeds) = Self::build_st(&mut hashes(&conf.hasher, seed), &conf, &seed_chooser, &core) { 
+                    return Some(Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher, seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size })
                 }
             }
         }
         None
+    }
+
+    pub fn new_mt<H, SE, CC>(num_of_keys: usize, conf: Conf<SS, CC, S>, seed_evaluator: SE, tries: u64, hashes: H) -> Option<Self>
+        where H: Fn(&S, u64) -> Box<[u64]>, CC: CoreConf<Core = C> + Send, SE: SeedEvaluator, S: Send+Sync+Clone, SS: Send, C: Send, H: Sync
+    {
+        let seed_chooser = SeedOnlyNoBump(seed_evaluator);
+        let core = SeedNoBumpCore.f_core_lf(num_of_keys, conf.loading_factor_1000, &conf.core_conf, conf.seed_size.into());
+        (0..tries).into_par_iter().find_map_any(|seed|
+            Self::build_st(&mut hashes(&conf.hasher, seed), &conf, &seed_chooser, &core).map(|seeds|
+                Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher.clone(), seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size }
+            ))
     }
 }
 
@@ -120,8 +171,6 @@ impl<C: Core, SS: SeedSize, S> NBFunction<C, SS, S> {
 
     /// Seed used by the function to hash keys.
     #[inline] pub fn seed(&self) -> u64 { self.seed }
-
-
 }
 
 impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
@@ -140,12 +189,26 @@ impl NBFunction<GenericCore, Bits8, BuildDefaultSeededHasher> {
     /// but requires smaller `loading_factor_1000`.
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
     /// 
-    /// multithreading is used only for key hashing, sorting, and determining bucket sizes.
+    /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
+    /// Therefore, using this ('smallmt') version is recommended only when the expected number of build attempts is very small.
+    /// Otherwise, as long as the key set is small enough to fit its hashes for different seeds into memory, it is better to use the regular 'mt' version.
     /// 
-    /// `keys` cannot contain duplicates.
-    pub fn from_slice_mt_fast<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash+Send+Sync {
+    /// `keys` should not contain duplicates.
+    pub fn from_slice_smallmt_fast<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash+Send+Sync {
         Self::with_slice_conf_threads(keys, Conf::generic8_nobump_fast(loading_factor_1000), tries,
         std::thread::available_parallelism().map_or(1, |v| v.into()))
+    }
+
+    /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
+    /// In comparison to `from_slice_st`, the function constructed by `from_slice_st_fast` is faster to evaluate
+    /// but requires smaller `loading_factor_1000`.
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
+    /// 
+    /// Multithreading is used to perform parallel construction attempts with different hash function seeds.
+    /// 
+    /// `keys` should not contain duplicates.
+    pub fn from_slice_mt_fast<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash+Send+Sync {
+        Self::with_slice_conf_mt(keys, Conf::generic8_nobump_fast(loading_factor_1000), tries)
     }
 }
 
@@ -161,11 +224,23 @@ impl NBFunction<GenericCore<RandomPlacement>, Bits8, BuildDefaultSeededHasher> {
     /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `995` (for small range).
     /// 
-    /// multithreading is used only for key hashing, sorting, and determining bucket sizes.
+    /// Multithreading is used only for key hashing, sorting, and determining bucket sizes.
+    /// Therefore, using this ('smallmt') version is recommended only when the expected number of build attempts is very small.
+    /// Otherwise, as long as the key set is small enough to fit its hashes for different seeds into memory, it is better to use the regular 'mt' version.
+    /// 
+    /// `keys` cannot contain duplicates.
+    pub fn from_slice_smallmt<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash+Send+Sync {
+        Self::with_slice_conf_threads(keys, Conf::generic8_nobump(loading_factor_1000), tries,
+        std::thread::available_parallelism().map_or(1, |v| v.into()))
+    }
+
+    /// Constructs [`NBFunction`] for given `keys`, using multiple threads and given loading factor.
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `995` (for small range).
+    /// 
+    /// Multithreading is used to perform parallel construction attempts with different hash function seeds.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(keys: &[K], loading_factor_1000: u16, tries: u64) -> Option<Self> where K: Hash+Send+Sync {
-        Self::with_slice_conf_threads(keys, Conf::generic8_nobump(loading_factor_1000), tries,
-        std::thread::available_parallelism().map_or(1, |v| v.into()))
+        Self::with_slice_conf_mt(keys, Conf::generic8_nobump(loading_factor_1000), tries)
     }
 }
