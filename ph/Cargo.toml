@@ -13,6 +13,7 @@ keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [features]
 default = ["aligned-vec", "sux"]
+W256 = []  # if enabled, sets WINDOW_SIZE to 256, otherwise it is 512
 gxhash = ["seedable_hash/gxhash"]
 rapidhash = ["seedable_hash/rapidhash"]
 wyhash = ["seedable_hash/wyhash"]
