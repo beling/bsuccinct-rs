@@ -1,7 +1,10 @@
 #![doc = include_str!("../README.md")]
 
 /// Iterator whose each `next` call uses deserializer `S` to deserialize the value of type `T` from the `input`.
+///
+/// Note that the iterator yields `Some(Result::Err)` if reading fails (e.g., due to EOF).
 pub struct ReadIter<'r, T: ?Sized, S, R: ?Sized> {
+    /// The input stream from which values are read.
     pub input: &'r mut R,
     serializer_type: std::marker::PhantomData<S>,
     value_type: std::marker::PhantomData<T>
@@ -21,6 +24,7 @@ impl<'r, T: Copy, S: Serializer::<T>, R: std::io::Read + ?Sized> Iterator for Re
 
 impl<'r, T: Copy, S: Serializer::<T>, R: std::io::Read + ?Sized> std::iter::FusedIterator for ReadIter<'r, T, S, R> {}
 
+/// An iterator that deserializes up to `n` values of type `T` using deserializer `S` from the input `R`.
 pub type ReadNIter<'r, T, S, R> = std::iter::Take<ReadIter<'r, T, S, R>>;
 
 /// Trait implemented by each serializer for the following types:
@@ -190,7 +194,7 @@ fn vbyte_read<R: std::io::Read + ?Sized>(input: &mut R, max_shift: u8) -> std::i
 /// 
 /// The encoding is identical to the classic *VByte*/*LEB128* for `u16` and `u32` values.
 /// However:
-/// - `u8` value are always stored as is, using 1 byte.
+/// - `u8` values are always stored as is, using 1 byte.
 /// - For `u64` values below 2<sup>63</sup>, the encoding is identical to the classic *VByte*/*LEB128*;
 ///   For larger values, the encoding always stores the most significant byte of value as is, using a total of 9 bytes,
 ///   whereas a classic VByte could use 10 bytes.
