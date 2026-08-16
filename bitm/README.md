@@ -1,4 +1,4 @@
-`bitm` is the Rust library by Piotr Beling for bit and bitmap (bit vector) manipulation.
+`bitm` is a Rust library by Piotr Beling for bit and bitmap (bit vector) manipulation.
 
 # Example
 
@@ -14,8 +14,8 @@ assert_eq!(b.get_bits(99, 5), 0b00010); // 5 bits, beginning from index 99, shou
 let (r, ones) = ArrayWithRank101111::build(b);
 assert_eq!(ones, 1);        // one bit is set in b
 assert_eq!(r.rank(100), 0); // no ones in the first 100 bits of b
-assert_eq!(r.rank(101), 1); // 1 one in the first 101 bits of b
-assert_eq!(r.rank(999), 1); // 1 one in the first 999 bits of b
+assert_eq!(r.rank(101), 1); // one set bit in the first 101 bits of b
+assert_eq!(r.rank(999), 1); // one set bit in the first 999 bits of b
 ```
 
 # Benchmarks
