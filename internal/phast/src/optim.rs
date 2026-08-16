@@ -117,8 +117,21 @@ impl<'c, CF: CostFn> argmin::core::CostFunction for Cost<'c, CF> {
     }
 }
 
+/// Penalty value for `x` not being increasing.
 fn non_increasing_penalty(x: &[f64], per_dim: f64) -> f64 {
     x.windows(2).map(|d| if d[1]>d[0] { 0.0 } else {per_dim + d[0] - d[1]}).sum()
+}
+
+fn to_small_penalty(x: f64, lo_limit: f64, diff_mult: f64, c: usize) -> usize {
+    if x < lo_limit { ((lo_limit - x) * diff_mult) as usize + c } else { 0 }
+}
+
+fn to_large_penalty(x: f64, hi_limit: f64, diff_mult: f64, c: usize) -> usize {
+    if x > hi_limit { ((x - hi_limit) * diff_mult) as usize + c } else { 0 }
+}
+
+fn out_of_range_penalty(x: f64, lo_limit: f64, hi_limit: f64, diff_mult: f64, c: usize) -> usize {
+    to_small_penalty(x, lo_limit, diff_mult, c) + to_large_penalty(x, hi_limit, diff_mult, c)
 }
 
 /// Cost function for direct bucket weights optimization.
@@ -264,6 +277,7 @@ impl CostFn for PerfectLogCost {
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
+            //+ to_small_penalty(x[0], 0.0, 1_000_000)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -339,6 +353,9 @@ impl CostFn for PerfectProdKCost {
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(s.core()), s).1)
+            + to_small_penalty(x[0], 0.0, 1000000.0, 1000000)
+            + to_small_penalty(x[1], 0.0, 1000000.0, 1000000)
+            + out_of_range_penalty(x[2], 0.0, 1.0, 1000000.0, 1000000)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
