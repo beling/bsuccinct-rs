@@ -13,8 +13,8 @@ use crate::ceiling_div;
 pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);    // each l1 chunk has 1<<32 bits = (1<<32)/64 content (u64) elements
 pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
 pub const BITS_PER_L2_ENTRY: usize = U64_PER_L2_ENTRY*64;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
-pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is splitted to 4, 8*64=512 bits records
-pub const BITS_PER_L2_RECORDS: u64 = U64_PER_L2_RECORDS as u64 * 64; // each l2 entry is splitted to 4, 8*64=512 bits records
+pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is split into 4, 8*64=512 bits records
+pub const BITS_PER_L2_RECORDS: u64 = U64_PER_L2_RECORDS as u64 * 64; // each l2 entry is split into 4, 8*64=512 bits records
 #[cfg(target_pointer_width = "64")] pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 
 /// Trait implemented by the types that support select (one) queries,
@@ -145,8 +145,8 @@ pub struct BinaryRankSearch;
 
 impl GetSize for BinaryRankSearch {}
 
-/// Find index of L1 chunk that contains `rank`-th one (or zero if `ONE` is `false`)
-/// and decrease `rank` by number of ones (or zeros) in previous chunks.
+/// Finds the index of the L1 chunk that contains the `rank`-th one (or zero if `ONE` is `false`)
+/// and decreases `rank` by the number of ones (or zeros) in previous chunks.
 #[cfg(target_pointer_width = "64")]
 #[inline] fn select_l1<const ONE: bool>(l1ranks: &[usize], rank: &mut usize) -> usize {
     if ONE {    // select 1:
@@ -421,7 +421,7 @@ impl Select0ForRank101111 for BinaryRankSearch {
 /// (independent of set/unset bits ratio in the vector) of [`CombinedSampling`].
 /// 
 /// The parameters describe the bit vector and the desired result range:
-/// - `n` -- numbers of ones (for select) or zeros (for select0) in the vector,
+/// - `n` -- the number of ones (for select) or zeros (for select0) in the vector,
 /// - `len` -- length of the vector in bits,
 /// - `max_result` -- the largest possible result, returned only and always for n >= 75%len
 ///                   (must be in range [7, 31]).
@@ -446,8 +446,8 @@ pub const fn optimal_combined_sampling(mut n: usize, len: usize, max_result: u8)
 pub trait CombinedSamplingDensity: Copy {
     type SamplingDensity: Copy;
 
-    /// Returns density for given parameters of bit vector:
-    /// - `number_of_items` -- numbers of ones (for select) or zeros (for select0) in the vector,
+    /// Returns the density for the given parameters of the bit vector:
+    /// - `number_of_items` -- the number of ones (for select) or zeros (for select0) in the vector,
     /// - `len` -- length of the vector in bits.
     fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity;
 
@@ -475,7 +475,7 @@ pub trait CombinedSamplingDensity: Copy {
 /// 
 /// `VALUE_LOG2` must be in range [7, 31].
 /// Default value 13 means sampling positions of every 2^13(/2)=8192(/2) ones (or zeros for select0),
-/// which leads to about 0.20% space overhead in vectors filled with bit ones in about half.
+/// which leads to about 0.20% space overhead in vectors that are about half-filled with bit ones.
 /// As sampling decreases, the speed of select queries increases at the expense of higher
 /// space overhead (which doubles with each decrease by 1).
 #[derive(Clone, Copy)]
@@ -509,7 +509,7 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
 
 /// Fast select strategy for [`RankSelect101111`](crate::RankSelect101111) with about 0.39% space overhead.
 /// 
-/// Space/speed trade-off can be adjusted by the template parameter, by giving one of:
+/// Space/speed trade-off can be adjusted by the generic parameter, by giving one of:
 /// - [`AdaptiveCombinedSamplingDensity`] (default) -- works well with a wide range of bit vectors,
 /// - [`ConstCombinedSamplingDensity`] -- recommended for vectors with a known ratio of set/unset bits;
 ///                with default parameters, recommended for vectors filled with bit ones in about half.

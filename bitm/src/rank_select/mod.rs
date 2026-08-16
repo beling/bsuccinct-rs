@@ -12,7 +12,7 @@ use dyn_size_of::GetSize;
 use prefetch_index::prefetch_index;
 
 /// Trait for rank queries on bit vector.
-/// Rank query returns the number of ones (or zeros) in requested number of the first bits.
+/// Rank query returns the number of ones (or zeros) in the requested number of the first bits.
 pub trait Rank {
     /// Returns the number of ones in first `index` bits or [`None`] if `index` is out of bounds.
     fn try_rank(&self, index: usize) -> Option<usize>;
@@ -129,8 +129,8 @@ pub trait Rank {
 
 
 /// The structure that holds bit vector `content` and `ranks` structure that takes no more than 3.125% extra space.
-/// It can return the number of ones (or zeros) in first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
-/// In addition, it supports select queries utilizing binary search over ranks (see [`BinaryRankSearch`])
+/// It can return the number of ones (or zeros) in the first `index` bits of the `content` (see `rank` and `rank0` method) in *O(1)* time.
+/// In addition, it supports select queries by utilizing binary search over ranks (see [`BinaryRankSearch`])
 /// or (optionally, at the cost of extra space overhead; about 0.39% with default settings)
 /// combined sampling (which is usually faster; see [`CombinedSampling`]).
 ///
@@ -168,10 +168,10 @@ pub struct RankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearc
 }
 
 impl<S, S0, BV> RankSelect101111<S, S0, BV> {
-    /// Returns reference to structure that support select (one) operation.
+    /// Returns a reference to the structure that supports the select (one) operation.
     #[inline] pub fn select_support(&self) -> &S { &self.select }
 
-    /// Returns reference to structure that support select zero operation.
+    /// Returns a reference to the structure that supports the select zero operation.
     #[inline] pub fn select0_support(&self) -> &S0 { &self.select0 }
 }
 
@@ -307,7 +307,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 pub type ArrayWithRank101111 = RankSelect101111<BinaryRankSearch, BinaryRankSearch>;
 
 /// The structure that holds array of bits `content` and `ranks` structure that takes no more than 6.25% extra space.
-/// It can returns the number of ones in first `index` bits of the `content` (see `rank` method) in *O(1)* time.
+/// It can return the number of ones in the first `index` bits of the `content` (see `rank` method) in *O(1)* time.
 /// Only `content` with less than 2<sup>32</sup> bit ones is supported.
 /// Any type that implements the [`Deref`] trait with `Target = [u64]` can be used as a bit vector.
 /// 
@@ -331,7 +331,7 @@ impl<BV: Deref<Target = [u64]>> From<BV> for RankSimple<BV> {
 
 impl<BV: Deref<Target = [u64]>> RankSimple<BV> {
 
-    /// Constructs `ArrayWithRankSimple` and count number of bits set in `content`. Returns both.
+    /// Constructs `ArrayWithRankSimple` and counts the number of bits set in `content`. Returns both.
     pub fn build(content: BV) -> (Self, u32) {
         let mut result = Vec::with_capacity(ceiling_div(content.len(), 8usize));
         let mut current_rank: u32 = 0;
