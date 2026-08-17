@@ -1,0 +1,14 @@
+[package]
+name = "asmview"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["lib", "staticlib"]
+path = "src/lib.rs"
+
+[dependencies]
+ph = { version = ">=0.10", path = "../../ph" }
+seedable_hash = { version = "0.2", path = "../../seedable_hash", default-features = false }
+bitm = { version = "0.5", path = "../../bitm" }
