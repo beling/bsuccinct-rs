@@ -27,7 +27,7 @@ Usually the complexities are close to optimistic.
 
 # References
 
-Calculation code bases on (is mostly copied from) `sum` method
+Calculation code is based on (is mostly copied from) `sum` method
 of `test::stats::Stats` implementation for `f64`
 (which probably reimplements `math.fsum` from Python's library)
 and source of CPython.
@@ -36,8 +36,8 @@ See also:
 - <https://bugs.python.org/file10357/msum4.py>
 - <http://code.activestate.com/recipes/393090/>
 
-The method sacrifices performance at the altar of accuracy
-Depends on IEEE-754 arithmetic guarantees. See proof of the correctness in
+The method sacrifices performance at the altar of accuracy.
+It depends on IEEE-754 arithmetic guarantees. See proof of the correctness in
 [Adaptive Precision Floating-Point Arithmetic and Fast Robust Geometric
 Predicates][paper]
 

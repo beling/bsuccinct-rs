@@ -12,7 +12,6 @@ pub struct FSum {
 }
 
 impl FSum {
-
     /// Constructs zeroed accumulator.
     ///
     /// # Example
@@ -153,11 +152,13 @@ impl FSum {
             let error = x - (total - old_total);
             if error != 0.0 {
                 /* Make half-even rounding work across multiple partials.
-                    Needed so that sum([1e-16, 1, 1e16]) will round-up the last
-                    digit to two instead of down to zero (the 1e-16 makes the 1
-                    slightly closer to two).  With a potential 1 ULP rounding
-                    error fixed-up, math.fsum() can guarantee commutativity. */
-                if (error < 0.0 && self.partials[n - 1] < 0.0) || (error > 0.0 && self.partials[n - 1] > 0.0) {
+                Needed so that sum([1e-16, 1, 1e16]) will round-up the last
+                digit to two instead of down to zero (the 1e-16 makes the 1
+                slightly closer to two).  With a potential 1 ULP rounding
+                error fixed-up, math.fsum() can guarantee commutativity. */
+                if (error < 0.0 && self.partials[n - 1] < 0.0)
+                    || (error > 0.0 && self.partials[n - 1] > 0.0)
+                {
                     let y = error * 2.0;
                     let x = total + y;
                     if y == x - total { return x; }
@@ -225,9 +226,12 @@ mod tests {
         assert_eq!(FSum::with_value(2.0).add(3.0).value(), 5.0);
         assert_eq!(FSum::with_all((0..10).map(|_| 0.1)).value(), 1.0);
         assert_eq!(FSum::new().add(1e100).add(1.0).add(-1e100).value(), 1.0);
-        assert_eq!(FSum::with_all(&[1e100, 1.0, -1e100, 1e-100, 1e50, -1.0, -1e50]).value(), 1e-100);
-        assert_eq!(FSum::with_all(&[-1e308, 1e308, 1e308]).value(), 1e308);
-        assert_eq!(FSum::with_all(&[1e308, -1e308, 1e308]).value(), 1e308);
+        assert_eq!(
+            FSum::with_all([1e100, 1.0, -1e100, 1e-100, 1e50, -1.0, -1e50]).value(),
+            1e-100
+        );
+        assert_eq!(FSum::with_all([-1e308, 1e308, 1e308]).value(), 1e308);
+        assert_eq!(FSum::with_all([1e308, -1e308, 1e308]).value(), 1e308);
     }
 
     #[test]
