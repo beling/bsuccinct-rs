@@ -43,7 +43,7 @@ const MAX_WINDOW_SIZE: usize = 512;
 
 /// Power of two grater or equal then range of values covered by the window.
 //const MAX_VALUES: usize = 4096;
-const MAX_VALUES: usize = 4096 * 2  *2; // TODO only MT require last *2; maybe switch to dynamic allocation?
+const MAX_VALUES: usize = 4096 * 2  *2    *2/* for l=16384 */; // TODO only MT require last *2; maybe switch to dynamic allocation?
 
 /// Window size. Maximum number of elements in the priority queue.
 pub const WINDOW_SIZE: u16 = MAX_WINDOW_SIZE as u16;

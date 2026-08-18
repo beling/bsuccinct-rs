@@ -92,16 +92,27 @@ impl KSeedEvaluatorConf for ProdOfValues {
     type KSeedEvaluator = ProdOfValuesKEval;
 
     fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
-        const VALUES: [(u16, ProdOfValuesKEval); 35] = [
-            (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
-            //W=512 1.00%: value_shift: 0.00496, free_shift: 1.58930, first_weight: 0.10560
+        #[cfg(not(feature = "W256"))]
+        const VALUES: [(u16, ProdOfValuesKEval); 2] = [
+            (2, ProdOfValuesKEval { value_shift: 0.00486, free_shift: 1.48757, first_weight: 0.13542 }),
+            //W=512 l=1024 1.00%: value_shift: 0.00496, free_shift: 1.58930, first_weight: 0.10560
             //W=512 l=2048 0.98%: value_shift: 0.00578, free_shift: 1.59036, first_weight: 0.07484
             //W=512 l=4096 0.87%: value_shift: 0.00486, free_shift: 1.48757, first_weight: 0.13542
+            (4, ProdOfValuesKEval { value_shift: 0.00732, free_shift: 1.39791, first_weight: 0.11140 }),
+            //W=512 l=1024 1.02%: value_shift: 0.00559, free_shift: 1.85542, first_weight: 0.29544
+            //W=512 l=2048 1.17%: value_shift: 0.00536, free_shift: 1.97097, first_weight: 0.28628
+            //W=512 l=4096 0.96%: value_shift: 0.00519, free_shift: 1.85147, first_weight: 0.18283
+            //W=512 l=8192 0.84%: value_shift: 0.00666, free_shift: 1.47563, first_weight: 0.11891
+            //better S=8 weights: 0, 2421, 8111, 97714, 219735, 319358, 377829
+            //W=512 l=16384 1.13%: value_shift: 0.00676, free_shift: 1.30552, first_weight: 0.11808
+        ];
+        
+        #[cfg(feature = "W256")]
+        const VALUES: [(u16, ProdOfValuesKEval); 35] = [
+            (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
             //W=256 l=4096 1.06%: value_shift: 0.00509, free_shift: 1.17960, first_weight: 0.14530
             (3, ProdOfValuesKEval { value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
             (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
-            //W=512 l=4096 0.96%: value_shift: 0.00519, free_shift: 1.85147, first_weight: 0.18283
-            //W=512 l=2048 1.17%: value_shift: 0.00536, free_shift: 1.97097, first_weight: 0.28628
             (5, ProdOfValuesKEval { value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
             (6, ProdOfValuesKEval { value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
             (7, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
