@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use ph::phast::{Function, Function2, GenericCore, ShiftWrappedCore, SeedCore};
 use ph::seeds::Bits8;
 
