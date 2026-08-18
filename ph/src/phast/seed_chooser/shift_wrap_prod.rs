@@ -224,31 +224,62 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyProdWrapped<MULTIPLIER> {
             150000..250000 => 1024,*/
             //_ => 2048,
             _ => /* 2* */ 8192,
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else { match MULTIPLIER {
-            1 => match bits_per_seed {
-                ..=5 => 256,
-                ..=7 => 512,   // or 6 => 256 for smaller size
-                ..=9 => 1024,   // or 8 => 512 for smaller size
-                ..=11 => 2048,   // or 10 => 1024 for smaller size(?)
-                _ => 4096,
-                //_ => 2*4096
-            },
-            2 => match bits_per_seed {
-                ..=5 => 256,
-                ..=7 => 512,
-                8 => 1024,
-                ..=10 => 2048,   // or 9 => 1024 for smaller size
-                _ => 4096   // only 11, do not use 12
-                //_ => 2*4096
-            },
-            _ => match bits_per_seed {
-                ..=4 => 256,
-                ..=7 => 512,
-                8 => 1024,
-                ..=10 => 2048,  // or (for MULTIPLIER=3) 10 => 4096 for faster construction
-                _ => 4096
-            },
-        }})
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
+            if WINDOW_SIZE > 350 {
+                match MULTIPLIER {
+                    1 => match bits_per_seed {
+                        ..=5 => 256,
+                        ..=8 => 512,
+                        9 => 1024,
+                        10 => 2048,
+                        11 => 4096,
+                        _ => 8192,
+                    },
+                    2 => match bits_per_seed {
+                        ..=6 => 256,
+                        7 => 512,
+                        8 => 1024,
+                        ..=10 => 2048,
+                        11 => 4096,
+                        _ => 8192,
+                    },
+                    _ => match bits_per_seed {
+                        ..=4 => 256,
+                        ..=7 => 512,
+                        8 => 1024,
+                        9 => 2048,
+                        10 => 4096,
+                        _ => 8192
+                    },
+                }
+            } else {    // WINDOW_SIZE = 256
+                match MULTIPLIER {
+                    1 => match bits_per_seed {
+                        ..=6 => 256,
+                        ..=8 => 512,
+                        9 => 1024,
+                        10 => 2048,
+                        _ => 4096,
+                    },
+                    2 => match bits_per_seed {
+                        ..=6 => 256,
+                        7 => 512,
+                        ..=9 => 1024,
+                        10 => 2048,
+                        11 => 4096,
+                        _ => 8192
+                    },
+                    _ => match bits_per_seed {
+                        ..=4 => 256,
+                        ..=7 => 512,
+                        8 => 1024,
+                        9 => 2048,
+                        ..=11 => 4096,
+                        _ => 8192
+                    },
+                }
+            }
+        })
     }
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {

@@ -98,6 +98,8 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftWrappedCore<MULTIPLIER> {
 #[derive(Clone, Copy)]
 pub struct ShiftOnlyWrapped<const MULTIPLIER: u8 = 1>;
 
+// TODO all weights have been found for WINDOW_SIZE = 256
+
 fn shift_only_wrapped_bucket_evaluator_m1(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     match (bits_per_seed, slice_len) {
         (_, ..=64) => [-76520, 97960, 103626, 106759, 109053, 110149, 112662],   // 8, 4.1, 64
