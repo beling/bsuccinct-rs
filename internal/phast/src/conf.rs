@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, SeedChooserCore, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
+use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
 use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
 
@@ -425,8 +425,8 @@ impl Conf {
         total.print_avg(self);
     }
 
-    pub fn core<SC: SeedChooserCore>(&self, seed_chooser_core: SC) -> ph::phast::GenericCore {
-        seed_chooser_core.minimal_generic_f_core(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
+    pub fn core<SC: SeedChooser>(&self, seed_chooser: &SC) -> ph::phast::GenericCore {
+        seed_chooser.minimal_generic_f_core(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
     }
 
     pub fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, f: F) -> usize {

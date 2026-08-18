@@ -141,13 +141,13 @@ impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect());
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(self.0.core()),
+                    conf.core(&self.0),
                     self.0.clone(), &w).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let all = self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len()).0;
+        let all = self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len()).0;
         all[1..].iter().map(|v| *v as f64 - all[0] as f64).collect()
     }
 
@@ -167,13 +167,13 @@ impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from_deltas(x);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(self.0.core()),
+                    conf.core(&self.0),
                     self.0.clone(), &w).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to_deltas().into_vec()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len())).to_deltas().into_vec()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
@@ -205,13 +205,13 @@ impl<SC: SeedChooser> CostFn for WeightsCost4<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from4(x);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(self.0.core()),
+                    conf.core(&self.0),
                     self.0.clone(), &w).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to4().into()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len())).to4().into()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
@@ -242,13 +242,13 @@ impl<SC: SeedChooser> CostFn for WeightsCost6<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from6(x);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(self.0.core()),
+                    conf.core(&self.0),
                     self.0.clone(), &w).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(self.0.core()).slice_len())).to6().into()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len())).to6().into()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
@@ -276,7 +276,7 @@ impl CostFn for PerfectLogCost {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(s.core()), s).1)
+            conf.core(&s), s).1)
             //+ to_small_penalty(x[0], 0.0, 1_000_000)
     }
 
@@ -303,7 +303,7 @@ impl CostFn for PerfectLog0Cost {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(s.core()), s).1)
+            conf.core(&s), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -328,7 +328,7 @@ impl CostFn for PerfectLog1Cost {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(s.core()), s).1)
+            conf.core(&s), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -352,7 +352,7 @@ impl CostFn for PerfectProdKCost {
         let e = ProdOfValuesKEval { value_shift: x[0], free_shift: x[1], first_weight: x[2] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(s.core()), s).1)
+            conf.core(&s), s).1)
             + to_small_penalty(x[0], 0.0, 1000000.0, 1000000)
             + to_small_penalty(x[1], 0.0, 1000000.0, 1000000)
             + out_of_range_penalty(x[2], 0.0, 1.0, 1000000.0, 1000000)
@@ -379,7 +379,7 @@ impl CostFn for ProdOfValuesCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let s = SeedOnly(GenericProdOfValues { first_weight: x[0], shift: x[1] });
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(s.core()), s).1)
+            conf.core(&s), s).1)
     }
 
     fn init(&self, _conf: &Conf) -> Vec<f64> {
@@ -662,7 +662,7 @@ impl CostFn for WGenericProdOfValues {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let s = SeedOnly(WGenericProdOfValues(*x.as_array::<4>().unwrap()));
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(s.core()), s).1)
+            conf.core(&s), s).1)
     }
 
     fn init(&self, _conf: &Conf) -> Vec<f64> {
