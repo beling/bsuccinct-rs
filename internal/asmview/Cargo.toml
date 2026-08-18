@@ -1,8 +1,11 @@
 [package]
 name = "asmview"
 version = "0.0.0"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 publish = false
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
 
 [lib]
 crate-type = ["lib", "staticlib"]
