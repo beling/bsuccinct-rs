@@ -44,23 +44,6 @@ impl SeedChooserCore for ShiftCore {
         (1 << bits_per_seed) - 2
     }
 
-    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
-            n @ ..8192 => (n/2+1).next_power_of_two() as u16,
-            _ => 8192
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
-            match bits_per_seed {
-                ..=4 => 128,
-                ..=7 => 256,
-                8 => 512,
-                9 => 1024,
-                10 => 2048,
-                11 => 4096,
-                _ => 8192
-            }
-        })
-    }
-
     /// Read `Self` from the `input`.
     #[inline(always)] fn read(_input: &mut dyn io::Read) -> io::Result<Self> { Ok(Self) }
 }
@@ -90,6 +73,23 @@ impl SeedChooser for ShiftOnly {
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
     
     #[inline(always)] fn core(&self) -> Self::Core { ShiftCore }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+            n @ ..8192 => (n/2+1).next_power_of_two() as u16,
+            _ => 8192
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
+            match bits_per_seed {
+                ..=4 => 128,
+                ..=7 => 256,
+                8 => 512,
+                9 => 1024,
+                10 => 2048,
+                11 => 4096,
+                _ => 8192
+            }
+        })
+    }
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights(

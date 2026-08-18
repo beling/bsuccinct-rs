@@ -127,7 +127,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
         where H: Fn(&S, u64) -> Box<[u64]>, CC: CoreConf<Core = C>, SE: SeedEvaluator
     {
         let seed_chooser = SeedOnlyNoBump(seed_evaluator);
-        let core = SeedNoBumpCore.f_core_lf(num_of_keys, conf.loading_factor_1000, &conf.core_conf, conf.seed_size.into());
+        let core = seed_chooser.f_core_lf(num_of_keys, conf.loading_factor_1000, &conf.core_conf, conf.seed_size.into());
         if threads_num > 1 {
             for seed in 0..tries {
                 let mut hashes = hashes(&conf.hasher, seed);
@@ -151,7 +151,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
         where H: Fn(&S, u64) -> Box<[u64]>, CC: CoreConf<Core = C>, SE: SeedEvaluator, S: Send+Sync+Clone, H: Sync
     {
         let seed_chooser = SeedOnlyNoBump(seed_evaluator);
-        let core = SeedNoBumpCore.f_core_lf(num_of_keys, conf.loading_factor_1000, &conf.core_conf, conf.seed_size.into());
+        let core = seed_chooser.f_core_lf(num_of_keys, conf.loading_factor_1000, &conf.core_conf, conf.seed_size.into());
         (0..tries).into_par_iter().find_map_any(|seed|
             Self::build_st(&mut hashes(&conf.hasher, seed), &conf, &seed_chooser, &core).map(|seeds|
                 Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher.clone(), seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size }

@@ -56,44 +56,6 @@ pub trait SeedChooserCore: Copy {
         self.minimal_output_range(perfect_output_range(number_of_keys, loading_factor_1000))
     }
 
-    /// Returns slice length suitable to given `output_range`, `bits_per_seed` and `preferred_slice_len`.
-    /// 
-    /// Usually it returns `preferred_slice_len` (if its not `0`; `0` is for chooser-dependent default)
-    /// or lower value for small `output_range`.
-    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        let max_res = match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
-            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
-            64..1300 => 64,
-            1300..9500 => 128,
-            9500..12000 => 256,
-            12000..140000 => 512,
-            _ if bits_per_seed < 6 => return if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
-            _ if bits_per_seed < 12 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
-            _ => return if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
-        };
-        if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
-    }
-
-    fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
-        GenericCore::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
-    }
-
-    #[inline(always)] fn minimal_generic_f_core<P: Placement>(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
-        self.generic_f_core(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
-    }
-
-    #[inline(always)] fn f_core<CC: CoreConf>(&self, output_range: usize, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
-        core.core(output_range, num_of_keys, self.slice_len(output_range, bits_per_seed, core.preferred_slice_len()), self.extra_shift(bits_per_seed))
-    }
-
-    #[inline(always)] fn minimal_f_core<CC: CoreConf>(&self, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
-        self.f_core(self.minimal_output_range(num_of_keys), num_of_keys, core, bits_per_seed)
-    }
-
-    #[inline(always)] fn f_core_lf<CC: CoreConf>(&self, num_of_keys: usize, loading_factor_1000: u16, core: &CC, bits_per_seed: u8) -> CC::Core {
-        self.f_core(self.output_range(num_of_keys, loading_factor_1000), num_of_keys, core, bits_per_seed)
-    }
-
     /// Writes `self` to the `output`.
     fn write(&self, _output: &mut dyn io::Write) -> io::Result<()> { Ok(()) }
 
@@ -122,6 +84,24 @@ pub trait SeedChooser: Clone + Sync {
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
     #[inline(always)] fn k(&self) -> u16 { self.core().k() }
+
+    /// Returns slice length suitable to given `output_range`, `bits_per_seed` and `preferred_slice_len`.
+    /// 
+    /// Usually it returns `preferred_slice_len` (if its not `0`; `0` is for chooser-dependent default)
+    /// or lower value for small `output_range`.
+    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        let max_res = match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
+            64..1300 => 64,
+            1300..9500 => 128,
+            9500..12000 => 256,
+            12000..140000 => 512,
+            _ if bits_per_seed < 6 => return if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
+            _ if bits_per_seed < 12 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
+            _ => return if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
+        };
+        if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
+    }
 
     /// Returns output range of minimal (perfect or k-perfect) function for given number of keys.
     #[inline(always)] fn minimal_output_range(&self, num_of_keys: usize) -> usize { self.core().minimal_output_range(num_of_keys) }
@@ -157,23 +137,23 @@ pub trait SeedChooser: Clone + Sync {
     } */
 
     fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
-        self.core().generic_f_core::<P>(output_range, num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
+        GenericCore::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
     }
 
     #[inline(always)] fn minimal_generic_f_core<P: Placement>(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
-        self.core().minimal_generic_f_core::<P>(num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
+        self.generic_f_core(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 
     #[inline(always)] fn f_core<CC: CoreConf>(&self, output_range: usize, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
-        self.core().f_core::<CC>(output_range, num_of_keys, core, bits_per_seed)
+        core.core(output_range, num_of_keys, self.slice_len(output_range, bits_per_seed, core.preferred_slice_len()), self.extra_shift(bits_per_seed))
     }
 
     #[inline(always)] fn minimal_f_core<CC: CoreConf>(&self, num_of_keys: usize, core: &CC, bits_per_seed: u8) -> CC::Core {
-        self.core().minimal_f_core::<CC>(num_of_keys, core, bits_per_seed)
+        self.f_core(self.minimal_output_range(num_of_keys), num_of_keys, core, bits_per_seed)
     }
 
     #[inline(always)] fn f_core_lf<CC: CoreConf>(&self, num_of_keys: usize, loading_factor_1000: u16, core: &CC, bits_per_seed: u8) -> CC::Core {
-        self.core().f_core_lf::<CC>(num_of_keys, loading_factor_1000, core, bits_per_seed)
+        self.f_core(self.output_range(num_of_keys, loading_factor_1000), num_of_keys, core, bits_per_seed)
     }
 
     /// Returns function value for given primary code and seed.
