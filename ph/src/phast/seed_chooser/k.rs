@@ -93,18 +93,64 @@ impl KSeedEvaluatorConf for ProdOfValues {
 
     fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
         #[cfg(not(feature = "W256"))]
-        const VALUES: [(u16, ProdOfValuesKEval); 2] = [
-            (2, ProdOfValuesKEval { value_shift: 0.00486, free_shift: 1.48757, first_weight: 0.13542 }),
+        const VALUES: [(u16, ProdOfValuesKEval); 35] = [
+            (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
+            (3, ProdOfValuesKEval { value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
+            (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
+            (5, ProdOfValuesKEval { value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
+            (6, ProdOfValuesKEval { value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
+            (7, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
+            (8, ProdOfValuesKEval { value_shift: 0.00320, free_shift: 2.91581, first_weight: 0.73696 }), // 0.80%
+            (9, ProdOfValuesKEval { value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // 0.73%
+            (10, ProdOfValuesKEval { value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // 0.67%
+            (11, ProdOfValuesKEval { value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // 0.63%
+            (12, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }), // 0.60%
+            (13, ProdOfValuesKEval { value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }), // 0.57%
+            (14, ProdOfValuesKEval { value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }), // 0.56%
+            (15, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.54152, first_weight: 0.66301 }), // 0.55%
+            (16, ProdOfValuesKEval { value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }), // 0.54%
+            (32, ProdOfValuesKEval { value_shift: 0.00297, free_shift: 4.53498, first_weight: 0.62771 }), // 0.64%
+            (50, ProdOfValuesKEval { value_shift: 0.00269, free_shift: 5.52251, first_weight: 0.60593 }), // 0.76%
+            (64, ProdOfValuesKEval { value_shift: 0.00180, free_shift: 6.20170, first_weight: 0.61391 }), // 0.84%
+            (100, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }), // 0.61%
+            (128, ProdOfValuesKEval { value_shift: 0.00294, free_shift: 6.66377, first_weight: 0.55960 }), // 0.69%
+            (200, ProdOfValuesKEval { value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }), // 0.96%
+            (256, ProdOfValuesKEval { value_shift: 0.00648, free_shift: 10.29860, first_weight: 0.66279 }), // 1.16%
+            (300, ProdOfValuesKEval { value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }), // 1.35%
+            (400, ProdOfValuesKEval { value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }), // 1.78%
+            (500, ProdOfValuesKEval { value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }), // 2.22%
+            (512, ProdOfValuesKEval { value_shift: 0.00523, free_shift: 7.70449, first_weight: 0.28980 }), // 2.27%
+            (750, ProdOfValuesKEval { value_shift: 0.00520, free_shift: 7.10482, first_weight: 0.31508 }), // 3.27%
+            (1000, ProdOfValuesKEval { value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }), // 2.23%
+            (1024, ProdOfValuesKEval { value_shift: 0.00416, free_shift: 6.90059, first_weight: 0.45755 }), // 2.28%
+            (1500, ProdOfValuesKEval { value_shift: 0.00412, free_shift: 6.96199, first_weight: 0.48575 }), // 1.68%
+            (2000, ProdOfValuesKEval { value_shift: 0.00440, free_shift: 7.16988, first_weight: 0.44569 }), // 2.24%
+            (3000, ProdOfValuesKEval { value_shift: 0.00446, free_shift: 7.39262, first_weight: 0.45036 }), // 3.27%
+            (4000, ProdOfValuesKEval { value_shift: 0.00423, free_shift: 7.45927, first_weight: 0.38573 }), // 4.33%
+            (5000, ProdOfValuesKEval { value_shift: 0.60851, free_shift: 25.95862, first_weight: 0.27874 }), // 5.25%
+            (10000, ProdOfValuesKEval { value_shift: 1.30708, free_shift: 189.36282, first_weight: 1.00000 }), // 5.22%
+            
+            //k=2
             //W=512 l=1024 1.00%: value_shift: 0.00496, free_shift: 1.58930, first_weight: 0.10560
             //W=512 l=2048 0.98%: value_shift: 0.00578, free_shift: 1.59036, first_weight: 0.07484
             //W=512 l=4096 0.87%: value_shift: 0.00486, free_shift: 1.48757, first_weight: 0.13542
-            (4, ProdOfValuesKEval { value_shift: 0.00732, free_shift: 1.39791, first_weight: 0.11140 }), // 0.85%
+
+            //k=4
             //W=512 l=1024 1.02%: value_shift: 0.00559, free_shift: 1.85542, first_weight: 0.29544
             //W=512 l=2048 1.17%: value_shift: 0.00536, free_shift: 1.97097, first_weight: 0.28628
             //W=512 l=4096 0.96%: value_shift: 0.00519, free_shift: 1.85147, first_weight: 0.18283
             //W=512 l=8192 0.84%: value_shift: 0.00666, free_shift: 1.47563, first_weight: 0.11891
             //better S=8 weights: 0, 2421, 8111, 97714, 219735, 319358, 377829
             //W=512 l=16384 1.13%: value_shift: 0.00676, free_shift: 1.30552, first_weight: 0.11808
+            
+            //k=8:
+            //W=512 l=8192 1.02%: value_shift: 0.00668, free_shift: 1.69211, first_weight: 0.09757
+            //W=512 l=4096 1.14%: value_shift: 0.00211, free_shift: 2.64806, first_weight: 0.48965
+            
+            //k=16:
+            //W=512 l=4096 0.91%: value_shift: 0.00751, free_shift: 2.03454, first_weight: 0.08760
+            //W=512 l=8192 1.52%  value_shift: 0.00045, free_shift: 2.47722, first_weight: 0.30067
+            //W=512 l=16384 2.62%  value_shift: 0.00043, free_shift: 2.09781, first_weight: 0.34666
         ];
         
         #[cfg(feature = "W256")]
