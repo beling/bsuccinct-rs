@@ -232,21 +232,21 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
 
         /*let key_hash = self.hasher.hash_one(key, 0);
         let seed = unsafe{ self.level0.seed_for(self.seed_size, key_hash) };
-        if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.conf); }*/
+        if seed != 0 { return self.seed_chooser.f(key_hash, seed, &self.level0.core); }*/
         if let Some(result) = self.seed_chooser.try_f(self.seed_size, &self.level0.seeds, self.hasher.hash_one(key, 0), &self.level0.core) {
             return result;
         }
 
         for level_nr in 0..self.bumped_to_index.len() {
             let l = &self.bumped_to_index[level_nr];
-            /*let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
+            let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
             let seed = unsafe { l.seeds.seed_for(self.seed_size, key_hash) };
             if seed != 0 {
-                return self.unassigned.get(self.seed_chooser.f(key_hash, seed, &l.seeds.conf) + l.shift)
-            }*/
-            if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.core) {
-                return self.bumped_index_to_value.get(result + l.shift);
+                return self.bumped_index_to_value.get(self.seed_chooser.f(key_hash, seed, &l.seeds.core) + l.shift)
             }
+            /*if let Some(result) = self.seed_chooser.try_f(self.seed_size, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.core) {
+                return self.bumped_index_to_value.get(result + l.shift);
+            }*/
         }
         unreachable!()
     }

@@ -57,11 +57,9 @@ def get_function_asm(cwd: Path, fn_name: str) -> str:
     return res.stdout
 
 
-def get_all_asm(cwd: Path, filter_pattern: str | None = None) -> str:
+def get_all_asm(cwd: Path) -> str:
+    """Always generates assembly for all functions without filtering."""
     all_functions = list_asmview_functions(cwd)
-    if filter_pattern:
-        all_functions = [f for f in all_functions if filter_pattern in f]
-
     out = []
     for fn in sorted(all_functions):
         out.append(f"=== FUNCTION: {fn} ===")
@@ -69,6 +67,24 @@ def get_all_asm(cwd: Path, filter_pattern: str | None = None) -> str:
         out.append(asm)
         out.append("\n")
     return "\n".join(out)
+
+
+def filter_asm(asm_text: str, filter_pattern: str | None = None) -> str:
+    """Filters assembly blocks by matching function names against filter_pattern."""
+    if not filter_pattern:
+        return asm_text
+
+    blocks = asm_text.split("=== FUNCTION: ")
+    filtered_blocks = []
+    for block in blocks:
+        if not block.strip():
+            continue
+        first_line, _, rest = block.partition(" ===")
+        fn_name = first_line.strip()
+        if filter_pattern in fn_name:
+            filtered_blocks.append(f"=== FUNCTION: {fn_name} ==={rest}")
+
+    return "\n".join(filtered_blocks)
 
 
 def resolve_git_ref(workspace_root: Path, ref: str) -> str:
@@ -81,16 +97,16 @@ def resolve_git_ref(workspace_root: Path, ref: str) -> str:
     return res.stdout.strip()
 
 
-def ensure_git_snapshot(workspace_root: Path, name: str, filter_pattern: str | None = None) -> Path:
+def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool = False) -> tuple[str, Path]:
     """
     If `name` starts with 'git_', resolves the git reference to a commit hash 'git_<commit_hash>',
-    creates the snapshot file via a temporary git worktree if it does not already exist,
-    and returns the Path to the snapshot file.
-    Otherwise, returns the Path to the regular snapshot file in .snapshots/.
+    creates the full snapshot file via a temporary git worktree if it does not already exist,
+    and returns (canonical_name, Path to the snapshot file).
+    Otherwise, returns (name, Path to the regular snapshot file in .snapshots/).
     """
     snapshots_dir = get_snapshots_dir(workspace_root)
     if not name.startswith("git_"):
-        return snapshots_dir / f"{name}.asm"
+        return name, snapshots_dir / f"{name}.asm"
 
     raw_ref = name[len("git_"):]
     commit_hash = resolve_git_ref(workspace_root, raw_ref)
@@ -98,7 +114,9 @@ def ensure_git_snapshot(workspace_root: Path, name: str, filter_pattern: str | N
     target_file = snapshots_dir / f"{canonical_name}.asm"
 
     if target_file.exists():
-        return target_file
+        if print_if_exists:
+            print(f"Snapshot '{canonical_name}' already exists.")
+        return canonical_name, target_file
 
     print(f"Generating snapshot '{canonical_name}' for Git revision '{raw_ref}' ({commit_hash})...")
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -110,13 +128,13 @@ def ensure_git_snapshot(workspace_root: Path, name: str, filter_pattern: str | N
             sys.exit(1)
 
         try:
-            asm_content = get_all_asm(worktree_dir, filter_pattern)
+            asm_content = get_all_asm(worktree_dir)
             target_file.write_text(asm_content)
             print(f"Saved snapshot to: {target_file}")
         finally:
             subprocess.run(["git", "worktree", "remove", "--force", str(worktree_dir)], cwd=workspace_root, capture_output=True)
 
-    return target_file
+    return canonical_name, target_file
 
 
 def cmd_save(args, workspace_root: Path):
@@ -124,33 +142,26 @@ def cmd_save(args, workspace_root: Path):
     name = args.name or "baseline"
 
     if name.startswith("git_"):
-        # For git_<ref>, ensure_git_snapshot will build from git if not existing
-        raw_ref = name[len("git_"):]
-        commit_hash = resolve_git_ref(workspace_root, raw_ref)
-        canonical_name = f"git_{commit_hash}"
-        target_file = snapshots_dir / f"{canonical_name}.asm"
-        if target_file.exists():
-            print(f"Snapshot '{canonical_name}' already exists.")
-            return
-        ensure_git_snapshot(workspace_root, name, args.function)
+        ensure_git_snapshot(workspace_root, name, print_if_exists=True)
     else:
         target_file = snapshots_dir / f"{name}.asm"
         print(f"Building and generating assembly for snapshot '{name}'...")
-        asm_content = get_all_asm(workspace_root, args.function)
+        asm_content = get_all_asm(workspace_root)
         target_file.write_text(asm_content)
         print(f"Saved snapshot to: {target_file}")
 
 
 def cmd_show(args, workspace_root: Path):
     if args.name:
-        snapshot_file = ensure_git_snapshot(workspace_root, args.name, args.function)
+        _, snapshot_file = ensure_git_snapshot(workspace_root, args.name)
         if not snapshot_file.exists():
             print(f"Error: Snapshot '{args.name}' does not exist.", file=sys.stderr)
             sys.exit(1)
-        print(snapshot_file.read_text())
+        asm_content = snapshot_file.read_text()
     else:
-        asm_content = get_all_asm(workspace_root, args.function)
-        print(asm_content)
+        asm_content = get_all_asm(workspace_root)
+
+    print(filter_asm(asm_content, args.function))
 
 
 def cmd_list(args, workspace_root: Path):
@@ -181,7 +192,6 @@ def cmd_rm(args, workspace_root: Path):
             canonical_name = name
         target_file = snapshots_dir / f"{canonical_name}.asm"
         if not target_file.exists():
-            # Exception: if git_<ref> snapshot does not exist, do nothing silently or with note
             print(f"Snapshot '{canonical_name}' does not exist, nothing to remove.")
             return
     else:
@@ -216,8 +226,8 @@ def cmd_diff(args, workspace_root: Path):
 
         if args.target2:
             # Diff between two snapshots (can be regular or git_<ref>)
-            file1 = ensure_git_snapshot(workspace_root, args.target1, args.function)
-            file2 = ensure_git_snapshot(workspace_root, args.target2, args.function)
+            name1, file1 = ensure_git_snapshot(workspace_root, args.target1)
+            name2, file2 = ensure_git_snapshot(workspace_root, args.target2)
 
             if not file1.exists():
                 print(f"Error: Snapshot '{args.target1}' does not exist.", file=sys.stderr)
@@ -226,26 +236,38 @@ def cmd_diff(args, workspace_root: Path):
                 print(f"Error: Snapshot '{args.target2}' does not exist.", file=sys.stderr)
                 sys.exit(1)
 
-            run_diff(file1, file2, f"snapshot '{file1.stem}'", f"snapshot '{file2.stem}'")
+            asm1 = filter_asm(file1.read_text(), args.function)
+            asm2 = filter_asm(file2.read_text(), args.function)
+
+            tmp_file1 = tmp_path / f"{name1}.asm"
+            tmp_file2 = tmp_path / f"{name2}.asm"
+            tmp_file1.write_text(asm1)
+            tmp_file2.write_text(asm2)
+
+            run_diff(tmp_file1, tmp_file2, f"snapshot '{name1}'", f"snapshot '{name2}'")
 
         else:
             # Diff current state vs a snapshot (default: baseline)
             baseline_name = args.target1 or "baseline"
-            baseline_file = ensure_git_snapshot(workspace_root, baseline_name, args.function)
+            canonical_name, baseline_file = ensure_git_snapshot(workspace_root, baseline_name)
 
             if not baseline_file.exists():
                 print(f"Snapshot '{baseline_name}' not found. Generating and saving it now as '{baseline_name}'...")
-                asm = get_all_asm(workspace_root, args.function)
+                asm = get_all_asm(workspace_root)
                 baseline_file.write_text(asm)
                 print(f"Saved snapshot '{baseline_name}'. Modify code and run diff again to see changes.")
                 return
 
+            baseline_asm = filter_asm(baseline_file.read_text(), args.function)
+            tmp_baseline_file = tmp_path / f"{canonical_name}.asm"
+            tmp_baseline_file.write_text(baseline_asm)
+
             current_file = tmp_path / "current.asm"
             print("Generating assembly for CURRENT working directory...")
-            current_asm = get_all_asm(workspace_root, args.function)
+            current_asm = filter_asm(get_all_asm(workspace_root), args.function)
             current_file.write_text(current_asm)
 
-            run_diff(baseline_file, current_file, f"snapshot '{baseline_file.stem}'", "CURRENT")
+            run_diff(tmp_baseline_file, current_file, f"snapshot '{canonical_name}'", "CURRENT")
 
 
 def get_watched_files(workspace_root: Path) -> dict[Path, float]:
@@ -262,23 +284,26 @@ def get_watched_files(workspace_root: Path) -> dict[Path, float]:
 
 def cmd_watch(args, workspace_root: Path):
     baseline_name = args.name or "baseline"
-    baseline_file = ensure_git_snapshot(workspace_root, baseline_name, args.function)
+    canonical_name, baseline_file = ensure_git_snapshot(workspace_root, baseline_name)
 
     if not baseline_file.exists():
         print(f"Baseline '{baseline_name}' not found. Generating and saving initial snapshot...")
-        asm = get_all_asm(workspace_root, args.function)
+        asm = get_all_asm(workspace_root)
         baseline_file.write_text(asm)
         print(f"Saved baseline '{baseline_name}'.")
 
     print(f"\n[Watch Mode] Watching for changes in Rust source files (*.rs)...")
-    print(f"Comparing against baseline: '{baseline_file.stem}'")
+    print(f"Comparing against baseline: '{canonical_name}'")
+    if args.function:
+        print(f"Filtering function: '{args.function}'")
     print("Press Ctrl+C to exit.\n")
 
     last_files = get_watched_files(workspace_root)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        current_file = tmp_path / "current.asm"
+        tmp_baseline_file = tmp_path / f"{canonical_name}.asm"
+        tmp_current_file = tmp_path / "current.asm"
 
         try:
             while True:
@@ -289,9 +314,16 @@ def cmd_watch(args, workspace_root: Path):
                 if changed:
                     last_files = current_files
                     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {', '.join(p.name for p in changed[:3])}...")
-                    current_asm = get_all_asm(workspace_root, args.function)
-                    current_file.write_text(current_asm)
-                    run_diff(baseline_file, current_file, f"snapshot '{baseline_file.stem}'", "CURRENT")
+                    
+                    # Refresh baseline content (with filter)
+                    baseline_asm = filter_asm(baseline_file.read_text(), args.function)
+                    tmp_baseline_file.write_text(baseline_asm)
+
+                    # Get and filter current assembly
+                    current_asm = filter_asm(get_all_asm(workspace_root), args.function)
+                    tmp_current_file.write_text(current_asm)
+                    
+                    run_diff(tmp_baseline_file, tmp_current_file, f"snapshot '{canonical_name}'", "CURRENT")
         except KeyboardInterrupt:
             print("\nStopped watch mode.")
 
@@ -305,7 +337,6 @@ def main():
     # save
     p_save = subparsers.add_parser("save", help="Save current assembly state (or Git revision) as a snapshot (default: baseline)")
     p_save.add_argument("name", nargs="?", default="baseline", help="Snapshot name, e.g. 'baseline', 'exp1', or 'git_<ref>' (e.g. 'git_main', 'git_HEAD~1')")
-    p_save.add_argument("-f", "--function", help="Filter by function name")
 
     # diff
     p_diff = subparsers.add_parser("diff", help="Compare current assembly with a snapshot, or two snapshots")
