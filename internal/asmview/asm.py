@@ -2,7 +2,7 @@
 """
 Local assembly snapshot management and diff tool for `asmview`.
 Allows saving snapshots, comparing current/named versions, showing assembly,
-and watching for live changes during iterative optimization.
+watching for live changes, and fetching/caching snapshots from Git revisions (git_<ref>).
 """
 
 import argparse
@@ -71,20 +71,86 @@ def get_all_asm(cwd: Path, filter_pattern: str | None = None) -> str:
     return "\n".join(out)
 
 
+def resolve_git_ref(workspace_root: Path, ref: str) -> str:
+    """Resolve a git reference (branch, tag, relative ref like HEAD~1) to a short commit hash."""
+    cmd = ["git", "rev-parse", "--short=10", "--verify", ref]
+    res = subprocess.run(cmd, cwd=workspace_root, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Error: Git revision '{ref}' not found:\n{res.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    return res.stdout.strip()
+
+
+def ensure_git_snapshot(workspace_root: Path, name: str, filter_pattern: str | None = None) -> Path:
+    """
+    If `name` starts with 'git_', resolves the git reference to a commit hash 'git_<commit_hash>',
+    creates the snapshot file via a temporary git worktree if it does not already exist,
+    and returns the Path to the snapshot file.
+    Otherwise, returns the Path to the regular snapshot file in .snapshots/.
+    """
+    snapshots_dir = get_snapshots_dir(workspace_root)
+    if not name.startswith("git_"):
+        return snapshots_dir / f"{name}.asm"
+
+    raw_ref = name[len("git_"):]
+    commit_hash = resolve_git_ref(workspace_root, raw_ref)
+    canonical_name = f"git_{commit_hash}"
+    target_file = snapshots_dir / f"{canonical_name}.asm"
+
+    if target_file.exists():
+        return target_file
+
+    print(f"Generating snapshot '{canonical_name}' for Git revision '{raw_ref}' ({commit_hash})...")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        worktree_dir = Path(tmp_dir) / "wt"
+        cmd_worktree = ["git", "worktree", "add", "--detach", str(worktree_dir), commit_hash]
+        res_wt = subprocess.run(cmd_worktree, cwd=workspace_root, capture_output=True, text=True)
+        if res_wt.returncode != 0:
+            print(f"Error creating git worktree for revision '{commit_hash}':\n{res_wt.stderr}", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            asm_content = get_all_asm(worktree_dir, filter_pattern)
+            target_file.write_text(asm_content)
+            print(f"Saved snapshot to: {target_file}")
+        finally:
+            subprocess.run(["git", "worktree", "remove", "--force", str(worktree_dir)], cwd=workspace_root, capture_output=True)
+
+    return target_file
+
+
 def cmd_save(args, workspace_root: Path):
     snapshots_dir = get_snapshots_dir(workspace_root)
     name = args.name or "baseline"
-    target_file = snapshots_dir / f"{name}.asm"
 
-    print(f"Building and generating assembly for snapshot '{name}'...")
-    asm_content = get_all_asm(workspace_root, args.function)
-    target_file.write_text(asm_content)
-    print(f"Saved snapshot to: {target_file}")
+    if name.startswith("git_"):
+        # For git_<ref>, ensure_git_snapshot will build from git if not existing
+        raw_ref = name[len("git_"):]
+        commit_hash = resolve_git_ref(workspace_root, raw_ref)
+        canonical_name = f"git_{commit_hash}"
+        target_file = snapshots_dir / f"{canonical_name}.asm"
+        if target_file.exists():
+            print(f"Snapshot '{canonical_name}' already exists.")
+            return
+        ensure_git_snapshot(workspace_root, name, args.function)
+    else:
+        target_file = snapshots_dir / f"{name}.asm"
+        print(f"Building and generating assembly for snapshot '{name}'...")
+        asm_content = get_all_asm(workspace_root, args.function)
+        target_file.write_text(asm_content)
+        print(f"Saved snapshot to: {target_file}")
 
 
 def cmd_show(args, workspace_root: Path):
-    asm_content = get_all_asm(workspace_root, args.function)
-    print(asm_content)
+    if args.name:
+        snapshot_file = ensure_git_snapshot(workspace_root, args.name, args.function)
+        if not snapshot_file.exists():
+            print(f"Error: Snapshot '{args.name}' does not exist.", file=sys.stderr)
+            sys.exit(1)
+        print(snapshot_file.read_text())
+    else:
+        asm_content = get_all_asm(workspace_root, args.function)
+        print(asm_content)
 
 
 def cmd_list(args, workspace_root: Path):
@@ -99,19 +165,33 @@ def cmd_list(args, workspace_root: Path):
     for s in snapshots:
         mtime = datetime.fromtimestamp(s.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
         size = s.stat().st_size
-        print(f"  - {s.stem:<20} ({size:>6} bytes, modified: {mtime})")
+        print(f"  - {s.stem:<25} ({size:>6} bytes, modified: {mtime})")
 
 
 def cmd_rm(args, workspace_root: Path):
     snapshots_dir = get_snapshots_dir(workspace_root)
-    target_file = snapshots_dir / f"{args.name}.asm"
+    name = args.name
 
-    if not target_file.exists():
-        print(f"Error: Snapshot '{args.name}' does not exist.", file=sys.stderr)
-        sys.exit(1)
+    if name.startswith("git_"):
+        raw_ref = name[len("git_"):]
+        try:
+            commit_hash = resolve_git_ref(workspace_root, raw_ref)
+            canonical_name = f"git_{commit_hash}"
+        except SystemExit:
+            canonical_name = name
+        target_file = snapshots_dir / f"{canonical_name}.asm"
+        if not target_file.exists():
+            # Exception: if git_<ref> snapshot does not exist, do nothing silently or with note
+            print(f"Snapshot '{canonical_name}' does not exist, nothing to remove.")
+            return
+    else:
+        target_file = snapshots_dir / f"{name}.asm"
+        if not target_file.exists():
+            print(f"Error: Snapshot '{name}' does not exist.", file=sys.stderr)
+            sys.exit(1)
 
     target_file.unlink()
-    print(f"Deleted snapshot '{args.name}'.")
+    print(f"Deleted snapshot '{target_file.stem}'.")
 
 
 def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: str):
@@ -135,9 +215,9 @@ def cmd_diff(args, workspace_root: Path):
         tmp_path = Path(tmp_dir)
 
         if args.target2:
-            # Diff between two existing snapshots
-            file1 = snapshots_dir / f"{args.target1}.asm"
-            file2 = snapshots_dir / f"{args.target2}.asm"
+            # Diff between two snapshots (can be regular or git_<ref>)
+            file1 = ensure_git_snapshot(workspace_root, args.target1, args.function)
+            file2 = ensure_git_snapshot(workspace_root, args.target2, args.function)
 
             if not file1.exists():
                 print(f"Error: Snapshot '{args.target1}' does not exist.", file=sys.stderr)
@@ -146,12 +226,12 @@ def cmd_diff(args, workspace_root: Path):
                 print(f"Error: Snapshot '{args.target2}' does not exist.", file=sys.stderr)
                 sys.exit(1)
 
-            run_diff(file1, file2, f"snapshot '{args.target1}'", f"snapshot '{args.target2}'")
+            run_diff(file1, file2, f"snapshot '{file1.stem}'", f"snapshot '{file2.stem}'")
 
         else:
             # Diff current state vs a snapshot (default: baseline)
             baseline_name = args.target1 or "baseline"
-            baseline_file = snapshots_dir / f"{baseline_name}.asm"
+            baseline_file = ensure_git_snapshot(workspace_root, baseline_name, args.function)
 
             if not baseline_file.exists():
                 print(f"Snapshot '{baseline_name}' not found. Generating and saving it now as '{baseline_name}'...")
@@ -165,13 +245,13 @@ def cmd_diff(args, workspace_root: Path):
             current_asm = get_all_asm(workspace_root, args.function)
             current_file.write_text(current_asm)
 
-            run_diff(baseline_file, current_file, f"snapshot '{baseline_name}'", "CURRENT")
+            run_diff(baseline_file, current_file, f"snapshot '{baseline_file.stem}'", "CURRENT")
 
 
 def get_watched_files(workspace_root: Path) -> dict[Path, float]:
     files = {}
     for p in workspace_root.rglob("*.rs"):
-        if "target" in p.parts:
+        if "target" in p.parts or ".snapshots" in p.parts:
             continue
         try:
             files[p] = p.stat().st_mtime
@@ -181,9 +261,8 @@ def get_watched_files(workspace_root: Path) -> dict[Path, float]:
 
 
 def cmd_watch(args, workspace_root: Path):
-    snapshots_dir = get_snapshots_dir(workspace_root)
     baseline_name = args.name or "baseline"
-    baseline_file = snapshots_dir / f"{baseline_name}.asm"
+    baseline_file = ensure_git_snapshot(workspace_root, baseline_name, args.function)
 
     if not baseline_file.exists():
         print(f"Baseline '{baseline_name}' not found. Generating and saving initial snapshot...")
@@ -192,7 +271,7 @@ def cmd_watch(args, workspace_root: Path):
         print(f"Saved baseline '{baseline_name}'.")
 
     print(f"\n[Watch Mode] Watching for changes in Rust source files (*.rs)...")
-    print(f"Comparing against baseline: '{baseline_name}'")
+    print(f"Comparing against baseline: '{baseline_file.stem}'")
     print("Press Ctrl+C to exit.\n")
 
     last_files = get_watched_files(workspace_root)
@@ -212,7 +291,7 @@ def cmd_watch(args, workspace_root: Path):
                     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {', '.join(p.name for p in changed[:3])}...")
                     current_asm = get_all_asm(workspace_root, args.function)
                     current_file.write_text(current_asm)
-                    run_diff(baseline_file, current_file, f"snapshot '{baseline_name}'", "CURRENT")
+                    run_diff(baseline_file, current_file, f"snapshot '{baseline_file.stem}'", "CURRENT")
         except KeyboardInterrupt:
             print("\nStopped watch mode.")
 
@@ -224,18 +303,19 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # save
-    p_save = subparsers.add_parser("save", help="Save current assembly state as a snapshot (default: baseline)")
-    p_save.add_argument("name", nargs="?", default="baseline", help="Snapshot name (default: baseline)")
+    p_save = subparsers.add_parser("save", help="Save current assembly state (or Git revision) as a snapshot (default: baseline)")
+    p_save.add_argument("name", nargs="?", default="baseline", help="Snapshot name, e.g. 'baseline', 'exp1', or 'git_<ref>' (e.g. 'git_main', 'git_HEAD~1')")
     p_save.add_argument("-f", "--function", help="Filter by function name")
 
     # diff
     p_diff = subparsers.add_parser("diff", help="Compare current assembly with a snapshot, or two snapshots")
-    p_diff.add_argument("target1", nargs="?", default="baseline", help="Snapshot name to compare against, or left snapshot")
+    p_diff.add_argument("target1", nargs="?", default="baseline", help="Snapshot name or git revision (e.g. 'baseline', 'git_main'), or left snapshot")
     p_diff.add_argument("target2", nargs="?", default=None, help="Optional right snapshot name (if comparing two snapshots)")
     p_diff.add_argument("-f", "--function", help="Filter by function name")
 
     # show
-    p_show = subparsers.add_parser("show", help="Show generated assembly for current code")
+    p_show = subparsers.add_parser("show", help="Show generated assembly for current code or a snapshot")
+    p_show.add_argument("name", nargs="?", default=None, help="Optional snapshot name or git revision (e.g. 'git_main')")
     p_show.add_argument("-f", "--function", help="Filter by function name")
 
     # list
@@ -243,11 +323,11 @@ def main():
 
     # rm
     p_rm = subparsers.add_parser("rm", help="Delete a snapshot")
-    p_rm.add_argument("name", help="Name of snapshot to delete")
+    p_rm.add_argument("name", help="Name of snapshot to delete (e.g. 'baseline' or 'git_<ref>')")
 
     # watch
     p_watch = subparsers.add_parser("watch", help="Watch for source file changes and run diff automatically")
-    p_watch.add_argument("name", nargs="?", default="baseline", help="Baseline snapshot name (default: baseline)")
+    p_watch.add_argument("name", nargs="?", default="baseline", help="Baseline snapshot name or git ref (default: baseline)")
     p_watch.add_argument("-f", "--function", help="Filter by function name")
 
     args = parser.parse_args()

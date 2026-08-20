@@ -13,5 +13,5 @@ path = "src/lib.rs"
 
 [dependencies]
 ph = { version = ">=0.10", path = "../../ph" }
-seedable_hash = { version = "0.2", path = "../../seedable_hash", default-features = false }
+seedable_hash = { version = "0.2", path = "../../seedable_hash" }
 bitm = { version = "0.5", path = "../../bitm" }
