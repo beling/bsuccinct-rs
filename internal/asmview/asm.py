@@ -120,6 +120,21 @@ def resolve_git_ref(workspace_root: Path, ref: str) -> str:
     return res.stdout.strip()
 
 
+def get_snapshot_file(workspace_root: Path, name: str) -> tuple[str, Path]:
+    """
+    Resolves the canonical name and path to .snapshots/<name>.asm without creating it.
+    """
+    snapshots_dir = get_snapshots_dir(workspace_root)
+    if name.startswith("git_"):
+        raw_ref = name[len("git_"):]
+        try:
+            commit_hash = resolve_git_ref(workspace_root, raw_ref)
+            name = f"git_{commit_hash}"
+        except SystemExit:
+            pass
+    return name, snapshots_dir / f"{name}.asm"
+
+
 def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool = False) -> tuple[str, Path]:
     """
     If `name` starts with 'git_', resolves the git reference to a commit hash 'git_<commit_hash>',
@@ -160,6 +175,21 @@ def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool =
     return canonical_name, target_file
 
 
+def get_target_asm(workspace_root: Path, target_name: str) -> tuple[str, str]:
+    """
+    Retrieves the assembly content for a given target name ("CURRENT", a snapshot, or "git_<ref>").
+    Returns (label_name, asm_content). Exits if snapshot does not exist.
+    """
+    if target_name == "CURRENT":
+        return "current", get_all_asm(workspace_root)
+
+    side_name, target_file = ensure_git_snapshot(workspace_root, target_name)
+    if not target_file.exists():
+        print(f"Error: Snapshot '{target_name}' does not exist.", file=sys.stderr)
+        sys.exit(1)
+    return side_name, target_file.read_text()
+
+
 def cmd_save(args, workspace_root: Path):
     snapshots_dir = get_snapshots_dir(workspace_root)
     name = args.name or "baseline"
@@ -175,17 +205,8 @@ def cmd_save(args, workspace_root: Path):
 
 
 def cmd_show(args, workspace_root: Path):
-    target, filter_pat = parse_target_filter(args.target, default_target="")
-
-    if target:
-        _, snapshot_file = ensure_git_snapshot(workspace_root, target)
-        if not snapshot_file.exists():
-            print(f"Error: Snapshot '{target}' does not exist.", file=sys.stderr)
-            sys.exit(1)
-        asm_content = snapshot_file.read_text()
-    else:
-        asm_content = get_all_asm(workspace_root)
-
+    target, filter_pat = parse_target_filter(args.target, default_target="CURRENT")
+    _, asm_content = get_target_asm(workspace_root, target)
     print(filter_asm(asm_content, filter_pat))
 
 
@@ -205,22 +226,13 @@ def cmd_list(args, workspace_root: Path):
 
 
 def cmd_rm(args, workspace_root: Path):
-    snapshots_dir = get_snapshots_dir(workspace_root)
-    name = args.name
-
-    if name.startswith("git_"):
-        raw_ref = name[len("git_"):]
-        try:
-            commit_hash = resolve_git_ref(workspace_root, raw_ref)
-            name = f"git_{commit_hash}"
-        except SystemExit: pass
-    target_file = snapshots_dir / f"{name}.asm"
+    name, target_file = get_snapshot_file(workspace_root, args.name)
     if not target_file.exists():
         print(f"Snapshot '{name}' does not exist, nothing to remove.")
         return
 
     target_file.unlink()
-    print(f"Deleted snapshot '{target_file.stem}'.")
+    print(f"Deleted snapshot '{name}'.")
 
 
 def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: str):
@@ -241,10 +253,9 @@ def cmd_diff(args, workspace_root: Path):
     snapshots_dir = get_snapshots_dir(workspace_root)
 
     # Parse positional arguments:
-    # args.targets can have 0, 1, 2, or 3 items:
     # 0 items: [] -> baseline vs CURRENT (no filter)
-    # 1 item: [":fn"] -> baseline:fn vs CURRENT:fn
-    #         ["snap:fn"] -> snap:fn vs CURRENT:fn (if snap is present without colon, snap vs CURRENT)
+    # 1 item:  [":fn"] -> baseline:fn vs CURRENT:fn
+    #          ["snap:fn"] -> snap:fn vs CURRENT:fn
     # 2 items: [":fn1", ":fn2"] -> CURRENT:fn1 vs CURRENT:fn2
     #          ["snap1", "snap2"] -> snap1 vs snap2
     #          ["snap1:fn1", "snap2:fn2"] -> snap1:fn1 vs snap2:fn2
@@ -253,16 +264,13 @@ def cmd_diff(args, workspace_root: Path):
     targets = args.targets or []
     global_filter = None
 
-    # Check if last item is a pure global filter like ":fn"
     if len(targets) == 3:
         target1_spec, target2_spec, filter_spec = targets
         _, global_filter = parse_target_filter(filter_spec, default_target="")
     elif len(targets) == 2:
         if targets[0].startswith(":") and targets[1].startswith(":"):
-            # Compare two functions in CURRENT
             target1_spec, target2_spec = targets[0], targets[1]
         elif not targets[0].startswith(":") and targets[1].startswith(":"):
-            # Format: snap :filter -> compare snap:filter vs CURRENT:filter
             target1_spec = targets[0]
             target2_spec = None
             _, global_filter = parse_target_filter(targets[1], default_target="")
@@ -280,7 +288,6 @@ def cmd_diff(args, workspace_root: Path):
 
         if target2_spec is not None:
             # Diff between two explicit sides
-            # Default target for :fn is CURRENT
             target1_name, filter1 = parse_target_filter(target1_spec, default_target="CURRENT")
             target2_name, filter2 = parse_target_filter(target2_spec, default_target="CURRENT")
 
@@ -288,27 +295,8 @@ def cmd_diff(args, workspace_root: Path):
                 filter1 = filter1 or global_filter
                 filter2 = filter2 or global_filter
 
-            # Resolve side 1
-            if target1_name == "CURRENT":
-                side1_name = "current"
-                side1_asm = get_all_asm(workspace_root)
-            else:
-                side1_name, file1 = ensure_git_snapshot(workspace_root, target1_name)
-                if not file1.exists():
-                    print(f"Error: Snapshot '{target1_name}' does not exist.", file=sys.stderr)
-                    sys.exit(1)
-                side1_asm = file1.read_text()
-
-            # Resolve side 2
-            if target2_name == "CURRENT":
-                side2_name = "current"
-                side2_asm = get_all_asm(workspace_root)
-            else:
-                side2_name, file2 = ensure_git_snapshot(workspace_root, target2_name)
-                if not file2.exists():
-                    print(f"Error: Snapshot '{target2_name}' does not exist.", file=sys.stderr)
-                    sys.exit(1)
-                side2_asm = file2.read_text()
+            side1_name, side1_asm = get_target_asm(workspace_root, target1_name)
+            side2_name, side2_asm = get_target_asm(workspace_root, target2_name)
 
             asm1 = filter_asm(side1_asm, filter1)
             asm2 = filter_asm(side2_asm, filter2)
