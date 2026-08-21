@@ -422,21 +422,16 @@ def main():
     args = parser.parse_args()
     workspace_root = get_workspace_root()
 
-    if not args.command or args.command == "diff":
-        if not args.command:
-            args.targets = []
-            args.tool = None
+    if not args.command:
+        args.targets = []
+        args.tool = None
         cmd_diff(args, workspace_root)
-    elif args.command == "save":
-        cmd_save(args, workspace_root)
-    elif args.command == "show":
-        cmd_show(args, workspace_root)
-    elif args.command == "list":
-        cmd_list(args, workspace_root)
-    elif args.command == "rm":
-        cmd_rm(args, workspace_root)
-    elif args.command == "watch":
-        cmd_watch(args, workspace_root)
+    elif args.command == "diff": cmd_diff(args, workspace_root)
+    elif args.command == "save": cmd_save(args, workspace_root)
+    elif args.command == "show": cmd_show(args, workspace_root)
+    elif args.command == "list": cmd_list(args, workspace_root)
+    elif args.command == "rm": cmd_rm(args, workspace_root)
+    elif args.command == "watch": cmd_watch(args, workspace_root)
 
 
 if __name__ == "__main__":
