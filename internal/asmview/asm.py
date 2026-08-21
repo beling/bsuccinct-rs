@@ -7,7 +7,6 @@ Supports target:filter syntax (e.g. baseline:fn, :fn, git_main:fn).
 """
 
 import argparse
-import os
 import re
 import shlex
 import subprocess
@@ -36,7 +35,8 @@ def list_asmview_functions(cwd: Path) -> list[str]:
 
     functions = []
     pattern = re.compile(r'^\d+\s+"([^"]+)"')
-    for line in res.stderr.splitlines():
+    combined_output = (res.stdout or "") + "\n" + (res.stderr or "")
+    for line in combined_output.splitlines():
         match = pattern.search(line.strip())
         if match:
             functions.append(match.group(1))
@@ -47,7 +47,7 @@ def list_asmview_functions(cwd: Path) -> list[str]:
             fn_pattern = re.compile(r'pub\s+extern\s+"C"\s+fn\s+([a-zA-Z0-9_]+)')
             functions = fn_pattern.findall(lib_rs.read_text())
 
-    return functions
+    return sorted(set(functions))
 
 
 def get_function_asm(cwd: Path, fn_name: str) -> str:
@@ -63,7 +63,7 @@ def get_all_asm(cwd: Path) -> str:
     """Always generates assembly for all functions without filtering."""
     all_functions = list_asmview_functions(cwd)
     out = []
-    for fn in sorted(all_functions):
+    for fn in all_functions:
         out.append(f"=== FUNCTION: {fn} ===")
         asm = get_function_asm(cwd, fn)
         out.append(asm)
@@ -71,7 +71,7 @@ def get_all_asm(cwd: Path) -> str:
     return "\n".join(out)
 
 
-def filter_asm(asm_text: str, filter_pattern: str | None = None) -> str:
+def filter_asm(asm_text: str, filter_pattern: str | None = None, target_label: str = "") -> str:
     """Filters assembly blocks by matching function names against filter_pattern."""
     if not filter_pattern:
         return asm_text
@@ -85,6 +85,10 @@ def filter_asm(asm_text: str, filter_pattern: str | None = None) -> str:
         fn_name = first_line.strip()
         if filter_pattern in fn_name:
             filtered_blocks.append(f"=== FUNCTION: {fn_name} ==={rest}")
+
+    if not filtered_blocks and asm_text.strip():
+        label = f" in '{target_label}'" if target_label else ""
+        print(f"Warning: No functions matching filter '{filter_pattern}' found{label}.", file=sys.stderr)
 
     return "\n".join(filtered_blocks)
 
@@ -176,16 +180,22 @@ def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool =
     return canonical_name, target_file
 
 
-def get_target_asm(workspace_root: Path, target_name: str) -> tuple[str, str]:
+def get_target_asm(workspace_root: Path, target_name: str, auto_create_baseline: bool = False) -> tuple[str, str]:
     """
     Retrieves the assembly content for a given target name ("CURRENT", a snapshot, or "git_<ref>").
-    Returns (label_name, asm_content). Exits if snapshot does not exist.
+    Returns (label_name, asm_content). Exits if snapshot does not exist (unless auto_create_baseline is True for 'baseline').
     """
     if target_name == "CURRENT":
         return "current", get_all_asm(workspace_root)
 
     side_name, target_file = ensure_git_snapshot(workspace_root, target_name)
     if not target_file.exists():
+        if auto_create_baseline and target_name == "baseline":
+            print(f"Baseline snapshot '{baseline_name}' not found. Generating and saving initial snapshot...")
+            asm = get_all_asm(workspace_root)
+            target_file.write_text(asm)
+            print(f"Saved snapshot 'baseline'.")
+            return side_name, asm
         print(f"Error: Snapshot '{target_name}' does not exist.", file=sys.stderr)
         sys.exit(1)
     return side_name, target_file.read_text()
@@ -207,12 +217,12 @@ def cmd_save(args, workspace_root: Path):
 
 def cmd_show(args, workspace_root: Path):
     target, filter_pat = parse_target_filter(args.target, default_target="CURRENT")
-    _, asm_content = get_target_asm(workspace_root, target)
-    print(filter_asm(asm_content, filter_pat))
+    side_name, asm_content = get_target_asm(workspace_root, target)
+    print(filter_asm(asm_content, filter_pat, side_name))
 
 
 def cmd_list(args, workspace_root: Path):
-    functions = sorted(list_asmview_functions(workspace_root))
+    functions = list_asmview_functions(workspace_root)
     if functions:
         print(f"Available functions in asmview ({len(functions)}):")
         for fn in functions:
@@ -264,8 +274,6 @@ def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: st
 
 
 def cmd_diff(args, workspace_root: Path):
-    snapshots_dir = get_snapshots_dir(workspace_root)
-
     # Parse positional arguments:
     # 0 items: [] -> baseline vs CURRENT (no filter)
     # 1 item:  [":fn"] -> baseline:fn vs CURRENT:fn
@@ -286,74 +294,46 @@ def cmd_diff(args, workspace_root: Path):
             target1_spec, target2_spec = targets[0], targets[1]
         elif not targets[0].startswith(":") and targets[1].startswith(":"):
             target1_spec = targets[0]
-            target2_spec = None
+            target2_spec = "CURRENT"
             _, global_filter = parse_target_filter(targets[1], default_target="")
         else:
             target1_spec, target2_spec = targets[0], targets[1]
     elif len(targets) == 1:
         target1_spec = targets[0]
-        target2_spec = None
+        target2_spec = "CURRENT"
     else:
-        target1_spec = None
-        target2_spec = None
+        target1_spec = "baseline"
+        target2_spec = "CURRENT"
+
+    target1_name, filter1 = parse_target_filter(target1_spec, default_target="baseline" if target2_spec == "CURRENT" else "CURRENT")
+    target2_name, filter2 = parse_target_filter(target2_spec, default_target="CURRENT")
+
+    if global_filter:
+        filter1 = filter1 or global_filter
+        filter2 = filter2 or global_filter
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
 
-        if target2_spec is not None:
-            # Diff between two explicit sides
-            target1_name, filter1 = parse_target_filter(target1_spec, default_target="CURRENT")
-            target2_name, filter2 = parse_target_filter(target2_spec, default_target="CURRENT")
+        # Allow auto-creation only if left side is default 'baseline' and right side is 'CURRENT'
+        auto_baseline = (target1_name == "baseline" and target2_name == "CURRENT")
+        side1_name, side1_asm = get_target_asm(workspace_root, target1_name, auto_create_baseline=auto_baseline)
+        side2_name, side2_asm = get_target_asm(workspace_root, target2_name)
 
-            if global_filter:
-                filter1 = filter1 or global_filter
-                filter2 = filter2 or global_filter
+        asm1 = filter_asm(side1_asm, filter1, side1_name)
+        asm2 = filter_asm(side2_asm, filter2, side2_name)
 
-            side1_name, side1_asm = get_target_asm(workspace_root, target1_name)
-            side2_name, side2_asm = get_target_asm(workspace_root, target2_name)
+        fn1_tag = f".{filter1}" if filter1 else ""
+        fn2_tag = f".{filter2}" if filter2 else ""
 
-            asm1 = filter_asm(side1_asm, filter1)
-            asm2 = filter_asm(side2_asm, filter2)
+        tmp_file1 = tmp_path / f"{side1_name}{fn1_tag}.asm"
+        tmp_file2 = tmp_path / f"{side2_name}{fn2_tag}.asm"
+        tmp_file1.write_text(asm1)
+        tmp_file2.write_text(asm2)
 
-            fn1_tag = f".{filter1}" if filter1 else ""
-            fn2_tag = f".{filter2}" if filter2 else ""
-
-            tmp_file1 = tmp_path / f"{side1_name}{fn1_tag}.asm"
-            tmp_file2 = tmp_path / f"{side2_name}{fn2_tag}.asm"
-            tmp_file1.write_text(asm1)
-            tmp_file2.write_text(asm2)
-
-            label1 = f"'{side1_name}{fn1_tag}'"
-            label2 = f"'{side2_name}{fn2_tag}'"
-            run_diff(tmp_file1, tmp_file2, label1, label2, tool=args.tool)
-
-        else:
-            # Diff snapshot vs CURRENT
-            baseline_name, filter1 = parse_target_filter(target1_spec, default_target="baseline")
-            if global_filter:
-                filter1 = filter1 or global_filter
-
-            canonical_name, baseline_file = ensure_git_snapshot(workspace_root, baseline_name)
-
-            if not baseline_file.exists():
-                print(f"Snapshot '{baseline_name}' not found. Generating and saving it now as '{baseline_name}'...")
-                asm = get_all_asm(workspace_root)
-                baseline_file.write_text(asm)
-                print(f"Saved snapshot '{baseline_name}'. Modify code and run diff again to see changes.")
-                return
-
-            baseline_asm = filter_asm(baseline_file.read_text(), filter1)
-            fn_tag = f".{filter1}" if filter1 else ""
-
-            tmp_baseline_file = tmp_path / f"{canonical_name}{fn_tag}.asm"
-            tmp_baseline_file.write_text(baseline_asm)
-
-            current_file = tmp_path / f"current{fn_tag}.asm"
-            print("Generating assembly for CURRENT working directory...")
-            current_asm = filter_asm(get_all_asm(workspace_root), filter1)
-            current_file.write_text(current_asm)
-
-            run_diff(tmp_baseline_file, current_file, f"snapshot '{canonical_name}{fn_tag}'", f"CURRENT{fn_tag}", tool=args.tool)
+        label1 = f"'{side1_name}{fn1_tag}'"
+        label2 = f"'{side2_name}{fn2_tag}'"
+        run_diff(tmp_file1, tmp_file2, label1, label2, tool=args.tool)
 
 
 def get_watched_files(workspace_root: Path) -> dict[Path, float]:
@@ -370,13 +350,7 @@ def get_watched_files(workspace_root: Path) -> dict[Path, float]:
 
 def cmd_watch(args, workspace_root: Path):
     baseline_name, filter_pat = parse_target_filter(args.target, default_target="baseline")
-    canonical_name, baseline_file = ensure_git_snapshot(workspace_root, baseline_name)
-
-    if not baseline_file.exists():
-        print(f"Baseline '{baseline_name}' not found. Generating and saving initial snapshot...")
-        asm = get_all_asm(workspace_root)
-        baseline_file.write_text(asm)
-        print(f"Saved baseline '{baseline_name}'.")
+    canonical_name, baseline_asm_full = get_target_asm(workspace_root, baseline_name, auto_create_baseline=True)
 
     fn_tag = f".{filter_pat}" if filter_pat else ""
     print(f"\n[Watch Mode] Watching for changes in Rust source files (*.rs)...")
@@ -403,11 +377,11 @@ def cmd_watch(args, workspace_root: Path):
                     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {', '.join(p.name for p in changed[:3])}...")
 
                     # Refresh baseline content (with filter)
-                    baseline_asm = filter_asm(baseline_file.read_text(), filter_pat)
+                    baseline_asm = filter_asm(baseline_asm_full, filter_pat, canonical_name)
                     tmp_baseline_file.write_text(baseline_asm)
 
                     # Get and filter current assembly
-                    current_asm = filter_asm(get_all_asm(workspace_root), filter_pat)
+                    current_asm = filter_asm(get_all_asm(workspace_root), filter_pat, "current")
                     tmp_current_file.write_text(current_asm)
 
                     run_diff(tmp_baseline_file, tmp_current_file, f"snapshot '{canonical_name}{fn_tag}'", f"CURRENT{fn_tag}")
