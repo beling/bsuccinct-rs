@@ -409,7 +409,7 @@ def main():
     p_show.add_argument("target", nargs="?", default=None, help="Optional snapshot and/or function filter, e.g. ':fn', 'baseline', 'git_main:fn'")
 
     # list
-    subparsers.add_parser("list", help="List all saved snapshots")
+    subparsers.add_parser("list", help="List available functions and all saved snapshots")
 
     # rm
     p_rm = subparsers.add_parser("rm", help="Delete a snapshot")
