@@ -9,6 +9,7 @@ Supports target:filter syntax (e.g. baseline:fn, :fn, git_main:fn).
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -242,18 +243,24 @@ def cmd_rm(args, workspace_root: Path):
     print(f"Deleted snapshot '{name}'.")
 
 
-def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: str):
+def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: str, tool: str | None = None):
     print("\n" + "=" * 80)
     print(f"DIFF: {left_label} (left) vs {right_label} (right)")
     print("=" * 80 + "\n")
 
-    cmd = ["git", "diff", "--no-index", "--color=always", str(left_file), str(right_file)]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-
-    if res.returncode == 0:
-        print("No assembly differences found!")
+    if tool:
+        tool_cmd = shlex.split(tool) + [str(left_file), str(right_file)]
+        res = subprocess.run(tool_cmd)
+        if res.returncode == 0:
+            print("Diff tool finished.")
     else:
-        print(res.stdout)
+        cmd = ["git", "diff", "--no-index", "--color=always", str(left_file), str(right_file)]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+
+        if res.returncode == 0:
+            print("No assembly differences found!")
+        else:
+            print(res.stdout)
 
 
 def cmd_diff(args, workspace_root: Path):
@@ -318,7 +325,7 @@ def cmd_diff(args, workspace_root: Path):
 
             label1 = f"'{side1_name}{fn1_tag}'"
             label2 = f"'{side2_name}{fn2_tag}'"
-            run_diff(tmp_file1, tmp_file2, label1, label2)
+            run_diff(tmp_file1, tmp_file2, label1, label2, tool=args.tool)
 
         else:
             # Diff snapshot vs CURRENT
@@ -346,7 +353,7 @@ def cmd_diff(args, workspace_root: Path):
             current_asm = filter_asm(get_all_asm(workspace_root), filter1)
             current_file.write_text(current_asm)
 
-            run_diff(tmp_baseline_file, current_file, f"snapshot '{canonical_name}{fn_tag}'", f"CURRENT{fn_tag}")
+            run_diff(tmp_baseline_file, current_file, f"snapshot '{canonical_name}{fn_tag}'", f"CURRENT{fn_tag}", tool=args.tool)
 
 
 def get_watched_files(workspace_root: Path) -> dict[Path, float]:
@@ -421,6 +428,7 @@ def main():
     # diff
     p_diff = subparsers.add_parser("diff", help="Compare current assembly with a snapshot, or two snapshots/functions")
     p_diff.add_argument("targets", nargs="*", help="Targets to compare: [snap1[:fn1]] [snap2[:fn2]] [:common_fn] or :fn1 :fn2")
+    p_diff.add_argument("-t", "--tool", help="Custom diff tool program to run (e.g. 'meld', 'kdiff3', 'diff -u')")
 
     # show
     p_show = subparsers.add_parser("show", help="Show generated assembly for current code or a snapshot")
@@ -443,6 +451,7 @@ def main():
     if not args.command or args.command == "diff":
         if not args.command:
             args.targets = []
+            args.tool = None
         cmd_diff(args, workspace_root)
     elif args.command == "save":
         cmd_save(args, workspace_root)

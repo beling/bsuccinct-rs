@@ -15,6 +15,17 @@ Filtering by function name uses the `:filter` suffix directly in target names:
 - `snapshot:fn` – function `fn` from a specific snapshot (e.g. `baseline:phast_get_f2`).
 - `git_<ref>:fn` – function `fn` from a Git revision (e.g. `git_main:shift`).
 
+### Using external diff tools (`-t` / `--tool`)
+
+You can specify a custom diff tool program (e.g. `meld`, `kdiff3`, `code --diff`, `diff -u`) using `-t` or `--tool`:
+
+```bash
+./asm.py diff -t meld
+./asm.py diff :phast_get_f2 -t meld
+./asm.py diff :seed_only :shift_only -t meld
+./asm.py diff git_main -t "diff -u"
+```
+
 ### Examples
 
 ```bash
@@ -47,7 +58,7 @@ Filtering by function name uses the `:filter` suffix directly in target names:
 ./asm.py watch :phast_get_f2
 ./asm.py watch git_main:phast_get_f2
 
-# 8. List saved snapshots:
+# 8. List saved snapshots and available functions:
 ./asm.py list
 
 # 9. Show assembly for current code or a snapshot / Git revision:
