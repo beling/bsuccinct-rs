@@ -211,6 +211,13 @@ def cmd_show(args, workspace_root: Path):
 
 
 def cmd_list(args, workspace_root: Path):
+    functions = sorted(list_asmview_functions(workspace_root))
+    if functions:
+        print(f"Available functions in asmview ({len(functions)}):")
+        for fn in functions:
+            print(f"  - {fn}")
+        print()
+
     snapshots_dir = get_snapshots_dir(workspace_root)
     snapshots = sorted(snapshots_dir.glob("*.asm"))
 
