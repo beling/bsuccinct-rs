@@ -277,7 +277,10 @@ impl CostFn for PerfectLogCost {
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
-            //+ to_small_penalty(x[0], 0.0, 1_000_000)
+            + to_small_penalty(x[0], 0.0, 1_000_000.0, 1000000)
+            + to_small_penalty(x[1], 0.0, 1_000_000.0, 1000000)
+            + to_small_penalty(x[3], 0.0, 1_000_000.0, 1000000)
+            + to_small_penalty(x[2], 0.2, 1_000_000.0, 100000)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
