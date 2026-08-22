@@ -106,9 +106,7 @@ def parse_target_filter(spec: str | None, default_target: str = "baseline") -> t
     if not spec: return default_target, None
     if ":" not in spec: return spec, None
     target_part, _, filter_part = spec.partition(":")
-    target = target_part if target_part else default_target
-    filter_pat = filter_part if filter_part else None
-    return target, filter_pat
+    return target_part if target_part else default_target, filter_part if filter_part else None
 
 
 def resolve_git_ref(workspace_root: Path, ref: str) -> str:
