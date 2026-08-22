@@ -103,16 +103,12 @@ def parse_target_filter(spec: str | None, default_target: str = "baseline") -> t
       "snap" -> ("snap", None)
       "snap:fn" -> ("snap", "fn")
     """
-    if not spec:
-        return default_target, None
-
-    if ":" in spec:
-        target_part, _, filter_part = spec.partition(":")
-        target = target_part if target_part else default_target
-        filter_pat = filter_part if filter_part else None
-        return target, filter_pat
-    else:
-        return spec, None
+    if not spec: return default_target, None
+    if ":" not in spec: return spec, None
+    target_part, _, filter_part = spec.partition(":")
+    target = target_part if target_part else default_target
+    filter_pat = filter_part if filter_part else None
+    return target, filter_pat
 
 
 def resolve_git_ref(workspace_root: Path, ref: str) -> str:
