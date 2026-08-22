@@ -106,7 +106,7 @@ def parse_target_filter(spec: str | None, default_target: str = "baseline") -> t
     if not spec: return default_target, None
     if ":" not in spec: return spec, None
     target_part, _, filter_part = spec.partition(":")
-    return target_part if target_part else default_target, filter_part if filter_part else None
+    return target_part or default_target, filter_part or None
 
 
 def resolve_git_ref(workspace_root: Path, ref: str) -> str:
@@ -125,9 +125,8 @@ def get_snapshot_file(workspace_root: Path, name: str) -> tuple[str, Path]:
     """
     snapshots_dir = get_snapshots_dir(workspace_root)
     if name.startswith("git_"):
-        raw_ref = name[len("git_"):]
         try:
-            commit_hash = resolve_git_ref(workspace_root, raw_ref)
+            commit_hash = resolve_git_ref(workspace_root, name[len("git_"):])
             name = f"git_{commit_hash}"
         except SystemExit:
             pass
@@ -151,8 +150,7 @@ def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool =
     target_file = snapshots_dir / f"{canonical_name}.asm"
 
     if target_file.exists():
-        if print_if_exists:
-            print(f"Snapshot '{canonical_name}' already exists.")
+        if print_if_exists: print(f"Snapshot '{canonical_name}' already exists.")
         return canonical_name, target_file
 
     print(f"Generating snapshot '{canonical_name}' for Git revision '{raw_ref}' ({commit_hash})...")
@@ -165,8 +163,7 @@ def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool =
             sys.exit(1)
 
         try:
-            asm_content = get_all_asm(worktree_dir)
-            target_file.write_text(asm_content)
+            target_file.write_text(get_all_asm(worktree_dir))
             print(f"Saved snapshot to: {target_file}")
         finally:
             subprocess.run(["git", "worktree", "remove", "--force", str(worktree_dir)], cwd=workspace_root, capture_output=True)
@@ -204,8 +201,7 @@ def cmd_save(args, workspace_root: Path):
     else:
         target_file = snapshots_dir / f"{name}.asm"
         print(f"Building and generating assembly for snapshot '{name}'...")
-        asm_content = get_all_asm(workspace_root)
-        target_file.write_text(asm_content)
+        target_file.write_text(get_all_asm(workspace_root))
         print(f"Saved snapshot to: {target_file}")
 
 
@@ -223,8 +219,7 @@ def cmd_list(args, workspace_root: Path):
             print(f"  - {fn}")
         print()
 
-    snapshots_dir = get_snapshots_dir(workspace_root)
-    snapshots = sorted(snapshots_dir.glob("*.asm"))
+    snapshots = sorted(get_snapshots_dir(workspace_root).glob("*.asm"))
 
     if not snapshots:
         print("No snapshots found in .snapshots/. Save one using: ./asm.py save [name]")
@@ -253,18 +248,12 @@ def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: st
     print("=" * 80 + "\n")
 
     if tool:
-        tool_cmd = shlex.split(tool) + [str(left_file), str(right_file)]
-        res = subprocess.run(tool_cmd)
-        if res.returncode == 0:
-            print("Diff tool finished.")
+        res = subprocess.run(shlex.split(tool) + [str(left_file), str(right_file)])
+        if res.returncode == 0: print("Diff tool finished.")
     else:
         cmd = ["git", "diff", "--no-index", "--color=always", str(left_file), str(right_file)]
         res = subprocess.run(cmd, capture_output=True, text=True)
-
-        if res.returncode == 0:
-            print("No assembly differences found!")
-        else:
-            print(res.stdout)
+        print("No assembly differences found!" if res.returncode == 0 else res.stdout)
 
 
 def cmd_diff(args, workspace_root: Path):
@@ -299,9 +288,12 @@ def cmd_diff(args, workspace_root: Path):
         else:
             target1_spec, global_filter = parse_target_filter(targets[0], default_target="baseline")
         target2_spec = "CURRENT"
-    else:
+    elif len(targets) == 0:
         target1_spec = "baseline"
         target2_spec = "CURRENT"
+    else:
+        print(f"Error: Too many targets specified ({len(targets)}). Expected at most 3: [snap1[:fn1]] [snap2[:fn2]] [:common_fn]", file=sys.stderr)
+        sys.exit(1)
 
     target1_name, filter1 = parse_target_filter(target1_spec, default_target="baseline" if target2_spec == "CURRENT" else "CURRENT")
     target2_name, filter2 = parse_target_filter(target2_spec, default_target="CURRENT")
