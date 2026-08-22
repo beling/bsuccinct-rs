@@ -299,8 +299,15 @@ def cmd_diff(args, workspace_root: Path):
         else:
             target1_spec, target2_spec = targets[0], targets[1]
     elif len(targets) == 1:
-        target1_spec = targets[0]
-        target2_spec = "CURRENT"
+        if targets[0].startswith(":"):
+            target1_spec = "baseline"
+            target2_spec = "CURRENT"
+            _, global_filter = parse_target_filter(targets[0], default_target="")
+        else:
+            t_name, t_filter = parse_target_filter(targets[0], default_target="baseline")
+            target1_spec = t_name
+            target2_spec = "CURRENT"
+            global_filter = t_filter
     else:
         target1_spec = "baseline"
         target2_spec = "CURRENT"
