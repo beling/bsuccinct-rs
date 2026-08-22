@@ -179,11 +179,11 @@ fn main() {
         (Method::optplusprodwrap6 { multiplier: 3 }, 1, _, _, _, _) => conf.optimize_weights6(ShiftOnlyProdWrapped::<3>),
 
         (Method::optplus, 1, _, _, _, _) => conf.optimize_weights(ShiftOnly),
+        (Method::optperfectlog, _, _, _, _, _) => conf.optimize_perfectlog(),
         (Method::optperfectlog0, _, _, _, _, _) => conf.optimize_perfectlog0(),
         (Method::optperfectlog1, _, _, _, _, _) => conf.optimize_perfectlog1(),
         (Method::optprod, 1, _, _, _, _) => conf.optimize_genericprod(),
         (Method::optprod, _, _, _, _, _) => conf.optimize_kprod(),
-        (Method::optperfectlog, _, _, _, _, _) => conf.optimize_perfectlog(),
         (Method::optwgenprod, _, _, _, _, _) => conf.optimize_wgenericprod(),
 
         (Method::none, _, _, _, _, _) => {},
