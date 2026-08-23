@@ -496,7 +496,7 @@ impl Conf {
         self.optimize(DeltaWeightsCost(seed_chooser));
     }
 
-    pub fn optimize_weights5<SC: SeedChooser>(&self, seed_chooser: SC) {
+    pub fn optimize_weights4<SC: SeedChooser>(&self, seed_chooser: SC) {
         self.optimize(WeightsCost4(seed_chooser));
     }
 
