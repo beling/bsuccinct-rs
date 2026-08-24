@@ -60,19 +60,19 @@ def get_function_asm(cwd: Path, fn_name: str) -> str:
 
 
 def get_all_asm(cwd: Path) -> list[tuple[str, str]]:
-    """Always generates assembly for all functions as a sorted list of (fn_name, asm) pairs."""
+    """Always generates assembly for all functions as a list of (fn_name, asm) pairs sorted by function name."""
     all_functions = list_asmview_functions(cwd)
     res = []
     for fn in all_functions:
         asm = get_function_asm(cwd, fn)
         res.append((fn, asm.rstrip("\r\n")))
-    return sorted(res, key=lambda x: x[0])
+    return res
 
 
 def parse_asm_snapshot(text: str) -> list[tuple[str, str]]:
     """
     Parses snapshot text containing '=== FUNCTION: <fn_name> ===' headers
-    into a sorted list of (function_name, function_asm_code) pairs.
+    into a list of (function_name, function_asm_code) pairs.
     """
     blocks = text.split("=== FUNCTION: ")
     res = []
@@ -83,7 +83,7 @@ def parse_asm_snapshot(text: str) -> list[tuple[str, str]]:
         fn_name = first_line.strip()
         fn_asm = rest.lstrip("\r\n")
         res.append((fn_name, fn_asm.rstrip("\r\n")))
-    return sorted(res, key=lambda x: x[0])
+    return res
 
 
 def format_asm_snapshot(fn_pairs: list[tuple[str, str]], colorize: bool = False) -> str:
@@ -278,17 +278,8 @@ def cmd_show(args, workspace_root: Path):
     target, filter_pat = parse_target_filter(args.target, default_target="CURRENT")
     side_name, fn_pairs = get_target_asm(workspace_root, target)
     filtered = filter_asm(fn_pairs, filter_pat, side_name)
-
-    if args.color == "always":
-        colorize = True
-    elif args.color == "never":
-        colorize = False
-    else:
-        colorize = sys.stdout.isatty()
-
-    formatted = format_asm_snapshot(filtered, colorize=colorize)
-    if formatted:
-        print(formatted)
+    formatted = format_asm_snapshot(filtered, (args.color == "always") or sys.stdout.isatty())
+    if formatted: print(formatted)
 
 
 def cmd_list(args, workspace_root: Path):
