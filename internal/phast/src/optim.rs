@@ -676,3 +676,58 @@ impl CostFn for WGenericProdOfValues {
         vec![("", Constrain::Strong(0.0001), Constrain::Weak(200.0), 4); 4]
     }
 }
+
+
+
+
+
+
+
+
+/// Cost function for bucket weights optimization that exposes 7 weights:
+/// first as absolute, last as relative, middle and rest as weighted average coefficients
+pub struct PerfectProdKAndWeightsCost6;
+
+impl CostFn for PerfectProdKAndWeightsCost6 {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = ProdOfValuesKEval { value_shift: x[6], free_shift: x[7], first_weight: x[8] };
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
+        let w = WeightsF::from6(&x[..6]);
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(&s),
+                    s, &w).1)
+                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
+                    + to_small_penalty(x[6], 0.0, 1000000.0, 1000000)
+                    + to_small_penalty(x[7], 0.0, 1000000.0, 1000000)
+                    + out_of_range_penalty(x[8], 0.0, 1.0, 1000000.0, 1000000)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let e = ProdOfValues.for_k(conf.k);
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
+        v.push(e.value_shift);
+        v.push(e.free_shift);
+        v.push(e.first_weight);
+        v
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print!("{}  ", WeightsF::from6(x).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print_vec(x, &self.params(conf))
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 5),
+            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
+            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
+        ]
+    }
+}

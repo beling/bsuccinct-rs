@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand, ValueEnum};
 use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -102,6 +102,9 @@ pub enum Method {
     /// Optimize seed evaluation in perfectlog with free_values_weight=1
     optprod,
 
+    /// Optimize parameters for selecting buckets and seeds at once
+    optall,
+
     optwgenprod,
 
     /// Do nothing
@@ -134,6 +137,7 @@ impl std::fmt::Display for Method {
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
             Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=1"),
             Method::optprod => write!(f, "Optimize seed evaluation in ProdOfValues"),
+            Method::optall => write!(f, "Optimize parameters for selecting buckets and seeds"),
             Method::optwgenprod => write!(f, "Optimize WGenericProdOfValues"),
             Method::none => write!(f, "Do nothing"),
         }
@@ -523,6 +527,10 @@ impl Conf {
 
     pub fn optimize_genericprod(&self) {
         self.optimize(ProdOfValuesCost)
+    }
+
+    pub fn optimize_allk(&self) {
+        self.optimize(PerfectProdKAndWeightsCost6);
     }
 
     pub fn optimize_wgenericprod(&self) {
