@@ -60,11 +60,14 @@ def get_function_asm(cwd: Path, fn_name: str) -> str:
 
 
 def get_all_asm(cwd: Path) -> list[tuple[str, str]]:
-    """Always generates assembly for all functions as a list of (fn_name, asm) pairs sorted by function name."""
+    """Always generates assembly for all functions as a list of (fn_name, asm) pairs sorted by function name
+       and with function-independent labels in asm."""
     all_functions = list_asmview_functions(cwd)
     res = []
+    label_prefix = re.compile(r'\.LBB\d+_')
     for fn in all_functions:
         asm = get_function_asm(cwd, fn)
+        asm = re.sub(label_prefix, r'.LBB_', asm)   # make labels function-independent by removing <integer> from .LBB<integer>_ 
         res.append((fn, asm.rstrip("\r\n")))
     return res
 
