@@ -15,6 +15,25 @@ Filtering by function name uses the `:filter` suffix directly in target names:
 - `snapshot:fn` – function `fn` from a specific snapshot (e.g. `baseline:phast_get_f2`).
 - `git_<ref>:fn` – function `fn` from a Git revision (e.g. `git_main:shift`).
 
+### Function alignment in diffs (`-a` / `--all`)
+
+When comparing two targets that use the same filter (e.g. `baseline` vs `CURRENT`, or `git_main:fn` vs `CURRENT:fn`), `asm.py` automatically aligns the set of functions. Functions present in only one of the targets are omitted from the diff files (and their names are printed).
+
+When comparing different filters (e.g. `./asm.py diff :fn1 :fn2`), function alignment is disabled. You can also explicitly disable alignment and keep all functions using `-a` or `--all` / `--keep-all`:
+
+```bash
+./asm.py diff -a
+./asm.py diff baseline git_main --all
+```
+
+### Colored output in `show` (`--color`)
+
+The `show` command displays function assembly with colorized `=== FUNCTION: <name> ===` headers when outputting to a terminal. The `--color` flag controls this behavior (`auto`, `always`, `never`):
+
+```bash
+./asm.py show --color always
+```
+
 ### Using external diff tools (`-t` / `--tool`)
 
 You can specify a custom diff tool program (e.g. `meld`, `kdiff3`, `code --diff`, `diff -u`) using `-t` or `--tool`:

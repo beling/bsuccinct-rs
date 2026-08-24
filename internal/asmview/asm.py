@@ -59,38 +59,105 @@ def get_function_asm(cwd: Path, fn_name: str) -> str:
     return res.stdout
 
 
-def get_all_asm(cwd: Path) -> str:
-    """Always generates assembly for all functions without filtering."""
+def get_all_asm(cwd: Path) -> list[tuple[str, str]]:
+    """Always generates assembly for all functions as a sorted list of (fn_name, asm) pairs."""
     all_functions = list_asmview_functions(cwd)
-    out = []
+    res = []
     for fn in all_functions:
-        out.append(f"=== FUNCTION: {fn} ===")
         asm = get_function_asm(cwd, fn)
-        out.append(asm)
-        out.append("\n")
-    return "\n".join(out)
+        res.append((fn, asm.rstrip("\r\n")))
+    return sorted(res, key=lambda x: x[0])
 
 
-def filter_asm(asm_text: str, filter_pattern: str | None = None, target_label: str = "") -> str:
-    """Filters assembly blocks by matching function names against filter_pattern."""
-    if not filter_pattern:
-        return asm_text
-
-    blocks = asm_text.split("=== FUNCTION: ")
-    filtered_blocks = []
+def parse_asm_snapshot(text: str) -> list[tuple[str, str]]:
+    """
+    Parses snapshot text containing '=== FUNCTION: <fn_name> ===' headers
+    into a sorted list of (function_name, function_asm_code) pairs.
+    """
+    blocks = text.split("=== FUNCTION: ")
+    res = []
     for block in blocks:
         if not block.strip():
             continue
         first_line, _, rest = block.partition(" ===")
         fn_name = first_line.strip()
-        if filter_pattern in fn_name:
-            filtered_blocks.append(f"=== FUNCTION: {fn_name} ==={rest}")
+        fn_asm = rest.lstrip("\r\n")
+        res.append((fn_name, fn_asm.rstrip("\r\n")))
+    return sorted(res, key=lambda x: x[0])
 
-    if not filtered_blocks and asm_text.strip():
+
+def format_asm_snapshot(fn_pairs: list[tuple[str, str]], colorize: bool = False) -> str:
+    """
+    Formats a list of (function_name, function_asm_code) pairs into a single string.
+    Optionally colorizes '=== FUNCTION: <fn_name> ===' headers.
+    """
+    out = []
+    for fn_name, asm in fn_pairs:
+        header = f"=== FUNCTION: {fn_name} ==="
+        if colorize:
+            header = f"\033[1;36m{header}\033[0m"
+        out.append(header)
+        if asm:
+            out.append(asm)
+        out.append("")
+    return "\n".join(out)
+
+
+def filter_asm(
+    fn_pairs: list[tuple[str, str]],
+    filter_pattern: str | None = None,
+    target_label: str = ""
+) -> list[tuple[str, str]]:
+    """Filters assembly pairs by matching function names against filter_pattern."""
+    if not filter_pattern:
+        return fn_pairs
+
+    filtered = [pair for pair in fn_pairs if filter_pattern in pair[0]]
+
+    if not filtered and fn_pairs:
         label = f" in '{target_label}'" if target_label else ""
         print(f"Warning: No functions matching filter '{filter_pattern}' found{label}.", file=sys.stderr)
 
-    return "\n".join(filtered_blocks)
+    return filtered
+
+
+def align_asm_pairs(
+    pairs1: list[tuple[str, str]],
+    pairs2: list[tuple[str, str]]
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[str], list[str]]:
+    """
+    Given two sorted lists of (fn_name, asm), returns:
+    (aligned_pairs1, aligned_pairs2, only_left_names, only_right_names)
+    using a linear two-pointer traversal.
+    """
+    i, j = 0, 0
+    aligned1, aligned2 = [], []
+    only_left, only_right = [], []
+
+    while i < len(pairs1) and j < len(pairs2):
+        fn1, asm1 = pairs1[i]
+        fn2, asm2 = pairs2[j]
+        if fn1 == fn2:
+            aligned1.append((fn1, asm1))
+            aligned2.append((fn2, asm2))
+            i += 1
+            j += 1
+        elif fn1 < fn2:
+            only_left.append(fn1)
+            i += 1
+        else:
+            only_right.append(fn2)
+            j += 1
+
+    while i < len(pairs1):
+        only_left.append(pairs1[i][0])
+        i += 1
+
+    while j < len(pairs2):
+        only_right.append(pairs2[j][0])
+        j += 1
+
+    return aligned1, aligned2, only_left, only_right
 
 
 def parse_target_filter(spec: str | None, default_target: str = "baseline") -> tuple[str, str | None]:
@@ -163,7 +230,7 @@ def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool =
             sys.exit(1)
 
         try:
-            target_file.write_text(get_all_asm(worktree_dir))
+            target_file.write_text(format_asm_snapshot(get_all_asm(worktree_dir)))
             print(f"Saved snapshot to: {target_file}")
         finally:
             subprocess.run(["git", "worktree", "remove", "--force", str(worktree_dir)], cwd=workspace_root, capture_output=True)
@@ -171,10 +238,12 @@ def ensure_git_snapshot(workspace_root: Path, name: str, print_if_exists: bool =
     return canonical_name, target_file
 
 
-def get_target_asm(workspace_root: Path, target_name: str, auto_create_baseline: bool = False) -> tuple[str, str]:
+def get_target_asm(
+    workspace_root: Path, target_name: str, auto_create_baseline: bool = False
+) -> tuple[str, list[tuple[str, str]]]:
     """
-    Retrieves the assembly content for a given target name ("CURRENT", a snapshot, or "git_<ref>").
-    Returns (label_name, asm_content). Exits if snapshot does not exist (unless auto_create_baseline is True for 'baseline').
+    Retrieves the assembly pairs for a given target name ("CURRENT", a snapshot, or "git_<ref>").
+    Returns (label_name, list_of_pairs). Exits if snapshot does not exist (unless auto_create_baseline is True for 'baseline').
     """
     if target_name == "CURRENT":
         return "current", get_all_asm(workspace_root)
@@ -182,14 +251,14 @@ def get_target_asm(workspace_root: Path, target_name: str, auto_create_baseline:
     side_name, target_file = ensure_git_snapshot(workspace_root, target_name)
     if not target_file.exists():
         if auto_create_baseline and target_name == "baseline":
-            print(f"Baseline snapshot '{baseline_name}' not found. Generating and saving initial snapshot...")
-            asm = get_all_asm(workspace_root)
-            target_file.write_text(asm)
+            print(f"Baseline snapshot 'baseline' not found. Generating and saving initial snapshot...")
+            asm_pairs = get_all_asm(workspace_root)
+            target_file.write_text(format_asm_snapshot(asm_pairs))
             print(f"Saved snapshot 'baseline'.")
-            return side_name, asm
+            return side_name, asm_pairs
         print(f"Error: Snapshot '{target_name}' does not exist.", file=sys.stderr)
         sys.exit(1)
-    return side_name, target_file.read_text()
+    return side_name, parse_asm_snapshot(target_file.read_text())
 
 
 def cmd_save(args, workspace_root: Path):
@@ -201,14 +270,25 @@ def cmd_save(args, workspace_root: Path):
     else:
         target_file = snapshots_dir / f"{name}.asm"
         print(f"Building and generating assembly for snapshot '{name}'...")
-        target_file.write_text(get_all_asm(workspace_root))
+        target_file.write_text(format_asm_snapshot(get_all_asm(workspace_root)))
         print(f"Saved snapshot to: {target_file}")
 
 
 def cmd_show(args, workspace_root: Path):
     target, filter_pat = parse_target_filter(args.target, default_target="CURRENT")
-    side_name, asm_content = get_target_asm(workspace_root, target)
-    print(filter_asm(asm_content, filter_pat, side_name))
+    side_name, fn_pairs = get_target_asm(workspace_root, target)
+    filtered = filter_asm(fn_pairs, filter_pat, side_name)
+
+    if args.color == "always":
+        colorize = True
+    elif args.color == "never":
+        colorize = False
+    else:
+        colorize = sys.stdout.isatty()
+
+    formatted = format_asm_snapshot(filtered, colorize=colorize)
+    if formatted:
+        print(formatted)
 
 
 def cmd_list(args, workspace_root: Path):
@@ -257,15 +337,6 @@ def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: st
 
 
 def cmd_diff(args, workspace_root: Path):
-    # Parse positional arguments:
-    # 0 items: [] -> baseline vs CURRENT (no filter)
-    # 1 item:  [":fn"] -> baseline:fn vs CURRENT:fn
-    #          ["snap:fn"] -> snap:fn vs CURRENT:fn
-    # 2 items: [":fn1", ":fn2"] -> CURRENT:fn1 vs CURRENT:fn2
-    #          ["snap1", "snap2"] -> snap1 vs snap2
-    #          ["snap1:fn1", "snap2:fn2"] -> snap1:fn1 vs snap2:fn2
-    #          ["snap", ":fn"] -> snap:fn vs CURRENT:fn
-    # 3 items: ["snap1", "snap2", ":fn"] -> snap1:fn vs snap2:fn
     targets = args.targets or []
     global_filter = None
 
@@ -307,14 +378,24 @@ def cmd_diff(args, workspace_root: Path):
 
         # Allow auto-creation only if left side is default 'baseline' and right side is 'CURRENT'
         auto_baseline = (target1_name == "baseline" and target2_name == "CURRENT")
-        side1_name, side1_asm = get_target_asm(workspace_root, target1_name, auto_create_baseline=auto_baseline)
-        side2_name, side2_asm = get_target_asm(workspace_root, target2_name)
+        side1_name, side1_pairs = get_target_asm(workspace_root, target1_name, auto_create_baseline=auto_baseline)
+        side2_name, side2_pairs = get_target_asm(workspace_root, target2_name)
 
-        asm1 = filter_asm(side1_asm, filter1, side1_name)
-        asm2 = filter_asm(side2_asm, filter2, side2_name)
+        pairs1 = filter_asm(side1_pairs, filter1, side1_name)
+        pairs2 = filter_asm(side2_pairs, filter2, side2_name)
+
+        if filter1 == filter2 and not getattr(args, "keep_all", False):
+            pairs1, pairs2, only_left, only_right = align_asm_pairs(pairs1, pairs2)
+            if only_left:
+                print(f"Skipping functions present only in '{side1_name}': {', '.join(only_left)}")
+            if only_right:
+                print(f"Skipping functions present only in '{side2_name}': {', '.join(only_right)}")
 
         fn1_tag = f".{filter1}" if filter1 else ""
         fn2_tag = f".{filter2}" if filter2 else ""
+
+        asm1 = format_asm_snapshot(pairs1)
+        asm2 = format_asm_snapshot(pairs2)
 
         tmp_file1 = tmp_path / f"{side1_name}{fn1_tag}.asm"
         tmp_file2 = tmp_path / f"{side2_name}{fn2_tag}.asm"
@@ -340,7 +421,7 @@ def get_watched_files(workspace_root: Path) -> dict[Path, float]:
 
 def cmd_watch(args, workspace_root: Path):
     baseline_name, filter_pat = parse_target_filter(args.target, default_target="baseline")
-    canonical_name, baseline_asm_full = get_target_asm(workspace_root, baseline_name, auto_create_baseline=True)
+    canonical_name, baseline_pairs_full = get_target_asm(workspace_root, baseline_name, auto_create_baseline=True)
 
     fn_tag = f".{filter_pat}" if filter_pat else ""
     print(f"\n[Watch Mode] Watching for changes in Rust source files (*.rs)...")
@@ -367,12 +448,19 @@ def cmd_watch(args, workspace_root: Path):
                     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {', '.join(p.name for p in changed[:3])}...")
 
                     # Refresh baseline content (with filter)
-                    baseline_asm = filter_asm(baseline_asm_full, filter_pat, canonical_name)
-                    tmp_baseline_file.write_text(baseline_asm)
-
+                    pairs1 = filter_asm(baseline_pairs_full, filter_pat, canonical_name)
                     # Get and filter current assembly
-                    current_asm = filter_asm(get_all_asm(workspace_root), filter_pat, "current")
-                    tmp_current_file.write_text(current_asm)
+                    pairs2 = filter_asm(get_all_asm(workspace_root), filter_pat, "current")
+
+                    if not getattr(args, "keep_all", False):
+                        pairs1, pairs2, only_left, only_right = align_asm_pairs(pairs1, pairs2)
+                        if only_left:
+                            print(f"Skipping functions present only in '{canonical_name}': {', '.join(only_left)}")
+                        if only_right:
+                            print(f"Skipping functions present only in 'current': {', '.join(only_right)}")
+
+                    tmp_baseline_file.write_text(format_asm_snapshot(pairs1))
+                    tmp_current_file.write_text(format_asm_snapshot(pairs2))
 
                     run_diff(tmp_baseline_file, tmp_current_file, f"snapshot '{canonical_name}{fn_tag}'", f"CURRENT{fn_tag}")
         except KeyboardInterrupt:
@@ -393,10 +481,12 @@ def main():
     p_diff = subparsers.add_parser("diff", help="Compare current assembly with a snapshot, or two snapshots/functions")
     p_diff.add_argument("targets", nargs="*", help="Targets to compare: [snap1[:fn1]] [snap2[:fn2]] [:common_fn] or :fn1 :fn2")
     p_diff.add_argument("-t", "--tool", help="Custom diff tool program to run (e.g. 'meld', 'kdiff3', 'diff -u')")
+    p_diff.add_argument("-a", "--all", "--keep-all", dest="keep_all", action="store_true", help="Do not skip functions present in only one target")
 
     # show
     p_show = subparsers.add_parser("show", help="Show generated assembly for current code or a snapshot")
     p_show.add_argument("target", nargs="?", default=None, help="Optional snapshot and/or function filter, e.g. ':fn', 'baseline', 'git_main:fn'")
+    p_show.add_argument("--color", choices=["auto", "always", "never"], default="auto", help="Colorize output headers (default: auto)")
 
     # list
     subparsers.add_parser("list", help="List available functions and all saved snapshots")
@@ -408,6 +498,7 @@ def main():
     # watch
     p_watch = subparsers.add_parser("watch", help="Watch for source file changes and run diff automatically")
     p_watch.add_argument("target", nargs="?", default="baseline", help="Baseline snapshot and/or function filter (e.g. 'baseline', ':fn', 'git_main:fn')")
+    p_watch.add_argument("-a", "--all", "--keep-all", dest="keep_all", action="store_true", help="Do not skip functions present in only one target")
 
     args = parser.parse_args()
     workspace_root = get_workspace_root()
@@ -415,6 +506,7 @@ def main():
     if not args.command:
         args.targets = []
         args.tool = None
+        args.keep_all = False
         cmd_diff(args, workspace_root)
     elif args.command == "diff": cmd_diff(args, workspace_root)
     elif args.command == "save": cmd_save(args, workspace_root)
