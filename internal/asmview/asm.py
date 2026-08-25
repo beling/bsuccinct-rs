@@ -18,18 +18,35 @@ from pathlib import Path
 
 
 def get_workspace_root() -> Path:
+    """
+    Returns the absolute path to the Git workspace root
+    ('git rev-parse --show-toplevel'). Raises CalledProcessError if the script
+    is not run inside a Git repository.
+    """
     cmd = ["git", "rev-parse", "--show-toplevel"]
     res = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return Path(res.stdout.strip())
 
 
 def get_snapshots_dir(workspace_root: Path) -> Path:
+    """
+    Returns the path to the snapshots directory
+    (<workspace_root>/internal/asmview/.snapshots).
+    Creates the directory (with parents) if it does not exist yet (side effect).
+    """
     snapshots_dir = workspace_root / "internal" / "asmview" / ".snapshots"
     snapshots_dir.mkdir(parents=True, exist_ok=True)
     return snapshots_dir
 
 
 def list_asmview_functions(cwd: Path) -> list[str]:
+    """
+    Returns a sorted, de-duplicated list of inspectable function names.
+
+    Names are parsed from 'cargo asm -p asmview --lib' output (stdout + stderr).
+    If that fails or yields nothing, falls back to scanning
+    internal/asmview/src/lib.rs for 'pub extern "C" fn <name>' definitions.
+    """
     cmd = ["cargo", "asm", "-p", "asmview", "--lib"]
     res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
 
@@ -51,6 +68,11 @@ def list_asmview_functions(cwd: Path) -> list[str]:
 
 
 def get_function_asm(cwd: Path, fn_name: str) -> str:
+    """
+    Returns the compiler-generated assembly of a single function via
+    'cargo asm -p asmview --lib <fn_name>'. On failure prints a warning to
+    stderr and returns an empty string.
+    """
     cmd = ["cargo", "asm", "-p", "asmview", "--lib", fn_name]
     res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if res.returncode != 0:
@@ -113,7 +135,13 @@ def filter_asm(
     filter_pattern: str | None = None,
     target_label: str = ""
 ) -> list[tuple[str, str]]:
-    """Filters assembly pairs by matching function names against filter_pattern."""
+    """
+    Filters (fn_name, asm) pairs, keeping those whose function name contains
+    filter_pattern as a case-sensitive substring.
+
+    An empty/None filter_pattern returns the input unchanged. When nothing
+    matches but the input was non-empty, prints a warning to stderr.
+    """
     if not filter_pattern:
         return fn_pairs
 
@@ -182,7 +210,13 @@ def parse_target_filter(spec: str | None, default_target: str = "baseline") -> t
 
 
 def resolve_git_ref(workspace_root: Path, ref: str) -> str:
-    """Resolve a git reference (branch, tag, relative ref like HEAD~1) to a short commit hash."""
+    """
+    Resolves a git reference (branch, tag, or relative ref like HEAD~1)
+    to a 10-character commit hash ('git rev-parse --short=10 --verify').
+
+    Exits the program with status 1 (after printing an error to stderr)
+    if the reference cannot be resolved.
+    """
     cmd = ["git", "rev-parse", "--short=10", "--verify", ref]
     res = subprocess.run(cmd, cwd=workspace_root, capture_output=True, text=True)
     if res.returncode != 0:
@@ -194,6 +228,10 @@ def resolve_git_ref(workspace_root: Path, ref: str) -> str:
 def get_snapshot_file(workspace_root: Path, name: str) -> tuple[str, Path]:
     """
     Resolves the canonical name and path to .snapshots/<name>.asm without creating it.
+
+    For 'git_<ref>' names, tries to canonicalize <ref> to its commit hash
+    ('git_<hash>'); if the resolution fails (the error has already been printed
+    and the SystemExit swallowed), silently falls back to the raw name.
     """
     snapshots_dir = get_snapshots_dir(workspace_root)
     if name.startswith("git_"):
@@ -247,8 +285,14 @@ def get_target_asm(
     workspace_root: Path, target_name: str, auto_create_baseline: bool = False
 ) -> tuple[str, list[tuple[str, str]]]:
     """
-    Retrieves the assembly pairs for a given target name ("CURRENT", a snapshot, or "git_<ref>").
-    Returns (label_name, list_of_pairs). Exits if snapshot does not exist (unless auto_create_baseline is True for 'baseline').
+    Retrieves the assembly (fn_name, asm) pairs for a target name: "CURRENT"
+    (freshly generated), a saved snapshot, or "git_<ref>" (generated on demand
+    and cached in .snapshots/).
+
+    Returns (label_name, list_of_pairs); for CURRENT the label is 'current'
+    (lowercase). If the snapshot file does not exist, exits with status 1 -
+    unless auto_create_baseline is True and target_name == 'baseline', in which
+    case an initial baseline snapshot is generated from the current code first.
     """
     if target_name == "CURRENT":
         return "current", get_all_asm(workspace_root)
@@ -267,6 +311,11 @@ def get_target_asm(
 
 
 def cmd_save(args, workspace_root: Path):
+    """
+    Handles the 'save' command: stores the assembly of all functions in
+    .snapshots/<name>.asm (default name: 'baseline'). For 'git_<ref>' names,
+    the snapshot is instead generated from the given Git revision (and cached).
+    """
     snapshots_dir = get_snapshots_dir(workspace_root)
     name = args.name or "baseline"
 
@@ -280,6 +329,14 @@ def cmd_save(args, workspace_root: Path):
 
 
 def cmd_show(args, workspace_root: Path):
+    """
+    Handles the 'show' command: prints the assembly of the target
+    ([snapshot][:filter], default: CURRENT), optionally restricted to functions
+    whose names contain the filter substring.
+
+    Header colorization follows --color: 'always', 'never', or 'auto'
+    (colorize only when stdout is a terminal).
+    """
     target, filter_pat = parse_target_filter(args.target, default_target="CURRENT")
     side_name, fn_pairs = get_target_asm(workspace_root, target)
     filtered = filter_asm(fn_pairs, filter_pat, side_name)
@@ -289,6 +346,11 @@ def cmd_show(args, workspace_root: Path):
 
 
 def cmd_list(args, workspace_root: Path):
+    """
+    Handles the 'list' command: prints available functions (from cargo asm,
+    with the lib.rs fallback) and all saved snapshots with sizes and
+    modification times.
+    """
     functions = list_asmview_functions(workspace_root)
     if functions:
         print(f"Available functions in asmview ({len(functions)}):")
@@ -310,6 +372,11 @@ def cmd_list(args, workspace_root: Path):
 
 
 def cmd_rm(args, workspace_root: Path):
+    """
+    Handles the 'rm' command: deletes .snapshots/<name>.asm ('git_<ref>' names
+    are canonicalized to 'git_<hash>' first). Does nothing if the snapshot
+    does not exist.
+    """
     name, target_file = get_snapshot_file(workspace_root, args.name)
     if not target_file.exists():
         print(f"Snapshot '{name}' does not exist, nothing to remove.")
@@ -320,6 +387,14 @@ def cmd_rm(args, workspace_root: Path):
 
 
 def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: str, tool: str | None = None):
+    """
+    Prints a section header and diffs left_file against right_file.
+
+    If tool is given, it is split with shlex.split and executed interactively
+    (e.g. 'meld', 'kdiff3', 'diff -u'); otherwise the built-in
+    'git diff --no-index --color=always' is used and its output (or
+    'No assembly differences found!') is printed.
+    """
     print("\n" + "=" * 80)
     print(f"DIFF: {left_label} (left) vs {right_label} (right)")
     print("=" * 80 + "\n")
@@ -340,6 +415,22 @@ def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: st
 
 
 def cmd_diff(args, workspace_root: Path):
+    """
+    Handles the 'diff' command: compares two targets and shows their diff.
+
+    Accepted forms of args.targets (0-3 entries):
+      []                      -> baseline vs CURRENT
+      [snap[:fn]]             -> snap vs CURRENT (missing left defaults to 'baseline')
+      [:fn]                   -> baseline:fn vs CURRENT:fn
+      [snap1] [snap2]         -> snap1 vs snap2
+      [:fn1] [:fn2]           -> two different filters, both within CURRENT
+      [snap1] [:fn]           -> snap1:fn vs CURRENT:fn
+      [snap1] [snap2] [:fn]   -> common filter applied to both snapshots
+
+    When both sides use the same filter, functions present in only one side are
+    omitted from the diff unless args.keep_all (-a/--all) is set. A missing
+    'baseline' snapshot is auto-created when comparing plain baseline vs CURRENT.
+    """
     targets = args.targets or []
     global_filter = None
 
@@ -411,6 +502,11 @@ def cmd_diff(args, workspace_root: Path):
 
 
 def get_watched_files(workspace_root: Path) -> dict[Path, float]:
+    """
+    Maps every '*.rs' file under workspace_root (recursively) to its modification
+    time, skipping any paths containing a 'target' or '.snapshots' directory.
+    Files that cannot be stat'ed (OSError) are silently omitted.
+    """
     files = {}
     for p in workspace_root.rglob("*.rs"):
         if "target" in p.parts or ".snapshots" in p.parts:
@@ -423,6 +519,15 @@ def get_watched_files(workspace_root: Path) -> dict[Path, float]:
 
 
 def cmd_watch(args, workspace_root: Path):
+    """
+    Handles the 'watch' command: polls every second for modifications of watched
+    '*.rs' files and, on any change, regenerates the current assembly and diffs
+    it against the statically loaded baseline target '[target][:filter]'
+    (default 'baseline'; a missing baseline is auto-created).
+
+    Functions present in only one side are skipped unless -a/--keep-all is set.
+    Exits on Ctrl+C.
+    """
     baseline_name, filter_pat = parse_target_filter(args.target, default_target="baseline")
     canonical_name, baseline_pairs_full = get_target_asm(workspace_root, baseline_name, auto_create_baseline=True)
 
@@ -471,6 +576,11 @@ def cmd_watch(args, workspace_root: Path):
 
 
 def main():
+    """
+    CLI entry point: parses the subcommands (save/diff/show/list/rm/watch) and
+    dispatches them. Running without a command behaves like 'diff' with no
+    arguments (baseline vs CURRENT).
+    """
     parser = argparse.ArgumentParser(
         description="Local assembly snapshot and diff tool with target:filter syntax."
     )
