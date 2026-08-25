@@ -16,10 +16,11 @@ impl<'a, const B: bool> BitBIterator<'a, B> {
     /// in the given `slice`.
     pub fn new(slice: &'a [u64]) -> Self {
         let mut segment_iter = slice.into_iter();
-        let current_segment = if B {
-            segment_iter.next().copied().unwrap_or(0)
-        } else {
-            !segment_iter.next().copied().unwrap_or(0)
+        // Note: regardless of `B`, for an empty slice the initial segment must be zeroed,
+        // otherwise the iterator would report phantom bits outside the given slice.
+        let current_segment = match segment_iter.next() {
+            Some(v) => if B { *v } else { !*v },
+            None => 0,
         };
         Self {
             segment_iter,
@@ -38,7 +39,7 @@ impl<'a, const B: bool> Iterator for BitBIterator<'a, B> {
             self.first_segment_bit += 64;
         }
         let result = self.current_segment.trailing_zeros();
-        self.current_segment ^= 1<<result;
+        self.current_segment &= self.current_segment - 1;
         Some(self.first_segment_bit + (result as usize))
     }
 
@@ -50,10 +51,13 @@ impl<'a, const B: bool> Iterator for BitBIterator<'a, B> {
 
 impl<'a, const B: bool> ExactSizeIterator for BitBIterator<'a, B> {
     #[inline] fn len(&self) -> usize {
-        if B {
-            self.current_segment.count_ones() as usize + self.segment_iter.as_slice().count_bit_ones()
+        // Note: in both cases, the set bits of `current_segment` represent the items yet to be yielded
+        // (for `B == false`, `current_segment` holds the negation of the segment).
+        // In particular, a zeroed `current_segment` contributes nothing, also when there is no segment at all.
+        self.current_segment.count_ones() as usize + if B {
+            self.segment_iter.as_slice().count_bit_ones()
         } else {
-            self.current_segment.count_zeros() as usize + self.segment_iter.as_slice().count_bit_zeros()
+            self.segment_iter.as_slice().count_bit_zeros()
         }
     }
 }
@@ -71,6 +75,7 @@ pub type BitZerosIterator<'a> = BitBIterator<'a, false>;
 /// Iterator over bits in a slice of `u64`. It yields `true` for bit 1 and `false` for 0.
 pub struct BitIterator<'bv> {
     bit_vec: &'bv [u64],
+    /// Remaining range of bits to be yielded.
     bit_range: Range<usize>,
 }
 
@@ -105,6 +110,9 @@ impl<'bv> BitIterator<'bv> {
 impl<'bv> Iterator for BitIterator<'bv> {
     type Item = bool;
 
+    // Note: this seemingly naive implementation is auto-vectorized by LLVM (when inlined into the caller's loop)
+    // and was measured to be about 2x faster than a word-cached sequential implementation,
+    // so please do not "optimize" it without benchmarking (see repository history).
     #[inline] fn next(&mut self) -> Option<Self::Item> {
         self.bit_range.next().map(|bit_nr| unsafe { self.bit_vec.get_bit_unchecked(bit_nr) })
     }
@@ -735,6 +743,7 @@ impl BitAccess for [u64] {
     }
 
     #[inline] fn try_get_bits_unmasked(&self, begin: usize, len: u8) -> Option<u64> {
+        debug_assert!(len <= 63);
         //((begin+(len as usize))/64 < self.len()).then(|| unsafe{self.get_bits_unmasked_unchecked(begin, len)})
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         let w1 = self.get(segment)? >> offset;
@@ -748,6 +757,7 @@ impl BitAccess for [u64] {
     }
 
     #[inline] unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64 {
+        debug_assert!(len <= 63);
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         debug_assert!(segment < self.len());
         let w1 = self.get_unchecked(segment) >> offset;
@@ -761,6 +771,7 @@ impl BitAccess for [u64] {
     }
 
     fn init_bits(&mut self, begin: usize, v: u64, len: u8) {
+        debug_assert!(len <= 63);
         debug_assert!({let f = self.get_bits(begin, len); f == 0 || f == v});
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
@@ -770,6 +781,7 @@ impl BitAccess for [u64] {
     }
 
     unsafe fn init_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
+        debug_assert!(len <= 63);
         debug_assert!({let f = self.get_bits(begin, len); f == 0 || f == v});
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
@@ -779,6 +791,7 @@ impl BitAccess for [u64] {
     }
 
     fn set_bits(&mut self, begin: usize, v: u64, len: u8) {
+        debug_assert!(len <= 63);
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         let v_mask = n_lowest_bits(len);
         //let lo_bit_len = 64-offset;
@@ -790,6 +803,7 @@ impl BitAccess for [u64] {
     }
 
     unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
+        debug_assert!(len <= 63);
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         let v_mask = n_lowest_bits(len);
         if offset + len > 64 {
@@ -802,6 +816,7 @@ impl BitAccess for [u64] {
     }
 
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8) {
+        debug_assert!(len <= 63);
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
             let shift = 64-offset;
@@ -813,6 +828,7 @@ impl BitAccess for [u64] {
     fn conditionally_change_bits<NewValue>(&mut self, new_value: NewValue, begin: usize, v_size: u8) -> u64
         where NewValue: FnOnce(u64) -> Option<u64>
     {
+        debug_assert!(v_size <= 63);
         let (segment, offset) = (begin / 64, (begin % 64) as u64);
         let w1 = self[segment]>>offset;
         let bits_in_w1 = 64-offset;
@@ -834,6 +850,7 @@ impl BitAccess for [u64] {
     fn conditionally_copy_bits<Pred>(&mut self, src: &Self, predicate: Pred, begin: usize, v_size: u8)
         where Pred: FnOnce(u64, u64) -> bool
     {
+        debug_assert!(v_size <= 63);
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         let self_w1 = self[segment]>>offset;
         let mut src_w1 = src[segment]>>offset;
@@ -869,6 +886,10 @@ impl BitAccess for [u64] {
             word_index += 1;
             bits = *self.get(word_index)?;
         }
+        // Note: an alternative implementation that locates the first non-zero word
+        // via `<[u64]>::iter().position` has been considered and rejected:
+        // its per-call setup overhead makes it slower in the common case of finding a one quickly
+        // (e.g., already in the next segment).
         Some(word_index * 64 + (bits.trailing_zeros() as usize))
     }
 
@@ -1007,6 +1028,63 @@ mod tests {
         assert!(!b.get_bit(72));
         assert!(!b.get_bit(73));
         assert!(b.get_bit(74));
+    }
+
+    #[test]
+    fn iterators_empty_slice() {
+        assert_eq!(BitOnesIterator::new(&[]).count(), 0);
+        assert_eq!(BitZerosIterator::new(&[]).count(), 0);
+        assert_eq!(BitZerosIterator::new(&[]).len(), 0);
+        let empty: [u64; 0] = [];
+        assert_eq!(empty.bit_zeros().next(), None);
+        assert_eq!(empty.bit_iter().next(), None);
+    }
+
+    #[test]
+    fn bit_iterator_ranges() {
+        let b = [0b1011_0011u64, 1u64];    // ones at indices 0, 1, 4, 5, 7, 64
+        let ones = |it: BitIterator<'_>, offset: usize| -> Vec<usize> {
+            it.enumerate().filter(|(_, v)| *v).map(|(i, _)| i+offset).collect()
+        };
+        assert_eq!(ones(b.bit_iter(), 0), vec![0, 1, 4, 5, 7, 64]);
+        assert_eq!(ones(b.bit_in_range_iter(3..66), 3), vec![4, 5, 7, 64]);
+        assert_eq!(ones(b.bit_in_range_iter(8..66), 8), vec![64]);
+        assert_eq!(b.bit_in_range_iter(7..7).count(), 0);
+        assert_eq!(b.bit_in_range_iter(0..64).count(), 64);
+        // nth jumps (also across the word boundary)
+        let big = [u64::MAX, 0, u64::MAX];
+        let mut it = big.bit_iter();
+        assert_eq!(it.nth(63), Some(true));
+        assert_eq!(it.next(), Some(false));
+        assert_eq!(it.nth(63), Some(true));
+        assert_eq!(it.next(), Some(true));
+        // mixing forward and backward iteration
+        let b2 = [0b101u64];
+        let mut it2 = b2.bit_in_range_iter(0..3);
+        assert_eq!(it2.next(), Some(true));
+        assert_eq!(it2.next_back(), Some(true));
+        assert_eq!(it2.next(), Some(false));
+        assert_eq!(it2.next(), None);
+        assert_eq!(it2.next_back(), None);
+    }
+
+    #[test]
+    fn iterators_len_of_zeros() {
+        let mut zeros = [0u64, u64::MAX].bit_zeros();
+        assert_eq!(zeros.len(), 64);           // 64 zeros in the first word, none in the second
+        assert_eq!(zeros.next(), Some(0));
+        assert_eq!(zeros.len(), 63);
+        // exhaust the iterator; the last pending segment is all ones (so no zeros left)
+        assert_eq!(zeros.by_ref().skip(63).count(), 0);
+        assert_eq!(zeros.len(), 0);
+        assert_eq!(zeros.next(), None);
+        assert_eq!(zeros.len(), 0);
+        let mut zeros = [u64::MAX].bit_zeros();
+        assert_eq!(zeros.len(), 0);
+        assert_eq!(zeros.next(), None);
+        assert_eq!(zeros.len(), 0);
+        let ones = [u64::MAX, 0].bit_ones();
+        assert_eq!(ones.len(), 64);
     }
 
     #[test]
