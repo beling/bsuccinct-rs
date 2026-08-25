@@ -147,7 +147,9 @@ impl<'a> FusedIterator for BitIterator<'a> where Range<usize>: FusedIterator {}
 /// accessing and modifying single bits or arbitrary fragments consisting of a few (up to 63) bits.
 ///
 /// All methods taking `len` or `v_size: u8` require this parameter to be in range `[0, 63]`
-/// (otherwise they panic, or the result is undefined in the case of the `_unchecked` variants).
+/// (otherwise they panic, or the result is undefined in the case of the `_unchecked` variants),
+/// except `init_bits*`, `xor_bits*` and `get_bits_unmasked*`, which accept `[0, 64]`
+/// (as they operate on at least `len` bits, so they can handle even a full 64-bit word).
 /// Methods returning [`Option`] report an out-of-bounds range as [`None`]; the other safe methods panic
 /// if the range of bits is out of bounds.
 ///
@@ -287,7 +289,7 @@ pub trait BitAccess {
     ///
     /// # Safety
     ///
-    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 63.
+    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 64.
     unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64;
 
     /// Gets bits `[begin, begin+len)` without bounds checking.
@@ -321,7 +323,7 @@ pub trait BitAccess {
     ///
     /// # Safety
     ///
-    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 63.
+    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 64.
     unsafe fn init_bits_unchecked(&mut self, begin: usize, v: u64, len: u8);
 
     /// Sets bits `[begin, begin+len)` to the content of `v`. Panics if the range is out of bounds.
@@ -404,7 +406,7 @@ pub trait BitAccess {
     /// # Safety
     ///
     /// The range [`index*v_size`, `index*v_size+v_size`) must not exceed the range of bits spanned by `self`;
-    /// `v_size` must not exceed 63.
+    /// `v_size` must not exceed 64.
     #[inline(always)] unsafe fn get_fragment_unmasked_unchecked(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits_unmasked_unchecked(index * v_size as usize, v_size)
     }
@@ -446,7 +448,7 @@ pub trait BitAccess {
     /// # Safety
     ///
     /// The range [`index*v_size`, `index*v_size+v_size`) must not exceed the range of bits spanned by `self`;
-    /// `v_size` must not exceed 63.
+    /// `v_size` must not exceed 64.
     #[inline(always)] unsafe fn init_fragment_unchecked(&mut self, index: usize, v: u64, v_size: u8) {
         self.init_bits_unchecked(index * v_size as usize, v, v_size)
     }
@@ -743,7 +745,7 @@ impl BitAccess for [u64] {
     }
 
     #[inline] fn try_get_bits_unmasked(&self, begin: usize, len: u8) -> Option<u64> {
-        debug_assert!(len <= 63);
+        debug_assert!(len <= 64);
         //((begin+(len as usize))/64 < self.len()).then(|| unsafe{self.get_bits_unmasked_unchecked(begin, len)})
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         let w1 = self.get(segment)? >> offset;
@@ -757,7 +759,7 @@ impl BitAccess for [u64] {
     }
 
     #[inline] unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64 {
-        debug_assert!(len <= 63);
+        debug_assert!(len <= 64);
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         debug_assert!(segment < self.len());
         let w1 = self.get_unchecked(segment) >> offset;
@@ -771,8 +773,8 @@ impl BitAccess for [u64] {
     }
 
     fn init_bits(&mut self, begin: usize, v: u64, len: u8) {
-        debug_assert!(len <= 63);
-        debug_assert!({let f = self.get_bits(begin, len); f == 0 || f == v});
+        debug_assert!(len <= 64);
+        debug_assert!({let f = self.get_bits_unmasked(begin, len) & super::n_lowest_bits_0_64(len); f == 0 || f == v});
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
             self[segment+1] |= v >> (64-offset);
@@ -781,8 +783,8 @@ impl BitAccess for [u64] {
     }
 
     unsafe fn init_bits_unchecked(&mut self, begin: usize, v: u64, len: u8) {
-        debug_assert!(len <= 63);
-        debug_assert!({let f = self.get_bits(begin, len); f == 0 || f == v});
+        debug_assert!(len <= 64);
+        debug_assert!({let f = self.get_bits_unmasked(begin, len) & super::n_lowest_bits_0_64(len); f == 0 || f == v});
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
             *self.get_unchecked_mut(segment+1) |= v >> (64-offset);
@@ -816,7 +818,7 @@ impl BitAccess for [u64] {
     }
 
     fn xor_bits(&mut self, begin: usize, v: u64, len: u8) {
-        debug_assert!(len <= 63);
+        debug_assert!(len <= 64);
         let (segment, offset) = (begin / 64, (begin % 64) as u8);
         if offset + len > 64 {
             let shift = 64-offset;
@@ -1001,6 +1003,27 @@ mod tests {
                                         21, 3);
         assert_eq!(dst.get_fragment(21, 3), 0b111);
         assert_eq!(dst.get_fragment(22, 3), 0);
+    }
+
+    #[test]
+    fn bits_len_64() {
+        // init a whole word
+        let mut b = [0u64, 0u64];
+        b.init_bits(0, 0x0123_4567_89AB_CDEF, 64);
+        assert_eq!(b[0], 0x0123_4567_89AB_CDEF);
+        // init a 64-bit value spanning the words' border
+        let mut c = [0u64, 0u64];
+        let v = 0xFEDC_BA98_7654_3210u64;
+        c.init_bits(32, v, 64);
+        assert_eq!(c[0], v << 32);
+        assert_eq!(c[1], v >> 32);
+        assert_eq!(c.get_bits_unmasked(32, 64), v);
+        assert_eq!(c.try_get_bits_unmasked(32, 64), Some(v));
+        // xor spanning the words' border ("at least len" semantics may touch extra bits)
+        let mut d = [0u64, 5u64];
+        d.xor_bits(48, 0xFF, 64);
+        assert_eq!(d[0], 0xFF << 48);
+        assert_eq!(d[1], 5);
     }
 
     #[test]
