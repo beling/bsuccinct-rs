@@ -283,7 +283,8 @@ def cmd_show(args, workspace_root: Path):
     target, filter_pat = parse_target_filter(args.target, default_target="CURRENT")
     side_name, fn_pairs = get_target_asm(workspace_root, target)
     filtered = filter_asm(fn_pairs, filter_pat, side_name)
-    formatted = format_asm_snapshot(filtered, (args.color == "always") or sys.stdout.isatty())
+    colorize = args.color == "always" or (args.color == "auto" and sys.stdout.isatty())
+    formatted = format_asm_snapshot(filtered, colorize)
     if formatted: print(formatted)
 
 
@@ -324,8 +325,14 @@ def run_diff(left_file: Path, right_file: Path, left_label: str, right_label: st
     print("=" * 80 + "\n")
 
     if tool:
-        res = subprocess.run(shlex.split(tool) + [str(left_file), str(right_file)])
-        if res.returncode == 0: print("Diff tool finished.")
+        try:
+            res = subprocess.run(shlex.split(tool) + [str(left_file), str(right_file)])
+            if res.returncode < 0:
+                print(f"Warning: Diff tool '{tool}' terminated by signal {-res.returncode}.")
+        except FileNotFoundError:
+            print(f"Error: Diff tool '{tool}' not found.", file=sys.stderr)
+            return
+        print("Diff tool finished.")
     else:
         cmd = ["git", "diff", "--no-index", "--color=always", str(left_file), str(right_file)]
         res = subprocess.run(cmd, capture_output=True, text=True)

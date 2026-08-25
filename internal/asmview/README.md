@@ -10,10 +10,12 @@ Snapshots always store the assembly for **all** functions in `.snapshots/` (igno
 
 ### Syntax for filtering functions (`[target][:filter]`)
 
-Filtering by function name uses the `:filter` suffix directly in target names:
-- `:fn` – function `fn` from `CURRENT` (working directory) or default target.
-- `snapshot:fn` – function `fn` from a specific snapshot (e.g. `baseline:phast_get_f2`).
-- `git_<ref>:fn` – function `fn` from a Git revision (e.g. `git_main:shift`).
+Filtering by function name uses the `:filter` suffix directly in target names.
+The filter is matched as a **substring** of the function name (so e.g. `:_m1`
+matches `phast_get_f2_shift_wrap_m1`). Available functions can be listed with `./asm.py list`.
+- `:fn` – function(s) whose name contains `fn`, from `CURRENT` (working directory) or default target.
+- `snapshot:fn` – function(s) matching `fn` from a specific snapshot (e.g. `baseline:f2`).
+- `git_<ref>:fn` – function(s) matching `fn` from a Git revision (e.g. `git_main:seed`).
 
 ### Function alignment in diffs (`-a` / `--all`)
 
@@ -41,7 +43,7 @@ You can specify a custom diff tool program (e.g. `meld`, `kdiff3`, `code --diff`
 ```bash
 ./asm.py diff -t meld
 ./asm.py diff :phast_get_f2 -t meld
-./asm.py diff :seed_only :shift_only -t meld
+./asm.py diff :f2_seed :_m1 -t meld
 ./asm.py diff git_main -t "diff -u"
 ```
 
@@ -56,15 +58,17 @@ You can specify a custom diff tool program (e.g. `meld`, `kdiff3`, `code --diff`
 ./asm.py diff :phast_get_f2        # only functions matching 'phast_get_f2'
 
 # 3. Compare two different functions in current working directory:
-./asm.py diff :seed_only :shift_only
+./asm.py diff :f2_seed :_m1
 
 # 4. Compare current state with main branch (or previous commit):
 ./asm.py diff git_main
 ./asm.py diff git_main :phast_get_f2
 ./asm.py diff git_HEAD~1 :phast_get_f2
 
-# 5. Save a named snapshot before experimental changes:
+# 5. Save a named snapshot before experimental changes
+#    (a snapshot can also be created directly from a Git revision):
 ./asm.py save unrolled_loop
+./asm.py save git_HEAD~1
 
 # 6. Compare two snapshots (or two functions across snapshots):
 ./asm.py diff unrolled_loop
@@ -76,6 +80,7 @@ You can specify a custom diff tool program (e.g. `meld`, `kdiff3`, `code --diff`
 ./asm.py watch
 ./asm.py watch :phast_get_f2
 ./asm.py watch git_main:phast_get_f2
+./asm.py watch -a          # do not skip functions present in only one target
 
 # 8. List saved snapshots and available functions:
 ./asm.py list
@@ -94,12 +99,12 @@ You can specify a custom diff tool program (e.g. `meld`, `kdiff3`, `code --diff`
 
 To manually see the code, use for example:
 ```bash
-cargo asm -p asmview phast_get_f2_shift_only_wrapped_1
+cargo asm -p asmview --lib phast_get_f2_shift_wrap_m1
 ```
 
 ```bash
 cargo build -p asmview --release
-objdump -d -M intel target/release/libasmview.a | grep -A 50 "<phast_get_f2_shift_only_wrapped_1>:"
+objdump -d -M intel target/release/libasmview.a | grep -A 50 "<phast_get_f2_shift_wrap_m1>:"
 ```
 
 ```bash
