@@ -18,6 +18,18 @@ assert_eq!(r.rank(101), 1); // one set bit in the first 101 bits of b
 assert_eq!(r.rank(999), 1); // one set bit in the first 999 bits of b
 ```
 
+# Features
+
+The following [cargo features](https://doc.rust-lang.org/cargo/reference/features.html) are supported:
+
+- `aligned-vec` – enables the implementation of the [`BitVec`](https://docs.rs/bitm/latest/bitm/trait.BitVec.html) trait
+  for `aligned_vec::ABox<[u64]>` (with an arbitrary constant alignment), which allows constructing bit vectors aligned
+  to the CPU cache line (or other boundary). Such vectors usually speed up rank and select queries
+  (see [`RankSelect101111`](https://docs.rs/bitm/latest/bitm/struct.RankSelect101111.html)).
+  It can be enabled, e.g., by adding `bitm = { version = "0.5", features = ["aligned-vec"] }` to the `[dependencies]`
+  section of your `Cargo.toml`.
+
 # Benchmarks
 The performance of some of the structures included in `bitm` can be tested with the [cseq_benchmark](https://crates.io/crates/cseq_benchmark) crate. Its documentation contains benchmark results.
+The crate also contains its own benchmarks (based on criterion and iai-callgrind), which can be run with `cargo bench`.
 

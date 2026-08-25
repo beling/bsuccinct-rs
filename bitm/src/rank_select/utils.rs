@@ -17,6 +17,8 @@ pub(super) fn partition_point<T, P>(tab: &[T], mut pred: P) -> usize
     return first;
 }*/
 
+/// Returns the index of the first element of the second partition (like `<[T]>::partition_point`),
+/// but passes to the predicate `f` both the element and its index.
 #[inline]
 pub(super) fn partition_point_with_index<T, F>(tab: &[T], mut f: F) -> usize
 where F: FnMut(&T, usize) -> bool,

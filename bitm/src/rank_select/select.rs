@@ -9,12 +9,18 @@ use crate::ceiling_div;
 
 #[cfg(target_pointer_width = "64")] use super::utils::partition_point_with_index;
 
-#[cfg(target_pointer_width = "64")] pub const BITS_PER_L1_ENTRY: usize = 1<<32;
-pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);    // each l1 chunk has 1<<32 bits = (1<<32)/64 content (u64) elements
-pub const U64_PER_L2_ENTRY: usize = 32;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
-pub const BITS_PER_L2_ENTRY: usize = U64_PER_L2_ENTRY*64;   // each l2 chunk has 32 content (u64) elements = 32*64 = 2048 bits
-pub const U64_PER_L2_RECORDS: usize = 8; // each l2 entry is split into 4, 8*64=512 bits records
-pub const BITS_PER_L2_RECORDS: u64 = U64_PER_L2_RECORDS as u64 * 64; // each l2 entry is split into 4, 8*64=512 bits records
+#[cfg(target_pointer_width = "64")] /// Length (in bits) of the portion of the bit vector covered by a single level-1 entry.
+pub const BITS_PER_L1_ENTRY: usize = 1<<32;
+/// Number of `u64` words covered by a single level-1 entry (which covers 2<sup>32</sup> bits).
+pub const U64_PER_L1_ENTRY: usize = 1<<(32-6);
+/// Number of `u64` words covered by a single level-2 entry (2048 bits).
+pub const U64_PER_L2_ENTRY: usize = 32;
+/// Length (in bits) of the portion of the bit vector covered by a single level-2 entry (2048 bits).
+pub const BITS_PER_L2_ENTRY: usize = U64_PER_L2_ENTRY*64;
+/// Each level-2 entry is split into 4 records of `U64_PER_L2_RECORDS` `u64` words (512 bits) each.
+pub const U64_PER_L2_RECORDS: usize = 8;
+/// Length (in bits) of a single record of a level-2 entry (512 bits).
+pub const BITS_PER_L2_RECORDS: u64 = U64_PER_L2_RECORDS as u64 * 64;
 #[cfg(target_pointer_width = "64")] pub const L2_ENTRIES_PER_L1_ENTRY: usize = U64_PER_L1_ENTRY / U64_PER_L2_ENTRY;
 
 /// Trait implemented by the types that support select (one) queries,
@@ -29,7 +35,10 @@ pub trait Select {
     }
 
     /// Returns the position of the `rank`-th one (counting from 0) in `self`.
-    /// The result is undefined if there are no such many ones in `self`.
+    ///
+    /// # Safety
+    ///
+    /// `self` must contain more than `rank` ones.
     #[inline(always)] unsafe fn select_unchecked(&self, rank: usize) -> usize {
         self.select(rank)
     }
@@ -47,7 +56,10 @@ pub trait Select0 {
     }
 
     /// Returns the position of the `rank`-th zero (counting from 0) in `self`.
-    /// The result is undefined if there are no such many zeros in `self`.
+    ///
+    /// # Safety
+    ///
+    /// `self` must contain more than `rank` zeros.
     #[inline(always)] unsafe fn select0_unchecked(&self, rank: usize) -> usize {
         self.select0(rank)
     }
@@ -55,10 +67,20 @@ pub trait Select0 {
 
 /// Trait implemented by strategies for select (ones) operations for `ArrayWithRank101111`.
 pub trait SelectForRank101111 {
+    /// Constructs the select (ones) support for the bit vector `content` with its rank structure
+    /// (`l1ranks`, available only on 64-bit targets, and `l2ranks`) and `total_rank`
+    /// equal to the total number of ones in `content`.
     fn new(content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
 
+    /// Returns the position of the `rank`-th (counting from 0) one in `content`,
+    /// or [`None`] if `content` contains fewer ones.
     fn select(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
 
+    /// Returns the position of the `rank`-th one in `content`.
+    ///
+    /// # Safety
+    ///
+    /// `content` must contain more than `rank` ones.
     #[inline(always)] unsafe fn select_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
         self.select(content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank).unwrap_unchecked()
     }
@@ -66,10 +88,20 @@ pub trait SelectForRank101111 {
 
 /// Trait implemented by strategies for select zeros operations for `ArrayWithRank101111`.
 pub trait Select0ForRank101111 {
+    /// Constructs the select (zeros) support for the bit vector `content` with its rank structure
+    /// (`l1ranks`, available only on 64-bit targets, and `l2ranks`) and `total_rank`
+    /// equal to the total number of ones in `content`.
     fn new0(content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], total_rank: usize) -> Self;
 
+    /// Returns the position of the `rank`-th (counting from 0) zero in `content`,
+    /// or [`None`] if `content` contains fewer zeros.
     fn select0(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> Option<usize>;
 
+    /// Returns the position of the `rank`-th zero in `content`.
+    ///
+    /// # Safety
+    ///
+    /// `content` must contain more than `rank` zeros.
     #[inline(always)] unsafe fn select0_unchecked(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], rank: usize) -> usize {
         self.select0(content, #[cfg(target_pointer_width = "64")] l1ranks, l2ranks, rank).unwrap_unchecked()
     }
@@ -92,6 +124,10 @@ pub trait Select0ForRank101111 {
 /// - Sebastiano Vigna, The selection problem <https://sux4j.di.unimi.it/select.php>
 /// 
 /// The implementation is based on the one contained in folly library by Meta.
+///
+/// # Safety
+///
+/// `rank` must be less than the number of ones in `n` (in particular, it must be in range `[0, 64)`).
 #[inline] pub unsafe fn select64(n: u64, rank: u8) -> u8 {
     #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2"))]
     { arch::_pdep_u64(1u64 << rank, n).trailing_zeros() as u8 }
@@ -424,7 +460,7 @@ impl Select0ForRank101111 for BinaryRankSearch {
 /// - `n` -- the number of ones (for select) or zeros (for select0) in the vector,
 /// - `len` -- length of the vector in bits,
 /// - `max_result` -- the largest possible result, returned only and always for n >= 75%len
-///                   (must be in range [7, 31]).
+///   (must be in range [7, 31]).
 /// 
 /// The result is the base 2 logarithm of the recommended sampling, and it is always in range [7, `max_result`].
 /// The actual sampling is 2 times denser, but every second sample sometimes cannot be recorded accurately.
@@ -451,6 +487,7 @@ pub trait CombinedSamplingDensity: Copy {
     /// - `len` -- length of the vector in bits.
     fn density_for(number_of_items: usize, len: usize) -> Self::SamplingDensity;
 
+    /// Returns the base 2 logarithm of [`items_per_sample`](Self::items_per_sample).
     fn items_per_sample_log2(density: Self::SamplingDensity) -> u8;
 
     /// Returns number of bit ones or zeros (in the case of select0) per each sample (entry).
@@ -463,6 +500,7 @@ pub trait CombinedSamplingDensity: Copy {
         index >> Self::items_per_sample_log2(density)
     }
 
+    /// Returns whether `index` falls into the second half of its sampling interval (see [`Self::items_per_sample`]).
     #[inline(always)] fn is_in_second_half(index: usize, density: Self::SamplingDensity) -> bool {
         //index & (1 << (Self::items_per_sample_log2(density)-1)) != 0
         (index >> (Self::items_per_sample_log2(density)-1)) & 1 != 0
@@ -512,7 +550,7 @@ impl<const MAX_RESULT: u8> CombinedSamplingDensity for AdaptiveCombinedSamplingD
 /// Space/speed trade-off can be adjusted by the generic parameter, by giving one of:
 /// - [`AdaptiveCombinedSamplingDensity`] (default) -- works well with a wide range of bit vectors,
 /// - [`ConstCombinedSamplingDensity`] -- recommended for vectors with a known ratio of set/unset bits;
-///                with default parameters, recommended for vectors filled with bit ones in about half.
+///   with default parameters, recommended for vectors filled with bit ones in about half.
 /// 
 /// The implementation generally follows the paper:
 /// - Zhou D., Andersen D.G., Kaminsky M. (2013) "Space-Efficient, High-Performance Rank and Select Structures on Uncompressed Bit Sequences".
@@ -530,7 +568,7 @@ pub struct CombinedSampling<D: CombinedSamplingDensity = /*ConstCombinedSampling
     /// Bit indices (relative to level 1) of every d-th (d depends on D) one (or zero in the case of select 0) in content,
     /// starting from the first one.
     select: Box<[u32]>,
-    /// [`select_begin`] indices that begin descriptions of subsequent first-level entries.
+    /// `select_begin` indices that begin descriptions of subsequent first-level entries.
     #[cfg(target_pointer_width = "64")] select_begin: Box<[usize]>,
     /// Sampling density (ZST for const density).
     density: D::SamplingDensity,

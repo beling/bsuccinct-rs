@@ -51,6 +51,13 @@ pub use bitvec::*;
 }
 
 /// Reads at least 57 bits from `ptr`, beginning from `first_bit`.
+/// Specifically, it returns the `(64-first_bit%8)` low bits of the (little-endian) `u64`
+/// located at byte offset `first_bit/8` from `ptr`.
+///
+/// # Safety
+///
+/// `ptr` must be valid for reads of 8 bytes,
+/// i.e. the buffer pointed to by `ptr` must contain at least `first_bit/8+8` initialized bytes.
 #[inline(always)]
 pub unsafe fn get_bits57(ptr: *const u8, first_bit: usize) -> u64 {
     let ptr = ptr.add(first_bit / 8) as *const u64;
@@ -60,6 +67,11 @@ pub unsafe fn get_bits57(ptr: *const u8, first_bit: usize) -> u64 {
 
 /// Writes at least 57 lowest `value` bits to `ptr` buffer, beginning from `first_bit`, using bit-or operation.
 /// Appropriate fragment of buffer should be zeroed.
+///
+/// # Safety
+///
+/// `ptr` must be valid for reads and writes of 8 bytes,
+/// i.e. the buffer pointed to by `ptr` must contain at least `first_bit/8+8` accessible bytes.
 #[inline(always)]
 pub unsafe fn init_bits57(ptr: *mut u8, first_bit: usize, value: u64) {
     let ptr = ptr.add(first_bit / 8) as *mut u64;
@@ -72,6 +84,11 @@ pub unsafe fn init_bits57(ptr: *mut u8, first_bit: usize, value: u64) {
 /// Before write, appropriate fragment of buffer is zeroed by bit-andn with `len_mask`
 /// (which should be of type 0..01..1, with desired number of bit ones).
 /// The most significant bits of `value` should be zeros.
+///
+/// # Safety
+///
+/// `ptr` must be valid for reads and writes of 8 bytes,
+/// i.e. the buffer pointed to by `ptr` must contain at least `first_bit/8+8` accessible bytes.
 #[inline(always)]
 pub unsafe fn set_bits57(ptr: *mut u8, first_bit: usize, value: u64, len_mask: u64) {
     let ptr = ptr.add(first_bit / 8) as *mut u64;
@@ -83,6 +100,13 @@ pub unsafe fn set_bits57(ptr: *mut u8, first_bit: usize, value: u64, len_mask: u
 }
 
 /// Reads at least 25 bits from `ptr`, beginning from `first_bit`.
+/// Specifically, it returns the `(32-first_bit%8)` low bits of the (little-endian) `u32`
+/// located at byte offset `first_bit/8` from `ptr`.
+///
+/// # Safety
+///
+/// `ptr` must be valid for reads of 4 bytes,
+/// i.e. the buffer pointed to by `ptr` must contain at least `first_bit/8+4` initialized bytes.
 #[inline(always)]
 pub unsafe fn get_bits25(ptr: *const u8, first_bit: usize) -> u32 {
     let ptr = ptr.add(first_bit / 8) as *const u32;
@@ -92,6 +116,11 @@ pub unsafe fn get_bits25(ptr: *const u8, first_bit: usize) -> u32 {
 
 /// Writes at least 25 lowest `value` bits to `ptr` buffer, beginning from `first_bit`, using bit-or operation.
 /// Appropriate fragment of buffer should be zeroed.
+///
+/// # Safety
+///
+/// `ptr` must be valid for reads and writes of 4 bytes,
+/// i.e. the buffer pointed to by `ptr` must contain at least `first_bit/8+4` accessible bytes.
 #[inline(always)]
 pub unsafe fn init_bits25(ptr: *mut u8, first_bit: usize, value: u32) {
     let ptr = ptr.add(first_bit / 8) as *mut u32;
@@ -104,6 +133,11 @@ pub unsafe fn init_bits25(ptr: *mut u8, first_bit: usize, value: u32) {
 /// Before write, appropriate fragment of buffer is zeroed by bit-andn with `len_mask`
 /// (which should be of type 0..01..1, with desired number of bit ones).
 /// The most significant bits of `value` should be zeros.
+///
+/// # Safety
+///
+/// `ptr` must be valid for reads and writes of 4 bytes,
+/// i.e. the buffer pointed to by `ptr` must contain at least `first_bit/8+4` accessible bytes.
 #[inline(always)]
 pub unsafe fn set_bits25(ptr: *mut u8, first_bit: usize, value: u32, len_mask: u32) {
     let ptr = ptr.add(first_bit / 8) as *mut u32;
@@ -119,7 +153,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_div_up() {
+    fn test_ceiling_div() {
         assert_eq!(ceiling_div(7, 2), 4);
         assert_eq!(ceiling_div(8, 2), 4);
         assert_eq!(ceiling_div(9, 2), 5);

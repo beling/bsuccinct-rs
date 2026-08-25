@@ -23,7 +23,10 @@ pub trait Rank {
     }
 
     /// Returns the number of ones in first `index` bits.
-    /// The result is undefined if `index` is out of bounds.
+    ///
+    /// # Safety
+    ///
+    /// `index` must not exceed the length of the bit vector.
     #[inline] unsafe fn rank_unchecked(&self, index: usize) -> usize {
         self.rank(index)
     }
@@ -36,8 +39,11 @@ pub trait Rank {
     /// Returns the number of zeros in first `index` bits or panics if `index` is out of bounds.
     #[inline] fn rank0(&self, index: usize) -> usize { index - self.rank(index) }
 
-    /// Returns the number of ones in first `index` bits.
-    /// The result is undefined if `index` is out of bounds.
+    /// Returns the number of zeros in first `index` bits.
+    ///
+    /// # Safety
+    ///
+    /// `index` must not exceed the length of the bit vector.
     #[inline] unsafe fn rank0_unchecked(&self, index: usize) -> usize {
         index - self.rank_unchecked(index)
     }
@@ -72,7 +78,7 @@ pub trait Rank {
     return result;
 }*/
 
-/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
 /*#[inline] fn count_bits_in(mut content: &[u64]) -> usize {
     let mut result = 0;
     if content.len() >= 3 {
@@ -98,7 +104,7 @@ pub trait Rank {
     result
 }*/
 
-/// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
+// Returns number of bits set (to one) in `content` whose length does not exceeds 8.
 /*#[inline] fn count_bits_in(mut content: &[u64]) -> usize {
     let mut result = 0;
     // up to 8 elements
@@ -152,12 +158,26 @@ pub trait Rank {
 /// The content of level 2 entry, listing from the least significant bits, is:
 /// - original: r0 stored on 32 bits, r1-r0 on 10 bits, r2-r1 on 10 bits, r3-r2 on 10 bits;
 /// - our: r0 stored on 32 bits, r3-r0 on 11 bits, r2-r0 on 11 bits, r1-r0 on 10 bits.
+///
 /// With this layout, we can read the corresponding value in the rank query without branching.
 /// 
 /// Another modification that makes our implementation unique is the ability of the select support structure to adapt
 /// the sampling density to the content of the bit vector (see [`CombinedSampling`] and [`AdaptiveCombinedSamplingDensity`]).
 /// 
 /// For in-word selection, the structure uses the [`select64`] function.
+///
+/// # Example
+///
+/// ```
+/// use bitm::{Rank, Select, ArrayWithRank101111};
+///
+/// let content = Box::<[u64]>::from(vec![0b1101]);
+/// let (rs, ones) = ArrayWithRank101111::build(content);
+/// assert_eq!(ones, 3);
+/// assert_eq!(rs.rank(2), 1);             // one set bit among the first 2 bits of content
+/// assert_eq!(rs.try_select(2), Some(3)); // position of the third (counting from 0) set bit
+/// assert_eq!(rs.try_select(3), None);
+/// ```
 #[derive(Clone)]
 pub struct RankSelect101111<Select = BinaryRankSearch, Select0 = BinaryRankSearch, BV = Box::<[u64]>> {
     pub content: BV,  // bit vector
@@ -259,6 +279,8 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
 }
 
 impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>> RankSelect101111<S, S0, BV> {
+    /// Constructs the structure for the given bit vector `content`.
+    /// Returns the constructed structure and the total number of ones in `content`.
     pub fn build(content: BV) -> (Self, usize) {
         #[cfg(target_pointer_width = "64")] let mut l1ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L1_ENTRY));
         let mut l2ranks = Vec::with_capacity(ceiling_div(content.len(), U64_PER_L2_ENTRY));
@@ -331,7 +353,8 @@ impl<BV: Deref<Target = [u64]>> From<BV> for RankSimple<BV> {
 
 impl<BV: Deref<Target = [u64]>> RankSimple<BV> {
 
-    /// Constructs `ArrayWithRankSimple` and counts the number of bits set in `content`. Returns both.
+    /// Constructs [`RankSimple`] for the given bit vector `content`
+    /// and counts the number of bits set in `content`. Returns both.
     pub fn build(content: BV) -> (Self, u32) {
         let mut result = Vec::with_capacity(ceiling_div(content.len(), 8usize));
         let mut current_rank: u32 = 0;
@@ -342,6 +365,8 @@ impl<BV: Deref<Target = [u64]>> RankSimple<BV> {
         (Self{content, ranks: result.into_boxed_slice()}, current_rank)
     }
 
+    /// Returns the number of ones in the first `index` bits of the `content`,
+    /// or [`None`] if `index` is out of bounds.
     pub fn try_rank(&self, index: usize) -> Option<u32> {
         let word_idx = index / 64;
         let word_offset = index as u8 % 64;
@@ -354,6 +379,8 @@ impl<BV: Deref<Target = [u64]>> RankSimple<BV> {
         Some(r)
     }
 
+    /// Returns the number of ones in the first `index` bits of the `content`.
+    /// Panics if `index` is out of bounds.
     pub fn rank(&self, index: usize) -> u32 {
         let word_idx = index / 64;
         let word_offset = index as u8 % 64;

@@ -12,7 +12,8 @@ pub struct BitBIterator<'a, const B: bool> {
 }
 
 impl<'a, const B: bool> BitBIterator<'a, B> {
-    /// Constructs an iterator over bits set in the given `slice`.
+    /// Constructs an iterator over indices of bits set to 1 (if `B` is `true`) or 0 (if `B` is `false`)
+    /// in the given `slice`.
     pub fn new(slice: &'a [u64]) -> Self {
         let mut segment_iter = slice.into_iter();
         let current_segment = if B {
@@ -80,6 +81,10 @@ impl<'bv> BitIterator<'bv> {
     }
 
     /// Constructs an iterator over the given bit range of `bit_vec`.
+    ///
+    /// # Safety
+    ///
+    /// `bit_range.end` must not exceed `bit_vec.len()*64`.
     #[inline] pub unsafe fn with_range_unchecked(bit_vec: &'bv [u64], bit_range: Range<usize>) -> Self {
         Self { bit_vec, bit_range }
     }
@@ -132,11 +137,32 @@ impl<'a> FusedIterator for BitIterator<'a> where Range<usize>: FusedIterator {}
 
 /// The trait that is implemented for the array of `u64` and extends it with methods for
 /// accessing and modifying single bits or arbitrary fragments consisting of a few (up to 63) bits.
+///
+/// All methods taking `len` or `v_size: u8` require this parameter to be in range `[0, 63]`
+/// (otherwise they panic, or the result is undefined in the case of the `_unchecked` variants).
+/// Methods returning [`Option`] report an out-of-bounds range as [`None`]; the other safe methods panic
+/// if the range of bits is out of bounds.
+///
+/// # Example
+///
+/// ```
+/// use bitm::BitAccess;
+///
+/// let mut v = [0u64, 0u64];
+/// v.set_bits(62, 0b101, 3);   // modifies 3 bits, spanning the border of the two 64-bit words
+/// assert_eq!(v.get_bits(62, 3), 0b101);
+/// assert_eq!(v.get_bit(63), false);
+/// assert_eq!(v.get_bit(64), true);
+/// ```
 pub trait BitAccess {
     /// Gets bit with given index `bit_nr`. Panics if `bit_nr` is out of bounds.
     fn get_bit(&self, bit_nr: usize) -> bool;
 
     /// Gets bit with given index `bit_nr`, without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// `bit_nr/64` must be less than the length of `self` (in `u64` segments).
     unsafe fn get_bit_unchecked(&self, bit_nr: usize) -> bool;
 
     /// Gets bit with given index `bit_nr`. Returns `None` if `bit_nr` is out of bounds.
@@ -153,6 +179,10 @@ pub trait BitAccess {
     fn set_bit_to(&mut self, bit_nr: usize, value: bool);
 
     /// Sets bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise), without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// `bit_nr/64` must be less than the length of `self` (in `u64` segments).
     unsafe fn set_bit_to_unchecked(&mut self, bit_nr: usize, value: bool);
 
     /// Sets bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise) and increases `bit_nr` by 1.
@@ -163,6 +193,10 @@ pub trait BitAccess {
 
     /// Sets bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise) and increases `bit_nr` by 1.
     /// The result is undefined if `bit_nr` is out of bound.
+    ///
+    /// # Safety
+    ///
+    /// `bit_nr/64` must be less than the length of `self` (in `u64` segments).
     #[inline] unsafe fn set_successive_bit_to_unchecked(&mut self, bit_nr: &mut usize, value: bool) {
         self.set_bit_to_unchecked(*bit_nr, value); *bit_nr += 1;
     }
@@ -175,6 +209,10 @@ pub trait BitAccess {
     /// Initializes bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise).
     /// Before initialization, the bit is assumed to be cleared or already set to `value`.
     /// The result is undefined if `bit_nr` is out of bounds.
+    ///
+    /// # Safety
+    ///
+    /// `bit_nr/64` must be less than the length of `self` (in `u64` segments).
     unsafe fn init_bit_unchecked(&mut self, bit_nr: usize, value: bool);
 
     /// Initializes bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise)
@@ -189,6 +227,10 @@ pub trait BitAccess {
     /// and increases `bit_nr` by 1.
     /// Before initialization, the bit is assumed to be cleared or already set to `value`.
     /// The result is undefined if `bit_nr` is out of bounds.
+    ///
+    /// # Safety
+    ///
+    /// `bit_nr/64` must be less than the length of `self` (in `u64` segments).
     #[inline] unsafe fn init_successive_bit_unchecked(&mut self, bit_nr: &mut usize, value: bool) {
         self.init_bit_unchecked(*bit_nr, value); *bit_nr += 1;
     }
@@ -197,12 +239,20 @@ pub trait BitAccess {
     fn set_bit(&mut self, bit_nr: usize);
 
     /// Sets bit with given index `bit_nr` to `1`, without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// `bit_nr/64` must be less than the length of `self` (in `u64` segments).
     unsafe fn set_bit_unchecked(&mut self, bit_nr: usize);
 
     /// Sets bit with given index `bit_nr` to `0`. Panics if `bit_nr` is out of bounds.
     fn clear_bit(&mut self, bit_nr: usize);
 
     /// Sets bit with given index `bit_nr` to `0`, without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// `bit_nr/64` must be less than the length of `self` (in `u64` segments).
     unsafe fn clear_bit_unchecked(&mut self, bit_nr: usize);
 
     /// Gets at least `len` bits beginning from the bit index `begin`. Panics if the range is out of bounds.
@@ -226,14 +276,22 @@ pub trait BitAccess {
     }
 
     /// Gets at least `len` bits beginning from the bit index `begin` without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 63.
     unsafe fn get_bits_unmasked_unchecked(&self, begin: usize, len: u8) -> u64;
 
     /// Gets bits `[begin, begin+len)` without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 63.
     #[inline(always)] unsafe fn get_bits_unchecked(&self, begin: usize, len: u8) -> u64 {
         self.get_bits_unmasked_unchecked(begin, len) & n_lowest_bits(len)
     }
 
-    /// Gets bits `[begin, begin+len)` and increases `bit_nr` by `len`.
+    /// Gets bits `[begin, begin+len)` and increases `begin` by `len`. Panics if the range is out of bounds.
     #[inline] fn get_successive_bits(&self, begin: &mut usize, len: u8) -> u64 {
         let result = self.get_bits(*begin, len);
         *begin += len as usize;
@@ -244,7 +302,7 @@ pub trait BitAccess {
     /// Before initialization, the bits are assumed to be cleared or already set to `v`.
     fn init_bits(&mut self, begin: usize, v: u64, len: u8);
 
-    /// Initializes bits `[begin, begin+len)` to `v` and increases `begin` by `len`.
+    /// Initializes bits `[begin, begin+len)` to `v` and increases `begin` by `len`. Panics if the range is out of bounds.
     /// Before initialization, the bits are assumed to be cleared or already set to `v`.
     #[inline] fn init_successive_bits(&mut self, begin: &mut usize, v: u64, len: u8) {
         self.init_bits(*begin, v, len); *begin += len as usize;
@@ -252,6 +310,10 @@ pub trait BitAccess {
 
     /// Initializes bits `[begin, begin+len)` to `v`, without bounds checking.
     /// Before initialization, the bits are assumed to be cleared or already set to `v`.
+    ///
+    /// # Safety
+    ///
+    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 63.
     unsafe fn init_bits_unchecked(&mut self, begin: usize, v: u64, len: u8);
 
     /// Sets bits `[begin, begin+len)` to the content of `v`. Panics if the range is out of bounds.
@@ -263,6 +325,10 @@ pub trait BitAccess {
     }
 
     /// Sets bits `[begin, begin+len)` to the content of `v`, without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// The range `[begin, begin+len)` must not exceed the range of bits spanned by `self`; `len` must not exceed 63.
     unsafe fn set_bits_unchecked(&mut self, begin: usize, v: u64, len: u8);
 
     /// Xor at least `len` bits of `self`, starting from index `begin`, with `v`. Panics if the range is out of bounds.
@@ -283,7 +349,7 @@ pub trait BitAccess {
     /// Returns iterator over indices of ones (set bits).
     fn bit_ones(&'_ self) -> BitOnesIterator<'_>;
 
-    /// Returns iterator over indices of ones (set bits).
+    /// Returns iterator over indices of zeros (cleared bits).
     fn bit_zeros(&'_ self) -> BitZerosIterator<'_>;
 
     /// Returns iterator over all bits in `self` that yields `true` for each one and `false` for each zero.
@@ -294,6 +360,10 @@ pub trait BitAccess {
 
     /// Returns iterator over given range (whose bounds are unchecked) of `self` bits
     /// that yields `true` for each one and `false` for each zero.
+    ///
+    /// # Safety
+    ///
+    /// `bit_range.end` must not exceed the number of bits spanned by `self`.
     unsafe fn bit_in_unchecked_range_iter(&'_ self, bit_range: Range<usize>) -> BitIterator<'_>;
 
     /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`).
@@ -322,17 +392,27 @@ pub trait BitAccess {
 
     /// Gets `index`-th fragment of at least `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`),
     /// without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// The range [`index*v_size`, `index*v_size+v_size`) must not exceed the range of bits spanned by `self`;
+    /// `v_size` must not exceed 63.
     #[inline(always)] unsafe fn get_fragment_unmasked_unchecked(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits_unmasked_unchecked(index * v_size as usize, v_size)
     }
 
     /// Gets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`),
     /// without bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// The range [`index*v_size`, `index*v_size+v_size`) must not exceed the range of bits spanned by `self`;
+    /// `v_size` must not exceed 63.
     #[inline(always)] unsafe fn get_fragment_unchecked(&self, index: usize, v_size: u8) -> u64 {
         self.get_bits_unchecked(index * v_size as usize, v_size)
     }
 
-    /// Gets `index`-th fragment of `v_size` bits and increases `index` by 1.
+    /// Gets `index`-th fragment of `v_size` bits and increases `index` by 1. Panics if the range is out of bounds.
     #[inline(always)] fn get_successive_fragment(&self, index: &mut usize, v_size: u8) -> u64 {
         let result = self.get_fragment(*index, v_size);
         *index += 1;
@@ -354,6 +434,11 @@ pub trait BitAccess {
 
     /// Initializes `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
     /// The result is undefined if the range is out of bounds. Before initialization, the bits are assumed to be cleared or already set to `v`.
+    ///
+    /// # Safety
+    ///
+    /// The range [`index*v_size`, `index*v_size+v_size`) must not exceed the range of bits spanned by `self`;
+    /// `v_size` must not exceed 63.
     #[inline(always)] unsafe fn init_fragment_unchecked(&mut self, index: usize, v: u64, v_size: u8) {
         self.init_bits_unchecked(index * v_size as usize, v, v_size)
     }
@@ -366,6 +451,11 @@ pub trait BitAccess {
 
     /// Sets `index`-th fragment of `v_size` bits, i.e. bits with indices in range [`index*v_size`, `index*v_size+v_size`), to `v`.
     /// The result is undefined if the range is out of bounds.
+    ///
+    /// # Safety
+    ///
+    /// The range [`index*v_size`, `index*v_size+v_size`) must not exceed the range of bits spanned by `self`;
+    /// `v_size` must not exceed 63.
     #[inline(always)] unsafe fn set_fragment_unchecked(&mut self, index: usize, v: u64, v_size: u8) {
         self.set_bits_unchecked(index * v_size as usize, v, v_size)
     }
@@ -388,6 +478,7 @@ pub trait BitAccess {
     }
 
     /// Swaps ranges of bits: [`index1*v_size`, `index1*v_size+v_size`) with [`index2*v_size`, `index2*v_size+v_size`).
+    /// Panics if any of the ranges is out of bounds.
     fn swap_fragments(&mut self, index1: usize, index2: usize, v_size: u8) {
         // TODO faster implementation
         let v1 = self.get_fragment(index1, v_size);
@@ -444,6 +535,11 @@ pub trait BitAccess {
 
     /// Returns the lowest index of 1-bit that is greater than or equal to `start_index`.
     /// The result is undefined if there is no such index.
+    ///
+    /// # Safety
+    ///
+    /// There must exist a 1-bit with index greater than or equal to `start_index`,
+    /// which must not exceed the number of bits spanned by `self`.
     unsafe fn find_bit_one_unchecked(&self, start_index: usize) -> usize;
 
     /// Returns the lowest index of 1-bit that is greater than or equal to `start_index`.
@@ -452,6 +548,11 @@ pub trait BitAccess {
 
     /// Returns the greatest index of 1-bit that is lower than or equal to `start_index`.
     /// The result is undefined if there is no such index.
+    ///
+    /// # Safety
+    ///
+    /// There must exist a 1-bit with index lower than or equal to `start_index`,
+    /// which must not exceed the number of bits spanned by `self`.
     unsafe fn rfind_bit_one_unchecked(&self, start_index: usize) -> usize;
 }
 
