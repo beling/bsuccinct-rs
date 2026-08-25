@@ -273,6 +273,7 @@ impl<S: SelectForRank101111, S0: Select0ForRank101111, BV: Deref<Target = [u64]>
     fn prefetch(&self, index: usize) {
         let word_idx = index / 64;
         prefetch_index(&self.l2ranks, index / 2048);
+        #[cfg(target_pointer_width = "64")]
         prefetch_index(&self.l1ranks, index >> 32);
         prefetch_index(&*self.content, word_idx);
     }
