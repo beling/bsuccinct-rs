@@ -1,6 +1,5 @@
 use dyn_size_of::GetSize;
 
-#[cfg(all(target_arch = "x86", target_feature = "bmi2"))] use core::arch::x86 as arch;
 #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))] use core::arch::x86_64 as arch;
 //#[cfg(target_arch = "x86")] use core::arch::x86 as arch;
 //#[cfg(target_arch = "x86_64")] use core::arch::x86_64 as arch;
@@ -129,9 +128,10 @@ pub trait Select0ForRank101111 {
 ///
 /// `rank` must be less than the number of ones in `n` (in particular, it must be in range `[0, 64)`).
 #[inline] pub unsafe fn select64(n: u64, rank: u8) -> u8 {
-    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2"))]
+    // Note: `_pdep_u64` is available only on x86_64 (not on 32-bit x86), hence the `target_arch` condition.
+    #[cfg(all(target_arch = "x86_64", target_feature = "bmi2"))]
     { arch::_pdep_u64(1u64 << rank, n).trailing_zeros() as u8 }
-    #[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))] {
+    #[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))] {
         use std::num::Wrapping as W;
 
         let rank = W(rank as u64);
@@ -323,7 +323,8 @@ impl GetSize for BinaryRankSearch {}
     c * 64 + select64(if ONE { *v } else { !*v }, rank as u8) as usize
 }
 
-/// Select from `l2ranks` entry pointed by `l2_index`, without `l2_entry` entry bounds checking.
+/// Select from `l2ranks` entry pointed by `l2_index`, without checking `l2_index` against the length of `l2ranks`
+/// (accesses to `content` are bounds-checked).
 #[inline(always)] unsafe fn select_from_l2<const ONE: bool>(content: &[u64], l2ranks: &[u64], l2_index: usize, mut rank: usize) -> Option<usize> {
     let l2_entry = *l2ranks.get_unchecked(l2_index);
     let mut c = l2_index * U64_PER_L2_ENTRY + consider_l2entry::<ONE>(l2_index, l2_entry, &mut rank);
@@ -647,6 +648,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     }
 
     #[inline(always)]
+    #[cfg_attr(target_pointer_width = "32", allow(unused_mut))]
     fn select<const ONE: bool>(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> Option<usize> {
         #[cfg(target_pointer_width = "64")] if l1ranks.is_empty() { return None; }
         #[cfg(target_pointer_width = "64")] let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
@@ -677,6 +679,7 @@ impl<D: CombinedSamplingDensity> CombinedSampling<D> {
     }
 
     #[inline(always)]
+    #[cfg_attr(target_pointer_width = "32", allow(unused_mut))]
     unsafe fn select_unchecked<const ONE: bool>(&self, content: &[u64], #[cfg(target_pointer_width = "64")] l1ranks: &[usize], l2ranks: &[u64], mut rank: usize) -> usize {
         #[cfg(target_pointer_width = "64")] let l1_index = select_l1::<ONE>(l1ranks, &mut rank);
         #[cfg(target_pointer_width = "64")] let l2_begin = l1_index * L2_ENTRIES_PER_L1_ENTRY;
@@ -812,7 +815,7 @@ mod tests {
 
 
 /// For any n<256 and rank<8, the value at index 256*rank+n is the index of the (rank+1)-th one in the bit representation of n, or 8.
-#[cfg(not(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "bmi2")))] const SELECT_U8: [u8; 2048] = [
+#[cfg(not(all(target_arch = "x86_64", target_feature = "bmi2")))] const SELECT_U8: [u8; 2048] = [
     8,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,5,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,
     6,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,5,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,
     7,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,5,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,4,0,1,0,2,0,1,0,3,0,1,0,2,0,1,0,
