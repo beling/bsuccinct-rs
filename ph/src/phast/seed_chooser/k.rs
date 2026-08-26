@@ -46,6 +46,8 @@ pub trait KSeedEvaluator: Clone + Sync {
         //S=8, k=4:
         //l=1024: 0.63%  0, 50850, 54240, 56227, 58148, 62658, 64784  value_shift: 0.90437, free_shift: 0.96466, first_weight: 0.86792
         //l=2048: 0.67%  0, 266202, 268413, 269618, 281494, 299180, 302441  value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148
+        //l=4096: 0.71%  0, 226, 34010, 34417, 374541, 477304, 496400  value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933
+        //l=8192: 0.83%  0, 1872, 5387, 42264, 163703, 316315, 366479  value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532
         Weights::new(bits_per_seed, slice_len)
     }
 }
