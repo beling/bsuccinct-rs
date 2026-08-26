@@ -43,6 +43,8 @@ pub trait KSeedEvaluator: Clone + Sync {
     fn eval_and_remove(&self, k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, bucket_data: Self::BucketData) -> Self::Value;
 
     fn bucket_evaluator(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights { // TODO ?? remove and move impl. to SeedChooser
+        //S=8, k=2:
+        //l=1024: 0.92%  0, 118482, 177895, 206179, 229653, 249918, 255628  value_shift: 0.57466, free_shift: 0.86282, first_weight: 0.80656
         //S=8, k=4:
         //l=1024: 0.63%  0, 50850, 54240, 56227, 58148, 62658, 64784  value_shift: 0.90437, free_shift: 0.96466, first_weight: 0.86792
         //l=2048: 0.67%  0, 266202, 268413, 269618, 281494, 299180, 302441  value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148
@@ -93,8 +95,6 @@ impl KSeedEvaluatorConf for SumOfValues {
     type KSeedEvaluator = Self;
     #[inline] fn for_k(&self, _k: u16) -> Self::KSeedEvaluator { SumOfValues }
 }
-
-
 
 impl KSeedEvaluatorConf for ProdOfValues {
     type KSeedEvaluator = ProdOfValuesKEval;
