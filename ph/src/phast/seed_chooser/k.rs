@@ -351,9 +351,9 @@ impl KSeedEvaluator for SumOfLogValuesEvaluator {
 }*/
 
 #[derive(Clone, Copy)]
-pub struct SeedKCore(pub u16);
+pub struct SeedOnlyKCore(pub u16);
 
-impl SeedChooserCore for SeedKCore {
+impl SeedChooserCore for SeedOnlyKCore {
     
     #[inline(always)] fn k(&self) -> u16 { self.0 }
 
@@ -385,7 +385,7 @@ impl SeedChooserCore for SeedKCore {
 #[derive(Clone, Copy)]
 pub struct SeedOnlyK<SE = ProdOfValuesKEval> {
     pub seed_evaluator: SE,
-    pub core: SeedKCore,
+    pub core: SeedOnlyKCore,
 }
 
 impl SeedOnlyK<ProdOfValuesKEval> {
@@ -396,7 +396,7 @@ impl SeedOnlyK<ProdOfValuesKEval> {
 
 impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
     pub fn with_evaluator<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u16, seed_evaluator_conf: SEC) -> Self {
-        Self { seed_evaluator: seed_evaluator_conf.for_k(k), core: SeedKCore(k) }
+        Self { seed_evaluator: seed_evaluator_conf.for_k(k), core: SeedOnlyKCore(k) }
     }
 }
 
@@ -433,7 +433,7 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
 impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     type UsedValues = FreeValueMultiSetU16;
 
-    type Core = SeedKCore;
+    type Core = SeedOnlyKCore;
 
     #[inline] fn empty_used_values(&self) -> Self::UsedValues {
         Self::UsedValues::filled_with(self.k())
@@ -466,7 +466,5 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         self.seed_evaluator.bucket_evaluator(self.k(), bits_per_seed, slice_len)
     }
-    
-
 }
 

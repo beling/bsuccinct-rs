@@ -2,7 +2,7 @@
 
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedOnlyCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedOnlyCore, SeedOnlyKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}}, seeds::{Bits8, SeedSize}};
 use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -17,7 +17,7 @@ use rayon::prelude::*;
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct KFunction<C: Core, SS, SC = SeedKCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
+pub struct KFunction<C: Core, SS, SC = SeedOnlyKCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
     level0: SeedEx<SS::VecElement, C>,
@@ -298,7 +298,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     }
 }
 
-impl<C: Core, SS: SeedSize> KFunction<C, SS, SeedKCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl<C: Core, SS: SeedSize> KFunction<C, SS, SeedOnlyKCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
 
     /// Read `Self` from the `input`. Uses default hasher and seed chooser.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
@@ -307,7 +307,7 @@ impl<C: Core, SS: SeedSize> KFunction<C, SS, SeedKCore, DefaultCompressedArray, 
 }
 
 // TODO switch Conf to ConfTurbo ?
-impl KFunction<GenericCore, Bits8, SeedKCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl KFunction<GenericCore, Bits8, SeedOnlyKCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
     /// Constructs [`KFunction`] for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.

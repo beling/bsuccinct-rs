@@ -678,12 +678,6 @@ impl CostFn for WGenericProdOfValues {
 }
 
 
-
-
-
-
-
-
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
 pub struct PerfectProdKAndWeightsCost6;

@@ -6,7 +6,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedChooserCore, SeedOnlyCore, SeedKCore, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedChooserCore, SeedOnlyCore, SeedOnlyKCore, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -267,7 +267,7 @@ impl Perfect<GenericCore, Bits8, SeedOnlyCore, BuildDefaultSeededHasher> {
     }
 }
 
-impl Perfect<GenericCore, Bits8, SeedKCore, BuildDefaultSeededHasher> {
+impl Perfect<GenericCore, Bits8, SeedOnlyKCore, BuildDefaultSeededHasher> {
     /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
@@ -310,7 +310,7 @@ impl Perfect<GenericCore, Bits8, SeedKCore, BuildDefaultSeededHasher> {
     }
 }
 
-impl Perfect<GenericCore, Bits8, SeedKCore, BuildDefaultSeededHasher> {
+impl Perfect<GenericCore, Bits8, SeedOnlyKCore, BuildDefaultSeededHasher> {
     /// Constructs `k`-[`Perfect`] function for given `keys`, using a single thread.
     /// `k`-[`Perfect`] function maps `k` or less different keys to each value.
     /// 
@@ -359,7 +359,7 @@ pub(crate) mod tests {
         verify_partial_phf(f.output_range(), keys, |key| Some(f.get(key)));
     }
 
-    fn kphf_test<K: Display+Hash, SS: SeedSize, S: BuildSeededHasher, C: Core>(f: &Perfect<C, SS, SeedKCore, S>, keys: &[K]) {
+    fn kphf_test<K: Display+Hash, SS: SeedSize, S: BuildSeededHasher, C: Core>(f: &Perfect<C, SS, SeedOnlyKCore, S>, keys: &[K]) {
         verify_partial_kphf(f.k(), f.output_range(), keys, |key| Some(f.get(key)));
     }
     
