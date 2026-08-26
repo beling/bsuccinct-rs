@@ -1,3 +1,5 @@
+//! [`Partial`] – map-or-bump function based on PHast.
+
 use dyn_size_of::GetSize;
 use voracious_radix_sort::RadixSort;
 
@@ -7,7 +9,7 @@ use std::hash::{BuildHasher, Hash, RandomState};
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
 /// 
 /// Can be used with any seed chooser (which specify a particular PHast variant):
-/// [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`], [`SeedOnlyK`].
+/// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped), [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped), [`SeedOnly`](crate::phast::SeedOnly), [`SeedOnlyK`](crate::phast::SeedOnlyK).
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>

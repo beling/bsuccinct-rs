@@ -1,4 +1,6 @@
 
+//! Cyclic set of values used during the construction of PHast functions.
+
 use bitm::BitAccess;
 use std::ops::{Index, IndexMut};
 

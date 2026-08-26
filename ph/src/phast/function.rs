@@ -1,3 +1,5 @@
+//! [`Function`] – a variant of PHast that builds all layer the same way.
+
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{Conf, ProdOfValues, SeedChooserCore, conf::{Core, CoreConf}, seed_chooser::SeedOnlyCore}, seeds::{Bits8, SeedSize}};
@@ -181,9 +183,9 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
 /// developed by Piotr Beling and Peter Sanders.
 /// 
 /// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
-/// [`ShiftOnlyWrapped`] (PHast+ with wrapping),
-/// [`ShiftSeedWrapped`] (PHast/PHast+ hybrid),
-/// [`SeedOnly`] (regular PHast).
+/// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped) (PHast+ with wrapping),
+/// [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped) (PHast/PHast+ hybrid),
+/// [`SeedOnly`](crate::phast::SeedOnly) (regular PHast).
 /// 
 /// Note that some [`SeedChooser`]s can be used only with [`Function2`](crate::phast::Function2).
 /// 

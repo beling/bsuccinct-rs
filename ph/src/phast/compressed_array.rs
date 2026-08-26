@@ -1,3 +1,5 @@
+//! Compressed arrays of integer values used by PHast functions.
+
 use std::{io, isize, marker::PhantomData};
 
 use binout::{AsIs, Serializer, VByte};

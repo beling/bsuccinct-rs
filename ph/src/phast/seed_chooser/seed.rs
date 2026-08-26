@@ -1,3 +1,5 @@
+//! Seed choosers and seed evaluators using only regular hashing, without shifting.
+
 use std::io;
 
 use crate::{fmph::SeedSize, phast::{ComparableF64, Core, SeedChooser, SeedChooserCore, SeedEvaluator, cyclic::UsedValueSet}};
@@ -152,7 +154,7 @@ impl SeedChooserCore for SeedOnlyCore {
 
 /// [`SeedChooser`] to build (1-)perfect functions.
 /// 
-/// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
+/// Can be used with any function type: [`Function`](crate::phast::Function), [`Function2`](crate::phast::Function2), [`Perfect`](crate::phast::Perfect).
 /// 
 /// It chooses best seed with quite strong hasher (it passes all seed bits to hash function), without shift component,
 /// which should lead to small size, but long construction time.

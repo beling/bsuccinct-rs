@@ -1,3 +1,5 @@
+//! Fingerprint-based minimal perfect hash function (`FMPH`).
+
 use std::hash::Hash;
 use binout::{AsIs, Serializer, VByte};
 use bitm::{BitAccess, Rank, ceiling_div};

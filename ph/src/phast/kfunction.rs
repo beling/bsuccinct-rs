@@ -1,3 +1,5 @@
+//! [`KFunction`] – k-perfect hash function based on PHast.
+
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedOnlyCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}}, seeds::{Bits8, SeedSize}};
@@ -257,7 +259,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         self.level0.core.output_range(self.seed_chooser, self.seed_size.into())
     }
 
-    /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
+    /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`](crate::phast::Perfect) function `self`.
     #[inline(always)] pub fn k(&self) -> u16 { self.seed_chooser.k() }
 
     /// Returns number of bytes which `write` will write.

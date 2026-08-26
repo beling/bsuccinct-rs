@@ -1,3 +1,5 @@
+//! Fingerprint-based minimal perfect hash function with group optimization (`FMPHGO`).
+
 use std::hash::Hash;
 use binout::{VByte, Serializer, AsIs};
 use bitm::{BitAccess, Rank, ceiling_div};

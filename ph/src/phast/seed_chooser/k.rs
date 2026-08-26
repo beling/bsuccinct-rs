@@ -1,3 +1,5 @@
+//! [`SeedOnlyK`] – the seed chooser for k-perfect functions.
+
 use core::f64;
 use std::io;
 
@@ -374,7 +376,7 @@ impl SeedChooserCore for SeedKCore {
 /// [`SeedChooser`] to build `k`-perfect functions.
 /// `k` is given as a parameter of this chooser.
 /// 
-/// Should be used with [`KFunction`] or [`Perfect`].
+/// Should be used with [`KFunction`](crate::phast::KFunction) or [`Perfect`](crate::phast::Perfect).
 /// 
 /// It chooses best seed with quite strong hasher, without shift component,
 /// which should lead to quite small size, but long construction time.

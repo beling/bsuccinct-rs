@@ -1,3 +1,5 @@
+//! [`ShiftOnly`] – the PHast+ seed chooser without wrapping.
+
 use std::io;
 
 use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, UsedValueSetLarge}};
@@ -50,7 +52,7 @@ impl SeedChooserCore for ShiftCore {
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ without wrapping*.
 /// 
-/// Must be used with [`Function2`].
+/// Must be used with [`Function2`](crate::phast::Function2).
 /// 
 /// It chooses best seed using only shifting without wrapping,
 /// which leads to very fast construction but the cost of bigger size.

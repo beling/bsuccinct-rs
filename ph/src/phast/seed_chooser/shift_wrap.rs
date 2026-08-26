@@ -1,3 +1,5 @@
+//! Shift-based seed choosers with wrapping (PHast+).
+
 use std::io;
 
 use binout::{AsIs, Serializer};
@@ -86,7 +88,7 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftWrappedCore<MULTIPLIER> {
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ with wrapping*.
 /// 
-/// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
+/// Can be used with any function type: [`Function`](crate::phast::Function), [`Function2`](crate::phast::Function2), [`Perfect`](crate::phast::Perfect).
 /// 
 /// It chooses best seed using only shifting with wrapping,
 /// which leads to quite small size and quite fast construction.
@@ -323,7 +325,7 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftSeedCore<MULTIPLIER> {
 /// The parameter points the number of bits of seed used for regular hashing.
 /// Increasing it reduces size but slows down construction.
 /// 
-/// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
+/// Can be used with any function type: [`Function`](crate::phast::Function), [`Function2`](crate::phast::Function2), [`Perfect`](crate::phast::Perfect).
 /// 
 /// It chooses best seed using both shifting with wrapping and hashing,
 /// which leads to small size and medium speed constrictions,

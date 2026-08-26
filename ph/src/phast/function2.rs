@@ -1,3 +1,6 @@
+//! [`Function2`] – a variant of PHast whose last layer is built as regular PHast,
+//! which makes it compatible with almost all seed choosers.
+
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{Conf, CoreConf, ProdOfValues, RandomPlacement, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
@@ -16,10 +19,10 @@ use voracious_radix_sort::RadixSort;
 /// This makes `Function2` compatible with almost all [`SeedChooser`]s (including non-wrapping `ShiftOnly`).
 /// 
 /// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
-/// [`ShiftOnly`] (PHast+ without wrapping),
-/// [`ShiftOnlyWrapped`] (PHast+ with wrapping),
-/// [`ShiftSeedWrapped`] (PHast/PHast+ hybrid),
-/// [`SeedOnly`] (regular PHast).
+/// [`ShiftOnly`](crate::phast::ShiftOnly) (PHast+ without wrapping),
+/// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped) (PHast+ with wrapping),
+/// [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped) (PHast/PHast+ hybrid),
+/// [`SeedOnly`](crate::phast::SeedOnly) (regular PHast).
 /// 
 /// Note that some [`SeedChooser`]s can also be used with [`Function`](crate::phast::Function).
 /// 

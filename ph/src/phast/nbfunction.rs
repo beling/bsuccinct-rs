@@ -1,3 +1,5 @@
+//! [`NBFunction`] – a no-bumping variant of PHast with very fast evaluation.
+
 use std::hash::Hash;
 
 use dyn_size_of::GetSize;

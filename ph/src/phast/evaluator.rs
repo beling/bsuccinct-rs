@@ -1,3 +1,5 @@
+//! Evaluators deciding which bucket to activate next during the construction of PHast functions.
+
 use crate::phast::WINDOW_SIZE;
 
 /// Evaluate bucket to be activate.

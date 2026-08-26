@@ -1,10 +1,12 @@
+//! [`ShiftOnlyProdWrapped`] – the PHast+ seed chooser evaluating seeds by their product.
+
 use crate::phast::{ComparableF64, ShiftWrappedCore, WINDOW_SIZE, Weights, conf::Core, cyclic::UsedValueSet, seed_chooser::shift_wrap::Multiplier};
 use super::SeedChooser;
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ with wrapping*.
 /// This version uses product instead of sum to evaluate seeds.
 /// 
-/// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
+/// Can be used with any function type: [`Function`](crate::phast::Function), [`Function2`](crate::phast::Function2), [`Perfect`](crate::phast::Perfect).
 /// 
 /// It chooses best seed using only shifting with wrapping,
 /// which leads to quite small size and quite fast construction.

@@ -1,3 +1,5 @@
+//! Building of the PHast function levels (bucket placement).
+
 use std::{cmp::Reverse, collections::BinaryHeap, ops::Range};
 use bitm::{BitAccess, BitVec};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};

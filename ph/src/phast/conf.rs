@@ -1,3 +1,5 @@
+//! Configurations (`Conf`, `Core`, `CoreConf`) and placements of PHast functions.
+
 use std::{fmt::Debug, io, marker::PhantomData};
 
 use binout::{Serializer, VByte};

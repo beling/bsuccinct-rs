@@ -1,3 +1,5 @@
+//! Seed choosers that determine particular PHast variants.
+
 mod utils;
 pub use utils::{ComparableF64, ProdCmp, space_lower_bound, perfect_output_range};
 

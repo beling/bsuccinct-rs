@@ -1,3 +1,5 @@
+//! Seeds and their sizes used by fingerprinting-based minimal perfect hash functions.
+
 use std::convert::{TryFrom, TryInto};
 use std::io::{Read, Write};
 use std::ops::Mul;

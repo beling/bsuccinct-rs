@@ -1,3 +1,5 @@
+//! [`Perfect`] – (k-)perfect (not necessarily minimal) hash function based on PHast.
+
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
@@ -11,7 +13,7 @@ use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValue
 /// Experimental.
 /// 
 /// Can be used with the following seed choosers (which specify a particular PHast variant):
-/// [`ShiftOnlyWrapped`], [`ShiftSeedWrapped`], [`SeedOnly`], [`SeedOnlyK`].
+/// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped), [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped), [`SeedOnly`](crate::phast::SeedOnly), [`SeedOnlyK`](crate::phast::SeedOnlyK).
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
