@@ -1,4 +1,6 @@
 
+//! Utility tools for seed choosers.
+
 /// Wrapper over `f64` with compare operator using `total_cmp`.
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
