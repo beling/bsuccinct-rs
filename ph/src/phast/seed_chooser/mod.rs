@@ -5,7 +5,7 @@ mod k;
 use std::io;
 
 mod seed;
-pub use seed::{SeedOnly, SeedCore, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues, SumOfValues};
+pub use seed::{SeedOnly, SeedOnlyCore, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues, SumOfValues};
 
 pub use k::{SeedOnlyK, SeedKCore, KSeedEvaluator, KSeedEvaluatorConf, ProdOfValuesKEval, bucket_size_normalization_multiplier};
 
@@ -67,7 +67,8 @@ pub trait SeedChooserCore: Copy {
 }
 
 
-/// Choose best seed in bucket. It affects the trade-off between size and evaluation and construction time.
+/// Choose best seed in the bucket and also provides bucket evaluator which compares buckets (for choosing the best one).
+/// It affects the trade-off between size and evaluation and construction time.
 pub trait SeedChooser: Clone + Sync {
 
     type Core: SeedChooserCore;
@@ -111,6 +112,7 @@ pub trait SeedChooser: Clone + Sync {
         self.core().output_range(number_of_keys, loading_factor_1000)
     }
 
+    /// Returns bucket evaluator which compares buckets (for choosing the best one).
     #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights::new(bits_per_seed, slice_len)
     }
@@ -174,6 +176,8 @@ pub trait SeedChooser: Clone + Sync {
 
 /// Evaluate (harness of) seed for (1-)perfect function.
 /// Seed with the lowest value is used.
+/// 
+/// Also provides bucket evaluator suitable to use with `Self`.
 pub trait SeedEvaluator: Copy + Sync {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord;
@@ -191,6 +195,7 @@ pub trait SeedEvaluator: Copy + Sync {
     /// Evaluate (harness of) seed that used given `values`.
     fn eval(&self, values_used_by_seed: &[usize], bucket_data: Self::BucketData) -> Self::Value;
 
+     /// Returns bucket evaluator which compares buckets (for choosing the best one).
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights::new(bits_per_seed, slice_len)
     }

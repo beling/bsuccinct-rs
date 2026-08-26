@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedOnlyCore, SeedKCore, SeedOnly, SeedOnlyK, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}}, seeds::{Bits8, SeedSize}};
 use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -64,7 +64,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
 
         for level_nr in 0..self.bumped_to_index.len() {
             let l = &self.bumped_to_index[level_nr];
-            if let Some(result) = SeedCore.try_f(Bits8, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.core) {
+            if let Some(result) = SeedOnlyCore.try_f(Bits8, &l.seeds.seeds, self.hasher.hash_one(key, level_nr as u64 + 1), &l.seeds.core) {
                 return self.bumped_index_to_value.get(result + l.shift);
             }
         }

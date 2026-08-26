@@ -1,6 +1,6 @@
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Conf, ProdOfValues, SeedChooserCore, conf::{Core, CoreConf}, seed_chooser::SeedCore}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, ProdOfValues, SeedChooserCore, conf::{Core, CoreConf}, seed_chooser::SeedOnlyCore}, seeds::{Bits8, SeedSize}};
 use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
@@ -189,7 +189,7 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Function<C: Core, SS, SC = SeedCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
+pub struct Function<C: Core, SS, SC = SeedOnlyCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
     level0: SeedEx<SS::VecElement, C>,
@@ -481,7 +481,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     }
 }
 
-impl<C: Core, SS: SeedSize> Function<C, SS, SeedCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl<C: Core, SS: SeedSize> Function<C, SS, SeedOnlyCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
 
     /// Read `Self` from the `input`. Uses default hasher and seed chooser.
     pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
@@ -490,7 +490,7 @@ impl<C: Core, SS: SeedSize> Function<C, SS, SeedCore, DefaultCompressedArray, Bu
 }
 
 // TODO switch CoreConf to Turbo ?
-impl Function<GenericCore, Bits8, SeedCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
+impl Function<GenericCore, Bits8, SeedOnlyCore, DefaultCompressedArray, BuildDefaultSeededHasher> {
     /// Constructs [`Function`] for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.

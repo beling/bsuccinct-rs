@@ -4,7 +4,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedChooserCore, SeedCore, SeedKCore, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooser, SeedChooserCore, SeedOnlyCore, SeedKCore, SeedOnly, SeedOnlyK, SumOfValues, WINDOW_SIZE, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -15,7 +15,7 @@ use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValue
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Perfect<C: Core, SS: SeedSize, SCC = SeedCore, S = BuildDefaultSeededHasher>
+pub struct Perfect<C: Core, SS: SeedSize, SCC = SeedOnlyCore, S = BuildDefaultSeededHasher>
 {
     level0: SeedEx<SS::VecElement, C>,
     levels: Box<[Level<SS::VecElement, C>]>,
@@ -233,7 +233,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
     }
 }
 
-impl Perfect<GenericCore, Bits8, SeedCore, BuildDefaultSeededHasher> {
+impl Perfect<GenericCore, Bits8, SeedOnlyCore, BuildDefaultSeededHasher> {
     /// Constructs [`Perfect`] function for given `keys`, using a single thread.
     /// 
     /// `keys` cannot contain duplicates.

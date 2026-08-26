@@ -2,11 +2,11 @@ use std::io;
 
 use crate::{fmph::SeedSize, phast::{ComparableF64, Core, SeedChooser, SeedChooserCore, SeedEvaluator, cyclic::UsedValueSet}};
 
-
+/// `SeedEvaluator` which is based on product of values or sum of their logarithms.
 #[derive(Clone, Copy)]
 pub struct ProdOfValues;
 
-impl SeedEvaluator for ProdOfValues {   // bumps 1.17% for S=8, lambda=4.5
+impl SeedEvaluator for ProdOfValues {
 
     type Value = ComparableF64;
 
@@ -33,6 +33,7 @@ impl SeedEvaluator for ProdOfValues {   // bumps 1.17% for S=8, lambda=4.5
     
 }
 
+/// `SeedEvaluator` which is based on sum of values.
 #[derive(Clone, Copy)]
 pub struct SumOfValues;
 
@@ -130,10 +131,12 @@ fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &S
 
 const SMALL_BUCKET_LIMIT: usize = 8;
 
+/// `SeedChooserCore` that passes all seed bits to hash function and do not use shifting.
+/// It allows for bumping (one seed value is reserved for bumping).
 #[derive(Clone, Copy)]
-pub struct SeedCore;
+pub struct SeedOnlyCore;
 
-impl SeedChooserCore for SeedCore {
+impl SeedChooserCore for SeedOnlyCore {
     #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
         conf.f(primary_code, seed)
     }
@@ -151,15 +154,17 @@ impl SeedChooserCore for SeedCore {
 /// 
 /// Can be used with any function type: [`Function`], [`Function2`], [`Perfect`].
 /// 
-/// It chooses best seed with quite strong hasher, without shift component,
+/// It chooses best seed with quite strong hasher (it passes all seed bits to hash function), without shift component,
 /// which should lead to small size, but long construction time.
+/// 
+/// To compare seeds it uses `SE` as a `SeedEvaluator`.
 #[derive(Clone, Copy)]
 pub struct SeedOnly<SE: SeedEvaluator = ProdOfValues>(pub SE);
 
 impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
     type UsedValues = UsedValueSet;
     
-    type Core = SeedCore;
+    type Core = SeedOnlyCore;
 
     #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
 
@@ -167,7 +172,7 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
 
-    #[inline(always)] fn core(&self) -> Self::Core { SeedCore }
+    #[inline(always)] fn core(&self) -> Self::Core { SeedOnlyCore }
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
         slice_begin + conf.in_slice(primary_code, seed)
@@ -195,6 +200,8 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
     }
 }
 
+/// `SeedChooserCore` that passes all seed bits to hash function and do not use shifting.
+/// It does not allow for bumping (each seed value is a real seed).
 #[derive(Clone, Copy)]
 pub struct SeedNoBumpCore;
 
@@ -202,8 +209,8 @@ impl SeedChooserCore for SeedNoBumpCore {
     const BUMPING: bool = false;
     const FIRST_SEED: u16 = 0;
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.f_nobump(primary_code, seed)
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize {
+        core.f_nobump(primary_code, seed)
     }
 
     #[inline(always)] fn read(_input: &mut dyn io::Read) -> io::Result<Self> { Ok(Self) }
@@ -226,8 +233,8 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
     
     #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.f_nobump(primary_code, seed)
+    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize {
+        core.f_nobump(primary_code, seed)
     }
 
     #[inline]

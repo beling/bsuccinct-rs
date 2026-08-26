@@ -1,7 +1,7 @@
 use dyn_size_of::GetSize;
 use voracious_radix_sort::RadixSort;
 
-use crate::{phast::{Conf, SeedChooser, SeedChooserCore, SeedCore, WINDOW_SIZE, builder::{BuildConf, build_mt, build_st}, conf::{Core, CoreConf}, evaluator::BucketToActivateEvaluator, function::SeedEx}, seeds::SeedSize};
+use crate::{phast::{Conf, SeedChooser, SeedChooserCore, SeedOnlyCore, WINDOW_SIZE, builder::{BuildConf, build_mt, build_st}, conf::{Core, CoreConf}, evaluator::BucketToActivateEvaluator, function::SeedEx}, seeds::SeedSize};
 use std::hash::{BuildHasher, Hash, RandomState};
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
@@ -11,7 +11,7 @@ use std::hash::{BuildHasher, Hash, RandomState};
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct Partial<C, SS, SCC = SeedCore, S = RandomState> where C: Core, SS: SeedSize {
+pub struct Partial<C, SS, SCC = SeedOnlyCore, S = RandomState> where C: Core, SS: SeedSize {
     seeds: SeedEx<SS::VecElement, C>,
     hasher: S,
     seed_chooser: SCC,
