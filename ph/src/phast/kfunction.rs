@@ -140,10 +140,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, 0)).collect();
         hashes.voracious_sort();
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (seeds, builder) =
-            build_st(&hashes, core, conf.seed_size,
-                seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()),
-                seed_chooser.seed_chooser(conf.bits_per_seed(), core.slice_len()));
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+        let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         let mut keys_vec = Vec::with_capacity(bumped_num);
         drop(builder);
@@ -162,10 +160,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (seeds, builder) =
-            build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE,
-                seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()),
-                seed_chooser.seed_chooser(conf.bits_per_seed(), core.slice_len()), threads_num);
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         let mut keys_vec = Vec::with_capacity(bumped_num);
         drop(builder);
@@ -183,10 +179,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, 0)).collect();
         hashes.voracious_sort();
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (seeds, builder) =
-            build_st(&hashes, core, conf.seed_size,
-                seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()),
-                seed_chooser.seed_chooser(conf.bits_per_seed(), core.slice_len()));
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+        let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
         let (free_count, _) = builder.unassigned_values_k(&seeds);
         keys.retain(|key| {
             unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, 0))) == 0 }
@@ -203,10 +197,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (seeds, builder) =
-            build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE,
-                seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len()),
-                seed_chooser.seed_chooser(conf.bits_per_seed(), core.slice_len()), threads_num);
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         drop(builder);
         let mut result = Vec::with_capacity(bumped_num);

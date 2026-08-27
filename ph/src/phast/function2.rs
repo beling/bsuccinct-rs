@@ -4,7 +4,7 @@
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{Conf, CoreConf, ProdOfValues, RandomPlacement, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedChooserConf, SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
-use super::{builder::build_last_level, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray};
+use super::{builder::build_last_level, conf::GenericCore, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -16,15 +16,15 @@ use voracious_radix_sort::RadixSort;
 /// developed by Piotr Beling and Peter Sanders.
 /// 
 /// The last layer (when the number of keys is small) is constructed using regular PHast.
-/// This makes `Function2` compatible with almost all [`SeedChooser`]s (including non-wrapping `ShiftOnly`).
+/// This makes `Function2` compatible with almost all [`SeedChooserConf`]s (including non-wrapping `ShiftOnly`).
 /// 
-/// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
+/// It can be used with the following [`SeedChooserConf`]s (which specify a particular PHast variant):
 /// [`ShiftOnly`](crate::phast::ShiftOnly) (PHast+ without wrapping),
 /// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped) (PHast+ with wrapping),
 /// [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped) (PHast/PHast+ hybrid),
 /// [`SeedOnly`](crate::phast::SeedOnly) (regular PHast).
 /// 
-/// Note that some [`SeedChooser`]s can also be used with [`Function`](crate::phast::Function).
+/// Note that some [`SeedChooserConf`]s can also be used with [`Function`](crate::phast::Function).
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
@@ -96,7 +96,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function2`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_conf_sc<K, CC, SC>(mut keys: Vec::<K>, conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
-        where K: Hash, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C> 
+        where K: Hash, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C> 
     {
         let number_of_keys = keys.len();
         Self::_new(|conf| {
@@ -111,7 +111,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function2`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_conf_threads_sc<K, CC, SC>(mut keys: Vec::<K>, conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
+        where K: Hash+Sync+Send, S: Sync, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C>  {
         if threads_num == 1 { return Self::with_vec_conf_sc(keys, conf, seed_chooser); }
         let number_of_keys = keys.len();
         Self::_new(|conf| {
@@ -127,7 +127,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function2`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
-    where K: Hash+Clone, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
+    where K: Hash+Clone, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C>  {
         Self::_new(|conf| {
             build_level_from_slice_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, &conf.hasher, seed_chooser.clone(), 0)
         }, |keys, level_nr, conf| {
@@ -139,7 +139,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function2`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_threads_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>  {
+        where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C>  {
         if threads_num == 1 { return Self::with_slice_conf_sc(keys, conf, seed_chooser); }
         Self::_new(|conf| {
             build_level_from_slice_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), 0)

@@ -3,7 +3,7 @@
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{Conf, ProdOfValues, SeedChooserCore, conf::{Core, CoreConf}, seed_chooser::SeedOnlyCore}, seeds::{Bits8, SeedSize}};
-use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::{SeedChooser, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::{SeedChooserConf, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -88,14 +88,15 @@ impl<SSVecElement, C: Core> Level<SSVecElement, C> {
 #[inline]
 pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
-    where K: Hash+Clone, SC: SeedChooser, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
+    where K: Hash+Clone, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_sort();
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
     let (seeds, builder) =
-        build_st(&hashes, core, seed_size, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser);
+        build_st(&hashes, core, seed_size, bucket_evaluator, seed_chooser);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(bumped_len);
@@ -120,14 +121,15 @@ pub(crate) fn hash_all_par<K: Hash+Sync, S: BuildSeededHasher+Sync>(keys: &[K], 
 #[inline]
 pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
-    where K: Hash+Sync+Send+Clone, SC: SeedChooser, SS: SeedSize, CC: CoreConf, SC: SeedChooser, S: BuildSeededHasher+Sync
+    where K: Hash+Sync+Send+Clone, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher+Sync
 {
     let mut hashes = hash_all_par(keys, hasher, level_nr);
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
     let (seeds, builder) =
-        build_mt(&hashes, core, seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser, threads_num);
+        build_mt(&hashes, core, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(bumped_len);
@@ -142,13 +144,14 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_ran
 #[inline(always)]
 pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
-    where K: Hash,SC: SeedChooser, SS: SeedSize, SC: SeedChooser, CC: CoreConf, S: BuildSeededHasher
+    where K: Hash, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     hashes.voracious_sort();
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
     let (seeds, builder) =
-        build_st(&hashes, core, seed_size, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser);
+        build_st(&hashes, core, seed_size, bucket_evaluator, seed_chooser);
     let (unassigned_values, _) = builder.unassigned_values(&seeds);
     drop(builder);
     keys.retain(|key| {
@@ -160,14 +163,15 @@ pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
 #[inline]
 pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
-    where K: Hash+Sync+Send, SC: SeedChooser, SS: SeedSize, CC: CoreConf, SC: SeedChooser, S: BuildSeededHasher+Sync
+    where K: Hash+Sync+Send, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher+Sync
 {
     let mut hashes: Box<[_]> = hash_all_par(keys, hasher, level_nr);
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
     let (seeds, builder) =
-        build_mt(&hashes, core, seed_size, WINDOW_SIZE, seed_chooser.bucket_evaluator(seed_size.into(), core.slice_len()), seed_chooser, threads_num);
+        build_mt(&hashes, core, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut result = Vec::with_capacity(bumped_len);
@@ -182,12 +186,12 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
 /// with very fast evaluation and size below 2 bits/key
 /// developed by Piotr Beling and Peter Sanders.
 /// 
-/// It can be used with the following [`SeedChooser`] (which specify a particular PHast variant):
+/// It can be used with the following [`SeedChooserConf`]s (which specify a particular PHast variant):
 /// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped) (PHast+ with wrapping),
 /// [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped) (PHast/PHast+ hybrid),
 /// [`SeedOnly`](crate::phast::SeedOnly) (regular PHast).
 /// 
-/// Note that some [`SeedChooser`]s can be used only with [`Function2`](crate::phast::Function2).
+/// Note that some [`SeedChooserConf`]s can be used only with [`Function2`](crate::phast::Function2).
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
@@ -256,7 +260,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_conf_sc<K, CC, SC>(mut keys: Vec::<K>, conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
-        where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>
+        where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let number_of_keys = keys.len();
         Self::_new(|conf| {
@@ -271,7 +275,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_conf_threads_sc<K, CC, SC>(mut keys: Vec::<K>, conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C>
+        where K: Hash+Sync+Send, S: Sync, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C>
     {
         if threads_num == 1 { return Self::with_vec_conf_sc(keys, conf, seed_chooser); }
         let number_of_keys = keys.len();
@@ -288,7 +292,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
-        where K: Hash+Clone, CC: CoreConf<Core = C>, SC: SeedChooser<Core = SCC>
+        where K: Hash+Clone, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         Self::_new(|conf| {
             build_level_from_slice_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, &conf.hasher, seed_chooser.clone(), 0)
@@ -301,7 +305,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     /// Constructs [`Function`] for given `keys`, using multiple (given number of) threads and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_threads_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
-        where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooser<Core = SCC>, CC: CoreConf<Core = C> {
+        where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C> {
         if threads_num == 1 { return Self::with_slice_conf_sc(keys, conf, seed_chooser); }
         Self::_new(|conf| {
             build_level_from_slice_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), 0)

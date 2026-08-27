@@ -206,7 +206,7 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnly<SE> {
         self.clone()
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         self.0.bucket_evaluator(bits_per_seed, slice_len)
     }
 
@@ -280,17 +280,13 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnlyNoBump<SE> {
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize {
-        core.f_nobump(primary_code, seed)
-    }
-
     #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
 
     #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
         self.clone()
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         self.0.bucket_evaluator(bits_per_seed, slice_len)
     }
 }
