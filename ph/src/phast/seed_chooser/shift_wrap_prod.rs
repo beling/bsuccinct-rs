@@ -1,6 +1,6 @@
 //! [`ShiftOnlyProdWrapped`] – the PHast+ seed chooser evaluating seeds by their product.
 
-use crate::phast::{ComparableF64, ShiftWrappedCore, WINDOW_SIZE, Weights, conf::Core, cyclic::UsedValueSet, seed_chooser::shift_wrap::Multiplier};
+use crate::phast::{ComparableF64, ShiftWrappedCore, WINDOW_SIZE, Weights, conf::Core, cyclic::UsedValueSet, seed_chooser::{SeedChooserConf, shift_wrap::Multiplier}};
 use super::SeedChooser;
 
 /// [`SeedChooser`] to build (1-)perfect functions called *PHast+ with wrapping*.
@@ -199,19 +199,35 @@ fn shift_only_wrapped_bucket_evaluator_m3(bits_per_seed: u8, slice_len: u16) -> 
     }
 }
 
-impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyProdWrapped<MULTIPLIER> {
+impl<const MULTIPLIER: u8> SeedChooserConf for ShiftOnlyProdWrapped<MULTIPLIER> {
+
+    type SeedChooser = Self;
+
+    type BucketEvaluator = Weights;
+
+    type Core = ShiftWrappedCore<MULTIPLIER>;
 
     type UsedValues = UsedValueSet;
 
-    type Core = ShiftWrappedCore<MULTIPLIER>;
+    #[inline(always)] fn core(&self) -> Self::Core { ShiftWrappedCore::<MULTIPLIER> }
+
+    fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+        self.clone()
+    }
+
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights(match MULTIPLIER {
+            1 => shift_only_wrapped_bucket_evaluator_m1(bits_per_seed, slice_len),
+            2 => shift_only_wrapped_bucket_evaluator_m2(bits_per_seed, slice_len),
+            _ => shift_only_wrapped_bucket_evaluator_m3(bits_per_seed, slice_len)
+        })
+    }
 
     #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
 
     #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
-
-    #[inline(always)] fn core(&self) -> Self::Core { ShiftWrappedCore::<MULTIPLIER> }
 
     //type UsedValues = UsedValueSetLarge;
     //const FUNCTION2_THRESHOLD: usize = 4096*2;
@@ -283,14 +299,9 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyProdWrapped<MULTIPLIER> {
             }
         })
     }
+}
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        Weights(match MULTIPLIER {
-            1 => shift_only_wrapped_bucket_evaluator_m1(bits_per_seed, slice_len),
-            2 => shift_only_wrapped_bucket_evaluator_m2(bits_per_seed, slice_len),
-            _ => shift_only_wrapped_bucket_evaluator_m3(bits_per_seed, slice_len)
-        })
-    }
+impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyProdWrapped<MULTIPLIER> {
 
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {

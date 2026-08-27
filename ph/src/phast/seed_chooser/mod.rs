@@ -7,7 +7,7 @@ mod k;
 use std::io;
 
 mod seed;
-pub use seed::{SeedOnly, SeedOnlyCore, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues, SumOfValues};
+pub use seed::{SeedOnly, SeedOnlyCore, SeedEvaluator, SeedOnlyNoBump, SeedNoBumpCore, ProdOfValues, SumOfValues};
 
 pub use k::{SeedOnlyK, SeedOnlyKCore, KSeedEvaluator, KSeedEvaluatorConf, ProdOfValuesKEval, bucket_size_normalization_multiplier};
 
@@ -20,11 +20,11 @@ pub use shift_wrap::{ShiftOnlyWrapped, ShiftWrappedCore, ShiftSeedWrapped, Shift
 mod shift_wrap_prod;
 pub use shift_wrap_prod::ShiftOnlyProdWrapped;
 
-use crate::{fmph::SeedSize, phast::{Placement, Weights, conf::{Core, CoreConf, GenericCore}}};
+use crate::{fmph::SeedSize, phast::{BucketEvaluator, Placement, conf::{Core, CoreConf, GenericCore}}};
 
 
 
-/// Part of seed chooser stored in the function, without stuff needed only for constructing.
+/// Part of seed chooser stored in the function and needed for evaluation, without stuff needed only for constructing.
 pub trait SeedChooserCore: Copy {
     /// Specifies whether bumping is allowed.
     const BUMPING: bool = true;
@@ -36,12 +36,12 @@ pub trait SeedChooserCore: Copy {
     const FUNCTION2_THRESHOLD: usize = 4096;
 
     /// Returns function value for given primary code and seed.
-    fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize;
+    fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize;
 
     #[inline(always)]
-    fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
-        let seed = unsafe { seed_size.get_seed(seeds, conf.bucket_for(primary_code)) };
-        (seed != 0).then(|| self.f(primary_code, seed, conf))
+    fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, core: &C) -> Option<usize> where SS: SeedSize, C: Core {
+        let seed = unsafe { seed_size.get_seed(seeds, core.bucket_for(primary_code)) };
+        (seed != 0).then(|| self.f(primary_code, seed, core))
     }
 
     /// How much the chooser can add to value over slice length.
@@ -68,25 +68,38 @@ pub trait SeedChooserCore: Copy {
     fn read(input: &mut dyn io::Read) -> io::Result<Self>;
 }
 
-
-/// Choose best seed in the bucket and also provides bucket evaluator which compares buckets (for choosing the best one).
+/// Provides seed evaluator (that chooses best seed in the bucket) and
+/// bucket evaluator (which compares buckets, for choosing the best one).
 /// It affects the trade-off between size and evaluation and construction time.
-pub trait SeedChooser: Clone + Sync {
+pub trait SeedChooserConf: Clone + Sync {
+
+    type SeedChooser: SeedChooser<Core = Self::Core>;
+
+    type BucketEvaluator: BucketEvaluator;
 
     type Core: SeedChooserCore;
 
+    type UsedValues: Send;
+
     fn core(&self) -> Self::Core;
 
-    type UsedValues: Send;
+    fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16) -> Self::SeedChooser;
+
+    /// Returns bucket evaluator which compares buckets (for choosing the best one).
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Self::BucketEvaluator;
+
+    #[inline] fn evaluators(&self, bits_per_seed: u8, slice_len: u16) -> (Self::BucketEvaluator, Self::SeedChooser) {
+        (self.bucket_evaluator(bits_per_seed, slice_len), self.seed_chooser(bits_per_seed, slice_len))
+    }
+
+    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
+    #[inline(always)] fn k(&self) -> u16 { self.core().k() }  
 
     fn empty_used_values(&self) -> Self::UsedValues;
 
     fn add_used(&self, used_values: &mut Self::UsedValues, value: usize);
 
     fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize);
-
-    /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(&self) -> u16 { self.core().k() }
 
     /// Returns slice length suitable to given `output_range`, `bits_per_seed` and `preferred_slice_len`.
     /// 
@@ -114,31 +127,8 @@ pub trait SeedChooser: Clone + Sync {
         self.core().output_range(number_of_keys, loading_factor_1000)
     }
 
-    /// Returns bucket evaluator which compares buckets (for choosing the best one).
-    #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        Weights::new(bits_per_seed, slice_len)
-    }
-
     /// How much the chooser can add to value over slice length.
     #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 { self.core().extra_shift(bits_per_seed) }
-
-    /*#[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        self.core().slice_len(output_range, bits_per_seed, preferred_slice_len)
-    }*/
-
-/*     fn conf(&self, output_range: usize, input_size: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        let max_shift = self.extra_shift(bits_per_seed);
-        let slice_len = slice_len(output_range.saturating_sub(max_shift as usize), bits_per_seed.into(), preferred_slice_len);
-        Conf::new(output_range, input_size, bucket_size_100, slice_len, max_shift)
-    }
-
-    #[inline(always)] fn conf_for_minimal(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> Conf {
-        self.conf(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
-    }
-
-    #[inline(always)] fn conf_for_minimal_p<SS: Copy+Into<u8>>(&self, num_of_keys: usize, params: &Params<SS>) -> Conf {
-        self.conf_for_minimal(num_of_keys, params.seed_size.into(), params.bucket_size100, params.preferred_slice_len)
-    } */
 
     fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
         GenericCore::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
@@ -170,35 +160,47 @@ pub trait SeedChooser: Clone + Sync {
     fn try_f<SS, C>(&self, seed_size: SS, seeds: &[SS::VecElement], primary_code: u64, conf: &C) -> Option<usize> where SS: SeedSize, C: Core {
         self.core().try_f::<SS, C>(seed_size, seeds, primary_code, conf)
     }
-    
+}
+
+/// Choose best seed in the bucket.
+/// It affects the trade-off between size and evaluation and construction time.
+pub trait SeedChooser: SeedChooserConf {
+
     /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16;
 }
 
+// This implementation makes possible to give non-default bucket evaluator when [`SeedChooserConf`] is required.
+impl<SC: SeedChooserConf, BE: BucketEvaluator> SeedChooserConf for (SC, BE) {
+    type SeedChooser = SC::SeedChooser;
 
-/// Evaluate (harness of) seed for (1-)perfect function.
-/// Seed with the lowest value is used.
-/// 
-/// Also provides bucket evaluator suitable to use with `Self`.
-pub trait SeedEvaluator: Copy + Sync {
-    /// Type of evaluation value.
-    type Value: PartialEq + PartialOrd + Ord;
+    type BucketEvaluator = BE;
 
-    /// Value grater than each value returned by `eval`.
-    const MAX: Self::Value;
+    type Core = SC::Core;
 
-    /// Precalculated data usable to evaluate each seed in the same bucket.
-    type BucketData: Copy;
+    type UsedValues = SC::UsedValues;
 
-    /// Precalculates data usable to evaluate each seed in the same bucket.
-    /// The result is passed to `eval` for each seed in the bucket.
-    fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData;
+    #[inline(always)] fn core(&self) -> Self::Core {
+        self.0.core()
+    }
 
-    /// Evaluate (harness of) seed that used given `values`.
-    fn eval(&self, values_used_by_seed: &[usize], bucket_data: Self::BucketData) -> Self::Value;
+    #[inline(always)] fn bucket_evaluator(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::BucketEvaluator {
+        self.1.clone()
+    }
 
-     /// Returns bucket evaluator which compares buckets (for choosing the best one).
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        Weights::new(bits_per_seed, slice_len)
+    #[inline(always)] fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16) -> Self::SeedChooser {
+        self.0.seed_chooser(bits_per_seed, slice_len)
+    }
+
+    #[inline(always)] fn empty_used_values(&self) -> Self::UsedValues {
+        self.0.empty_used_values()
+    }
+
+    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) {
+        self.0.add_used(used_values, value);
+    }
+
+    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) {
+        self.0.clear_used(used_values, value);
     }
 }

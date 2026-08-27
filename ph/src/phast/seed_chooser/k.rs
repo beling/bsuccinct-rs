@@ -6,7 +6,7 @@ use std::io;
 use binout::{AsIs, Serializer};
 use bitm::ceiling_div;
 
-use crate::phast::{ProdCmp, ProdOfValues, SeedChooserCore, SumOfValues, Weights, conf::Core, cyclic::FreeValueMultiSetU16, space_lower_bound};
+use crate::phast::{ProdCmp, ProdOfValues, SeedChooserCore, SumOfValues, Weights, conf::Core, cyclic::FreeValueMultiSetU16, seed_chooser::SeedChooserConf, space_lower_bound};
 use super::SeedChooser;
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
@@ -23,9 +23,37 @@ pub fn bucket_size_normalization_multiplier(k: u16) -> f64 {
     2.0*k as f64/(LOG2PI+k.log2())
 }*/
 
+/// Configuration and factory of `KSeedEvaluator`.
+/// 
+/// It is implemented for structures that are `KSeedEvaluator`
+/// (in which case they contain specific parameters and the factories return `self`)
+/// as well as those that can only construct `KSeedEvaluator`
+/// (in which case the parameters are selected automatically).
+pub trait KSeedEvaluatorConf: Clone + Sync {
+    /// Type of evaluator.
+    type KSeedEvaluator: KSeedEvaluator;
+
+    /// Returns evaluator for given `k`.
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator;
+ 
+    /// Returns bucket evaluator that works well with seed evaluator returned by `seed_evaluator_k`.
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        //S=8, k=2:
+        //l=512: 1.03%  0, 65930, 92696, 107690, 120901, 128139, 131718  value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758
+        //l=1024: 0.92%  0, 118482, 177895, 206179, 229653, 249918, 255628  value_shift: 0.57466, free_shift: 0.86282, first_weight: 0.80656
+        //l=2048: 0.89%  0, 235845, 359096, 428083, 452260, 499661, 513018  value_shift: 0.55093, free_shift: 0.83885, first_weight: 0.83444
+        //S=8, k=4:
+        //l=1024: 0.63%  0, 50850, 54240, 56227, 58148, 62658, 64784  value_shift: 0.90437, free_shift: 0.96466, first_weight: 0.86792
+        //l=2048: 0.67%  0, 266202, 268413, 269618, 281494, 299180, 302441  value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148
+        //l=4096: 0.71%  0, 226, 34010, 34417, 374541, 477304, 496400  value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933
+        //l=8192: 0.83%  0, 1872, 5387, 42264, 163703, 316315, 366479  value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532
+        Weights::new(bits_per_seed, slice_len)
+    }
+}
+
 /// Evaluate (harness of) seed for k-perfect function.
 /// Seed with the lowest value is used.
-pub trait KSeedEvaluator: Clone + Sync {
+pub trait KSeedEvaluator: KSeedEvaluatorConf<KSeedEvaluator=Self> {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord;
 
@@ -41,26 +69,6 @@ pub trait KSeedEvaluator: Clone + Sync {
 
     /// Evaluate (harness of) seed that used given `values`.
     fn eval_and_remove(&self, k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, bucket_data: Self::BucketData) -> Self::Value;
-
-    fn bucket_evaluator(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights { // TODO ?? remove and move impl. to SeedChooser
-        //S=8, k=2:
-        //l=1024: 0.92%  0, 118482, 177895, 206179, 229653, 249918, 255628  value_shift: 0.57466, free_shift: 0.86282, first_weight: 0.80656
-        //S=8, k=4:
-        //l=1024: 0.63%  0, 50850, 54240, 56227, 58148, 62658, 64784  value_shift: 0.90437, free_shift: 0.96466, first_weight: 0.86792
-        //l=2048: 0.67%  0, 266202, 268413, 269618, 281494, 299180, 302441  value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148
-        //l=4096: 0.71%  0, 226, 34010, 34417, 374541, 477304, 496400  value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933
-        //l=8192: 0.83%  0, 1872, 5387, 42264, 163703, 316315, 366479  value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532
-        Weights::new(bits_per_seed, slice_len)
-    }
-}
-
-/// Configuration and factory of KSeedEvaluator.
-pub trait KSeedEvaluatorConf {
-    /// Type of evaluator.
-    type KSeedEvaluator: KSeedEvaluator;
-
-    /// Returns evaluator for given `k`.
-    fn for_k(&self, k: u16) -> Self::KSeedEvaluator;
 }
 
 /// Evaluate seed using sum of values it takes.
@@ -85,21 +93,17 @@ impl KSeedEvaluator for SumOfValues {
         }
         result
     }
-
-    fn bucket_evaluator(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
-        Weights::new(bits_per_seed, slice_len)
-    }
 }
 
 impl KSeedEvaluatorConf for SumOfValues {
     type KSeedEvaluator = Self;
-    #[inline] fn for_k(&self, _k: u16) -> Self::KSeedEvaluator { SumOfValues }
+    #[inline] fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator { SumOfValues }
 }
 
 impl KSeedEvaluatorConf for ProdOfValues {
     type KSeedEvaluator = ProdOfValuesKEval;
 
-    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
+    fn seed_evaluator_k(&self, k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator {
         #[cfg(not(feature = "W256"))]
         const VALUES: [(u16, ProdOfValuesKEval); 35] = [
             (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
@@ -266,7 +270,7 @@ impl ProdOfValuesKEval {
 
 impl KSeedEvaluatorConf for ProdOfValuesKEval {
     type KSeedEvaluator = Self;
-    fn for_k(&self, _k: u16) -> Self { 
+    fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self { 
         //let mut r= *self; r.free_shift += k as f64; r 
         *self
     }
@@ -375,7 +379,7 @@ impl SeedChooserCore for SeedOnlyKCore {
 }
 
 
-/// [`SeedChooser`] to build `k`-perfect functions.
+/// [`SeedChooserConf`] (and [`SeedChooser`] if `SE` is [`KSeedEvaluator`]) to build `k`-perfect functions.
 /// `k` is given as a parameter of this chooser.
 /// 
 /// Should be used with [`KFunction`](crate::phast::KFunction) or [`Perfect`](crate::phast::Perfect).
@@ -383,20 +387,56 @@ impl SeedChooserCore for SeedOnlyKCore {
 /// It chooses best seed with quite strong hasher, without shift component,
 /// which should lead to quite small size, but long construction time.
 #[derive(Clone, Copy)]
-pub struct SeedOnlyK<SE = ProdOfValuesKEval> {
+pub struct SeedOnlyK<SE: KSeedEvaluatorConf = ProdOfValuesKEval> {
     pub seed_evaluator: SE,
     pub core: SeedOnlyKCore,
 }
 
-impl SeedOnlyK<ProdOfValuesKEval> {
+impl<SE: KSeedEvaluatorConf> SeedChooserConf for SeedOnlyK<SE> {
+
+    type SeedChooser = SeedOnlyK<SE::KSeedEvaluator>;
+
+    type BucketEvaluator = Weights;
+
+    type Core = SeedOnlyKCore;
+
+    type UsedValues = FreeValueMultiSetU16;
+
+    #[inline] fn empty_used_values(&self) -> Self::UsedValues {
+        Self::UsedValues::filled_with(self.k())
+    }
+
+    #[inline(always)] fn add_used(&self, free_values: &mut Self::UsedValues, value: usize) {
+        free_values[value] -= 1;
+    }
+    
+    #[inline(always)] fn clear_used(&self, free_values: &mut Self::UsedValues, value: usize) {
+        free_values[value] = self.k();
+    }
+
+    #[inline(always)] fn core(&self) -> Self::Core { self.core }
+    
+    #[inline(always)] fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16) -> Self::SeedChooser {
+        SeedOnlyK::<SE::KSeedEvaluator> {
+            seed_evaluator: self.seed_evaluator.seed_evaluator_k(self.k(), bits_per_seed, slice_len),
+            core: self.core,
+        }
+    }
+
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        self.seed_evaluator.bucket_evaluator_k(self.k(), bits_per_seed, slice_len)
+    }
+}
+
+impl SeedOnlyK<ProdOfValues> {
     pub fn new(k: u16) -> Self {
         Self::with_evaluator(k, ProdOfValues)
     }
 }
 
-impl<SE: KSeedEvaluator> SeedOnlyK<SE> {
-    pub fn with_evaluator<SEC: KSeedEvaluatorConf<KSeedEvaluator=SE>>(k: u16, seed_evaluator_conf: SEC) -> Self {
-        Self { seed_evaluator: seed_evaluator_conf.for_k(k), core: SeedOnlyKCore(k) }
+impl<SE: KSeedEvaluatorConf> SeedOnlyK<SE> {
+    pub fn with_evaluator(k: u16, seed_evaluator: SE) -> Self {
+        Self { seed_evaluator, core: SeedOnlyKCore(k) }
     }
 }
 
@@ -429,26 +469,9 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
 }
 
 
-
 impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
-    type UsedValues = FreeValueMultiSetU16;
 
-    type Core = SeedOnlyKCore;
-
-    #[inline] fn empty_used_values(&self) -> Self::UsedValues {
-        Self::UsedValues::filled_with(self.k())
-    }
-
-    #[inline(always)] fn add_used(&self, free_values: &mut Self::UsedValues, value: usize) {
-        free_values[value] -= 1;
-    }
     
-    #[inline(always)] fn clear_used(&self, free_values: &mut Self::UsedValues, value: usize) {
-        free_values[value] = self.k();
-    }
-    
-    #[inline(always)] fn core(&self) -> Self::Core { self.core }
-
     #[inline(always)]
     fn best_seed<C: Core>(&self, free_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;
@@ -461,10 +484,6 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
             }
         };
         best_seed
-    }
-
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        self.seed_evaluator.bucket_evaluator(self.k(), bits_per_seed, slice_len)
     }
 }
 

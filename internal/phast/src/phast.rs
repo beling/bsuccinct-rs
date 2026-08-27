@@ -1,4 +1,4 @@
-use ph::{phast::{CoreConf, Core, DefaultCompressedArray, SeedChooser, SeedChooserCore}, seeds::SeedSize};
+use ph::{phast::{Core, CoreConf, DefaultCompressedArray, SeedChooser, SeedChooserConf, SeedChooserCore}, seeds::SeedSize};
 use crate::function::{Function, Hasher, FunctionProperties};
 
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> FunctionProperties for ph::phast::Function<C, SS, SCC, DefaultCompressedArray, Hasher> {
@@ -67,7 +67,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Function for ph::phast::KFunct
 }
 
 pub fn kphast<SS, CC, SC>(keys: &[u64], params: ph::phast::Conf<SS, CC, Hasher>, threads_num: usize, seed_chooser: SC) -> ph::phast::KFunction<CC::Core, SS, SC::Core, DefaultCompressedArray, Hasher>
-where SS: SeedSize, CC: CoreConf, SC: SeedChooser
+where SS: SeedSize, CC: CoreConf, SC: SeedChooserConf
 {
     ph::phast::KFunction::with_slice_conf_threads_sc(keys, params, threads_num, seed_chooser)
 }

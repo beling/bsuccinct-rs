@@ -3,7 +3,7 @@
 
 use std::{hash::Hash, io, usize};
 
-use crate::{phast::{Conf, CoreConf, ProdOfValues, RandomPlacement, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, CoreConf, ProdOfValues, RandomPlacement, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedChooserConf, SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
 use super::{builder::build_last_level, conf::GenericCore, seed_chooser::SeedChooser, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer as _, VByte};
 use bitm::BitAccess;

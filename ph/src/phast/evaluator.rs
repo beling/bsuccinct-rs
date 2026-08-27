@@ -3,9 +3,9 @@
 use crate::phast::WINDOW_SIZE;
 
 /// Evaluate bucket to be activate.
-pub trait BucketToActivateEvaluator {
+pub trait BucketEvaluator: Send + Sync + Clone {
     /// Type of evaluation value.
-    type Value: PartialEq + PartialOrd + Ord;
+    type Value: PartialEq + PartialOrd + Ord + Send + Sync;
 
     /// Value lower than each value returned by `eval`.
     const MIN: Self::Value;
@@ -181,7 +181,7 @@ impl Weights {
     }
 }
 
-impl BucketToActivateEvaluator for Weights {
+impl BucketEvaluator for Weights {
     type Value = i64;
 
     const MIN: Self::Value = i64::MIN;

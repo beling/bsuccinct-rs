@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooser, Turbo, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
+use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooserConf, Turbo, Weights, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
 use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
 
@@ -429,7 +429,7 @@ impl Conf {
         total.print_avg(self);
     }
 
-    pub fn core<SC: SeedChooser>(&self, seed_chooser: &SC) -> ph::phast::GenericCore {
+    pub fn core<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> ph::phast::GenericCore {
         seed_chooser.minimal_generic_f_core(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
     }
 
@@ -492,19 +492,19 @@ impl Conf {
         cost.print_best();
     }
 
-    pub fn optimize_weights<SC: SeedChooser>(&self, seed_chooser: SC) {
+    pub fn optimize_weights<SC: SeedChooserConf<BucketEvaluator = Weights>>(&self, seed_chooser: SC) {
         self.optimize(WeightsCost(seed_chooser));
     }
 
-    pub fn optimize_weights_delta<SC: SeedChooser>(&self, seed_chooser: SC) {
+    pub fn optimize_weights_delta<SC: SeedChooserConf<BucketEvaluator = Weights>>(&self, seed_chooser: SC) {
         self.optimize(DeltaWeightsCost(seed_chooser));
     }
 
-    pub fn optimize_weights4<SC: SeedChooser>(&self, seed_chooser: SC) {
+    pub fn optimize_weights4<SC: SeedChooserConf<BucketEvaluator = Weights>>(&self, seed_chooser: SC) {
         self.optimize(WeightsCost4(seed_chooser));
     }
 
-    pub fn optimize_weights6<SC: SeedChooser>(&self, seed_chooser: SC) {
+    pub fn optimize_weights6<SC: SeedChooserConf<BucketEvaluator = Weights>>(&self, seed_chooser: SC) {
         self.optimize(WeightsCost6(seed_chooser));
     }
 

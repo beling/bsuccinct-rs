@@ -10,7 +10,7 @@ pub use conf::{Generic, GenericCore, Turbo, TurboCore, Placement, FastPlacement,
 mod cyclic;
 pub use cyclic::FreeValueMultiSetU16;
 mod evaluator;
-pub use evaluator::{BucketToActivateEvaluator, Weights};
+pub use evaluator::{BucketEvaluator, Weights};
 
 mod function;
 pub use function::Function;
@@ -31,7 +31,7 @@ mod nbfunction;
 pub use nbfunction::NBFunction;
 
 mod seed_chooser;
-pub use seed_chooser::{SeedChooser, SeedChooserCore, SeedEvaluator, ProdOfValues, SeedOnly, SeedOnlyCore, ShiftOnly, ShiftCore,
+pub use seed_chooser::{SeedChooser, SeedChooserConf, SeedChooserCore, SeedEvaluator, ProdOfValues, SeedOnly, SeedOnlyCore, ShiftOnly, ShiftCore,
     ShiftOnlyWrapped, ShiftOnlyProdWrapped, ShiftWrappedCore, ShiftSeedWrapped, ShiftSeedCore, SeedOnlyK, SeedOnlyKCore, KSeedEvaluator, ProdOfValuesKEval, SumOfValues,
     KSeedEvaluatorConf, bucket_size_normalization_multiplier, space_lower_bound, ComparableF64, ProdCmp};
 

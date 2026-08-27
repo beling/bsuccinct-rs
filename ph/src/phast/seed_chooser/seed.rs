@@ -2,7 +2,34 @@
 
 use std::io;
 
-use crate::{fmph::SeedSize, phast::{ComparableF64, Core, SeedChooser, SeedChooserCore, SeedEvaluator, cyclic::UsedValueSet}};
+use crate::{fmph::SeedSize, phast::{ComparableF64, Core, SeedChooser, SeedChooserCore, Weights, cyclic::UsedValueSet, seed_chooser::SeedChooserConf}};
+
+/// Evaluate (harness of) seed for (1-)perfect function.
+/// Seed with the lowest value is used.
+/// 
+/// Also provides bucket evaluator suitable to use with `Self`.
+pub trait SeedEvaluator: Copy + Sync {
+    /// Type of evaluation value.
+    type Value: PartialEq + PartialOrd + Ord;
+
+    /// Value grater than each value returned by `eval`.
+    const MAX: Self::Value;
+
+    /// Precalculated data usable to evaluate each seed in the same bucket.
+    type BucketData: Copy;
+
+    /// Precalculates data usable to evaluate each seed in the same bucket.
+    /// The result is passed to `eval` for each seed in the bucket.
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData;
+
+    /// Evaluate (harness of) seed that used given `values`.
+    fn eval(&self, values_used_by_seed: &[usize], bucket_data: Self::BucketData) -> Self::Value;
+
+     /// Returns bucket evaluator which compares buckets (for choosing the best one) and works well with `self` as `SeedEvaluator`.
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+        Weights::new(bits_per_seed, slice_len)
+    }
+}
 
 /// `SeedEvaluator` which is based on product of values or sum of their logarithms.
 #[derive(Clone, Copy)]
@@ -163,18 +190,34 @@ impl SeedChooserCore for SeedOnlyCore {
 #[derive(Clone, Copy)]
 pub struct SeedOnly<SE: SeedEvaluator = ProdOfValues>(pub SE);
 
-impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
-    type UsedValues = UsedValueSet;
+impl<SE: SeedEvaluator> SeedChooserConf for SeedOnly<SE> {
+
+    type SeedChooser = Self;
+
+    type BucketEvaluator = Weights;
     
     type Core = SeedOnlyCore;
+
+    type UsedValues = UsedValueSet;
+
+    #[inline(always)] fn core(&self) -> Self::Core { SeedOnlyCore }
+
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+        self.clone()
+    }
+
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
+        self.0.bucket_evaluator(bits_per_seed, slice_len)
+    }
 
     #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
 
     #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
+}
 
-    #[inline(always)] fn core(&self) -> Self::Core { SeedOnlyCore }
+impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
         slice_begin + conf.in_slice(primary_code, seed)
@@ -197,9 +240,7 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
         best_seed
     }
     
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
-        self.0.bucket_evaluator(bits_per_seed, slice_len)
-    }
+
 }
 
 /// `SeedChooserCore` that passes all seed bits to hash function and do not use shifting.
@@ -218,27 +259,43 @@ impl SeedChooserCore for SeedNoBumpCore {
     #[inline(always)] fn read(_input: &mut dyn io::Read) -> io::Result<Self> { Ok(Self) }
 }
 
-/// Choose best seed without shift component.
+/// `SeedChooser` that passes all seed bits to hash function and do not use shifting.
+/// It does not allow for bumping (each seed value is a real seed).
 #[derive(Clone, Copy)]
 pub struct SeedOnlyNoBump<SE: SeedEvaluator = ProdOfValues>(pub SE);
 
-impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
-    type UsedValues = UsedValueSet;
+impl<SE: SeedEvaluator> SeedChooserConf for SeedOnlyNoBump<SE> {
 
+    type SeedChooser = Self;
+
+    type BucketEvaluator = Weights;
+    
     type Core = SeedNoBumpCore;
+
+    type UsedValues = UsedValueSet;
 
     #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
 
     #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
-    
-    #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
 
     #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, core: &C) -> usize {
         core.f_nobump(primary_code, seed)
     }
 
+    #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
+
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+        self.clone()
+    }
+
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
+        self.0.bucket_evaluator(bits_per_seed, slice_len)
+    }
+}
+
+impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         //let _: [(); Self::FIRST_SEED as usize] = [];
@@ -255,10 +312,6 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
             }
         };
         best_seed
-    }
-    
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> crate::phast::Weights {
-        self.0.bucket_evaluator(bits_per_seed, slice_len)
     }
 }
 

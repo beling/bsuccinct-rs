@@ -1,6 +1,6 @@
 use std::{cell::RefCell, usize};
 
-use ph::{phast::{BucketToActivateEvaluator, ComparableF64, Core, KSeedEvaluator, KSeedEvaluatorConf, Partial, ProdOfValues, ProdOfValuesKEval, SeedChooser, SeedEvaluator, SeedOnly, SeedOnlyK, FreeValueMultiSetU16}, seeds::BitsFast};
+use ph::{phast::{BucketEvaluator, ComparableF64, Core, FreeValueMultiSetU16, KSeedEvaluator, KSeedEvaluatorConf, Partial, ProdOfValues, ProdOfValuesKEval, SeedChooserConf, SeedEvaluator, SeedOnly, SeedOnlyK, Weights}, seeds::BitsFast};
 
 use crate::conf::Conf;
 
@@ -135,14 +135,13 @@ fn out_of_range_penalty(x: f64, lo_limit: f64, hi_limit: f64, diff_mult: f64, c:
 }
 
 /// Cost function for direct bucket weights optimization.
-pub struct WeightsCost<SC: SeedChooser>(pub SC);
+pub struct WeightsCost<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 
-impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
+impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect());
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&self.0),
-                    self.0.clone(), &w).1)
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(&self.0), (self.0.clone(), &w)).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
@@ -161,14 +160,14 @@ impl<SC: SeedChooser> CostFn for WeightsCost<SC> {
 }
 
 /// Cost function for bucket weights optimization that exposes weights as deltas.
-pub struct DeltaWeightsCost<SC: SeedChooser>(pub SC);
+pub struct DeltaWeightsCost<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 
-impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
+impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for DeltaWeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from_deltas(x);
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&self.0),
-                    self.0.clone(), &w).1)
+                    (self.0.clone(), &w)).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
@@ -199,14 +198,14 @@ impl<SC: SeedChooser> CostFn for DeltaWeightsCost<SC> {
 
 /// Cost function for bucket weights optimization that exposes 5 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
-pub struct WeightsCost4<SC: SeedChooser>(pub SC);
+pub struct WeightsCost4<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 
-impl<SC: SeedChooser> CostFn for WeightsCost4<SC> {
+impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost4<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from4(x);
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&self.0),
-                    self.0.clone(), &w).1)
+                    (self.0.clone(), &w)).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
@@ -236,14 +235,14 @@ impl<SC: SeedChooser> CostFn for WeightsCost4<SC> {
 
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
-pub struct WeightsCost6<SC: SeedChooser>(pub SC);
+pub struct WeightsCost6<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 
-impl<SC: SeedChooser> CostFn for WeightsCost6<SC> {
+impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost6<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from6(x);
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&self.0),
-                    self.0.clone(), &w).1)
+                    (self.0.clone(), &w)).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
@@ -284,7 +283,7 @@ impl CostFn for PerfectLogCost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF.for_k(conf.k);
+        let s = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
         vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight]
     }
 
@@ -310,7 +309,7 @@ impl CostFn for PerfectLog0Cost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF0.for_k(conf.k);
+        let s = SumOfLogValuesF0.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
@@ -335,7 +334,7 @@ impl CostFn for PerfectLog1Cost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF1.for_k(conf.k);
+        let s = SumOfLogValuesF1.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
@@ -362,7 +361,7 @@ impl CostFn for PerfectProdKCost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = ProdOfValues.for_k(conf.k);
+        let s = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
         vec![s.value_shift, s.free_shift, s.first_weight]
     }
 
@@ -471,7 +470,7 @@ impl From<ph::phast::Weights> for WeightsF {
     }
 }
 
-impl BucketToActivateEvaluator for &WeightsF {
+impl BucketEvaluator for &WeightsF {
     type Value = ComparableF64;
 
     const MIN: Self::Value = ComparableF64(f64::MIN);
@@ -488,14 +487,14 @@ impl BucketToActivateEvaluator for &WeightsF {
     }
 }
 
-
+#[derive(Clone, Copy)]
 pub struct SumOfLogValuesF0;
 
 impl KSeedEvaluatorConf for SumOfLogValuesF0 {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
-        let s = SumOfLogValuesF.for_k(k);
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator {
+        let s = SumOfLogValuesF.seed_evaluator_k(k, bits_per_seed, slice_len);
         SumOfLogValuesFEval {
             free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64, free_shift: s.free_shift as f64,
             first_weight: 0.0, 
@@ -506,12 +505,13 @@ impl KSeedEvaluatorConf for SumOfLogValuesF0 {
 /// Chooses seed that minimizes
 /// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
 /// where minimum value in the bucket = first_weight * minimal value in window  +  (1-first_weight) * minimal value in bucket
+#[derive(Clone, Copy)]
 pub struct SumOfLogValuesF;
 
 impl KSeedEvaluatorConf for SumOfLogValuesF {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
+    fn seed_evaluator_k(&self, k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator {
         match k {
             ..=2 => SumOfLogValuesFEval { free_values_weight: 1.75456, value_shift: 0.00370, free_shift: 3.15671, first_weight: 0.10135 },  // for2 1.01%
             3 => SumOfLogValuesFEval { free_values_weight: 1.53878, value_shift: 0.00325, free_shift: 3.09695, first_weight: 0.16796 }, // 1.08%
@@ -550,12 +550,13 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
 
 /// Chooses seed that minimizes
 /// sum_{x in bucket} log(f(x,seed) - minimum value in the window + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
+#[derive(Clone, Copy)]
 pub struct SumOfLogValuesF1;
 
 impl KSeedEvaluatorConf for SumOfLogValuesF1 {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator {
         match k {
             ..=2 => SumOfLogValuesFEval { free_values_weight: 43.422, value_shift: 55.238, free_shift: 184.280, first_weight: 1.0 },// 1.08%
             3 => SumOfLogValuesFEval { free_values_weight: 42.541, value_shift: 54.427, free_shift: 185.614, first_weight: 1.0 },// 1.02%
@@ -564,7 +565,7 @@ impl KSeedEvaluatorConf for SumOfLogValuesF1 {
             16 => SumOfLogValuesFEval { free_values_weight: 1.464, value_shift: 0.0, free_shift: 9.789, first_weight: 1.0 },    //0.38%
                 // free_values_weight: 1.794, value_shift: -77.768, free_shift: 9.832 // 0.35%
             _ => {
-                SumOfLogValuesFEval { first_weight: 1.0, ..SumOfLogValuesF.for_k(k) }
+                SumOfLogValuesFEval { first_weight: 1.0, ..SumOfLogValuesF.seed_evaluator_k(k, bits_per_seed, slice_len) }
             }
         }
     }
@@ -584,7 +585,7 @@ pub struct SumOfLogValuesFEval {
 
 impl KSeedEvaluatorConf for SumOfLogValuesFEval {
     type KSeedEvaluator = Self;
-    fn for_k(&self, _k: u16) -> Self { *self }
+    fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self { *self }
 }
 
 impl KSeedEvaluator for SumOfLogValuesFEval {
@@ -687,9 +688,9 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
         let e = ProdOfValuesKEval { value_shift: x[6], free_shift: x[7], first_weight: x[8] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         let w = WeightsF::from6(&x[..6]);
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_be_u(keys, BitsFast(conf.bits_per_seed),
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&s),
-                    s, &w).1)
+                    (s, &w)).1)
                     + non_increasing_penalty(&w.0, 10_000_000.0) as usize
                     + to_small_penalty(x[6], 0.0, 1000000.0, 1000000)
                     + to_small_penalty(x[7], 0.0, 1000000.0, 1000000)
@@ -697,7 +698,7 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let e = ProdOfValues.for_k(conf.k);
+        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
         v.push(e.value_shift);

@@ -1,4 +1,4 @@
-use ph::{phast::{CoreConf, Core, Partial, SeedChooser, SeedChooserCore}, seeds::SeedSize};
+use ph::{phast::{Core, CoreConf, Partial, SeedChooserConf, SeedChooserCore}, seeds::SeedSize};
 use crate::function::{FunctionProperties, PartialFunction};
 
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> FunctionProperties for Partial<C, SS, SCC, ()> {
@@ -17,7 +17,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> PartialFunction for Partial<C,
     }
 }
 
-pub fn partial<SS: SeedSize, CC: CoreConf, SC: SeedChooser>(keys: &[u64], conf: ph::phast::Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> Partial<CC::Core, SS, SC::Core, ()>
+pub fn partial<SS: SeedSize, CC: CoreConf, SC: SeedChooserConf>(keys: &[u64], conf: ph::phast::Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> Partial<CC::Core, SS, SC::Core, ()>
 {
     Partial::with_hashes_conf_threads_sc(keys.to_owned().as_mut_slice(), &conf, threads_num, seed_chooser)
 }

@@ -7,7 +7,7 @@ use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
-use crate::{fmph::Bits8, phast::{Conf, Core, CoreConf, GenericCore, ProdOfValues, RandomPlacement, SeedChooser, SeedChooserCore, SeedEvaluator, builder::{bucket_begin_mt, bucket_begin_st, try_nobump_build_st}, function::{SeedEx, hash_all_par}, seed_chooser::{SeedNoBumpCore, SeedOnlyNoBump}}, seeds::SeedSize};
+use crate::{fmph::Bits8, phast::{Conf, Core, CoreConf, GenericCore, ProdOfValues, RandomPlacement, SeedChooserCore, SeedEvaluator, builder::{bucket_begin_mt, bucket_begin_st, try_nobump_build_st}, function::{SeedEx, hash_all_par}, seed_chooser::{SeedChooserConf, SeedNoBumpCore, SeedOnlyNoBump}}, seeds::SeedSize};
 
 /// NBFunction (No Bump Function) is a variant of PHast (Perfect Hashing made fast)
 /// that do not use bumping.

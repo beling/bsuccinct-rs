@@ -2,7 +2,7 @@
 
 use std::io;
 
-use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, UsedValueSetLarge}};
+use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, UsedValueSetLarge}, seed_chooser::SeedChooserConf};
 use super::SeedChooser;
 
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
@@ -62,36 +62,21 @@ pub struct ShiftOnly;
 //pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
 //pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
 
-impl SeedChooser for ShiftOnly {
+impl SeedChooserConf for ShiftOnly {
+
+    type SeedChooser = Self;
+
+    type BucketEvaluator = Weights;
 
     type UsedValues = UsedValueSetLarge;
+    
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+        self.clone()
+    }
 
     type Core = ShiftCore;
 
-    #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
-
-    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
-
-    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
-    
     #[inline(always)] fn core(&self) -> Self::Core { ShiftCore }
-
-    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
-        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
-            n @ ..8192 => (n/2+1).next_power_of_two() as u16,
-            _ => 8192
-        }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
-            match bits_per_seed {
-                ..=4 => 128,
-                ..=7 => 256,
-                8 => 512,
-                9 => 1024,
-                10 => 2048,
-                11 => 4096,
-                _ => 8192
-            }
-        })
-    }
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights(
@@ -119,6 +104,36 @@ impl SeedChooser for ShiftOnly {
             }
         })
     }
+
+    #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
+
+    #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
+
+    #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
+            n @ ..8192 => (n/2+1).next_power_of_two() as u16,
+            _ => 8192
+        }.min(if preferred_slice_len != 0 { preferred_slice_len } else {
+            match bits_per_seed {
+                ..=4 => 128,
+                ..=7 => 256,
+                8 => 512,
+                9 => 1024,
+                10 => 2048,
+                11 => 4096,
+                _ => 8192
+            }
+        })
+    }
+}
+
+impl SeedChooser for ShiftOnly {
+
+
+
+
 
     /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
         slice_begin + conf.in_slice_noseed(primary_code) + (seed-1) as usize*MULTIPLIER as usize
