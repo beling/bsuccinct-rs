@@ -474,7 +474,6 @@ impl<P: Placement> CoreConf for Generic<P> {
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
         self.preferred_slice_len
     }
-
 }
 
 

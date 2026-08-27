@@ -106,7 +106,7 @@ pub fn bucket_begin_mt<C: Core>(keys: &[u64], conf: &C, threads_num: usize) -> B
 
 //// Read-only data shared by all threads.
 pub(crate) struct BuildConf<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> {
-    conf: C,
+    core: C,
     span_limit: u16,
     evaluator: BE,
     keys: &'k [u64],
@@ -125,11 +125,11 @@ fn construct_unassigned(output_range: usize) -> Box<[u64]> {
 
 impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<'k, C, BE, SS, SC> {
     #[inline]
-    pub fn new(keys: &'k [u64], conf: C, seed_size: SS, span_limit: u16, evaluator: BE, bucket_begin: Box<[usize]>, seed_chooser: SC) -> (Self, Box<[SS::VecElement]>) {
+    pub fn new(keys: &'k [u64], core: C, seed_size: SS, span_limit: u16, evaluator: BE, bucket_begin: Box<[usize]>, seed_chooser: SC) -> (Self, Box<[SS::VecElement]>) {
         //let seeds = Box::with_zeroed_bits(conf.buckets_num * conf.bits_per_seed() as usize);
-        let seeds = conf.new_seeds_vec(seed_size);
+        let seeds = core.new_seeds_vec(seed_size);
         (Self {
-            conf,
+            core,
             span_limit,
             keys,
             bucket_begin,
@@ -151,13 +151,13 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
         }
         for key_hash in keys {
             //debug_assert!(unassigned_values.get_bit(self.seed_chooser.f(*key_hash, seed, &self.conf)));
-            unassigned_values.clear_bit(self.seed_chooser.f(*key_hash, seed, &self.conf));
+            unassigned_values.clear_bit(self.seed_chooser.f(*key_hash, seed, &self.core));
         }
     }
 
     /// Calculates bitmap (with length = output range) of free values of 1-perfect function and the number of bumped keys.
     pub fn unassigned_values(&self, seeds: &[SS::VecElement]) -> (Box<[u64]>, usize) {
-        let mut unassigned_values = construct_unassigned(self.conf.output_range(self.seed_chooser.core(), self.seed_size.into()));
+        let mut unassigned_values = construct_unassigned(self.core.output_range(self.seed_chooser.core(), self.seed_size.into()));
         let mut bumped_len = 0;
         for bucket in 0..self.bucket_begin.len()-1 {
             self.clear_assigned_from_bucket(bucket, seeds, &mut unassigned_values, &mut bumped_len);
@@ -193,14 +193,14 @@ impl<'k, C: Core, BE: BucketToActivateEvaluator, SS: SeedSize, SC: SeedChooser> 
         }
         for key_hash in keys {
             //debug_assert!(free_count[self.seed_chooser.f(*key_hash, seed, &self.conf)] > 0);
-            free_count[self.seed_chooser.f(*key_hash, seed, &self.conf)] -= 1;
+            free_count[self.seed_chooser.f(*key_hash, seed, &self.core)] -= 1;
         }
     }
 
     /// Returns number of free values of k-perfect function as an array indexed by values and the total number of free values
     /// and the number of bumped keys.
     pub fn unassigned_values_k(&self, seeds: &[SS::VecElement]) -> (Box<[u16]>, usize) {
-        let output_range = self.conf.output_range(self.seed_chooser.core(), self.seed_size.into());
+        let output_range = self.core.output_range(self.seed_chooser.core(), self.seed_size.into());
         let mut free_count = vec![self.seed_chooser.k(); output_range].into_boxed_slice();
         let mut bumped_len = 0;
         for bucket in 0..self.bucket_begin.len()-1 {
@@ -313,7 +313,7 @@ where C: Core + Sync, SC: SeedChooser, BE: BucketToActivateEvaluator + Sync, BE:
             if SC::Core::BUMPING && seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
                 //thread_builders[prev].used_values.add(builder.seed_chooser.f(*key, seed, &builder.conf));
-                builder.seed_chooser.add_used(&mut thread_builders[prev].used_values, builder.seed_chooser.f(*key, seed, &builder.conf));
+                builder.seed_chooser.add_used(&mut thread_builders[prev].used_values, builder.seed_chooser.f(*key, seed, &builder.core));
             }
         }
         thread_builders[prev].buckets_num += gap;
@@ -517,13 +517,13 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketToActivateEvaluator, SS: SeedSize> 
 
     #[inline]
     fn slice_begin(&self, non_empty_bucket: usize) -> usize {
-        self.conf.conf.slice_begin(self.conf.keys[self.bucket_begin[non_empty_bucket]])
+        self.conf.core.slice_begin(self.conf.keys[self.bucket_begin[non_empty_bucket]])
     }
 
     #[inline(always)]
     fn best_seed(&mut self, bucket_nr: usize) -> u16 {
         let keys = &self.conf.keys[self.bucket_begin[bucket_nr]..self.bucket_begin[bucket_nr+1]];
-        self.conf.seed_chooser.best_seed(&mut self.used_values, keys, &self.conf.conf, self.conf.seed_size.into(), bucket_nr, self.span_begin)
+        self.conf.seed_chooser.best_seed(&mut self.used_values, keys, &self.conf.core, self.conf.seed_size.into(), bucket_nr, self.span_begin)
     }
 
     /// Number of the last bucket included in the span limit + 1.
