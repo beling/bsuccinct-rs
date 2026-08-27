@@ -6,7 +6,7 @@ use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 use rayon::prelude::*;
 
-use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooserCore, SeedOnly, SeedOnlyCore, SeedOnlyK, SeedOnlyKCore, SumOfValues, WINDOW_SIZE, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}, seed_chooser::SeedChooserConf}, seeds::{Bits8, SeedSize}};
+use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooserCore, SeedOnly, SeedOnlyCore, SeedOnlyK, SeedOnlyKCore, SumOfValues, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}, seed_chooser::SeedChooserConf}, seeds::{Bits8, SeedSize}};
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -174,7 +174,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
         let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
         drop(builder);
         keys_vec.par_extend(keys.into_par_iter().filter(|key| {
@@ -208,7 +208,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
         let mut result = Vec::with_capacity(builder.bumped_len(&seeds));
         drop(builder);
         std::mem::swap(keys, &mut result);

@@ -3,7 +3,7 @@
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedOnly, SeedOnlyCore, SeedOnlyK, SeedOnlyKCore, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}, seed_chooser::SeedChooserConf}, seeds::{Bits8, SeedSize}};
-use super::{builder::{build_mt, build_st}, conf::GenericCore, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use super::{builder::{build_mt, build_st}, conf::GenericCore, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -161,7 +161,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         let mut keys_vec = Vec::with_capacity(bumped_num);
         drop(builder);
@@ -198,7 +198,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
         let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         drop(builder);
         let mut result = Vec::with_capacity(bumped_num);

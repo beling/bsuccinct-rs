@@ -2,7 +2,7 @@
 
 use crate::phast::WINDOW_SIZE;
 
-/// Evaluate bucket to be activate.
+/// Evaluates a bucket to be activated.
 pub trait BucketEvaluator: Send + Sync + Clone {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord + Send + Sync;
@@ -15,58 +15,10 @@ pub trait BucketEvaluator: Send + Sync + Clone {
     fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value;
 }
 
-/*
-/// Activates bucket that maximizes 1024 * size - self.0 * number.
-#[repr(transparent)]
-pub struct Linear (pub u16);
-
-impl BucketToActivateEvaluator for Linear {
-    type Value = isize;
-
-    const MIN: Self::Value = isize::MIN;
-
-    #[inline(always)]
-    fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value {
-        (bucket_size * 1024) as isize - (bucket_nr as isize * self.0 as isize)
-    }
-}
-
-/// Activates bucket (of size S) that maximizes w2 * sqr(S) + w1 * S - 1024 * number.
-pub struct Quadric {
-    w2: i32,
-    w1: i32,
-    max_sqr_bucket: usize,
-    size1_correction: i32
-}
-
-impl Quadric {
-    pub fn new(w2: i32, w1: i32, size1_correction: i32) -> Self {
-        Self {
-            w2, w1,
-            max_sqr_bucket: if w2 < 0 && w1 > 0 {
-                (-w1 / (2*w2)) as usize
-                //usize::MAX
-            } else {
-                usize::MAX
-            },
-            size1_correction,
-        }
-    }
-}
-
-impl BucketToActivateEvaluator for Quadric {
-    type Value = isize;
-
-    const MIN: Self::Value = isize::MIN;
-
-    #[inline(always)]
-    fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value {
-        let bucket_size_q = bucket_size.min(self.max_sqr_bucket) as isize;
-        (bucket_size_q * bucket_size_q * self.w2 as isize) + (bucket_size as isize) * self.w1 as isize - bucket_nr as isize * 1024
-        - if bucket_size == 1 { self.size1_correction as isize } else { 0 }
-    }
-}*/
-
+/// Bucket evaluator which compares buckets using a table of (tuned) weights:
+/// `self.0[i]` is the weight of a bucket of size `i+1`
+/// (for larger bucket sizes, the weight is extrapolated linearly from the last two entries).
+/// [`Weights::new`] returns weights suitable for given `bits_per_seed` and `slice_len`.
 #[derive(Clone)]
 pub struct Weights(pub [i32; 7]);
 

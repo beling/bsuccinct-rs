@@ -12,7 +12,7 @@ pub trait SeedEvaluator: Copy + Sync {
     /// Type of evaluation value.
     type Value: PartialEq + PartialOrd + Ord;
 
-    /// Value grater than each value returned by `eval`.
+    /// Value greater than each value returned by `eval`.
     const MAX: Self::Value;
 
     /// Precalculated data usable to evaluate each seed in the same bucket.
@@ -48,12 +48,7 @@ impl SeedEvaluator for ProdOfValues {
     }
 
     fn eval(&self, values_used_by_seed: &[usize], to_extract: Self::BucketData) -> Self::Value {
-        /*values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
-            //2048.0 * ((v - min) as f64).log2()    // 1.905
-            4096.0 * (v.wrapping_sub(self.min_bucket_value_minus_100) as f64).log2()    // 1.905 (0,2) 1.903 (10) 1.901 (20) 1.900 (30) 1.899 (40) 1.898 (50,60,80,100,120,150), 1.899 (200), 1.900 (250), 1.901 (300)
-            //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
-        }).sum::<f64>() as usize*/
-        ComparableF64(values_used_by_seed.iter().map(|v| {    // simple sume gives 1.921
+        ComparableF64(values_used_by_seed.iter().map(|v| {    // simple sum gives 1.921
             //2048.0 * ((v - min) as f64).log2()    // 1.905
             v.wrapping_sub(to_extract) as f64    // 1.905 (0,2) 1.903 (10) 1.901 (20) 1.900 (30) 1.899 (40) 1.898 (50,60,80,100,120,150), 1.899 (200), 1.900 (250), 1.901 (300)
             //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
@@ -118,9 +113,6 @@ fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC,
         if seed_value < *best_value {
             values_used_by_seed.sort();
             if values_used_by_seed.windows(2).any(|v| v[0]==v[1]) {
-                //SELF_COLLISION_KEYS.fetch_add(keys.len() as u64, std::sync::atomic::Ordering::Relaxed);
-                //SELF_COLLISION_BUCKETS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                //if SC::BUMPING { return; }
                 continue;
             }
             *best_value = seed_value;
@@ -219,14 +211,10 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnly<SE> {
 
 impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
 
-    /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
-        slice_begin + conf.in_slice(primary_code, seed)
-    }*/
-
     #[inline(always)]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;
-        let mut best_value = SE::MAX;//usize::MAX;
+        let mut best_value = SE::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
             best_seed_small(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         } else {
@@ -294,9 +282,8 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnlyNoBump<SE> {
 impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
-        //let _: [(); Self::FIRST_SEED as usize] = [];
         let mut best_seed = u16::MAX;
-        let mut best_value = SE::MAX;//ComparableF64(f64::MAX);//usize::MAX;
+        let mut best_value = SE::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
             best_seed_small(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         } else {

@@ -102,6 +102,7 @@ pub struct ShiftOnlyWrapped<const MULTIPLIER: u8 = 1>;
 
 // TODO all weights have been found for WINDOW_SIZE = 256
 
+/// Bucket-evaluator weights of [`ShiftOnlyWrapped`] with `MULTIPLIER` = 1 (see the TODO above).
 fn shift_only_wrapped_bucket_evaluator_m1(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     match (bits_per_seed, slice_len) {
         (_, ..=64) => [-76520, 97960, 103626, 106759, 109053, 110149, 112662],   // 8, 4.1, 64
@@ -126,6 +127,7 @@ fn shift_only_wrapped_bucket_evaluator_m1(bits_per_seed: u8, slice_len: u16) -> 
     }
 }
 
+/// Bucket-evaluator weights of [`ShiftOnlyWrapped`] with `MULTIPLIER` = 2.
 fn shift_only_wrapped_bucket_evaluator_m2(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     match (bits_per_seed, slice_len) {
         (_, ..=64) => [-78586, 98418, 103824, 106532, 108539, 109981, 111063],  // 8, 4.1, 64
@@ -152,6 +154,7 @@ fn shift_only_wrapped_bucket_evaluator_m2(bits_per_seed: u8, slice_len: u16) -> 
     }
 }
 
+/// Bucket-evaluator weights of [`ShiftOnlyWrapped`] with `MULTIPLIER` = 3.
 fn shift_only_wrapped_bucket_evaluator_m3(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     match (bits_per_seed, slice_len) { // multiplier=3, almost the same result as for multiplier=2 weights
         (_, ..=64) => [-81342, 97738, 103193, 106305, 108524, 109876, 112382],  // 8, 4.1, 64
@@ -341,7 +344,7 @@ impl<const MULTIPLIER: u8> SeedChooserCore for ShiftSeedCore<MULTIPLIER> {
 /// Can be used with any function type: [`Function`](crate::phast::Function), [`Function2`](crate::phast::Function2), [`Perfect`](crate::phast::Perfect).
 /// 
 /// It chooses best seed using both shifting with wrapping and hashing,
-/// which leads to small size and medium speed constrictions,
+/// which leads to small size and medium speed constructions,
 /// but quite slow evaluation.
 /// 
 /// `MULTIPLIER` should be 1, 2, or 3.
@@ -464,30 +467,3 @@ impl<const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<MULTIPLIER> {
     
     
 }
-
-/*pub struct ShiftSeedWrapped<const BITS_PER_SEED: u8, const MULTIPLIER: u8>;
-
-impl<const BITS_PER_SEED: u8, const MULTIPLIER: u8> SeedChooser for ShiftSeedWrapped<BITS_PER_SEED, MULTIPLIER> {
-    #[inline(always)] fn f<SS: SeedSize>(primary_code: u64, seed: u16, conf: &Conf<SS>) -> usize {
-        let shift  = (seed >> BITS_PER_SEED) * MULTIPLIER as u16;
-        let seed = (seed & ((1<<BITS_PER_SEED)-1)) + 1;
-        conf.slice_begin(primary_code) + conf.in_slice_seed_shift(primary_code, seed, shift)
-    }
-
-    #[inline(always)]
-    fn best_seed<SS: SeedSize>(used_values: &mut UsedValues, keys: &[u64], conf: &Conf<SS>) -> u16 {
-        let mut best_seed = 0;
-        let mut best_value = usize::MAX;
-        if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
-        } else {
-            best_seed_big::<Self, _>(&mut best_value, &mut best_seed, used_values, keys, conf)
-        };
-        if best_seed != 0 { // can assign seed to the bucket
-            for key in keys {
-                used_values.add(Self::f(*key, best_seed, conf));
-            }
-        };
-        best_seed
-    }
-}*/

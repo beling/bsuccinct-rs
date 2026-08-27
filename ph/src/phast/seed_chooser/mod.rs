@@ -68,8 +68,9 @@ pub trait SeedChooserCore: Copy {
     fn read(input: &mut dyn io::Read) -> io::Result<Self>;
 }
 
-/// Provides seed evaluator (that chooses best seed in the bucket) and
-/// bucket evaluator (which compares buckets, for choosing the best one).
+/// Configuration and factory of seed choosers: provides
+/// a seed chooser (that chooses best seed in the bucket) and
+/// a bucket evaluator (which compares buckets, for choosing the best one).
 /// It affects the trade-off between size and evaluation and construction time.
 pub trait SeedChooserConf: Clone + Sync {
 
@@ -88,12 +89,14 @@ pub trait SeedChooserConf: Clone + Sync {
     /// Returns bucket evaluator which compares buckets (for choosing the best one).
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Self::BucketEvaluator;
 
+    /// Returns bucket evaluator and seed chooser for given `bits_per_seed` and `slice_len`;
+    /// a convenience method combining [`Self::bucket_evaluator`] and [`Self::seed_chooser`].
     #[inline] fn evaluators(&self, bits_per_seed: u8, slice_len: u16) -> (Self::BucketEvaluator, Self::SeedChooser) {
         (self.bucket_evaluator(bits_per_seed, slice_len), self.seed_chooser(bits_per_seed, slice_len))
     }
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
-    #[inline(always)] fn k(&self) -> u16 { self.core().k() }  
+    #[inline(always)] fn k(&self) -> u16 { self.core().k() }
 
     fn empty_used_values(&self) -> Self::UsedValues;
 
@@ -162,15 +165,18 @@ pub trait SeedChooserConf: Clone + Sync {
     }
 }
 
-/// Choose best seed in the bucket.
+/// Chooses best seed in the bucket (see [`Self::best_seed`]).
 /// It affects the trade-off between size and evaluation and construction time.
 pub trait SeedChooser: SeedChooserConf {
 
-    /// Returns best seed to store in seeds array or `u16::MAX` if `NO_BUMPING` is `true` and there is no feasible seed.
+    /// Returns best seed to store in the seeds array.
+    /// If there is no feasible seed, returns `0` (which indicates bumping) when `BUMPING` of `Self::Core` is `true`,
+    /// or `u16::MAX` when `BUMPING` is `false`.
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16;
 }
 
-// This implementation makes possible to give non-default bucket evaluator when [`SeedChooserConf`] is required.
+/// `SeedChooserConf` implementation which overrides the bucket evaluator of `SC` with `BE`.
+/// It allows using a non-default bucket evaluator where an implementation of [`SeedChooserConf`] is required.
 impl<SC: SeedChooserConf, BE: BucketEvaluator> SeedChooserConf for (SC, BE) {
     type SeedChooser = SC::SeedChooser;
 

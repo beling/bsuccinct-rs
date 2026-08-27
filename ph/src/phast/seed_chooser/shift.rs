@@ -59,8 +59,6 @@ impl SeedChooserCore for ShiftCore {
 #[derive(Clone, Copy, Default)]
 pub struct ShiftOnly;
 
-//pub static SELF_COLLISION_KEYS: AtomicU64 = AtomicU64::new(0);
-//pub static SELF_COLLISION_BUCKETS: AtomicU64 = AtomicU64::new(0);
 
 impl SeedChooserConf for ShiftOnly {
 
@@ -130,14 +128,6 @@ impl SeedChooserConf for ShiftOnly {
 }
 
 impl SeedChooser for ShiftOnly {
-
-
-
-
-
-    /*#[inline(always)] fn f_slice(primary_code: u64, slice_begin: usize, seed: u16, conf: &Conf) -> usize {
-        slice_begin + conf.in_slice_noseed(primary_code) + (seed-1) as usize*MULTIPLIER as usize
-    }*/
 
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {

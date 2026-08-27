@@ -3,7 +3,7 @@
 use dyn_size_of::GetSize;
 use voracious_radix_sort::RadixSort;
 
-use crate::{phast::{Conf, SeedChooser, SeedChooserConf, SeedChooserCore, SeedOnlyCore, WINDOW_SIZE, builder::{BuildConf, build_mt, build_st}, conf::{Core, CoreConf}, evaluator::BucketEvaluator, function::SeedEx}, seeds::SeedSize};
+use crate::{phast::{Conf, SeedChooser, SeedChooserConf, SeedChooserCore, SeedOnlyCore, builder::{BuildConf, build_mt, build_st}, conf::{Core, CoreConf}, evaluator::BucketEvaluator, function::SeedEx}, seeds::SeedSize};
 use std::hash::{BuildHasher, Hash, RandomState};
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
@@ -129,7 +129,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> Partial<C, SS, SCC, S> {
     {
         if threads_num == 1 { return Self::build_st(hashes, seed_size, core, hasher, seed_chooser, bucket_evaluator); }
         hashes.voracious_mt_sort(threads_num);
-        let (seeds, build_conf) = build_mt(hashes, core, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser.clone(), threads_num);
+        let (seeds, build_conf) = build_mt(hashes, core, seed_size, bucket_evaluator, seed_chooser.clone(), threads_num);
         (Self {
             seeds: SeedEx{ seeds, core },
             hasher,

@@ -1,6 +1,5 @@
 //! [`SeedOnlyK`] – the seed chooser for k-perfect functions.
 
-use core::f64;
 use std::io;
 
 use binout::{AsIs, Serializer};
@@ -14,14 +13,6 @@ pub fn bucket_size_normalization_multiplier(k: u16) -> f64 {
     let overhead = 0.05; //+ 0.25 / (k as f64 * k as f64);
     (space_lower_bound(1)+overhead) / (space_lower_bound(k)+overhead)
 }
-
-/*pub fn bucket_size_normalization_multiplier(k: u8) -> f64 {
-    if k == 1 { return 1.0; }
-    const LOG2PI: f64 = 2.651496129472319;
-    let k = k as f64;
-    //2.7941142836856487*k as f64/(LOG2PI+k.log2())
-    2.0*k as f64/(LOG2PI+k.log2())
-}*/
 
 /// Configuration and factory of `KSeedEvaluator`.
 /// 
@@ -60,7 +51,7 @@ pub trait KSeedEvaluator: KSeedEvaluatorConf<KSeedEvaluator=Self> {
     /// Precalculated data usable to evaluate each seed in the same bucket.
     type BucketData: Copy;
 
-    /// Value grater than each value returned by `eval`.
+    /// Value greater than each value returned by `eval`.
     const MAX: Self::Value;
 
     /// Precalculates data usable to evaluate each seed in the same bucket.
@@ -80,7 +71,7 @@ impl KSeedEvaluator for SumOfValues {
     type BucketData = ();
 
     #[inline]
-    fn for_bucket<C: Core>(&self, _first_bucket_in_window: usize, _bucket_nr: usize, _core: &C) -> Self::BucketData {
+    fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData {
         ()
     }
 
@@ -214,39 +205,6 @@ impl KSeedEvaluatorConf for ProdOfValues {
         }
         return VALUES.last().unwrap().1;
 
-        //let mut r = 
-        /*match k {
-            ..=2 => ProdOfValuesKEval { value_shift: 0.00459, free_shift: 1.67556, first_weight: 0.12312 }, // 1.02%
-            3 => ProdOfValuesKEval { value_shift: 0.00372, free_shift: 1.80978, first_weight: 0.20042 }, // 1.08%
-            4 => ProdOfValuesKEval { value_shift: 0.00411, free_shift: 2.07543, first_weight: 0.42212 }, // 1.09%
-            5 => ProdOfValuesKEval { value_shift: 0.00374, free_shift: 2.38977, first_weight: 0.63411 }, // 1.05%
-            6 => ProdOfValuesKEval { value_shift: 0.00336, free_shift: 2.65310, first_weight: 0.75036 }, // 0.97%
-            7 => ProdOfValuesKEval { value_shift: 0.00339, free_shift: 2.76276, first_weight: 0.71752 }, // 0.89%
-            8 => ProdOfValuesKEval { value_shift: 0.00305, free_shift: 2.93629, first_weight: 0.73965 }, // 0.81%
-            9 => ProdOfValuesKEval { value_shift: 0.00339, free_shift: 3.01388, first_weight: 0.71301 }, // 0.73%
-            10 => ProdOfValuesKEval { value_shift: 0.00348, free_shift: 3.23864, first_weight: 0.73775 }, // 0.68%
-            11 => ProdOfValuesKEval { value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }, // 0.63%
-            12 => ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }, // 0.60%
-            13 => ProdOfValuesKEval { value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }, // 0.57%
-            14 => ProdOfValuesKEval { value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }, // 0.56%
-            15 => ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.54152, first_weight: 0.66301 }, // 0.55%
-            16..32 => ProdOfValuesKEval { value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }, // 0.54%
-            32..50 => ProdOfValuesKEval { value_shift: 0.00297, free_shift: 4.53498, first_weight: 0.62771 }, // 0.64%
-            50..64 => ProdOfValuesKEval { value_shift: 0.00269, free_shift: 5.52251, first_weight: 0.60593 }, // 0.76%
-            64..100 => ProdOfValuesKEval { value_shift: 0.00180, free_shift: 6.20170, first_weight: 0.61391 }, // 0.84%
-            100..128 => ProdOfValuesKEval { value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }, // 0.61%
-            128..200 => ProdOfValuesKEval { value_shift: 0.00294, free_shift: 6.66377, first_weight: 0.55960 }, // 0.69%
-            200..256 => ProdOfValuesKEval { value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }, // 0.96%
-            256..300 => ProdOfValuesKEval { value_shift: 0.00648, free_shift: 10.29860, first_weight: 0.66279 }, // 1.16%
-            300..400 => ProdOfValuesKEval { value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }, // 1.35%
-            400..500 => ProdOfValuesKEval { value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }, // 1.78%
-            500..512 => ProdOfValuesKEval { value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }, // 2.22%
-            512..1000 => ProdOfValuesKEval { value_shift: 0.00523, free_shift: 7.70449, first_weight: 0.28980 }, // 2.27%
-            1000..1024 => ProdOfValuesKEval { value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }, // 2.23%
-            1024.. => ProdOfValuesKEval { value_shift: 0.00416, free_shift: 6.90059, first_weight: 0.45755 }, // 2.28%
-        }*/
-        //r.free_shift += k as f64;
-        //r
     }
 }
 
@@ -297,62 +255,6 @@ impl KSeedEvaluator for ProdOfValuesKEval {
         result
     }
 }
-
-
-
-/*#[derive(Clone, Copy)]
-pub struct SumOfLogValues;
-impl KSeedEvaluatorConf for SumOfLogValues {
-    type KSeedEvaluator = SumOfLogValuesEvaluator;
-
-    fn for_k(&self, k: u16) -> Self::KSeedEvaluator {
-        match k {
-            2=>SumOfLogValuesEvaluator { free_values_weight: 74.0, value_shift: 29, free_shift: 147 }, // for k=2   0.91%
-            3=>SumOfLogValuesEvaluator { free_values_weight: 62.0, value_shift: 31, free_shift: 157 }, // for k=3   0.89%
-            4=>SumOfLogValuesEvaluator { free_values_weight: 57.0, value_shift: 31, free_shift: 169 }, // for k=4   0.91%
-            5=>SumOfLogValuesEvaluator { free_values_weight: 50.0, value_shift: 32, free_shift: 173 }, // for k=5   0.91%
-            6=>SumOfLogValuesEvaluator { free_values_weight: 47.0, value_shift: 32, free_shift: 179 }, // for k=6   0.89%
-            7=>SumOfLogValuesEvaluator { free_values_weight: 42.0, value_shift: 33, free_shift: 185 }, // for k=7
-            8=>SumOfLogValuesEvaluator { free_values_weight: 39.0, value_shift: 35, free_shift: 188 }, // for k=8
-            9=>SumOfLogValuesEvaluator { free_values_weight: 37.0, value_shift: 33, free_shift: 191 }, // for k=9
-            10=>SumOfLogValuesEvaluator { free_values_weight: 36.0, value_shift: 32, free_shift: 201 }, // for k=10   0.75%
-            11..32=>SumOfLogValuesEvaluator { free_values_weight: 25.0, value_shift: 35, free_shift: 202 }, // for k=16   0.69%
-            32..64=>SumOfLogValuesEvaluator { free_values_weight: 16.0, value_shift: 33, free_shift: 217 }, // for k=32   0.77%
-            64..128=>SumOfLogValuesEvaluator { free_values_weight: 8.0, value_shift: 36, free_shift: 224 }, // for k=64
-            _=>SumOfLogValuesEvaluator { free_values_weight: 5.0, value_shift: 40, free_shift: 265 },   // for k=128
-        }
-    }
-}*/
-
-// Chooses seed that minimizes
-// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(free(f(x,seed))+free_shift)
-/*#[derive(Clone, Copy)]
-pub struct SumOfLogValuesEvaluator {
-    pub free_values_weight: f64,
-    pub value_shift: usize,
-    pub free_shift: usize
-}
-
-impl KSeedEvaluator for SumOfLogValuesEvaluator {
-    type Value = ComparableF64;
-
-    type BucketData = usize;
-
-    const MAX: Self::Value = ComparableF64(f64::MAX);
-
-    fn for_bucket<C: Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
-        core.slice_begin_for_bucket(bucket_nr).wrapping_sub(self.value_shift)
-    }
-
-    fn eval(&self, k: u16, values_used_by_seed: &[usize], used_values: &UsedValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
-        let mut result = 0.0;
-        for value in values_used_by_seed.iter().copied() {
-            let free_values = (self.free_shift + k as usize - used_values[value] as usize) as f64;
-            result += (value.wrapping_sub(to_subtract_from_value) as f64).log2() - self.free_values_weight * free_values.log2();
-        }
-        ComparableF64(result)
-    }
-}*/
 
 #[derive(Clone, Copy)]
 pub struct SeedOnlyKCore(pub u16);
@@ -442,8 +344,6 @@ impl<SE: KSeedEvaluatorConf> SeedOnlyK<SE> {
 
 #[inline(always)]
 fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, free_values: &mut FreeValueMultiSetU16, keys: &[u64], core: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
-    //assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
-    //let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let bucket_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, core);
     'outer: for seed in SC::Core::FIRST_SEED..seeds_num {    // seed=0 is special = no seed,
@@ -454,12 +354,10 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
                 for v in &values_used_by_seed { free_values[*v] += 1; }
                 continue 'outer;
             }
-            //used_values.add(value);
             free_values[value] -= 1;
             values_used_by_seed.push(value);
         }
         unsafe{std::hint::assert_unchecked(values_used_by_seed.len() == keys.len());}   // this speeds up the code!
-        //assert_eq!(values_used_by_seed.len(), keys.len());
         let seed_value = seed_evaluator.eval_and_remove(k, &values_used_by_seed, free_values, bucket_data);
         if seed_value < *best_value {
             *best_value = seed_value;
@@ -478,8 +376,7 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
         let mut best_value = SE::MAX;
         best_seed_k(self.k(), self, &self.seed_evaluator, &mut best_value, &mut best_seed, free_values, keys, core, 1<<bits_per_seed, bucket_nr, first_bucket_in_window);
         if best_seed != 0 { // can assign seed to the bucket
-            for key in keys {               
-                //used_values.add(core.f(*key, best_seed));
+            for key in keys {
                 free_values[core.f(*key, best_seed)] -= 1;
             }
         };

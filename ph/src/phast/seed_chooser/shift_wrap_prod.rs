@@ -18,7 +18,8 @@ use super::SeedChooser;
 #[derive(Clone, Copy)]
 pub struct ShiftOnlyProdWrapped<const MULTIPLIER: u8 = 1>;
 
-fn shift_only_wrapped_bucket_evaluator_m1(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
+/// Bucket-evaluator weights of [`ShiftOnlyProdWrapped`] with `MULTIPLIER` = 1 (tuned separately from the weights of [`ShiftOnlyWrapped`]).
+fn shift_only_prod_wrapped_bucket_evaluator_m1(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     if WINDOW_SIZE > 350 {
         match (bits_per_seed, slice_len) { // WINDOW_SIZE = 512
             (_, ..=64) => [0, 174245, 179903, 183082, 185395, 186553, 189045],   // W=512, S=8, 4.1, slice=64, n=2000, 15.97%
@@ -79,7 +80,8 @@ fn shift_only_wrapped_bucket_evaluator_m1(bits_per_seed: u8, slice_len: u16) -> 
 
 }
 
-fn shift_only_wrapped_bucket_evaluator_m2(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
+/// Bucket-evaluator weights of [`ShiftOnlyProdWrapped`] with `MULTIPLIER` = 2.
+fn shift_only_prod_wrapped_bucket_evaluator_m2(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     if WINDOW_SIZE > 350 {
         match (bits_per_seed, slice_len) {
             (_, ..=64) => [0, 184344, 190059, 193091, 195065, 196427, 197588],  // W=512, S=8, 4.1, slice=64, n=2000, 20.57%
@@ -139,7 +141,8 @@ fn shift_only_wrapped_bucket_evaluator_m2(bits_per_seed: u8, slice_len: u16) -> 
     }
 }
 
-fn shift_only_wrapped_bucket_evaluator_m3(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
+/// Bucket-evaluator weights of [`ShiftOnlyProdWrapped`] with `MULTIPLIER` = 3.
+fn shift_only_prod_wrapped_bucket_evaluator_m3(bits_per_seed: u8, slice_len: u16) -> [i32; 7] {
     if WINDOW_SIZE > 350 {  // W=512
         match (bits_per_seed, slice_len) { // multiplier=3, almost the same result as for multiplier=2 weights
             (_, ..=64) => [0, 178680, 184339, 187327, 189620, 190856, 193377],  // W=512, S=8, 4.1, slice=64, n=2000, 15.97%
@@ -217,9 +220,9 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftOnlyProdWrapped<MULTIPLIER> 
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights(match MULTIPLIER {
-            1 => shift_only_wrapped_bucket_evaluator_m1(bits_per_seed, slice_len),
-            2 => shift_only_wrapped_bucket_evaluator_m2(bits_per_seed, slice_len),
-            _ => shift_only_wrapped_bucket_evaluator_m3(bits_per_seed, slice_len)
+            1 => shift_only_prod_wrapped_bucket_evaluator_m1(bits_per_seed, slice_len),
+            2 => shift_only_prod_wrapped_bucket_evaluator_m2(bits_per_seed, slice_len),
+            _ => shift_only_prod_wrapped_bucket_evaluator_m3(bits_per_seed, slice_len)
         })
     }
 

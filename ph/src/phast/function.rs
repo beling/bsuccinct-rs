@@ -3,7 +3,7 @@
 use std::{hash::Hash, io, usize};
 
 use crate::{phast::{Conf, ProdOfValues, SeedChooserCore, conf::{Core, CoreConf}, seed_chooser::SeedOnlyCore}, seeds::{Bits8, SeedSize}};
-use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::{SeedChooserConf, SeedOnly}, CompressedArray, DefaultCompressedArray, WINDOW_SIZE};
+use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::{SeedChooserConf, SeedOnly}, CompressedArray, DefaultCompressedArray};
 use binout::{Serializer, VByte};
 use bitm::BitAccess;
 use dyn_size_of::GetSize;
@@ -129,7 +129,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_ran
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
     let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
     let (seeds, builder) =
-        build_mt(&hashes, core, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        build_mt(&hashes, core, seed_size, bucket_evaluator, seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(bumped_len);
@@ -171,7 +171,7 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
     let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
     let (seeds, builder) =
-        build_mt(&hashes, core, seed_size, WINDOW_SIZE, bucket_evaluator, seed_chooser, threads_num);
+        build_mt(&hashes, core, seed_size, bucket_evaluator, seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut result = Vec::with_capacity(bumped_len);
@@ -377,80 +377,6 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn output_range(&self) -> usize {
         self.level0.core.output_range(self.seed_chooser, self.seed_size.into())
     }
-
-    /*#[inline(always)]
-    fn finish_building<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S, level0: SeedEx<SS>, unassigned_values: Box<[u64]>, unassigned_len: usize) -> Self where K: Hash+Sync+Send, S: Sync {
-        let mut level0_unassigned = unassigned_values.bit_ones();
-        let mut unassigned = Vec::with_capacity(unassigned_len * 3 / 2);
-
-        let mut levels = Vec::with_capacity(16);
-        let mut last = 0;
-        while !keys.is_empty() {
-            let keys_len = keys.len();
-            let (seeds, unassigned_values, _unassigned_len) =
-                Self::build_level(&mut keys, bits_per_seed, bucket_size100, threads_num, &hasher, levels.len() as u32+1);
-            let shift = unassigned.len();
-            for i in 0..keys_len {
-                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
-                    last = level0_unassigned.next().unwrap();                    
-                }
-                unassigned.push(last);
-            }
-            levels.push(Level { seeds, shift });
-        }
-        debug_assert!(level0_unassigned.next().is_none());
-        drop(level0_unassigned);
-
-        let mut builder = CA::Builder::new(unassigned.len(), last);
-        builder.push_all(unassigned);
-
-        Self {
-            level0,
-            unassigned: CA::finish(builder),
-            levels: levels.into_boxed_slice(),
-            hasher,
-        }
-    }*/
-
-    /*pub fn new2<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
-        let keys_len = keys.len();
-        let (level0, unassigned_values, _unassigned_len) =
-            Self::build_level(&mut keys, bits_per_seed, bucket_size100, threads_num, &hasher, 0);
-        let largest_unassigned = bitmap_largest(&unassigned_values, keys_len);
-
-        let mut levels_data = Vec::with_capacity(16);
-        let mut total_len = 0;
-        while !keys.is_empty() {
-            let keys_len = keys.len();
-            let (seeds, unassigned_values, _unassigned_len) =
-                Self::build_level(&mut keys, bits_per_seed, bucket_size100, threads_num, &hasher, levels_data.len() as u32+1);
-            levels_data.push((seeds, unassigned_values, keys_len, total_len));
-            total_len += keys_len;
-        }
-        let mut levels = Vec::with_capacity(levels_data.len());
-        let mut builder = CA::Builder::new(total_len, largest_unassigned);
-        let mut level0_unassigned = unassigned_values.bit_ones();
-        let mut last = 0;
-        for (seeds, unassigned_values, keys_len, shift) in levels_data {
-            for i in 0..keys_len {
-                if !unsafe{unassigned_values.get_bit_unchecked(i)} {
-                    last = level0_unassigned.next().unwrap();                    
-                }
-                builder.push(last);
-            }
-            levels.push(Level { seeds, shift });
-        }
-        debug_assert!(level0_unassigned.next().is_none());
-        drop(level0_unassigned);
-
-        Self {
-            level0,
-            unassigned: CA::finish(builder),
-            levels: levels.into_boxed_slice(),
-            hasher,
-        }
-    }*/
-
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         self.seed_chooser.write_bytes() +
