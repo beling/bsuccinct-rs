@@ -5,7 +5,7 @@ use std::io;
 use binout::{AsIs, Serializer};
 use bitm::ceiling_div;
 
-use crate::phast::{ProdCmp, ProdOfValues, SeedChooserCore, SumOfValues, Weights, conf::Core, cyclic::FreeValueMultiSetU16, seed_chooser::SeedChooserConf, space_lower_bound};
+use crate::phast::{ProdCmp, ProdOfValues, SeedChooserCore, SeedEvaluator, SumOfValues, Weights, conf::Core, cyclic::FreeValueMultiSetU16, seed_chooser::SeedChooserConf, space_lower_bound};
 use super::SeedChooser;
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
@@ -28,18 +28,7 @@ pub trait KSeedEvaluatorConf: Clone + Sync {
     fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator;
  
     /// Returns bucket evaluator that works well with seed evaluator returned by `seed_evaluator_k`.
-    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
-        //S=8, k=2:
-        //l=512: 1.03%  0, 65930, 92696, 107690, 120901, 128139, 131718  value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758
-        //l=1024: 0.92%  0, 118482, 177895, 206179, 229653, 249918, 255628  value_shift: 0.57466, free_shift: 0.86282, first_weight: 0.80656
-        //l=2048: 0.89%  0, 235845, 359096, 428083, 452260, 499661, 513018  value_shift: 0.55093, free_shift: 0.83885, first_weight: 0.83444
-        //S=8, k=4:
-        //l=1024: 0.63%  0, 50850, 54240, 56227, 58148, 62658, 64784  value_shift: 0.90437, free_shift: 0.96466, first_weight: 0.86792
-        //l=2048: 0.67%  0, 266202, 268413, 269618, 281494, 299180, 302441  value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148
-        //l=4096: 0.71%  0, 226, 34010, 34417, 374541, 477304, 496400  value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933
-        //l=8192: 0.83%  0, 1872, 5387, 42264, 163703, 316315, 366479  value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532
-        Weights::new(bits_per_seed, slice_len)
-    }
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights;
 }
 
 /// Evaluate (harness of) seed for k-perfect function.
@@ -71,8 +60,7 @@ impl KSeedEvaluator for SumOfValues {
     type BucketData = ();
 
     #[inline]
-    fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData {
-    }
+    fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData {}
 
     #[inline]
     fn eval_and_remove(&self, _k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, _bucket_data: Self::BucketData) -> Self::Value {
@@ -88,62 +76,21 @@ impl KSeedEvaluator for SumOfValues {
 impl KSeedEvaluatorConf for SumOfValues {
     type KSeedEvaluator = Self;
     #[inline] fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator { SumOfValues }
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        SumOfValues.bucket_evaluator(bits_per_seed, slice_len)
+    }
 }
 
-impl KSeedEvaluatorConf for ProdOfValues {
-    type KSeedEvaluator = ProdOfValuesKEval;
-
-    fn seed_evaluator_k(&self, k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator {
-        #[cfg(not(feature = "W256"))]
-        const VALUES: [(u16, ProdOfValuesKEval); 35] = [
-            (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
-            (3, ProdOfValuesKEval { value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
-            (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
-            (5, ProdOfValuesKEval { value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
-            (6, ProdOfValuesKEval { value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
-            (7, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
-            (8, ProdOfValuesKEval { value_shift: 0.00320, free_shift: 2.91581, first_weight: 0.73696 }), // 0.80%
-            (9, ProdOfValuesKEval { value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // 0.73%
-            (10, ProdOfValuesKEval { value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // 0.67%
-            (11, ProdOfValuesKEval { value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // 0.63%
-            (12, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }), // 0.60%
-            (13, ProdOfValuesKEval { value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }), // 0.57%
-            (14, ProdOfValuesKEval { value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }), // 0.56%
-            (15, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.54152, first_weight: 0.66301 }), // 0.55%
-            (16, ProdOfValuesKEval { value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }), // 0.54%
-            (32, ProdOfValuesKEval { value_shift: 0.00297, free_shift: 4.53498, first_weight: 0.62771 }), // 0.64%
-            (50, ProdOfValuesKEval { value_shift: 0.00269, free_shift: 5.52251, first_weight: 0.60593 }), // 0.76%
-            (64, ProdOfValuesKEval { value_shift: 0.00180, free_shift: 6.20170, first_weight: 0.61391 }), // 0.84%
-            (100, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }), // 0.61%
-            (128, ProdOfValuesKEval { value_shift: 0.00294, free_shift: 6.66377, first_weight: 0.55960 }), // 0.69%
-            (200, ProdOfValuesKEval { value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }), // 0.96%
-            (256, ProdOfValuesKEval { value_shift: 0.00648, free_shift: 10.29860, first_weight: 0.66279 }), // 1.16%
-            (300, ProdOfValuesKEval { value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }), // 1.35%
-            (400, ProdOfValuesKEval { value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }), // 1.78%
-            (500, ProdOfValuesKEval { value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }), // 2.22%
-            (512, ProdOfValuesKEval { value_shift: 0.00523, free_shift: 7.70449, first_weight: 0.28980 }), // 2.27%
-            (750, ProdOfValuesKEval { value_shift: 0.00520, free_shift: 7.10482, first_weight: 0.31508 }), // 3.27%
-            (1000, ProdOfValuesKEval { value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }), // 2.23%
-            (1024, ProdOfValuesKEval { value_shift: 0.00416, free_shift: 6.90059, first_weight: 0.45755 }), // 2.28%
-            (1500, ProdOfValuesKEval { value_shift: 0.00412, free_shift: 6.96199, first_weight: 0.48575 }), // 1.68%
-            (2000, ProdOfValuesKEval { value_shift: 0.00440, free_shift: 7.16988, first_weight: 0.44569 }), // 2.24%
-            (3000, ProdOfValuesKEval { value_shift: 0.00446, free_shift: 7.39262, first_weight: 0.45036 }), // 3.27%
-            (4000, ProdOfValuesKEval { value_shift: 0.00423, free_shift: 7.45927, first_weight: 0.38573 }), // 4.33%
-            (5000, ProdOfValuesKEval { value_shift: 0.60851, free_shift: 25.95862, first_weight: 0.27874 }), // 5.25%
-            (10000, ProdOfValuesKEval { value_shift: 1.30708, free_shift: 189.36282, first_weight: 1.00000 }), // 5.22%
-            
             //k=2
-            //W=512 l=1024 1.00%: value_shift: 0.00496, free_shift: 1.58930, first_weight: 0.10560
-            //W=512 l=2048 0.98%: value_shift: 0.00578, free_shift: 1.59036, first_weight: 0.07484
-            //W=512 l=4096 0.87%: value_shift: 0.00486, free_shift: 1.48757, first_weight: 0.13542
+            //W=512 l=1024 1.00%: value_shift: 0.00496, free_shift: 1.58930, first_weight: 0.10560 -> 0.92%
+            //W=512 l=2048 0.98%: value_shift: 0.00578, free_shift: 1.59036, first_weight: 0.07484 -> 0.89%
+            //W=512 l=4096 0.87%: value_shift: 0.00486, free_shift: 1.48757, first_weight: 0.13542 -> 0.86%
 
             //k=4
-            //W=512 l=1024 1.02%: value_shift: 0.00559, free_shift: 1.85542, first_weight: 0.29544
-            //W=512 l=2048 1.17%: value_shift: 0.00536, free_shift: 1.97097, first_weight: 0.28628
-            //W=512 l=4096 0.96%: value_shift: 0.00519, free_shift: 1.85147, first_weight: 0.18283
-            //W=512 l=8192 0.84%: value_shift: 0.00666, free_shift: 1.47563, first_weight: 0.11891
-            //better S=8 weights: 0, 2421, 8111, 97714, 219735, 319358, 377829
-            //W=512 l=16384 1.13%: value_shift: 0.00676, free_shift: 1.30552, first_weight: 0.11808
+            //W=512 l=1024 1.02%: value_shift: 0.00559, free_shift: 1.85542, first_weight: 0.29544 -> 0.63%
+            //W=512 l=2048 1.17%: value_shift: 0.00536, free_shift: 1.97097, first_weight: 0.28628 -> 0.67%
+            //W=512 l=4096 0.96%: value_shift: 0.00519, free_shift: 1.85147, first_weight: 0.18283 -> 0.71%
+            //W=512 l=8192 0.84%: value_shift: 0.00666, free_shift: 1.47563, first_weight: 0.11891 -> 0.83%
             
             //k=8:
             //W=512 l=8192 1.02%: value_shift: 0.00668, free_shift: 1.69211, first_weight: 0.09757
@@ -153,57 +100,103 @@ impl KSeedEvaluatorConf for ProdOfValues {
             //W=512 l=4096 0.91%: value_shift: 0.00751, free_shift: 2.03454, first_weight: 0.08760
             //W=512 l=8192 1.52%  value_shift: 0.00045, free_shift: 2.47722, first_weight: 0.30067
             //W=512 l=16384 2.62%  value_shift: 0.00043, free_shift: 2.09781, first_weight: 0.34666
-        ];
-        
-        #[cfg(feature = "W256")]
-        const VALUES: [(u16, ProdOfValuesKEval); 35] = [
-            (2, ProdOfValuesKEval { value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
-            //W=256 l=4096 1.06%: value_shift: 0.00509, free_shift: 1.17960, first_weight: 0.14530
-            (3, ProdOfValuesKEval { value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
-            (4, ProdOfValuesKEval { value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
-            (5, ProdOfValuesKEval { value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
-            (6, ProdOfValuesKEval { value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
-            (7, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
-            (8, ProdOfValuesKEval { value_shift: 0.00320, free_shift: 2.91581, first_weight: 0.73696 }), // 0.80%
-            (9, ProdOfValuesKEval { value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // 0.73%
-            (10, ProdOfValuesKEval { value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // 0.67%
-            (11, ProdOfValuesKEval { value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // 0.63%
-            (12, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }), // 0.60%
-            (13, ProdOfValuesKEval { value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }), // 0.57%
-            (14, ProdOfValuesKEval { value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }), // 0.56%
-            (15, ProdOfValuesKEval { value_shift: 0.00305, free_shift: 3.54152, first_weight: 0.66301 }), // 0.55%
-            (16, ProdOfValuesKEval { value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }), // 0.54%
-            (32, ProdOfValuesKEval { value_shift: 0.00297, free_shift: 4.53498, first_weight: 0.62771 }), // 0.64%
-            (50, ProdOfValuesKEval { value_shift: 0.00269, free_shift: 5.52251, first_weight: 0.60593 }), // 0.76%
-            (64, ProdOfValuesKEval { value_shift: 0.00180, free_shift: 6.20170, first_weight: 0.61391 }), // 0.84%
-            (100, ProdOfValuesKEval { value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }), // 0.61%
-            (128, ProdOfValuesKEval { value_shift: 0.00294, free_shift: 6.66377, first_weight: 0.55960 }), // 0.69%
-            (200, ProdOfValuesKEval { value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }), // 0.96%
-            (256, ProdOfValuesKEval { value_shift: 0.00648, free_shift: 10.29860, first_weight: 0.66279 }), // 1.16%
-            (300, ProdOfValuesKEval { value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }), // 1.35%
-            (400, ProdOfValuesKEval { value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }), // 1.78%
-            (500, ProdOfValuesKEval { value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }), // 2.22%
-            (512, ProdOfValuesKEval { value_shift: 0.00523, free_shift: 7.70449, first_weight: 0.28980 }), // 2.27%
-            (750, ProdOfValuesKEval { value_shift: 0.00520, free_shift: 7.10482, first_weight: 0.31508 }), // 3.27%
-            (1000, ProdOfValuesKEval { value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }), // 2.23%
-            (1024, ProdOfValuesKEval { value_shift: 0.00416, free_shift: 6.90059, first_weight: 0.45755 }), // 2.28%
-            (1500, ProdOfValuesKEval { value_shift: 0.00412, free_shift: 6.96199, first_weight: 0.48575 }), // 1.68%
-            (2000, ProdOfValuesKEval { value_shift: 0.00440, free_shift: 7.16988, first_weight: 0.44569 }), // 2.24%
-                // or value_shift: 0.00422, free_shift: 7.59856, first_weight: 0.43189
-            (3000, ProdOfValuesKEval { value_shift: 0.00446, free_shift: 7.39262, first_weight: 0.45036 }), // 3.27%
-            (4000, ProdOfValuesKEval { value_shift: 0.00423, free_shift: 7.45927, first_weight: 0.38573 }), // 4.33%
-            (5000, ProdOfValuesKEval { value_shift: 0.60851, free_shift: 25.95862, first_weight: 0.27874 }), // 5.25%
-            (10000, ProdOfValuesKEval { value_shift: 1.30708, free_shift: 189.36282, first_weight: 1.00000 }), // 5.22%
-        ];
-        for (i, (nk, nv)) in VALUES.iter().enumerate() {
-            if *nk >= k {
-                if *nk == k { return *nv; }
-                let (pk, pv) = &VALUES[i-1];
-                return pv.combine(nv, (k-*pk) as f64/(*nk-*pk) as f64);
-            }
-        }
-        VALUES.last().unwrap().1
+type P=ProdOfValuesKEval;
+const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512
+    (2, [0, 65930, 92696, 107690, 120901, 128139, 131718], P{value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758}), //1.03%
+    (16, [0, 150606, 171755, 186904, 190381, 195153, 195172], P{value_shift: 0.80579, free_shift: 0.91895, first_weight: 0.95764}) //0.14%
+];
+#[cfg(not(feature = "W256"))]
+const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 35] = [   // for W=512
+    (2, [0, 118482, 177895, 206179, 229653, 249918, 255628], P{value_shift: 0.57466, free_shift: 0.86282, first_weight: 0.80656}), //0.92%
+    (3, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054}), // 1.07%
+    (4, [0, 50850, 54240, 56227, 58148, 62658, 64784], P{value_shift: 0.90437, free_shift: 0.96466, first_weight: 0.86792}), //0.63%
+    (5, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
+    (6, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
+    (7, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
+    (8, [0, 164938, 197074, 231458, 232160, 232768, 232980], P{value_shift: 0.71260, free_shift: 0.85144, first_weight: 0.99347}), // 0.30%
+    (9, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // 0.73%
+    (10, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // 0.67%
+    (11, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // 0.63%
+    (12, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }), // 0.60%
+    (13, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }), // 0.57%
+    (14, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }), // 0.56%
+    (15, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00305, free_shift: 3.54152, first_weight: 0.66301 }), // 0.55%
+    (16, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }), // 0.54%
+    (32, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00297, free_shift: 4.53498, first_weight: 0.62771 }), // 0.64%
+    (50, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00269, free_shift: 5.52251, first_weight: 0.60593 }), // 0.76%
+    (64, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00180, free_shift: 6.20170, first_weight: 0.61391 }), // 0.84%
+    (100, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }), // 0.61%
+    (128, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00294, free_shift: 6.66377, first_weight: 0.55960 }), // 0.69%
+    (200, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }), // 0.96%
+    (256, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00648, free_shift: 10.29860, first_weight: 0.66279 }), // 1.16%
+    (300, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }), // 1.35%
+    (400, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }), // 1.78%
+    (500, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }), // 2.22%
+    (512, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00523, free_shift: 7.70449, first_weight: 0.28980 }), // 2.27%
+    (750, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00520, free_shift: 7.10482, first_weight: 0.31508 }), // 3.27%
+    (1000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }), // 2.23%
+    (1024, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00416, free_shift: 6.90059, first_weight: 0.45755 }), // 2.28%
+    (1500, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00412, free_shift: 6.96199, first_weight: 0.48575 }), // 1.68%
+    (2000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00440, free_shift: 7.16988, first_weight: 0.44569 }), // 2.24%
+    (3000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00446, free_shift: 7.39262, first_weight: 0.45036 }), // 3.27%
+    (4000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00423, free_shift: 7.45927, first_weight: 0.38573 }), // 4.33%
+    (5000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.60851, free_shift: 25.95862, first_weight: 0.27874 }), // 5.25%
+    (10000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 1.30708, free_shift: 189.36282, first_weight: 1.00000 }), // 5.22%
+];
+const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
+    (2, [0, 235845, 359096, 428083, 452260, 499661, 513018], P{value_shift: 0.55093, free_shift: 0.83885, first_weight: 0.83444}), //0.89%
+    (4, [0, 266202, 268413, 269618, 281494, 299180, 302441], P{value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148}), //0.67%
+    (8, [0, 206121, 312710, 375996, 400427, 438375, 455609], P{value_shift: 0.54820, free_shift: 0.83168, first_weight: 0.82526}), //0.61%
+    //(16, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //0.86%
+];
+const PROD_S8_L4096: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [
+    (2, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //0.86%
+    (4, [0, 226, 34010, 34417, 374541, 477304, 496400], P{value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933}), //0.71%
+    (8, [0, 21680, 607272, 943854, 1019752, 1036883, 1167619], P{value_shift: 0.02297, free_shift: 0.64340, first_weight: 0.80836}), //0.84%
+];
+const PROD_S8_L8192: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [
+    (4, [0, 1872, 5387, 42264, 163703, 316315, 366479], P{value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532}), //0.83%
+    (8, [0, 5580, 20700, 195106, 297919, 313269, 412413], P{value_shift: 0.02860, free_shift: 0.10610, first_weight: 0.47308}), //1.03%
+];
 
+fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
+    let values = match (bits_per_seed, slice_len) {
+        (_, ..=512) => PROD_S8_L512.as_ref(),
+        (_, ..=1024) => PROD_S8_L1024.as_ref(),
+        (_, ..=2048) => PROD_S8_L2048.as_ref(),
+        (_, ..=4096) => PROD_S8_L4096.as_ref(),
+        (_, _) => PROD_S8_L8192.as_ref(),
+    };
+    for (i, row) in values.iter().enumerate() {
+        if row.0 >= k {
+            return if row.0 == k || i == 0 { (row, None) } else { (&values[i-1], Some(row)) };
+        }
+    }
+    (unsafe{values.last().unwrap_unchecked()}, None)
+}
+/// How close k is to nk for pk <= k <= nk; 1.0 if k==nk and 0.0 if k==pk.
+#[inline] fn next_weight(pk: u16, k: u16, nk: u16) -> f64 { (k-pk) as f64/(nk-pk) as f64 }
+
+fn combine(p: &[i32; 7], n: &[i32; 7], nw: f64) -> [i32; 7] {
+    let pw = 1.0 - nw;
+    std::array::from_fn(|i| ((p[i] as f64 * pw) + (n[i] as f64 * nw)).round() as i32)
+}
+
+impl KSeedEvaluatorConf for ProdOfValues {
+    type KSeedEvaluator = ProdOfValuesKEval;
+
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator {       
+        let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
+        if let Some(nk) = nk {
+            pk.2.combine(&nk.2, next_weight(pk.0, k, nk.0) /*(k-*pk) as f64/(*nk-*pk) as f64*/)
+        } else { pk.2 }
+    }
+
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
+        Weights(if let Some(nk) = nk {
+            combine(&pk.1, &nk.1, next_weight(pk.0, k, nk.0))
+        } else { pk.1 })
     }
 }
 
@@ -230,6 +223,9 @@ impl KSeedEvaluatorConf for ProdOfValuesKEval {
     fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self { 
         //let mut r= *self; r.free_shift += k as f64; r 
         *self
+    }
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        ProdOfValues.bucket_evaluator_k(k, bits_per_seed, slice_len)
     }
 }
 
@@ -368,8 +364,7 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
 
 
 impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
-
-    
+   
     #[inline(always)]
     fn best_seed<C: Core>(&self, free_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;
@@ -384,3 +379,43 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
     }
 }
 
+
+
+#[cfg(feature = "W256")]
+const VALUES: [(u16, [i32; 7], ProdOfValuesKEval); 35] = [
+    (2, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
+    (3, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
+    (4, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
+    (5, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
+    (6, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
+    (7, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
+    (8, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00320, free_shift: 2.91581, first_weight: 0.73696 }), // 0.80%
+    (9, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // 0.73%
+    (10, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // 0.67%
+    (11, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // 0.63%
+    (12, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00305, free_shift: 3.35685, first_weight: 0.68939 }), // 0.60%
+    (13, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00306, free_shift: 3.49506, first_weight: 0.70382 }), // 0.57%
+    (14, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00317, free_shift: 3.49727, first_weight: 0.67751 }), // 0.56%
+    (15, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00305, free_shift: 3.54152, first_weight: 0.66301 }), // 0.55%
+    (16, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00312, free_shift: 3.66667, first_weight: 0.68020 }), // 0.54%
+    (32, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00297, free_shift: 4.53498, first_weight: 0.62771 }), // 0.64%
+    (50, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00269, free_shift: 5.52251, first_weight: 0.60593 }), // 0.76%
+    (64, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00180, free_shift: 6.20170, first_weight: 0.61391 }), // 0.84%
+    (100, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00352, free_shift: 5.16385, first_weight: 0.43017 }), // 0.61%
+    (128, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00294, free_shift: 6.66377, first_weight: 0.55960 }), // 0.69%
+    (200, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00386, free_shift: 5.53550, first_weight: 0.37559 }), // 0.96%
+    (256, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00648, free_shift: 10.29860, first_weight: 0.66279 }), // 1.16%
+    (300, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00292, free_shift: 8.95345, first_weight: 0.52976 }), // 1.35%
+    (400, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00431, free_shift: 7.25800, first_weight: 0.35377 }), // 1.78%
+    (500, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00432, free_shift: 7.79703, first_weight: 0.31048 }), // 2.22%
+    (512, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00523, free_shift: 7.70449, first_weight: 0.28980 }), // 2.27%
+    (750, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00520, free_shift: 7.10482, first_weight: 0.31508 }), // 3.27%
+    (1000, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00460, free_shift: 6.56534, first_weight: 0.34167 }), // 2.23%
+    (1024, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00416, free_shift: 6.90059, first_weight: 0.45755 }), // 2.28%
+    (1500, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00412, free_shift: 6.96199, first_weight: 0.48575 }), // 1.68%
+    (2000, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00440, free_shift: 7.16988, first_weight: 0.44569 }), // 2.24%
+    (3000, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00446, free_shift: 7.39262, first_weight: 0.45036 }), // 3.27%
+    (4000, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.00423, free_shift: 7.45927, first_weight: 0.38573 }), // 4.33%
+    (5000, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 0.60851, free_shift: 25.95862, first_weight: 0.27874 }), // 5.25%
+    (10000, [0, 106597, 160801, 189894, 211279, 228324, 238991], P{value_shift: 1.30708, free_shift: 189.36282, first_weight: 1.00000 }), // 5.22%
+];

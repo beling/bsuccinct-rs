@@ -500,6 +500,10 @@ impl KSeedEvaluatorConf for SumOfLogValuesF0 {
             first_weight: 0.0, 
         }
     }
+    
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
+    }
 }
 
 /// Chooses seed that minimizes
@@ -546,6 +550,10 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
             1024.. => SumOfLogValuesFEval { free_values_weight: 0.88038, value_shift: 0.00399, free_shift: 5.96197, first_weight: 0.59852 } // 2.24%
         }
     }
+
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
+    }
 }
 
 /// Chooses seed that minimizes
@@ -569,6 +577,10 @@ impl KSeedEvaluatorConf for SumOfLogValuesF1 {
             }
         }
     }
+
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
+    }
 }
 
 
@@ -586,6 +598,10 @@ pub struct SumOfLogValuesFEval {
 impl KSeedEvaluatorConf for SumOfLogValuesFEval {
     type KSeedEvaluator = Self;
     fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self { *self }
+
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
+    }
 }
 
 impl KSeedEvaluator for SumOfLogValuesFEval {
