@@ -81,39 +81,20 @@ impl KSeedEvaluatorConf for SumOfValues {
     }
 }
 
-            //k=2
-            //W=512 l=1024 1.00%: value_shift: 0.00496, free_shift: 1.58930, first_weight: 0.10560 -> 0.92%
-            //W=512 l=2048 0.98%: value_shift: 0.00578, free_shift: 1.59036, first_weight: 0.07484 -> 0.89%
-            //W=512 l=4096 0.87%: value_shift: 0.00486, free_shift: 1.48757, first_weight: 0.13542 -> 0.86%
-
-            //k=4
-            //W=512 l=1024 1.02%: value_shift: 0.00559, free_shift: 1.85542, first_weight: 0.29544 -> 0.63%
-            //W=512 l=2048 1.17%: value_shift: 0.00536, free_shift: 1.97097, first_weight: 0.28628 -> 0.67%
-            //W=512 l=4096 0.96%: value_shift: 0.00519, free_shift: 1.85147, first_weight: 0.18283 -> 0.71%
-            //W=512 l=8192 0.84%: value_shift: 0.00666, free_shift: 1.47563, first_weight: 0.11891 -> 0.83%
-            
-            //k=8:
-            //W=512 l=8192 1.02%: value_shift: 0.00668, free_shift: 1.69211, first_weight: 0.09757
-            //W=512 l=4096 1.14%: value_shift: 0.00211, free_shift: 2.64806, first_weight: 0.48965
-            
-            //k=16:
-            //W=512 l=4096 0.91%: value_shift: 0.00751, free_shift: 2.03454, first_weight: 0.08760
-            //W=512 l=8192 1.52%  value_shift: 0.00045, free_shift: 2.47722, first_weight: 0.30067
-            //W=512 l=16384 2.62%  value_shift: 0.00043, free_shift: 2.09781, first_weight: 0.34666
 type P=ProdOfValuesKEval;
-const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512
-    (2, [0, 65930, 92696, 107690, 120901, 128139, 131718], P{value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758}), //1.03%
-    (16, [0, 150606, 171755, 186904, 190381, 195153, 195172], P{value_shift: 0.80579, free_shift: 0.91895, first_weight: 0.95764}) //0.14%
-];
+//const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [   // for W=512
+    //(2, [0, 65930, 92696, 107690, 120901, 128139, 131718], P{value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758}), //1.03%
+    //(16, [0, 150606, 171755, 186904, 190381, 195153, 195172], P{value_shift: 0.80579, free_shift: 0.91895, first_weight: 0.95764}) //0.14%
+//];
 #[cfg(not(feature = "W256"))]
 const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 35] = [   // for W=512
-    (2, [0, 118482, 177895, 206179, 229653, 249918, 255628], P{value_shift: 0.57466, free_shift: 0.86282, first_weight: 0.80656}), //0.92%
-    (3, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054}), // 1.07%
-    (4, [0, 50850, 54240, 56227, 58148, 62658, 64784], P{value_shift: 0.90437, free_shift: 0.96466, first_weight: 0.86792}), //0.63%
-    (5, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
-    (6, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
-    (7, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
-    (8, [0, 164938, 197074, 231458, 232160, 232768, 232980], P{value_shift: 0.71260, free_shift: 0.85144, first_weight: 0.99347}), // 0.30%
+    (2, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
+    (3, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00381, free_shift: 1.80743, first_weight: 0.20054 }), // 1.07%
+    (4, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00426, free_shift: 2.07610, first_weight: 0.41340 }), // 1.08%
+    (5, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // 1.04%
+    (6, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00351, free_shift: 2.64993, first_weight: 0.74814 }), // 0.96%
+    (7, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // 0.88%
+    (8, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00320, free_shift: 2.91581, first_weight: 0.73696 }), // 0.80%
     (9, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // 0.73%
     (10, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // 0.67%
     (11, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // 0.63%
@@ -143,29 +124,31 @@ const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 35] = [   // for W=512
     (5000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.60851, free_shift: 25.95862, first_weight: 0.27874 }), // 5.25%
     (10000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 1.30708, free_shift: 189.36282, first_weight: 1.00000 }), // 5.22%
 ];
-const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
-    (2, [0, 235845, 359096, 428083, 452260, 499661, 513018], P{value_shift: 0.55093, free_shift: 0.83885, first_weight: 0.83444}), //0.89%
-    (4, [0, 266202, 268413, 269618, 281494, 299180, 302441], P{value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148}), //0.67%
-    (8, [0, 206121, 312710, 375996, 400427, 438375, 455609], P{value_shift: 0.54820, free_shift: 0.83168, first_weight: 0.82526}), //0.61%
+//const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [   // for W=512
+    //(2, [0, 235845, 359096, 428083, 452260, 499661, 513018], P{value_shift: 0.55093, free_shift: 0.83885, first_weight: 0.83444}), //0.89%
+    //(4, [0, 266202, 268413, 269618, 281494, 299180, 302441], P{value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148}), //0.67%
+    //(8, [0, 206121, 312710, 375996, 400427, 438375, 455609], P{value_shift: 0.54820, free_shift: 0.83168, first_weight: 0.82526}), //0.61%
     //(16, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //0.86%
-];
-const PROD_S8_L4096: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [
-    (2, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //0.86%
-    (4, [0, 226, 34010, 34417, 374541, 477304, 496400], P{value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933}), //0.71%
-    (8, [0, 21680, 607272, 943854, 1019752, 1036883, 1167619], P{value_shift: 0.02297, free_shift: 0.64340, first_weight: 0.80836}), //0.84%
-];
-const PROD_S8_L8192: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [
-    (4, [0, 1872, 5387, 42264, 163703, 316315, 366479], P{value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532}), //0.83%
-    (8, [0, 5580, 20700, 195106, 297919, 313269, 412413], P{value_shift: 0.02860, free_shift: 0.10610, first_weight: 0.47308}), //1.03%
-];
+//];
+//const PROD_S8_L4096: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [
+    //(2, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //0.86%
+    //(4, [0, 226, 34010, 34417, 374541, 477304, 496400], P{value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933}), //0.71%
+    //(8, [0, 21680, 607272, 943854, 1019752, 1036883, 1167619], P{value_shift: 0.02297, free_shift: 0.64340, first_weight: 0.80836}), //0.84%
+//];
+//const PROD_S8_L8192: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [
+    //(4, [0, 1872, 5387, 42264, 163703, 316315, 366479], P{value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532}), //0.83%
+    //(8, [0, 5580, 20700, 195106, 297919, 313269, 412413], P{value_shift: 0.02860, free_shift: 0.10610, first_weight: 0.47308}), //1.03%
+//];
 
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
-        (_, ..=512) => PROD_S8_L512.as_ref(),
+        /*(_, ..=512) => PROD_S8_L512.as_ref(),
         (_, ..=1024) => PROD_S8_L1024.as_ref(),
         (_, ..=2048) => PROD_S8_L2048.as_ref(),
         (_, ..=4096) => PROD_S8_L4096.as_ref(),
-        (_, _) => PROD_S8_L8192.as_ref(),
+        (_, _) => PROD_S8_L8192.as_ref(),*/
+
+        (_, _) => PROD_S8_L1024.as_ref()
     };
     for (i, row) in values.iter().enumerate() {
         if row.0 >= k {
