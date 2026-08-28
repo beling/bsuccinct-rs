@@ -724,8 +724,8 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
-        print!("{}  ", WeightsF::from6(x).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
-        print_vec(x, &self.params(conf)[6..])
+        print!("{}  ", WeightsF::from6(&x[..6]).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print_vec(&x[6..], &self.params(conf)[6..])
     }
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
