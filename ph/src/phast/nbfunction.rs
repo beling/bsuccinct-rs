@@ -64,7 +64,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
         where K: Hash, CC: CoreConf<Core = C>, SE: SeedEvaluator, K: Hash+Sync+Send, S: Sync
     {
         Self::new(keys.len(), conf, seed_evaluator, tries, threads_num, |hasher, seed|
-            hash_all_par(&keys, hasher, seed)
+            hash_all_par(keys, hasher, seed)
         )
     }
 
@@ -117,7 +117,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     {
         hashes.voracious_sort();
         let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len());
-        try_nobump_build_st(hashes, *core, conf.seed_size, evaluator, *seed_chooser, bucket_begin_st(&hashes, core)).map(|(seeds, _)| seeds)
+        try_nobump_build_st(hashes, *core, conf.seed_size, evaluator, *seed_chooser, bucket_begin_st(hashes, core)).map(|(seeds, _)| seeds)
         /*.map(|(seeds, _)| {
             Self { seeds: SeedEx{ seeds, core: *core }, seed, hasher: conf.hasher.clone(), seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size }
         })*/

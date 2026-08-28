@@ -59,7 +59,7 @@ impl std::ops::MulAssign<f64> for ProdCmp {
 /// needed to represent minimal `k`-perfect function.
 pub fn space_lower_bound(k: u16) -> f64 {
     match k {
-        0|1 => 1.4426950408889634,  // TODO? 0 should panic
+        0|1 => core::f64::consts::LOG2_E,  // TODO? 0 should panic
         2 => 0.9426950408889634,
         3 => 0.7193867070748593,
         _ => {

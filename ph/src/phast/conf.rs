@@ -135,7 +135,7 @@ pub trait Core: Copy+Sync+Send {
         (wymum((seed_lo as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key).wrapping_add(3*(seed>>P) as u64) as u16 & self.slice_len_minus_one) as usize*/
     }
 
-    /// Returns index of `key` in its slice.
+    // Returns index of `key` in its slice.
     /*#[inline(always)]
     pub(crate) fn in_slice_seed_shift(&self, key: u64, seed: u16, shift: u16) -> usize {
         ((mult_hi((seed as u64).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 + shift as u16) & self.slice_len_minus_one) as usize

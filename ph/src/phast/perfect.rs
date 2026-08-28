@@ -158,7 +158,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
         let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
         drop(builder);
-        keys_vec.extend(keys.into_iter().filter(|key| {
+        keys_vec.extend(keys.iter().filter(|key| {
             unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
         }).cloned());
         (keys_vec, SeedEx{ seeds, core })

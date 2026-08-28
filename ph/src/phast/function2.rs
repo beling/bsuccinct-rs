@@ -1,7 +1,7 @@
 //! [`Function2`] – a variant of PHast whose last layer is built as regular PHast,
 //! which makes it compatible with almost all seed choosers.
 
-use std::{hash::Hash, io, usize};
+use std::{hash::Hash, io};
 
 use crate::{phast::{Conf, CoreConf, ProdOfValues, RandomPlacement, SeedChooserCore, ShiftOnlyWrapped, ShiftWrappedCore, conf::Core, function::{Level, SeedEx, build_level_from_slice_mt, build_level_from_slice_st, build_level_mt, build_level_st}, seed_chooser::{SeedChooserConf, SeedNoBumpCore, SeedOnlyNoBump}}, seeds::{Bits8, SeedSize}};
 use super::{builder::build_last_level, conf::GenericCore, CompressedArray, DefaultCompressedArray};
@@ -90,7 +90,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
 
         let key_hash = self.hasher.hash_one(key, self.last_level_seed);
         let seed = unsafe { self.last_level.seeds.seed_for(Bits8, key_hash) };
-        return self.bumped_index_to_value.get(SeedOnlyNoBump(ProdOfValues).f(key_hash, seed, &self.last_level.seeds.core) + self.last_level.shift)
+        self.bumped_index_to_value.get(SeedOnlyNoBump(ProdOfValues).f(key_hash, seed, &self.last_level.seeds.core) + self.last_level.shift)
     }
 
     /// Constructs [`Function2`] for given `keys`, using a single thread and given configuration.

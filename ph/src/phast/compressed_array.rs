@@ -1,6 +1,6 @@
 //! Compressed arrays of integer values used by PHast functions.
 
-use std::{io, isize, marker::PhantomData};
+use std::{io, marker::PhantomData};
 
 use binout::{AsIs, Serializer, VByte};
 use bitm::{bits_to_store, ceiling_div, get_bits57, init_bits57, n_lowest_bits, BitAccess, BitVec};
@@ -118,7 +118,7 @@ impl LinearRegression {
                 debug_assert!(correction >= 0);
                 let correction = correction as usize;
                 debug_assert!(correction <= max_correction, "{correction} <= {max_correction}");
-                corrections.push(correction as usize);
+                corrections.push(correction);
                 //if correction > real_max_correction { real_max_correction = correction; }
                 //if correction < real_min_correction { real_min_correction = correction; }
             }
@@ -128,7 +128,7 @@ impl LinearRegression {
         (regression, corrections.compact)
     }
 
-    /// Add `total_offset` to each value returned by `get`.
+    // Add `total_offset` to each value returned by `get`.
     /* #[inline] pub fn add_total_offset(&mut self, total_offset: usize) {
         self.offset += dbg!(total_offset * self.divider) as isize;
     }*/

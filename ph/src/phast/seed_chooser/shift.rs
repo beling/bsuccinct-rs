@@ -69,7 +69,7 @@ impl SeedChooserConf for ShiftOnly {
     type UsedValues = UsedValueSetLarge;
     
     #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
-        self.clone()
+        *self
     }
 
     type Core = ShiftCore;
@@ -109,6 +109,7 @@ impl SeedChooserConf for ShiftOnly {
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
 
+    #[allow(clippy::match_overlapping_arm)] // ranges overlap on purpose: the first matching arm has the priority
     #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
             n @ ..8192 => (n/2+1).next_power_of_two() as u16,
@@ -143,7 +144,7 @@ impl SeedChooser for ShiftOnly {
         //if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test? 4.51 6.85 9.10
         let last_shift = (1 << bits_per_seed) - 1;
         for shift in (0..last_shift).step_by(64) {
-            let used = occupy_sum(0, used_values, &without_shift, shift);
+            let used = occupy_sum(0, used_values, without_shift, shift);
             if used != u64::MAX {
                 if self_collide(without_shift) { return 0; }    // maybe it is better to postpone self-collision test? 4.46 6.76 9.02
                 let total_shift = shift + used.trailing_ones() as u16;

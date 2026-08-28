@@ -68,7 +68,7 @@ impl SeedEvaluator for SumOfValues {
 
     type BucketData = ();
 
-    #[inline] fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData { () }
+    #[inline] fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData { }
 
     fn eval(&self, values_used_by_seed: &[usize], _bucket_data: Self::BucketData) -> Self::Value {
         values_used_by_seed.iter().sum()
@@ -76,6 +76,7 @@ impl SeedEvaluator for SumOfValues {
 }
 
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let simd_keys = keys.len() / 4 * 4;
@@ -122,6 +123,7 @@ fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC,
 }
 
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     assert!(keys.len() <= SMALL_BUCKET_LIMIT);  // seems to speeds up a bit
     let mut values_used_by_seed = arrayvec::ArrayVec::<_, SMALL_BUCKET_LIMIT>::new(); // Vec::with_capacity(keys.len());
@@ -195,7 +197,7 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnly<SE> {
     #[inline(always)] fn core(&self) -> Self::Core { SeedOnlyCore }
 
     #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
-        self.clone()
+        *self
     }
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
@@ -216,9 +218,9 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
         let mut best_seed = 0;
         let mut best_value = SE::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_small(self, self.0, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         } else {
-            best_seed_big(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_big(self, self.0, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         };
         if best_seed != 0 { // can assign seed to the bucket
             for key in keys {
@@ -271,7 +273,7 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnlyNoBump<SE> {
     #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
 
     #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
-        self.clone()
+        *self
     }
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
@@ -285,9 +287,9 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
         let mut best_seed = u16::MAX;
         let mut best_value = SE::MAX;
         if keys.len() <= SMALL_BUCKET_LIMIT {
-            best_seed_small(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_small(self, self.0, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         } else {
-            best_seed_big(self, self.0.clone(), &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
+            best_seed_big(self, self.0, &mut best_value, &mut best_seed, used_values, keys, conf, 1<<bits_per_seed, bucket_nr, first_bucket_in_window)
         };
         if best_seed != u16::MAX { // can assign seed to the bucket
             for key in keys {

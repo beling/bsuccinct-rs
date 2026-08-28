@@ -72,7 +72,6 @@ impl KSeedEvaluator for SumOfValues {
 
     #[inline]
     fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData {
-        ()
     }
 
     #[inline]
@@ -203,7 +202,7 @@ impl KSeedEvaluatorConf for ProdOfValues {
                 return pv.combine(nv, (k-*pk) as f64/(*nk-*pk) as f64);
             }
         }
-        return VALUES.last().unwrap().1;
+        VALUES.last().unwrap().1
 
     }
 }
@@ -343,6 +342,7 @@ impl<SE: KSeedEvaluatorConf> SeedOnlyK<SE> {
 }
 
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, free_values: &mut FreeValueMultiSetU16, keys: &[u64], core: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
     let mut values_used_by_seed = Vec::with_capacity(keys.len());
     let bucket_data = seed_evaluator.for_bucket(bucket_nr, first_bucket_in_window, core);

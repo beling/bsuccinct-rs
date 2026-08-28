@@ -215,7 +215,7 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftOnlyProdWrapped<MULTIPLIER> 
     #[inline(always)] fn core(&self) -> Self::Core { ShiftWrappedCore::<MULTIPLIER> }
 
     fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
-        self.clone()
+        *self
     }
 
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
@@ -235,6 +235,7 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftOnlyProdWrapped<MULTIPLIER> 
     //type UsedValues = UsedValueSetLarge;
     //const FUNCTION2_THRESHOLD: usize = 4096*2;
 
+    #[allow(clippy::match_overlapping_arm)] // ranges overlap on purpose: the first matching arm has the priority
     fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         match output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize) {
             n @ 0..8192 => (n/2+1).next_power_of_two() as u16,

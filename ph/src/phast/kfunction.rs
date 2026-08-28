@@ -1,6 +1,6 @@
 //! [`KFunction`] – k-perfect hash function based on PHast.
 
-use std::{hash::Hash, io, usize};
+use std::{hash::Hash, io};
 
 use crate::{phast::{CoreConf, Generic, ProdOfValues, SeedChooserCore, SeedOnly, SeedOnlyCore, SeedOnlyK, SeedOnlyKCore, conf::{Conf, Core}, function::{Level, SeedEx, build_level_mt, build_level_st, hash_all_par}, seed_chooser::SeedChooserConf}, seeds::{Bits8, SeedSize}};
 use super::{builder::{build_mt, build_st}, conf::GenericCore, CompressedArray, DefaultCompressedArray};
@@ -145,7 +145,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         let mut keys_vec = Vec::with_capacity(bumped_num);
         drop(builder);
-        keys_vec.extend(keys.into_iter().filter(|key| {
+        keys_vec.extend(keys.iter().filter(|key| {
             unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, 0))) == 0 }
         }).cloned());
         (keys_vec, SeedEx{ seeds, core }, free_count)

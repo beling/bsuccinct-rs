@@ -82,7 +82,7 @@ pub fn bucket_begin_mt<C: Core>(keys: &[u64], conf: &C, threads_num: usize) -> B
     buckets
 }
 
-//// Read-only data shared by all threads.
+// Read-only data shared by all threads.
 pub(crate) struct BuildConf<'k, C: Core, BE: BucketEvaluator, SS: SeedSize, SC: SeedChooser> {
     core: C,
     span_limit: u16,
@@ -122,7 +122,7 @@ impl<'k, C: Core, BE: BucketEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<
     #[inline]
     pub fn clear_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], unassigned_values: &mut [u64], bumped_len: &mut usize) {
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
-        let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
+        let seed = unsafe{ self.seed_size.get_seed(seeds, bucket) };
         if SC::Core::BUMPING && seed == 0 { 
             *bumped_len += keys.len();
             return;
@@ -147,7 +147,7 @@ impl<'k, C: Core, BE: BucketEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<
     pub fn bumped_len(&self, seeds: &[SS::VecElement]) -> usize {
         if !SC::Core::BUMPING { return 0; }
         (0..self.bucket_begin.len()-1)
-            .filter(|bucket| unsafe{ self.seed_size.get_seed(&seeds, *bucket) } == 0)
+            .filter(|bucket| unsafe{ self.seed_size.get_seed(seeds, *bucket) } == 0)
             .map(|bucket| self.bucket_begin[bucket+1] - self.bucket_begin[bucket])
             .sum()
     }
@@ -156,7 +156,7 @@ impl<'k, C: Core, BE: BucketEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<
     #[inline]
     pub fn subtract_assigned_from_bucket(&self, bucket: usize, seeds: &[SS::VecElement], free_count: &mut [u16], bumped_keys: &mut usize) {
         let keys = &self.keys[self.bucket_begin[bucket]..self.bucket_begin[bucket+1]];
-        let seed = unsafe{ self.seed_size.get_seed(&seeds, bucket) };
+        let seed = unsafe{ self.seed_size.get_seed(seeds, bucket) };
         if SC::Core::BUMPING && seed == 0 {
             *bumped_keys += keys.len();
             return;
@@ -198,7 +198,7 @@ where C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize
 }
 
 #[inline(always)]
-pub(crate) fn build_last_level<'k, C, BE, SS>(keys: &'k [u64], core: C, seed_size: SS, evaluator: BE)
+pub(crate) fn build_last_level<C, BE, SS>(keys: &[u64], core: C, seed_size: SS, evaluator: BE)
 -> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
 where C: Core, BE: BucketEvaluator + Send + Sync, BE::Value: Send, SS: SeedSize
 {
@@ -256,7 +256,7 @@ where C: Core + Sync, SC: SeedChooser, BE: BucketEvaluator + Sync, BE::Value: Se
     for next in 1..thread_builders.len() {
         let prev = next-1;
         for bucket in 0..gap {
-            let seed = unsafe{ seed_size.get_seed(&thread_builders[next].seeds, bucket) } as u16;
+            let seed = unsafe{ seed_size.get_seed(thread_builders[next].seeds, bucket) } as u16;
             if SC::Core::BUMPING && seed == 0 { continue; }
             for key in &builder.keys[thread_builders[next].bucket_begin[bucket]..thread_builders[next].bucket_begin[bucket+1]] {
                 builder.seed_chooser.add_used(&mut thread_builders[prev].used_values, builder.seed_chooser.f(*key, seed, &builder.core));
@@ -403,16 +403,14 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> ThreadBuil
             let best_seed = self.best_seed(best_bucket);
             if !SC::Core::BUMPING && best_seed == u16::MAX { return; }
             //self.seeds.set_fragment(best_bucket, best_seed as u64, self.conf.conf.bits_per_seed());
-            unsafe{ self.conf.seed_size.set_seed(&mut self.seeds, best_bucket, best_seed) };
+            unsafe{ self.conf.seed_size.set_seed(self.seeds, best_bucket, best_seed) };
             if best_bucket == self.span_begin {
                 let old_span_end = self.span_end();
                 self.span_begin += 1;
                 while self.span_begin < old_span_end && !self.in_candidates_to_active.contain(self.span_begin) {
                     self.span_begin += 1;
                 }
-                if self.span_begin == old_span_end {
-                    if !self.find_nonempty() { return; }
-                }
+                if self.span_begin == old_span_end && !self.find_nonempty() { return; }
                 self.clear_used();
                 self.add_candidates_from(old_span_end);
             }

@@ -1,6 +1,6 @@
 //! [`Function`] – a variant of PHast that builds all layer the same way.
 
-use std::{hash::Hash, io, usize};
+use std::{hash::Hash, io};
 
 use crate::{phast::{Conf, ProdOfValues, SeedChooserCore, conf::{Core, CoreConf}, seed_chooser::SeedOnlyCore}, seeds::{Bits8, SeedSize}};
 use super::{builder::{build_mt, build_st}, conf::GenericCore, seed_chooser::{SeedChooserConf, SeedOnly}, CompressedArray, DefaultCompressedArray};
@@ -100,7 +100,7 @@ pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], output_ran
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
     drop(builder);
     let mut keys_vec = Vec::with_capacity(bumped_len);
-    keys_vec.extend(keys.into_iter().filter(|key| {
+    keys_vec.extend(keys.iter().filter(|key| {
         unsafe { seed_size.get_seed(&seeds, core.bucket_for(hasher.hash_one(key, level_nr))) == 0 }
     }).cloned());
     (keys_vec, SeedEx{ seeds, core }, unassigned_values)
@@ -119,6 +119,7 @@ pub(crate) fn hash_all_par<K: Hash+Sync, S: BuildSeededHasher+Sync>(keys: &[K], 
 }
 
 #[inline]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash+Sync+Send+Clone, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher+Sync
@@ -161,6 +162,7 @@ pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
 }
 
 #[inline]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
     where K: Hash+Sync+Send, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher+Sync
