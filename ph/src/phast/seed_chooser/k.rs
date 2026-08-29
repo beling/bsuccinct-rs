@@ -82,10 +82,12 @@ impl KSeedEvaluatorConf for SumOfValues {
 }
 
 type P=ProdOfValuesKEval;
-//const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [   // for W=512
-    //(2, [0, 65930, 92696, 107690, 120901, 128139, 131718], P{value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758}), //1.03%
-    //(16, [0, 150606, 171755, 186904, 190381, 195153, 195172], P{value_shift: 0.80579, free_shift: 0.91895, first_weight: 0.95764}) //0.14%
-//];
+const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 4] = [   // for W=512
+    (2, [0, 65930, 92696, 107690, 120901, 128139, 131718], P{value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758}), //R1.03%
+    (4, [0, 147921, 174297, 191304, 197379, 202316, 203969], P{value_shift: 0.00574, free_shift: 1.57718, first_weight: 0.29212}), //0.73%
+    (8, [0, 168706, 220511, 228023, 229920, 231938, 232206], P{value_shift: 0.00352, free_shift: 1.29204, first_weight: 0.81172}), //0.73%
+    (16, [0, 150606, 171755, 186904, 190381, 195153, 195172], P{value_shift: 0.00353, free_shift: 1.48532, first_weight: 0.81982}) //0.14%
+];
 #[cfg(not(feature = "W256"))]
 const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 35] = [   // for W=512
     (2, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{ value_shift: 0.00471, free_shift: 1.65874, first_weight: 0.12367 }), // 1.01%
@@ -125,19 +127,19 @@ const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 35] = [   // for W=512
     (10000, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 1.30708, free_shift: 189.36282, first_weight: 1.00000 }), // 5.22%
 ];
 //const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [   // for W=512
-    //(2, [0, 235845, 359096, 428083, 452260, 499661, 513018], P{value_shift: 0.55093, free_shift: 0.83885, first_weight: 0.83444}), //0.89%
-    //(4, [0, 266202, 268413, 269618, 281494, 299180, 302441], P{value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148}), //0.67%
-    //(8, [0, 206121, 312710, 375996, 400427, 438375, 455609], P{value_shift: 0.54820, free_shift: 0.83168, first_weight: 0.82526}), //0.61%
-    //(16, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //0.86%
+    //(2, [0, 235845, 359096, 428083, 452260, 499661, 513018], P{value_shift: 0.55093, free_shift: 0.83885, first_weight: 0.83444}), //R0.89%
+    //(4, [0, 266202, 268413, 269618, 281494, 299180, 302441], P{value_shift: 0.98733, free_shift: 0.99553, first_weight: 0.89148}), //R0.67%
+    //(8, [0, 206121, 312710, 375996, 400427, 438375, 455609], P{value_shift: 0.54820, free_shift: 0.83168, first_weight: 0.82526}), //R0.61%
+    //(16, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //R0.86%
 //];
 //const PROD_S8_L4096: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [
-    //(2, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //0.86%
-    //(4, [0, 226, 34010, 34417, 374541, 477304, 496400], P{value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933}), //0.71%
-    //(8, [0, 21680, 607272, 943854, 1019752, 1036883, 1167619], P{value_shift: 0.02297, free_shift: 0.64340, first_weight: 0.80836}), //0.84%
+    //(2, [0, 2247, 165284, 270422, 346622, 407348, 446489], P{value_shift: 0.00831, free_shift: 0.61121, first_weight: 0.60566}), //R0.86%
+    //(4, [0, 226, 34010, 34417, 374541, 477304, 496400], P{value_shift: 0.00657, free_shift: 0.98817, first_weight: 0.06933}), //R0.71%
+    //(8, [0, 21680, 607272, 943854, 1019752, 1036883, 1167619], P{value_shift: 0.02297, free_shift: 0.64340, first_weight: 0.80836}), //R0.84%
 //];
 //const PROD_S8_L8192: [(u16, [i32; 7], ProdOfValuesKEval); 0] = [
-    //(4, [0, 1872, 5387, 42264, 163703, 316315, 366479], P{value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532}), //0.83%
-    //(8, [0, 5580, 20700, 195106, 297919, 313269, 412413], P{value_shift: 0.02860, free_shift: 0.10610, first_weight: 0.47308}), //1.03%
+    //(4, [0, 1872, 5387, 42264, 163703, 316315, 366479], P{value_shift: 0.04430, free_shift: 0.12747, first_weight: 0.11532}), //R0.83%
+    //(8, [0, 5580, 20700, 195106, 297919, 313269, 412413], P{value_shift: 0.02860, free_shift: 0.10610, first_weight: 0.47308}), //R1.03%
 //];
 
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
@@ -148,6 +150,7 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 
         (_, ..=4096) => PROD_S8_L4096.as_ref(),
         (_, _) => PROD_S8_L8192.as_ref(),*/
 
+        (_, ..=512) => PROD_S8_L512.as_ref(),
         (_, _) => PROD_S8_L1024.as_ref()
     };
     for (i, row) in values.iter().enumerate() {
