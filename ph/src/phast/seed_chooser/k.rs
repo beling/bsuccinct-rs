@@ -10,8 +10,9 @@ use super::SeedChooser;
 
 /// Returns the multiplier that allows obtaining a bucket size of `k`-perfect function from a bucket size of 1-perfect function.
 pub fn bucket_size_normalization_multiplier(k: u16) -> f64 {
-    let overhead = 0.05; //+ 0.25 / (k as f64 * k as f64);
-    (space_lower_bound(1)+overhead) / (space_lower_bound(k)+overhead)
+    //let overhead = 0.05; //+ 0.25 / (k as f64 * k as f64);
+    //(space_lower_bound(1)+overhead) / (space_lower_bound(k)+overhead)
+    space_lower_bound(1) / space_lower_bound(k)
 }
 
 /// Configuration and factory of `KSeedEvaluator`.
@@ -82,8 +83,8 @@ impl KSeedEvaluatorConf for SumOfValues {
 }
 
 type P=ProdOfValuesKEval;
-const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 4] = [   // for W=512
-    (2, [0, 65930, 92696, 107690, 120901, 128139, 131718], P{value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758}), //R1.03%
+const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
+    //(2, [0, 65930, 92696, 107690, 120901, 128139, 131718], P{value_shift: 0.61222, free_shift: 0.86077, first_weight: 0.81758}), //R1.03%
     (4, [0, 147921, 174297, 191304, 197379, 202316, 203969], P{value_shift: 0.00574, free_shift: 1.57718, first_weight: 0.29212}), //0.73%
     (8, [0, 168706, 220511, 228023, 229920, 231938, 232206], P{value_shift: 0.00352, free_shift: 1.29204, first_weight: 0.81172}), //0.73%
     (16, [0, 150606, 171755, 186904, 190381, 195153, 195172], P{value_shift: 0.00353, free_shift: 1.48532, first_weight: 0.81982}) //0.14%
@@ -163,10 +164,10 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 
 /// How close k is to nk for pk <= k <= nk; 1.0 if k==nk and 0.0 if k==pk.
 #[inline] fn next_weight(pk: u16, k: u16, nk: u16) -> f64 { (k-pk) as f64/(nk-pk) as f64 }
 
-/*fn combine(p: &[i32; 7], n: &[i32; 7], nw: f64) -> [i32; 7] {
+fn combine(p: &[i32; 7], n: &[i32; 7], nw: f64) -> [i32; 7] {
     let pw = 1.0 - nw;
     std::array::from_fn(|i| ((p[i] as f64 * pw) + (n[i] as f64 * nw)).round() as i32)
-}*/
+}
 
 impl KSeedEvaluatorConf for ProdOfValues {
     type KSeedEvaluator = ProdOfValuesKEval;
@@ -178,12 +179,11 @@ impl KSeedEvaluatorConf for ProdOfValues {
         } else { pk.2 }
     }
 
-    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
-        /*let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
         Weights(if let Some(nk) = nk {
             combine(&pk.1, &nk.1, next_weight(pk.0, k, nk.0))
-        } else { pk.1 })*/
-         ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
+        } else { pk.1 })
     }
 }
 

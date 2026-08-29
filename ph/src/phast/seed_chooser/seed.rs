@@ -54,7 +54,6 @@ impl SeedEvaluator for ProdOfValues {
             //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
         }).product())
     }
-    
 }
 
 /// `SeedEvaluator` which is based on sum of values.
