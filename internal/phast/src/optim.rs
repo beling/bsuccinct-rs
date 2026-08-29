@@ -652,6 +652,10 @@ impl SeedEvaluator for GenericProdOfValues {
             (*v as f64) - to_extract
         }).product())
     }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        ProdOfValues.slice_len(output_range, bits_per_seed, preferred_slice_len)
+    }
 }
 
 
@@ -675,6 +679,10 @@ impl SeedEvaluator for WGenericProdOfValues {
         ComparableF64(values_used_by_seed.iter().map(|v| {
             (*v as f64) - to_extract
         }).product())
+    }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        ProdOfValues.slice_len(output_range, bits_per_seed, preferred_slice_len)
     }
 }
 

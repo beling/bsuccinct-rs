@@ -68,7 +68,7 @@ pub trait SeedChooserCore: Copy {
     fn read(input: &mut dyn io::Read) -> io::Result<Self>;
 }
 
-/// Configuration and factory of seed choosers: provides
+/// Configuration and factory which provides
 /// a seed chooser (that chooses best seed in the bucket) and
 /// a bucket evaluator (which compares buckets, for choosing the best one).
 /// It affects the trade-off between size and evaluation and construction time.

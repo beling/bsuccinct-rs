@@ -25,10 +25,16 @@ pub trait SeedEvaluator: Copy + Sync {
     /// Evaluate (harness of) seed that used given `values`.
     fn eval(&self, values_used_by_seed: &[usize], bucket_data: Self::BucketData) -> Self::Value;
 
-     /// Returns bucket evaluator which compares buckets (for choosing the best one) and works well with `self` as `SeedEvaluator`.
+    /// Returns bucket evaluator which compares buckets (for choosing the best one) and works well with `self` as `SeedEvaluator`.
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights::new(bits_per_seed, slice_len)
     }
+
+    /// Returns slice length suitable to given `output_range`, `bits_per_seed` and `preferred_slice_len`.
+    /// 
+    /// Usually it returns `preferred_slice_len` (if its not `0`; `0` is for chooser-dependent default)
+    /// or lower value for small `output_range`.
+    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16;
 }
 
 /// `SeedEvaluator` which is based on product of values or sum of their logarithms.
@@ -54,6 +60,20 @@ impl SeedEvaluator for ProdOfValues {
             //2048.0 * ((v - min + 5) as f64).sqrt()  // 1.902 (0,5,10), 1.903 (30,50), 1.905 (100)
         }).product())
     }
+
+    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        let max_res = match output_range {
+            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
+            64..1300 => 64,
+            1300..9500 => 128,
+            9500..12000 => 256,
+            12000..140000 => 512,
+            _ if bits_per_seed < 6 => return if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
+            _ if bits_per_seed < 12 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
+            _ => return if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
+        };
+        if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
+    }
 }
 
 /// `SeedEvaluator` which is based on sum of values.
@@ -71,6 +91,20 @@ impl SeedEvaluator for SumOfValues {
 
     fn eval(&self, values_used_by_seed: &[usize], _bucket_data: Self::BucketData) -> Self::Value {
         values_used_by_seed.iter().sum()
+    }
+
+    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        let max_res = match output_range {
+            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
+            64..1300 => 64,
+            1300..9500 => 128,
+            9500..12000 => 256,
+            12000..140000 => 512,
+            _ if bits_per_seed < 6 => return if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
+            _ if bits_per_seed < 12 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
+            _ => return if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
+        };
+        if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
     }
 }
 
@@ -208,6 +242,10 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnly<SE> {
     #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.add(value); }
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        self.0.slice_len(output_range, bits_per_seed, preferred_slice_len)
+    }
 }
 
 impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
@@ -228,8 +266,6 @@ impl<SE: SeedEvaluator> SeedChooser for SeedOnly<SE> {
         };
         best_seed
     }
-    
-
 }
 
 /// `SeedChooserCore` that passes all seed bits to hash function and do not use shifting.
