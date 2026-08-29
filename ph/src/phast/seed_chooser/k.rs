@@ -160,10 +160,10 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 
 /// How close k is to nk for pk <= k <= nk; 1.0 if k==nk and 0.0 if k==pk.
 #[inline] fn next_weight(pk: u16, k: u16, nk: u16) -> f64 { (k-pk) as f64/(nk-pk) as f64 }
 
-fn combine(p: &[i32; 7], n: &[i32; 7], nw: f64) -> [i32; 7] {
+/*fn combine(p: &[i32; 7], n: &[i32; 7], nw: f64) -> [i32; 7] {
     let pw = 1.0 - nw;
     std::array::from_fn(|i| ((p[i] as f64 * pw) + (n[i] as f64 * nw)).round() as i32)
-}
+}*/
 
 impl KSeedEvaluatorConf for ProdOfValues {
     type KSeedEvaluator = ProdOfValuesKEval;
@@ -175,11 +175,12 @@ impl KSeedEvaluatorConf for ProdOfValues {
         } else { pk.2 }
     }
 
-    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
-        let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+        /*let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
         Weights(if let Some(nk) = nk {
             combine(&pk.1, &nk.1, next_weight(pk.0, k, nk.0))
-        } else { pk.1 })
+        } else { pk.1 })*/
+         ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
     }
 }
 
