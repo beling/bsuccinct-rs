@@ -736,9 +736,9 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
-            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 5),
-            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
-            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
+            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 6),
+            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
+            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
         ]
     }
 }
