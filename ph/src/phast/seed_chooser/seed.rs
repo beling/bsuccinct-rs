@@ -61,6 +61,24 @@ impl SeedEvaluator for ProdOfValues {
         }).product())
     }
 
+    #[cfg(not(feature = "W256"))]   // TODO optimize for small output_range
+    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {  
+        let max_res = match output_range {
+            n @ 0..64 => (n/2+1).next_power_of_two() as u16,
+            64..1300 => 64,
+            1300..9500 => 128,
+            9500..12000 => 256,
+            12000..140000 => 512,
+            _ if bits_per_seed < 4 => return if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
+            _ if bits_per_seed < 7 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },
+            _ if bits_per_seed < 10 => return if preferred_slice_len == 0 { 2048 } else { preferred_slice_len },
+            _ => return if preferred_slice_len == 0 { 4096 } else { preferred_slice_len }
+            // TODO for S=12 8192 performs almost identical to 4096, check which is better in practice
+        };
+        if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
+    }
+
+    #[cfg(feature = "W256")]    // TODO optimize for small output_range
     fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         let max_res = match output_range {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
@@ -69,8 +87,9 @@ impl SeedEvaluator for ProdOfValues {
             9500..12000 => 256,
             12000..140000 => 512,
             _ if bits_per_seed < 6 => return if preferred_slice_len == 0 { 512 } else { preferred_slice_len },
-            _ if bits_per_seed < 12 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },   // for 11 2048 gives ~0.002 bit/key smaller size at cost of ~5% longer construction
+            _ if bits_per_seed < 9 => return if preferred_slice_len == 0 { 1024 } else { preferred_slice_len },
             _ => return if preferred_slice_len == 0 { 2048 } else { preferred_slice_len }
+            // TODO for S=12 4096 performs almost identical to 2048, check which is better in practice
         };
         if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
     }
@@ -80,7 +99,7 @@ impl SeedEvaluator for ProdOfValues {
 #[derive(Clone, Copy)]
 pub struct SumOfValues;
 
-impl SeedEvaluator for SumOfValues {
+impl SeedEvaluator for SumOfValues {     // TODO revert bucket Weights found for sum (W=256)
     type Value = usize;
 
     const MAX: Self::Value = usize::MAX;
@@ -93,7 +112,7 @@ impl SeedEvaluator for SumOfValues {
         values_used_by_seed.iter().sum()
     }
 
-    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {  //TODO check
         let max_res = match output_range {
             n @ 0..64 => (n/2+1).next_power_of_two() as u16,
             64..1300 => 64,
