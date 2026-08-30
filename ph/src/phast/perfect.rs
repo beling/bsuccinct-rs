@@ -19,10 +19,16 @@ use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValue
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Perfect<C: Core, SS: SeedSize, SCC = SeedOnlyCore, S = BuildDefaultSeededHasher>
 {
+    /// Seeds and core of the first level.
     level0: SeedEx<SS::VecElement, C>,
+    /// Levels mapping the keys bumped from `level0` to disjoint ranges of values
+    /// (each level adds the total output range of the previous levels as its `shift`).
     levels: Box<[Level<SS::VecElement, C>]>,
+    /// Hasher used to hash keys.
     pub(crate) hasher: S,
+    /// Core of the seed chooser used at evaluation time.
     seed_chooser: SCC,
+    /// Seed size (number of bits per seed).
     seed_size: SS
 }
 
@@ -37,6 +43,7 @@ impl<C: Core, SCC, SS: SeedSize, S> GetSize for Perfect<C, SS, SCC, S> {
 }
 
 impl<C: Core, SS: SeedSize, SCC, S> Perfect<C, SS, SCC, S> {
+    /// Returns the number of levels of `self` (including the first one).
     #[inline] pub fn levels(&self) -> usize { self.levels.len()+1 }
 }
 
@@ -105,10 +112,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
     }
 
 
-    /// Constructs [`Perfect`] function for given `keys`, using multiple (given number of) threads and given parameters:
-    /// number of bits per seed, average bucket size (equals `bucket_size100/100.0`) and `hasher`.
-    /// 
-    /// `bits_per_seed_to_100_bucket_size` can be used to calculate good `bucket_size100`.
+    /// Constructs [`Perfect`] function for given `keys`, using multiple (given number of) threads and given configuration.
+    ///
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_threads_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
@@ -121,6 +126,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         }, conf, seed_chooser.core())
     }
 
+    /// Common construction: builds the first level with `build_first`,
+    /// then repeatedly builds the next (disjoint) levels with `build_level` until no keys are left.
     #[inline]
     fn _new<K, BF, BL, CC>(build_first: BF, build_level: BL, conf: Conf<SS, CC, S>, seed_chooser: SCC) -> Self
         where BF: FnOnce(&Conf<SS, CC, S>) -> (Vec::<K>, SeedEx<SS::VecElement, C>),
@@ -145,6 +152,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         }
     }
 
+    /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice;
+    /// returns the keys bumped to the next level and the level. Uses a single thread.
     #[inline]
     fn build_level_from_slice_st<K, CC, SC>(keys: &[K], conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64)
         -> (Vec<K>, SeedEx<SS::VecElement, C>)
@@ -164,6 +173,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         (keys_vec, SeedEx{ seeds, core })
     }
 
+    /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice;
+    /// returns the keys bumped to the next level and the level. Uses up to `threads_num` threads.
     #[inline]
     fn build_level_from_slice_mt<K, CC, SC>(keys: &[K], conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC, level_nr: u64)
         -> (Vec<K>, SeedEx<SS::VecElement, C>)
@@ -183,6 +194,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         (keys_vec, SeedEx{ seeds, core })
     }
 
+    /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
+    /// leaves the keys bumped to the next level in `keys` and returns the level. Uses a single thread.
     #[inline(always)]
     fn build_level_st<K, CC, SC>(keys: &mut Vec::<K>, conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64) -> SeedEx<SS::VecElement, C>
         where K: Hash, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
@@ -198,6 +211,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         SeedEx{ seeds, core }
     }
 
+    /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
+    /// leaves the keys bumped to the next level in `keys` and returns the level. Uses up to `threads_num` threads.
     #[inline]
     fn build_level_mt<K, CC, SC>(keys: &mut Vec::<K>, conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC, level_nr: u64)
         -> SeedEx<SS::VecElement, C>

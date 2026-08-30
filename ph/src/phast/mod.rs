@@ -15,7 +15,7 @@
 //!
 //! The particular PHast variant is selected by a *seed chooser*
 //! (see the [`SeedChooserConf`] implementations, e.g. [`ShiftOnlyWrapped`], [`SeedOnly`]),
-//! and the core (range partitioning) configuration by [`CoreConf`] implementations
+//! and the core (that maps seeds and key hashes to values) configuration by [`CoreConf`] implementations
 //! ([`Generic`], [`Turbo`]).
 
 pub mod compressed_array;

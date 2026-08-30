@@ -14,9 +14,13 @@ use std::hash::{BuildHasher, Hash, RandomState};
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
 pub struct Partial<C, SS, SCC = SeedOnlyCore, S = RandomState> where C: Core, SS: SeedSize {
+    /// Seeds and core of the (only) level.
     seeds: SeedEx<SS::VecElement, C>,
+    /// Hasher used to hash keys.
     hasher: S,
+    /// Core of the seed chooser used at evaluation time.
     seed_chooser: SCC,
+    /// Seed size (number of bits per seed).
     seed_size: SS,
 }
 
@@ -27,6 +31,8 @@ impl<C: Core, SC, SS: SeedSize, S> GetSize for Partial<C, SS, SC, S> {
 }
 
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
+    /// Constructs [`Partial`] from given key `hashes`, using a single thread.
+    /// Returns the function and the number of keys (hashes) without assigned values.
     pub fn with_hashes_bps_core_sc_u<SC>(hashes: &mut [u64], seed_size: SS, core: C, seed_chooser: SC) -> (Self, usize)
         where SC: SeedChooserConf<Core = SCC>
     {
@@ -36,6 +42,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         (f, unassigned)
     }
 
+    /// Constructs [`Partial`] from given key `hashes`, using up to `threads_num` threads.
+    /// Returns the function and the number of keys (hashes) without assigned values.
     pub fn with_hashes_bps_core_bs_threads_sc_u<SC>(hashes: &mut [u64], seed_size: SS, core: C, threads_num: usize, seed_chooser: SC) -> (Self, usize)
         where SC: SeedChooserConf<Core = SCC>
     {
@@ -46,6 +54,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     }
 
 
+    /// Constructs [`Partial`] from given key `hashes`, using a single thread.
     pub fn with_hashes_bps_core_sc<SC>(hashes: &mut [u64], seed_size: SS, core: C, seed_chooser: SC) -> Self
         where SC: SeedChooserConf<Core = SCC>
     {
@@ -53,6 +62,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         Self::build_st(hashes, seed_size, core, (), seed_chooser, bucket_evaluator).0
     }
 
+    /// Constructs [`Partial`] from given key `hashes`, using up to `threads_num` threads.
     pub fn with_hashes_bps_core_bs_threads_sc<SC>(hashes: &mut [u64], seed_size: SS, core: C, threads_num: usize, seed_chooser: SC) -> Self
         where SC: SeedChooserConf<Core = SCC>
     {
@@ -61,6 +71,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     }
 
 
+    /// Constructs [`Partial`] from given key `hashes` and configuration, using a single thread.
+    /// Returns the function and the number of keys (hashes) without assigned values.
     pub fn with_hashes_conf_u<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
@@ -68,6 +80,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         Self::with_hashes_bps_core_sc_u(hashes, conf.seed_size, core, seed_chooser)
     }
 
+    /// Constructs [`Partial`] from given key `hashes` and configuration, using up to `threads_num` threads.
+    /// Returns the function and the number of keys (hashes) without assigned values.
     pub fn with_hashes_conf_threads_sc_u<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
@@ -76,6 +90,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     }
 
 
+    /// Constructs [`Partial`] from given key `hashes` and configuration, using a single thread.
     pub fn with_hashes_conf_sc<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, seed_chooser: SC) -> Self
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
@@ -83,6 +98,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         Self::with_hashes_bps_core_sc(hashes, conf.seed_size, core, seed_chooser)
     }
 
+    /// Constructs [`Partial`] from given key `hashes` and configuration, using up to `threads_num` threads.
     pub fn with_hashes_conf_threads_sc<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> Self
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
@@ -91,6 +107,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     }
 
 
+    /// Constructs [`Partial`] from given key `hashes` and configuration, using a single thread.
+    /// Returns the function and the number of keys (hashes) without assigned values.
     pub fn with_hashes_conf_sc_u<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {

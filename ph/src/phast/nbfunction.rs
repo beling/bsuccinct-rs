@@ -21,11 +21,16 @@ use crate::{fmph::Bits8, phast::{Conf, Core, CoreConf, GenericCore, ProdOfValues
 pub struct NBFunction<C, SS, S = BuildDefaultSeededHasher>
     where C: Core, SS: SeedSize
 {
+    /// Seeds and core of the (only) level.
     seeds: SeedEx<SS::VecElement, C>,
+    /// Seed used by the hasher to hash keys (chosen during construction).
     seed: u64,
+    /// Hasher used to hash keys.
     hasher: S,
+    /// Core of the (no-bumping) seed chooser used at evaluation time.
     seed_chooser: SeedNoBumpCore,
-    seed_size: SS,  // seed size, K=2**bits_per_seed
+    /// Seed size (number of bits per seed).
+    seed_size: SS,
 }
 
 impl<C: Core, SS: SeedSize, S> GetSize for NBFunction<C, SS, S> {
@@ -112,6 +117,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
         Self::with_slice_conf_mt_se(keys, conf, tries, ProdOfValues)
     }
 
+    /// Builds the (only) level for the given key `hashes`; returns its seeds on success.
     pub fn build_st<SE, CC>(hashes: &mut [u64], conf: &Conf<SS, CC, S>, seed_chooser: &SeedOnlyNoBump<SE>, core: &C) -> Option<Box<[SS::VecElement]>>
     where SE: SeedEvaluator, CC: CoreConf<Core = C>
     {
@@ -149,6 +155,8 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
         None
     }
 
+    /// Constructs [`NBFunction`] for given number of keys and configuration, performing
+    /// up to `tries` attempts (with consecutive hash seeds) in parallel.
     pub fn new_mt<H, SE, CC>(num_of_keys: usize, conf: Conf<SS, CC, S>, seed_evaluator: SE, tries: u64, hashes: H) -> Option<Self>
         where H: Fn(&S, u64) -> Box<[u64]>, CC: CoreConf<Core = C>, SE: SeedEvaluator, S: Send+Sync+Clone, H: Sync
     {
