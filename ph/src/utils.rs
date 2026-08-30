@@ -4,6 +4,9 @@ use binout::{AsIs, Serializer};
 use bitm::{ArrayWithRank101111, ceiling_div};
 pub use seedable_hash::{map64_to_64, map32_to_32};
 
+/// An array (of `u64` values) that additionally stores rank information,
+/// allowing to count, in O(1) time, the number of set bits in any prefix of the array.
+/// See [`ArrayWithRank101111`](bitm::ArrayWithRank101111) for details.
 pub type ArrayWithRank = ArrayWithRank101111;
 
 /// Reads `number_of_bits` bits, rounded up to multiple of 64, from `input`.
@@ -46,7 +49,8 @@ pub fn verify_partial_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u1
     }
 }
 
-/// Checks if `kphf` is valid partial k-perfect hash function. Panics if it is not (also if `phf` returns `None` for any key).
+/// Checks if `kphf` is valid k-perfect hash function. Panics if it is not
+/// (also if `kphf` returns `None` for any key).
 pub fn verify_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u16, expected_range: usize, keys: impl IntoIterator<Item=K>, kphf: G) {
     verify_partial_kphf(k, expected_range, keys, |key| {
         let v = kphf(key);
@@ -58,16 +62,22 @@ pub fn verify_kphf<K: std::fmt::Display, G: Fn(&K)->Option<usize>>(k: u16, expec
 
 #[cfg(test)]
 pub(crate) mod tests {
+    //! Test helpers that verify minimal (or k-)perfect hash functions built by the library.
     use super::{verify_phf, verify_kphf};
 
+    /// Verifies that `mphf` is a minimal perfect hash function for `mphf_keys`.
+    /// Panics if it is not.
     pub fn test_mphf<K: std::fmt::Display+Clone, G: Fn(&K)->Option<usize>>(mphf_keys: &[K], mphf: G) {
         verify_phf(mphf_keys.len(), mphf_keys.iter().cloned(), mphf);
     }
 
+    /// Verifies that `kmphf` is a `k`-perfect hash function for `mphf_keys`.
+    /// Panics if it is not.
     pub fn test_kmphf<K: std::fmt::Display+Clone, G: Fn(&K)->Option<usize>>(k: u16, mphf_keys: &[K], kmphf: G) {
         verify_kphf(k, mphf_keys.len(), mphf_keys.iter().cloned(), kmphf);
     }
 
+    /// As [`test_mphf`], but for functions returning `u64` instead of `usize`.
     pub fn test_mphf_u64<K: std::fmt::Display+Clone, G: Fn(&K)->Option<u64>>(mphf_keys: &[K], mphf: G) {
         test_mphf(mphf_keys, |k| mphf(k).map(|v| v as usize));
     }

@@ -1,4 +1,6 @@
 //! Fingerprint-based minimal perfect hashing.
+//!
+//! The main type are [`Function`] and [`GOFunction`].
 
 mod function;
 pub use function::{Function, BuildConf};

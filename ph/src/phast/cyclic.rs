@@ -1,5 +1,11 @@
 
 //! Cyclic set of values used during the construction of PHast functions.
+//!
+//! During the construction of PHast functions, values assigned by already-processed buckets
+//! must be recorded so that later buckets avoid collisions. Since a window of buckets
+//! covers only a cyclic range of values, these sets are cyclic: a value `v`
+//! is stored at the position `v mod SIZE` (for [`CyclicSet`]) or `v mod SIZE`
+//! (for [`CyclicArray`]), which avoids wasting space for unused value ranges.
 
 use bitm::BitAccess;
 use std::ops::{Index, IndexMut};
@@ -8,27 +14,35 @@ use crate::phast::MAX_VALUES;
 
 use super::MAX_WINDOW_SIZE;
 
-/// SIZE in 64-bit segments, must be the power of two
+/// A bit-set of values from a cyclic range of `SIZE_64*64` consecutive integers
+/// (value `v` is stored at the bit position `v mod (SIZE_64*64)`).
+/// `SIZE_64` is the size (in 64-bit words) of the underlying storage; it must be a power of two.
 pub struct CyclicSet<const SIZE_64: usize>([u64; SIZE_64]);  // filled in pseudo-code
 
 impl<const SIZE_64: usize> CyclicSet<SIZE_64> {
+    /// Mask with the lowest `SIZE_64*64` bits, used to wrap values (bit index) into the cyclic range.
     const MASK: usize = SIZE_64*64 - 1;
+    /// Mask used to wrap word index into the cyclic range.
     const CHUNK_MASK: usize = SIZE_64 - 1;
 
+    /// Adds `value` to the set (if it is not already present).
     #[inline] pub fn add(&mut self, value: usize) {
         unsafe{ self.0.set_bit_unchecked(value & Self::MASK) }
     }
 
+    /// Removes `value` from the set (if it is present).
     #[inline] pub fn remove(&mut self, value: usize) {
         unsafe{ self.0.clear_bit_unchecked(value & Self::MASK) }
     }
 
+    /// Returns `true` if the set contains `value`.
     #[inline]
     pub fn contain(&self, value: usize) -> bool {
         unsafe{ self.0.get_bit_unchecked(value & Self::MASK) }
     }
 
-    /// Returns `first_value` and 63 consecutive values as a bitset.
+    /// Returns bits representing `first_value` and the 63 consecutive values after it
+    /// (i.e. bit `i` of the result represents value `first_value+i`).
     #[inline]
     pub fn get64(&self, first_value: usize) -> u64 {
         let chunk_index = first_value / 64;
@@ -62,13 +76,18 @@ impl<const SIZE_64: usize> Default for CyclicSet<SIZE_64> {
     }
 }
 
+/// [`CyclicSet`] able to store values used by slices of up to [`MAX_VALUES`] values.
 pub type UsedValueSet = CyclicSet<{MAX_VALUES/64}>; // support slices up to 4096
+/// [`CyclicSet`] able to store values used by slices of up to `2*`[`MAX_VALUES`] values.
 pub type UsedValueSetLarge = CyclicSet<{MAX_VALUES*2/64}>;  // support slices up to 8192
 
-/// SIZE must be the power of 2
+/// A cyclic array: element at index `i` is stored at the position `i mod SIZE`
+/// (`SIZE` must be a power of two). Used (e.g. as [`FreeValueMultiSetU16`]) to count
+/// values that are still free in the currently processed window of buckets.
 pub struct CyclicArray<T, const SIZE: usize = MAX_WINDOW_SIZE>(pub [T; SIZE]);
 
 impl<T: Default, const SIZE: usize> Default for CyclicArray<T, SIZE> {
+    /// Constructs the array filled with default values.
     #[inline(always)]
     fn default() -> Self {
         Self(std::array::from_fn(|_| Default::default()))
@@ -76,6 +95,7 @@ impl<T: Default, const SIZE: usize> Default for CyclicArray<T, SIZE> {
 }
 
 impl<T: Clone, const SIZE: usize> CyclicArray<T, SIZE> {
+    /// Constructs the array filled with `value`.
     #[inline(always)]
     pub fn filled_with(value: T) -> Self {
         Self(std::array::repeat(value))
@@ -92,12 +112,15 @@ impl<T: Clone, const SIZE: usize> CyclicArray<T, SIZE> {
 impl<T, const SIZE: usize> Index<usize> for CyclicArray<T, SIZE> {
     type Output = T;
 
+    /// Returns the element at the cyclic index `index` (i.e. at the position `index % SIZE`).
     #[inline(always)] fn index(&self, index: usize) -> &Self::Output {
         unsafe { self.0.get_unchecked(index & (SIZE-1)) }
     }
 }
 
 impl<T, const SIZE: usize> IndexMut<usize> for CyclicArray<T, SIZE> {
+    /// Returns the mutable reference to the element at the cyclic index `index`
+    /// (i.e. at the position `index % SIZE`).
     #[inline(always)] fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         unsafe { self.0.get_unchecked_mut(index & (SIZE-1)) }
     }
@@ -113,4 +136,7 @@ impl<T, const SIZE: usize> IndexMut<usize> for CyclicArray<T, SIZE> {
     }
 }*/
 
+/// A cyclic array (see [`CyclicArray`]) of `u16` counters over [`MAX_VALUES`] values,
+/// used to count, for each value, how many keys (from the not-yet-assigned buckets)
+/// are willing to take it (0 means that the value is free).
 pub type FreeValueMultiSetU16 = CyclicArray<u16, MAX_VALUES>;
