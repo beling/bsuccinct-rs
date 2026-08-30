@@ -3,8 +3,8 @@
 //!
 //! During the construction of PHast functions, values assigned by already-processed buckets
 //! must be recorded so that later buckets avoid collisions. Since a window of buckets
-//! covers only a cyclic range of values, these sets are cyclic: a value `v`
-//! is stored at the position `v mod SIZE` (for [`CyclicSet`]) or `v mod SIZE`
+//! covers only a cyclic range of values, these sets are cyclic: each value
+//! is stored at the position modulo size.
 //! (for [`CyclicArray`]), which avoids wasting space for unused value ranges.
 
 use bitm::BitAccess;

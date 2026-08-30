@@ -31,7 +31,10 @@ pub trait CompressedArray {
 
 /// Builder used to construct `CompressedArray`.
 pub trait CompressedBuilder: Sized {
+    /// Constructs the builder for `num_of_values` values not greater than `max_value`.
     fn new(num_of_values: usize, max_value: usize) -> Self;
+
+    /// Appends `value` to the built array.
     fn push(&mut self, value: usize);
 
     #[inline]
@@ -84,9 +87,12 @@ impl CompressedArray for CSeqEliasFano {
 
 /// Represents linear function f(i) = floor((multiplier*i + offset) / divider).
 pub struct LinearRegression {
-    multiplier: isize,   // can be usize
+    /// Multiplier of the linear coefficient.
+    multiplier: isize,  // can be usize
+    /// Divider of the linear coefficient.
     divider: isize, // can be usize
-    offset: isize,  // must be isize
+    /// Offset.
+    offset: isize,    // must be isize
 }
 
 impl LinearRegression {
@@ -139,11 +145,14 @@ impl LinearRegression {
     }
 }
 
+/// Algorithm that computes the linear coefficient (as a fraction `multiplier/divider`)
+/// of the regression used by [`LinearRegressionArray`].
 pub trait LinearRegressionConstructor {
     /// Returns linear coefficient as numerator and denominator.
     fn new(values: &[usize], num_of_keys: usize) -> (usize, usize);
 }
 
+/// Linear coefficient `num_of_keys/(values.len()+1)`.
 pub struct Simple;
 
 impl LinearRegressionConstructor for Simple {
@@ -152,6 +161,7 @@ impl LinearRegressionConstructor for Simple {
     }
 }
 
+/// Linear coefficient fitted to `values` by the least squares method.
 pub struct LeastSquares;
 
 impl LinearRegressionConstructor for LeastSquares {
@@ -245,10 +255,13 @@ impl<C> GetSize for LinearRegressionArray<C> {
 
 /// Implementation of `CompressedArray` that stores each value with the same number of bits required to store the largest one.
 pub struct Compact {
+    /// Fixed-width values packed into 64-bit words.
     pub items: Box<[u64]>,
+    /// Number of bits used to store each value.
     pub item_size: u8,
 }
 
+/// Builder of [`Compact`].
 pub struct CompactBuilder {
     compact: Compact,
     index: usize
@@ -304,10 +317,13 @@ impl CompressedArray for Compact {
 /// Implementation of `CompressedArray` that stores each value with the same number of bits required to store the largest one.
 /// It uses unaligned memory reading and writing.
 pub struct CompactFast {
+    /// Bit-packed fixed-width values.
     pub items: Box<[u8]>,
+    /// Number of bits used to store each value.
     pub item_size: u8,
 }
 
+/// Builder of [`CompactFast`].
 pub struct CompactFastBuilder {
     compact: CompactFast,
     first_bit: usize,
@@ -480,6 +496,9 @@ impl GetSize for CachelineEF {
     const USES_DYN_MEM: bool = true;
 }
 
+/// Default [`CompressedArray`] implementation, picked from the enabled features:
+/// `SuxEliasFano` (feature `sux`), `CachelineEF` (feature `cacheline-ef`),
+/// `CSeqEliasFano` (feature `cseq`) or [`Compact`] (if none of the above is enabled).
 #[cfg(feature = "sux")] pub type DefaultCompressedArray = SuxEliasFano;
 #[cfg(all(feature = "cacheline-ef", not(feature = "sux")))] pub type DefaultCompressedArray = CachelineEF;
 #[cfg(all(feature = "cseq", not(feature = "sux"), not(feature="cacheline-ef")))] pub type DefaultCompressedArray = CSeqEliasFano;
