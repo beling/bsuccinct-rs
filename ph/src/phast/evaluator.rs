@@ -1,7 +1,5 @@
 //! Evaluators deciding which bucket to activate next during the construction of PHast functions.
 
-use crate::phast::WINDOW_SIZE;
-
 /// Evaluates a bucket to be activated.
 pub trait BucketEvaluator: Send + Sync + Clone {
     /// Type of evaluation value.
