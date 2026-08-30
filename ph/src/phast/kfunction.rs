@@ -20,12 +20,18 @@ use rayon::prelude::*;
 pub struct KFunction<C: Core, SS, SC = SeedOnlyKCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
+    /// Seeds and core of the first level.
     level0: SeedEx<SS::VecElement, C>,
+    /// Values of keys bumped at the first level.
     bumped_index_to_value: CA,
-    //bumped_to_index: Perfect<Bits8, SeedOnly, S>,
+    /// Levels used to map the keys bumped at the first level to
+    /// indexes in `bumped_index_to_value`.
     bumped_to_index: Box<[Level<<Bits8 as SeedSize>::VecElement, GenericCore>]>,
+    /// Hasher used to hash keys.
     hasher: S,
+    /// Core of the seed chooser used at evaluation time.
     seed_chooser: SC,
+    /// Seed size (number of bits per seed).
     seed_size: SS,
 }
 
@@ -44,6 +50,7 @@ impl<C: Core, SS: SeedSize, SC, CA, S> GetSize for KFunction<C, SS, SC, CA, S> w
 }
 
 impl<C: Core, SS: SeedSize, SC, CA, S> KFunction<C, SS, SC, CA, S> {
+    /// Returns the number of levels of `self` (including the first one).
     #[inline] pub fn levels(&self) -> usize { self.bumped_to_index.len()+1 }
 }
 
@@ -132,6 +139,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }, conf, seed_chooser.core(), keys.len())
     }
 
+    /// Builds the k-perfect first level over `keys` given as a slice; returns the keys bumped
+    /// to the next level, the level and the counts of remaining free values (indexed by value).
+    /// Uses a single thread.
     #[inline]
     fn build_level0_from_slice_st<K, CC, SC>(keys: &[K], conf: &Conf<SS, CC, S>, seed_chooser: SC)
         -> (Vec<K>, SeedEx<SS::VecElement, C>, Box<[u16]>)
@@ -151,6 +161,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         (keys_vec, SeedEx{ seeds, core }, free_count)
     }
 
+    /// Builds the k-perfect first level over `keys` given as a slice; returns the keys bumped
+    /// to the next level, the level and the counts of remaining free values (indexed by value).
+    /// Uses up to `threads_num` threads.
     #[inline]
     fn build_level0_from_slice_mt<K, CC, SC>(keys: &[K], conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC)
         -> (Vec<K>, SeedEx<SS::VecElement, C>, Box<[u16]>)
@@ -171,6 +184,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         (keys_vec, SeedEx{ seeds, core }, free_count)
     }
 
+    /// Builds the k-perfect first level over `keys`; leaves the bumped keys in `keys` and returns
+    /// the level together with the counts of remaining free values (indexed by value).
+    /// Uses a single thread.
     #[inline(always)]
     fn build_level0_st<K, CC, SC>(keys: &mut Vec::<K>, conf: &Conf<SS, CC, S>, seed_chooser: SC)
         -> (SeedEx<SS::VecElement, C>, Box<[u16]>)
@@ -188,6 +204,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         (SeedEx{ seeds, core }, free_count)
     }
 
+    /// Builds the k-perfect first level over `keys`; leaves the bumped keys in `keys` and returns
+    /// the level together with the counts of remaining free values (indexed by value).
+    /// Uses up to `threads_num` threads.
     #[inline]
     fn build_level0_mt<K, CC, SC>(keys: &mut Vec::<K>, conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC)
         -> (SeedEx<SS::VecElement, C>, Box<[u16]>)
@@ -209,6 +228,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         (SeedEx{ seeds, core }, free_count)
     }
 
+    /// Common construction: builds the k-perfect first level with `build_first`,
+    /// then repeatedly builds the next levels with `build_level` until no keys are left.
     #[inline]
     fn _new<K, BF, BL, CC>(build_first: BF, build_level: BL, conf: Conf<SS, CC, S>, seed_chooser: SCC, number_of_keys: usize) -> Self
         where BF: FnOnce(&Conf<SS, CC, S>) -> (Vec::<K>, SeedEx<SS::VecElement, C>, Box<[u16]>),

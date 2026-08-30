@@ -11,13 +11,16 @@ use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
 use rayon::prelude::*;
 
-/// Represents map-or-bump function.
+/// Represents map-or-bump function. Seeds and core of a single level of a PHast function.
 pub(crate) struct SeedEx<SSVecElement, C = GenericCore> {
+    /// Seeds of the level: one seed (possibly `0`, meaning *bumped*) per bucket.
     pub(crate) seeds: Box<[SSVecElement]>,
+    /// Core of the level, which maps key hashes to buckets and values.
     pub(crate) core: C,
 }
 
 impl<SSVecElement, C: Core> SeedEx<SSVecElement, C> {
+    /// Returns the seed assigned to the bucket of the `key`.
     #[inline(always)]
     pub(crate) unsafe fn seed_for<SS>(&self, seed_size: SS, key: u64) -> u16 where SS: SeedSize<VecElement=SSVecElement> {
         //self.seeds.get_fragment(self.bucket_for(key), self.conf.bits_per_seed()) as u16
@@ -53,8 +56,13 @@ impl<SSVecElement: GetSize, C> GetSize for SeedEx<SSVecElement, C> {
 }
 
 
+/// A single bumping level of a PHast function: the seeds/core used to map
+/// (a subset of) the bumped keys to indexes, and the `shift` added to each mapped value
+/// (to make the level disjoint from the previous ones).
 pub(crate) struct Level<SSVecElement, C = GenericCore> {
+    /// Seeds and core of the level.
     pub(crate) seeds: SeedEx<SSVecElement, C>,
+    /// Value shift added to each value returned by the level.
     pub(crate) shift: usize
 }
 
@@ -65,6 +73,7 @@ impl<SSVecElement: GetSize, C> GetSize for Level<SSVecElement, C> {
 }
 
 impl<SSVecElement: GetSize, C: Core> Level<SSVecElement, C> {
+    /// Returns the number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
         VByte::size(self.shift) + self.seeds.write_bytes()
     }
@@ -85,6 +94,9 @@ impl<SSVecElement, C: Core> Level<SSVecElement, C> {
     }
 }
 
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice;
+/// returns the keys that were bumped to the next level, the level and
+/// the bitmap of values free in the level. Uses a single thread.
 #[inline]
 pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
@@ -106,6 +118,8 @@ pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], output_ran
     (keys_vec, SeedEx{ seeds, core }, unassigned_values)
 }
 
+/// Hashes all `keys` with the given `seed`, in parallel (if the number of keys is large)
+/// or on a single thread otherwise.
 #[inline]
 pub(crate) fn hash_all_par<K: Hash+Sync, S: BuildSeededHasher+Sync>(keys: &[K], hasher: &S, seed: u64) -> Box<[u64]> {
     if keys.len() > 4*2048 {    //maybe better for string keys
@@ -118,6 +132,9 @@ pub(crate) fn hash_all_par<K: Hash+Sync, S: BuildSeededHasher+Sync>(keys: &[K], 
     }
 }
 
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice;
+/// returns the keys that were bumped to the next level, the level and
+/// the bitmap of values free in the level. Uses up to `threads_num` threads.
 #[inline]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
@@ -142,6 +159,9 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_ran
 
 
 
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
+/// leaves the keys that were bumped to the next level in the `keys` vector and returns
+/// the level together with the bitmap of values free in the level. Uses a single thread.
 #[inline(always)]
 pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, hasher: &S, seed_chooser: SC, level_nr: u64)
     -> (SeedEx<SS::VecElement, CC::Core>, Box<[u64]>)
@@ -161,6 +181,9 @@ pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
     (SeedEx{ seeds, core }, unassigned_values)
 }
 
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
+/// leaves the keys that were bumped to the next level in the `keys` vector and returns
+/// the level together with the bitmap of values free in the level. Uses up to `threads_num` threads.
 #[inline]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range: usize, core_conf: &CC, seed_size: SS, threads_num: usize, hasher: &S, seed_chooser: SC, level_nr: u64)
@@ -200,12 +223,19 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
 pub struct Function<C: Core, SS, SC = SeedOnlyCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
+    /// Seeds and core of the first level.
     level0: SeedEx<SS::VecElement, C>,
+    /// Values of keys bumped at the first level.
     bumped_index_to_value: CA,
+    /// Levels used to map the keys bumped at the first level
+    /// to indexes in `bumped_index_to_value`.
     bumped_to_index: Box<[Level<SS::VecElement, C>]>,
+    /// Hasher used to hash keys.
     hasher: S,
+    /// Core of the seed chooser used at evaluation time.
     seed_chooser: SC,
-    seed_size: SS,  // seed size, K=2**bits_per_seed
+    /// Seed size (number of bits per seed).
+    seed_size: SS,
 }
 
 impl<C: Core, SS: SeedSize, SC, CA, S> GetSize for Function<C, SS, SC, CA, S> where CA: GetSize {
@@ -223,6 +253,7 @@ impl<C: Core, SS: SeedSize, SC, CA, S> GetSize for Function<C, SS, SC, CA, S> wh
 }
 
 impl<C: Core, SS: SeedSize, SC, CA, S> Function<C, SS, SC, CA, S> {
+    /// Returns the number of levels of `self` (including the first one).
     #[inline] pub fn levels(&self) -> usize { self.bumped_to_index.len()+1 }
 }
 
@@ -316,6 +347,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }, conf, seed_chooser.core(), keys.len())
     }
 
+    /// Common construction: builds the first level with `build_first`, then repeatedly builds
+    /// the next levels (with `build_level`) until no keys are left, and finally fills
+    /// `bumped_index_to_value` with the values of the level-0 unassigned values.
     #[inline]
     fn _new<K, BF, BL, CC>(build_first: BF, build_level: BL, conf: Conf<SS, CC, S>, seed_chooser: SCC, number_of_keys: usize) -> Self
         where BF: FnOnce(&Conf<SS, CC, S>) -> (Vec::<K>, SeedEx<SS::VecElement, C>, Box<[u64]>),

@@ -31,13 +31,22 @@ use voracious_radix_sort::RadixSort;
 pub struct Function2<C: Core, SS, SCC = ShiftWrappedCore, CA = DefaultCompressedArray, S = BuildDefaultSeededHasher>
     where SS: SeedSize
 {
+    /// Seeds and core of the first level.
     level0: SeedEx<SS::VecElement, C>,
+    /// Values of keys bumped at the first level.
     bumped_index_to_value: CA,
+    /// Levels used to map the keys bumped at the first level to indexes in `bumped_index_to_value`
+    /// (built while there are more keys than `SCC::FUNCTION2_THRESHOLD`).
     bumped_to_index: Box<[Level<SS::VecElement, C>]>,
+    /// Hasher used to hash keys.
     hasher: S,
+    /// The (no-bumping) last level that maps the remaining bumped keys to free values.
     last_level: Level<<Bits8 as SeedSize>::VecElement, GenericCore<RandomPlacement>>,
+    /// Seed used to hash keys for the `last_level`.
     last_level_seed: u64,
+    /// Core of the seed chooser used at evaluation time.
     seed_chooser: SCC,
+    /// Seed size (number of bits per seed).
     seed_size: SS,
 }
 
@@ -58,6 +67,7 @@ impl<C: Core, SC, SS: SeedSize, CA, S> GetSize for Function2<C, SS, SC, CA, S> w
 }
 
 impl<C: Core, SS: SeedSize, SC, CA, S> Function2<C, SS, SC, CA, S> {
+    /// Returns the number of levels of `self` (including the first and the last ones).
     #[inline] pub fn levels(&self) -> usize { self.bumped_to_index.len()+1 }
 }
 
@@ -148,6 +158,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }, conf, seed_chooser.core(), keys.len())
     }
 
+    /// Common construction: builds the first level with `build_first`, then (while the number of keys
+    /// is greater than `SCC::FUNCTION2_THRESHOLD`) builds the next levels with `build_level`,
+    /// and finally builds the last (no-bumping) level with [`Self::build_last_level`],
+    /// which makes the function compatible with almost all seed choosers.
     #[inline]
     fn _new<K, BF, BL, CC>(build_first: BF, build_level: BL, conf: Conf<SS, CC, S>, seed_chooser: SCC, number_of_keys: usize) -> Self
         where BF: FnOnce(&Conf<SS, CC, S>) -> (Vec::<K>, SeedEx<SS::VecElement, C>, Box<[u64]>),
@@ -234,6 +248,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }
     }
 
+    /// Builds the last (no-bumping) level for the given (still bumped) `keys`;
+    /// the hash seed used for the level is chosen automatically (incremented on failures),
+    /// starting from `seed`. Returns the level, the bitmap of values free in the level
+    /// and the number of free values.
     fn build_last_level<K>(keys: Vec::<K>, hasher: &S, seed: &mut u64)
         -> (SeedEx<<Bits8 as SeedSize>::VecElement, GenericCore<RandomPlacement>>, Box<[u64]>, usize)
         where K: Hash
