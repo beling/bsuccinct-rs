@@ -344,7 +344,7 @@ impl<P: Placement> GenericCore<P> {
 
 /// PHast map-or-bump turbo function configuration.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct TurboCore<P> {
+pub struct TurboCore<P = FastPlacement> {
     pub(crate) slice_len_minus_one: u16,  // slice length L - 1
     pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
     placement: PhantomData<P>
