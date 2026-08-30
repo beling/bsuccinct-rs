@@ -23,7 +23,6 @@ pub struct Weights(pub [i32; 7]);
 
 impl Weights {
     /// Returns [`Weights`] suitable for given `bits_per_seed` and `slice_len`.
-    
     pub fn new(bits_per_seed: u8, slice_len: u16) -> Self {
 
         #[cfg(not(feature = "W256"))]   // for WINDOW_SIZE = 512

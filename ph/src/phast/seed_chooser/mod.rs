@@ -203,10 +203,14 @@ impl<SC: SeedChooserConf, BE: BucketEvaluator> SeedChooserConf for (SC, BE) {
     }
 
     #[inline(always)] fn add_used(&self, used_values: &mut Self::UsedValues, value: usize) {
-        self.0.add_used(used_values, value);
+        self.0.add_used(used_values, value)
     }
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) {
-        self.0.clear_used(used_values, value);
+        self.0.clear_used(used_values, value)
+    }
+
+    #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        self.0.slice_len(output_range, bits_per_seed, preferred_slice_len)
     }
 }
