@@ -8,13 +8,16 @@ use crate::{phast::{ProdOfValues, conf::Core}, seeds::SeedSize};
 use super::{cyclic::CyclicSet, evaluator::BucketEvaluator, seed_chooser::{SeedChooser, SeedChooserCore, SeedOnlyNoBump}, MAX_WINDOW_SIZE, WINDOW_SIZE};
 use rayon::prelude::*;
 
+/// Counts the number of keys in each bucket, using a single thread.
 #[inline]
-fn bucket_sizes_st<C: Core>(keys: &[u64], conf: &C) -> Box<[usize]> {
-    let mut buckets = vec![0; conf.buckets_num() + 1].into_boxed_slice();
-    for key in keys.iter() { unsafe{ *buckets.get_unchecked_mut(conf.bucket_for(*key)) += 1 } }
+fn bucket_sizes_st<C: Core>(keys: &[u64], core: &C) -> Box<[usize]> {
+    let mut buckets = vec![0; core.buckets_num() + 1].into_boxed_slice();
+    for key in keys.iter() { unsafe{ *buckets.get_unchecked_mut(core.bucket_for(*key)) += 1 } }
     buckets
 }
 
+/// Counts the number of keys in each bucket, using up to `threads_num` threads.
+/// `keys` must be sorted (they are partitioned between the threads without reordering).
 fn bucket_sizes_mt<C: Core>(keys: &[u64], conf: &C, mut threads_num: usize) -> Box<[usize]> { // TODO pass conf values to make fn non-generic
     //let mut threads_num = rayon::current_num_threads().min(keys.len() / (8*4096));
     threads_num = threads_num.min(keys.len() / (8*4096));
@@ -56,6 +59,9 @@ fn bucket_sizes_mt<C: Core>(keys: &[u64], conf: &C, mut threads_num: usize) -> B
     buckets
 }
 
+/// Returns the value of `buckets[i]` accumulated with the preceding elements
+/// and changes `buckets[i]` to the accumulated value (i.e. converts bucket sizes
+/// into bucket begin indexes). Returns the sum of all original values.
 #[inline(always)]
 fn accumulative_sum(buckets: std::slice::IterMut<'_, usize>) -> usize {
     let mut sum = 0;
@@ -82,17 +88,26 @@ pub fn bucket_begin_mt<C: Core>(keys: &[u64], conf: &C, threads_num: usize) -> B
     buckets
 }
 
-// Read-only data shared by all threads.
+/// Read-only data shared by all threads during the construction.
 pub(crate) struct BuildConf<'k, C: Core, BE: BucketEvaluator, SS: SeedSize, SC: SeedChooser> {
+    /// Core used to map key hashes to buckets, slices and values.
     core: C,
+    /// Maximum number of buckets in the window (span).
     span_limit: u16,
+    /// Evaluator deciding which bucket to activate next.
     evaluator: BE,
+    /// Sorted array of key hashes.
     keys: &'k [u64],
+    /// `bucket_begin[i]` is the index of the first key of bucket `i` in `keys`.
     bucket_begin: Box<[usize]>,
+    /// Seed chooser used to choose seeds for buckets.
     pub(crate) seed_chooser: SC,
+    /// Seed size.
     seed_size: SS
 }
 
+/// Creates a bit vector (of length `output_range`) with all bits set to 1,
+/// except for bits at positions `output_range..` (if any) which are set to 0.
 fn construct_unassigned(output_range: usize) -> Box<[u64]> {
     let mut unassigned_values = Box::with_filled_bits(output_range);
     if output_range % 64 != 0 {
@@ -102,6 +117,9 @@ fn construct_unassigned(output_range: usize) -> Box<[u64]> {
 }
 
 impl<'k, C: Core, BE: BucketEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<'k, C, BE, SS, SC> {
+    /// Constructs `BuildConf` and a zeroed vector of seeds; `span_limit` is the window size
+    /// (the maximum number of buckets in the priority queue),
+    /// `bucket_begin` contains the begin indexes of the buckets in `keys`.
     #[inline]
     pub fn new(keys: &'k [u64], core: C, seed_size: SS, span_limit: u16, evaluator: BE, bucket_begin: Box<[usize]>, seed_chooser: SC) -> (Self, Box<[SS::VecElement]>) {
         //let seeds = Box::with_zeroed_bits(conf.buckets_num * conf.bits_per_seed() as usize);
@@ -180,11 +198,15 @@ impl<'k, C: Core, BE: BucketEvaluator, SS: SeedSize, SC: SeedChooser> BuildConf<
     }
 }
 
+/// Returns the gap size, i.e. number of buckets that separates regions
+/// filled by the concurrent threads during the multi-threaded construction.
 #[inline] fn gap_for(effective_slice_len: u16, bucket_num: usize, output_range: usize) -> usize {
     let effective_slice_len = effective_slice_len as usize;
     effective_slice_len * bucket_num / (output_range + 1 - effective_slice_len) + 1
 }
 
+/// Builds buckets without bumping; returns `None` if the building fails (no feasible seed
+/// was found for some bucket, so the construction should be retried with another hash seed).
 #[inline(always)]
 pub(crate) fn try_nobump_build_st<'k, SC, BE, C, SS>(keys: &'k [u64], core: C, seed_size: SS, evaluator: BE, seed_chooser: SC, bucket_begin: Box<[usize]>)
 -> Option<(Box<[SS::VecElement]>, BuildConf<'k, C, BE, SS, SC>)>
@@ -197,6 +219,9 @@ where C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize
     Some((seeds, builder))
 }
 
+/// Builds the last (no-bumping) level of [`Function2`](crate::phast::Function2),
+/// i.e. a no-bumping PHast structure over `keys`; returns its seeds,
+/// the bitmap of values free in the last level and the number of free values.
 #[inline(always)]
 pub(crate) fn build_last_level<C, BE, SS>(keys: &[u64], core: C, seed_size: SS, evaluator: BE)
 -> Option<(Box<[SS::VecElement]>, Box<[u64]>, usize)>
@@ -207,6 +232,7 @@ where C: Core, BE: BucketEvaluator + Send + Sync, BE::Value: Send, SS: SeedSize
     Some((seeds, unassigned_values, unassigned_len))
 }
 
+/// Assign seeds to all non-empty buckets using a single thread and returns the seeds and the build configuration.
 #[inline(always)]
 pub(crate) fn build_st<'k, SC, BE, C, SS>(keys: &'k [u64], conf: C, seed_size: SS, evaluator: BE, seed_chooser: SC)
 -> (Box<[SS::VecElement]>, BuildConf<'k, C, BE, SS, SC>)
@@ -217,6 +243,7 @@ where C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize
     (seeds, builder)
 }
 
+/// Assign seeds to all non-empty buckets using up to `threads_num` threads and returns the seeds and the build configuration.
 pub(crate) fn build_mt<'k, C, SC, BE, SS>(keys: &'k [u64], conf: C, seed_size: SS, evaluator: BE, seed_chooser: SC, threads_num: usize)
  -> (Box<[SS::VecElement]>, BuildConf<'k, C, BE, SS, SC>)
 where C: Core + Sync, SC: SeedChooser, BE: BucketEvaluator + Sync, BE::Value: Send, SS: SeedSize
@@ -355,15 +382,16 @@ where C: Core + Sync, SC: SeedChooser, BE: BucketEvaluator + Sync, BE::Value: Se
     repr(align(64))
 )]
 struct ThreadBuilder<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> {
+    /// Read-only data shared with the other threads.
     conf: &'k BuildConf<'k, C, BE, SS, SC>,
 
-    /// buckets to process by the thread
+    /// Buckets to process by the thread.
     bucket_begin: &'k [usize],
 
     /// First bucket in the span.
     span_begin: usize,
 
-    /// number of buckets to process by the thread
+    /// Number of buckets to process by the thread.
     buckets_num: usize,
 
     /// Values used by committed choices.
@@ -371,13 +399,19 @@ struct ThreadBuilder<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: Seed
     /// Next value to remove from `used_values`.
     value_to_clear: usize,
 
+    /// Priority queue of the buckets in the window.
     candidates_to_active: BinaryHeap<(BE::Value, Reverse<usize>)>,    // (value, bucket)
+    /// Buckets present in `candidates_to_active` (to allow fast membership tests).
     in_candidates_to_active: CyclicSet<{MAX_WINDOW_SIZE/64}>,
 
+    /// Part of the seeds array filled by this thread.
     seeds: &'k mut [SS::VecElement],
 }
 
 impl<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> ThreadBuilder<'k, C, SC, BE, SS> {
+    /// Constructs the thread with a slice of buckets to process (`buckets`),
+    /// the `gap` (number of last buckets not to fill in parallel)
+    /// and the slice of `seeds` to fill by this thread.
     pub(crate) fn new(conf: &'k BuildConf<'k, C, BE, SS, SC>, buckets: Range<usize>, gap: usize, seeds: &'k mut [SS::VecElement]) -> Self {
         Self {
             used_values: conf.seed_chooser.empty_used_values(),
@@ -392,6 +426,8 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> ThreadBuil
         }
     }
 
+    /// Assigns seeds to all non-empty buckets assigned to this thread
+    /// (processes the buckets in the order determined by the priority queue).
     pub(crate) fn build(&mut self) {
         //let mut seeds = vec![0; self.conf.buckets_num].into_boxed_slice();
         if !self.find_nonempty() { return; }
@@ -458,11 +494,13 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> ThreadBuil
         }
     }
 
+    /// Returns the minimal possible value of the first key in the given non-empty bucket.
     #[inline]
     fn slice_begin(&self, non_empty_bucket: usize) -> usize {
         self.conf.core.slice_begin(self.conf.keys[self.bucket_begin[non_empty_bucket]])
     }
 
+    /// Returns the best seed for the given bucket (`0` means that the bucket is bumped).
     #[inline(always)]
     fn best_seed(&mut self, bucket_nr: usize) -> u16 {
         let keys = &self.conf.keys[self.bucket_begin[bucket_nr]..self.bucket_begin[bucket_nr+1]];

@@ -29,13 +29,29 @@ pub(crate) fn mix(a: u64, b: u64) -> u64 {
     //(r >> 64) as u64
 }   // compiles to one 64-bit multiplication + one xor
 
+/// Computes the position of a key inside its slice (`in_slice`), given its hash and a seed.
+///
+/// The concrete formulas differ in how much they mix the seed and key hash,
+/// which affects the trade-off between the resulting function size and
+/// the construction time (a stronger mix gives a smaller size but is slower to build).
 pub trait Placement: Copy+Sync+Send+PartialEq+Eq+Debug {
 
+    /// Returns the position of the `key` in its slice for functions that allow bumping.
+    ///
+    /// `slice_len_minus_one` is the slice length minus one (a power-of-two mask);
+    /// the returned value is in the range `0..=slice_len_minus_one`.
     fn with_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize;
 
+    /// Returns the position of the `key` in its slice for functions that do not allow bumping.
+    ///
+    /// `slice_len_minus_one` is the slice length minus one (a power-of-two mask);
+    /// the returned value is in the range `0..=slice_len_minus_one`.
     fn without_bumping(key: u64, seed: u16, slice_len_minus_one: u16) -> usize;
 }
 
+/// The default, very fast placement: lower bits of the seed multiplied by the key.
+///
+/// It is used by [`Generic`] and [`Turbo`] configurations by default.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct FastPlacement;
 
@@ -59,6 +75,8 @@ impl Placement for FastPlacement {
     }
 }
 
+/// Placement that mixes the seed and key hash more thoroughly than [`FastPlacement`],
+/// which gives a smaller function size at the cost of a slower construction.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct RandomPlacement;
 
@@ -79,6 +97,7 @@ impl Placement for RandomPlacement {
 /// The PHast core which is responsible for mapping key hashes to buckets and slices.
 pub trait Core: Copy+Sync+Send {
 
+    /// Placement used to compute the position of a key inside its slice.
     type Placement: Placement;
 
     /// Returns the number of buckets.
@@ -142,6 +161,8 @@ pub trait Core: Copy+Sync+Send {
         //0x51_7c_c1_b7_27_22_0a_95
     }*/
 
+    /// Returns index of `key` in its slice for functions without bumping
+    /// (each seed value is a real seed).
     #[inline(always)]
     fn in_slice_nobump(&self, key: u64, seed: u16) -> usize {
         //(wymum((seed as u64 ^ 0xa076_1d64_78bd_642f).wrapping_mul(0x1d8e_4e27_c47d_124f), key) as u16 & self.slice_len_minus_one) as usize
@@ -162,12 +183,17 @@ pub trait Core: Copy+Sync+Send {
         self.slice_begin(key) + self.in_slice(key, seed)
     }
 
+    /// Returns the value of the function for given `key` if the bucket
+    /// assigned to the `key` is not bumped (i.e. its seed is non-zero).
     #[inline(always)]
     fn try_f<SS>(&self, seed_size: SS, seeds: &[SS::VecElement], key: u64) -> Option<usize> where SS: SeedSize {
         let seed = unsafe { seed_size.get_seed(seeds, self.bucket_for(key)) };
         (seed != 0).then(|| self.f(key, seed))
     }
 
+    /// Returns the value of the function for given `key` and shift equal `0`
+    /// (i.e. without adding the seed/shift component).
+    /// Used by PHast+ variants.
     #[inline(always)]
     fn f_shift0(&self, key: u64) -> usize {
         self.slice_begin(key) + self.in_slice_noseed(key)
@@ -178,6 +204,8 @@ pub trait Core: Copy+Sync+Send {
         self.slice_begin(key) + self.in_slice_noseed(key) + shift as usize - 1
     }*/
 
+    /// Returns the value of the function for given `key` and `seed`
+    /// for functions without bumping (each seed value is a real seed).
     #[inline(always)]
     fn f_nobump(&self, key: u64, seed: u16) -> usize {
         self.slice_begin(key) + self.in_slice_nobump(key, seed)
@@ -188,6 +216,7 @@ pub trait Core: Copy+Sync+Send {
         self.num_of_slices() + self.slice_len_minus_one() as usize + seed_chooser_core.extra_shift(bits_per_seed) as usize
     }
 
+    /// Creates a zeroed vector of seeds, of length equal to the number of buckets.
     #[inline] fn new_seeds_vec<SS: SeedSize>(&self, seed_size: SS) -> Box<[SS::VecElement]> {
         seed_size.new_zeroed_seed_vec(self.buckets_num())
     }
@@ -205,9 +234,12 @@ pub trait Core: Copy+Sync+Send {
 /// Generic PHast core that supports many configurations.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct GenericCore<P = FastPlacement> {
-    pub(crate) buckets_num: usize, // number of buckets, B
-    pub(crate) slice_len_minus_one: u16,  // slice length L - 1
-    pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
+    /// Number of buckets, `B`.
+    pub(crate) buckets_num: usize,
+    /// Slice length `L - 1`.
+    pub(crate) slice_len_minus_one: u16,
+    /// Number of slices, i.e. `output range - slice_len_minus_one`.
+    pub(crate) num_of_slices: usize,
     placement: PhantomData<P>
 }
 
@@ -296,6 +328,8 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
 
 impl<P: Placement> GenericCore<P> {
 
+    /// Constructs the core for given output range, number of keys, 100*average bucket size,
+    /// slice length and maximal shift that can be added to a value.
     pub(crate) fn new(output_range: usize, num_of_keys: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
         let bucket_size_100 = bucket_size_100 as usize;
         Self {
@@ -306,6 +340,8 @@ impl<P: Placement> GenericCore<P> {
         }
     }
 
+    /// Constructs an empty core (with no buckets) that can be used
+    /// for an empty last level of [`Function2`](crate::phast::Function2).
     #[inline] pub(crate) fn empty() -> Self {
         Self { buckets_num: 0, slice_len_minus_one: 0, num_of_slices: 0, placement: Default::default() }
     }
@@ -345,13 +381,18 @@ impl<P: Placement> GenericCore<P> {
 /// PHast map-or-bump turbo function configuration.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TurboCore<P = FastPlacement> {
-    pub(crate) slice_len_minus_one: u16,  // slice length L - 1
-    pub(crate) num_of_slices: usize,   // output range - slice_len_minus_one
+    /// Slice length `L - 1`.
+    pub(crate) slice_len_minus_one: u16,
+    /// Number of slices, i.e. `output range - slice_len_minus_one`.
+    pub(crate) num_of_slices: usize,
     placement: PhantomData<P>
 }
 
 impl<P> TurboCore<P> {
 
+    /// Constructs the turbo core for given output range, slice length and maximal shift
+    /// that can be added to a value.
+    /// The slice length is reduced if it exceeds `output_range/5+1`.
     pub(crate) fn new(output_range: usize, mut slice_len: u16, max_shift: u16) -> Self {
         let max_allowed_slice_len = output_range/5+1;   // or output_range/4+1;
         if slice_len as usize > max_allowed_slice_len { slice_len = (max_allowed_slice_len as u16).next_power_of_two(); }
@@ -423,35 +464,49 @@ impl<P: Placement> Core for TurboCore<P> {
 
 
 
+/// Configuration a factory of the PHast [`Core`]s.
 pub trait CoreConf: Sync+Send {
     /// PHast Core to use.
     type Core: Core;
 
+    /// Constructs the core for given output range, number of keys, slice length
+    /// and maximal shift that can be added to a value.
     fn core(&self, output_range: usize, num_of_keys: usize, slice_len: u16, max_shift: u16) -> Self::Core;
 
     //fn bucket_size100(&self) -> u16;
+    /// Preferred slice length (0 means the default chosen by the seed chooser).
     fn preferred_slice_len(&self) -> u16;
 }
 
 
+/// Generic PHast core configuration that allows setting 100*average bucket size
+/// and (optionally) a preferred slice length.
 #[derive(Clone, Copy)]
 pub struct Generic<P = FastPlacement> {
+    /// 100 * average bucket size.
     pub bucket_size100: u16,
+    /// Preferred slice length; `0` means that the seed chooser picks a default.
     pub preferred_slice_len: u16,
     placement: PhantomData<P>
 }
 
 impl<P> Generic<P> {
+    /// Constructs the configuration with given 100*average bucket size
+    /// and the default (chooser-dependent) slice length.
     #[inline]
     pub fn new(bucket_size100: u16) -> Self {
         Self { bucket_size100, preferred_slice_len: 0, placement: Default::default() }
     }
 
+    /// Constructs the configuration with given 100*average bucket size
+    /// and preferred slice length.
     #[inline]
     pub fn new_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
         Self { bucket_size100, preferred_slice_len, placement: Default::default() }
     }
 
+    /// Constructs the configuration with 100*average bucket size proper for
+    /// given `bits_per_seed` (see [`bits_per_seed_to_100_bucket_size`]).
     #[inline]
     pub fn new_for_bps(bits_per_seed: u8) -> Self {
         Self::new(bits_per_seed_to_100_bucket_size(bits_per_seed))
@@ -478,18 +533,22 @@ impl<P: Placement> CoreConf for Generic<P> {
 
 
 
+/// Turbo PHast core configuration.
 #[derive(Clone, Copy)]
 pub struct Turbo<P = FastPlacement> {
+    /// Preferred slice length; `0` means that the seed chooser picks a default.
     pub preferred_slice_len: u16,
     placement: PhantomData<P>
 }
 
 impl<P> Turbo<P> {
+    /// Constructs the turbo configuration with the default (chooser-dependent) slice length.
     #[inline]
     pub fn new() -> Self {
         Self { preferred_slice_len: 0, placement: Default::default() }
     }
 
+    /// Constructs the turbo configuration with given preferred slice length.
     #[inline]
     pub fn new_psl(preferred_slice_len: u16) -> Self {
         Self { preferred_slice_len, placement: Default::default() }
@@ -515,9 +574,14 @@ impl<P: Placement> CoreConf for Turbo<P> {
 }
 
 
+/// Full configuration of a PHast function: seed size (`SS`), core configuration (`CC`),
+/// hasher (`S`) and a desired loading factor.
 pub struct Conf<SS, CC, S = BuildDefaultSeededHasher> {
+    /// Seed size (number of bits per seed).
     pub seed_size: SS,
+    /// Core configuration.
     pub core_conf: CC,
+    /// Hasher used to hash keys.
     pub hasher: S,
     /// 1000 * desired loading factor
     pub loading_factor_1000: u16,
@@ -525,26 +589,34 @@ pub struct Conf<SS, CC, S = BuildDefaultSeededHasher> {
 }
 
 impl<SS: SeedSize, CC, S> Conf<SS, CC, S> {
+    /// Returns number of bits used to store each seed.
     #[inline(always)] pub fn bits_per_seed(&self) -> u8 { self.seed_size.into() }
 }
 
 impl<SS: SeedSize> Conf<SS, Generic, BuildDefaultSeededHasher> {
+    /// Constructs the configuration with given seed size and 100*average bucket size,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
     #[inline] pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
         Self { seed_size, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 }
 
 impl<SS: SeedSize, S> Conf<SS, Generic, S> {
+    /// Constructs the configuration with given seed size, 100*average bucket size and hasher;
+    /// the loading factor is 1 (i.e. a minimal function).
     #[inline] pub fn generic_with_hash(seed_size: SS, bucket_size100: u16, hasher: S) -> Self {
         Self { seed_size, core_conf: Generic::new(bucket_size100), hasher, loading_factor_1000: 1000 }
     }
 }
 
 impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
+    /// Constructs the configuration with 8 bits per seed, given 100*average bucket size,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
     #[inline] pub fn generic8(bucket_size100: u16) -> Self {
         Self { seed_size: Bits8, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 
+    /// Constructs the default configuration with 8 bits per seed (see [`bits_per_seed_to_100_bucket_size`]).
     #[inline] pub fn default_generic8() -> Self {
         Self::generic8(bits_per_seed_to_100_bucket_size(8))
     }
