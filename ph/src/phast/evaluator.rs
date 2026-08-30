@@ -15,17 +15,19 @@ pub trait BucketEvaluator: Send + Sync + Clone {
     fn eval(&self, bucket_nr: usize, bucket_size: usize) -> Self::Value;
 }
 
-/// Bucket evaluator which compares buckets using a table of (tuned) weights:
-/// `self.0[i]` is the weight of a bucket of size `i+1`
-/// (for larger bucket sizes, the weight is extrapolated linearly from the last two entries).
-/// [`Weights::new`] returns weights suitable for given `bits_per_seed` and `slice_len`.
+/// Bucket evaluator which compares buckets using bucket numbers and sizes.
+/// It uses a table of (tuned) weights: `self.0[i]` is the weight of a bucket of size `i+1` for `i` in [0, 6].
+/// For larger buckets, the weight is extrapolated linearly from the last two entries.
 #[derive(Clone)]
 pub struct Weights(pub [i32; 7]);
 
 impl Weights {
-    #[cfg(not(feature = "W256"))]
+    /// Returns [`Weights`] suitable for given `bits_per_seed` and `slice_len`.
+    
     pub fn new(bits_per_seed: u8, slice_len: u16) -> Self {
-        Self(if slice_len <= 256 {  // this is used only for small number of keys
+
+        #[cfg(not(feature = "W256"))]   // for WINDOW_SIZE = 512
+        return Self(if slice_len <= 256 {  // this is used only for small number of keys
             match (bits_per_seed, slice_len) {
                 (..=4, ..=32) => [0, 186109, 189600, 191524, 193028, 194471, 195545], // 4, 2.5, 32, W=512, 12.92% for 20000 keys
                 (..=4, ..=64) => [0, 181645, 188624, 192493, 195117, 197411, 199153], // 4, 2.5, 64, W=512, 11.26% for 20000 keys
@@ -82,12 +84,10 @@ impl Weights {
                 (_, ..=4096) => [0, 11786, 242028, 338753, 394616, 436818, 459085], // 12, 7.1, 4096, W=512, 0.69%
                 (_, _) => [0, 4625, 84446, 93740, 236389, 321762, 369370] // 12, 7.1, 8192, W=512
             }
-        })
-    }
+        });
 
-    #[cfg(feature = "W256")]
-    pub fn new(bits_per_seed: u8, slice_len: u16) -> Self {
-        Self(if slice_len <= 256 {  // this is used only for small number of keys
+        #[cfg(feature = "W256")]
+        return Self(if slice_len <= 256 {  // this is used only for small number of keys
             match (bits_per_seed, slice_len) {
                 (..=4, ..=32) => [0, 186109, 189600, 191524, 193028, 194471, 195545], // 2.5, 32, W=256, 12.92% for 20000 keys
                 (..=4, ..=64) => [0, 182680, 189432, 193287, 196129, 198180, 199837], // 2.5, 64, W=256, 11.26% for 20000 keys
@@ -132,7 +132,7 @@ impl Weights {
                 (_, ..=2048) => [0, 10068, 117770, 174050, 199541, 224112, 233476], // 12, 7.1, 2048, W=256, 0.75%
                 (_, _) => [0, 7218, 13774, 65927, 125335, 164057, 187337] // 12, 7.1, 4096, W=256, 0.74%
             }
-        })
+        });
     }
 }
 
