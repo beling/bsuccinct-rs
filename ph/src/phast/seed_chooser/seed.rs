@@ -172,6 +172,9 @@ impl SeedEvaluator for SumOfValues {
     }
 }
 
+/// Selects, among all feasible seeds, the one minimizing the value returned by `seed_evaluator`,
+/// and returns it (through `best_seed`). Used for buckets with more keys than `SMALL_BUCKET_LIMIT`;
+/// keys are then consumed in groups of four (which is SIMD friendly).
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
@@ -219,6 +222,8 @@ fn best_seed_big<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC,
     }
 }
 
+/// Selects, among all feasible seeds, the one minimizing the value returned by `seed_evaluator`,
+/// and returns it (through `best_seed`). Used for buckets with at most `SMALL_BUCKET_LIMIT` keys.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &SC, seed_evaluator: SE, best_value: &mut SE::Value, best_seed: &mut u16, used_values: &mut UsedValueSet, keys: &[u64], conf: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
@@ -249,6 +254,8 @@ fn best_seed_small<SC: SeedChooser, SE: SeedEvaluator, C: Core>(seed_chooser: &S
     }
 }
 
+/// The largest bucket size for which the (simpler) `best_seed_small` is used
+/// instead of `best_seed_big`.
 const SMALL_BUCKET_LIMIT: usize = 8;
 
 /// `SeedChooserCore` that passes all seed bits to hash function and do not use shifting.
@@ -307,6 +314,7 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnly<SE> {
 
     #[inline(always)] fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize) { used_values.remove(value); }
 
+    /// Returns the slice length recommended by the seed evaluator `SE`.
     #[inline(always)] fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
         self.0.slice_len(output_range, bits_per_seed, preferred_slice_len)
     }
@@ -381,6 +389,9 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnlyNoBump<SE> {
 }
 
 impl<SE: SeedEvaluator> SeedChooser for SeedOnlyNoBump<SE> {
+    /// Returns the seed with the lowest evaluation value, or `u16::MAX` if there is no feasible seed
+    /// (i.e. the bucket cannot be assigned and, since bumping is not allowed,
+    /// the construction must be retried with another hashing seed).
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = u16::MAX;

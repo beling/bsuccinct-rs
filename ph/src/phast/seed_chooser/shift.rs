@@ -5,6 +5,10 @@ use std::io;
 use crate::phast::{SeedChooserCore, Weights, conf::Core, cyclic::{CyclicSet, UsedValueSetLarge}, seed_chooser::SeedChooserConf};
 use super::SeedChooser;
 
+/// Returns whether two (or more) keys share the same value
+/// (i.e. whether the bucket would collide with itself).
+/// The result is shift-independent.
+/// The slice can be sorted in place.
 #[inline] fn self_collide(without_shift: &mut [usize]) -> bool {
     without_shift.sort_unstable();  // maybe it is better to postpone self-collision test?
     for i in 1..without_shift.len() {
@@ -13,12 +17,16 @@ use super::SeedChooser;
         }
     }
     false
-}
+}   //TODO try not to sort if without_shift is small
 
+/// Returns the values that the `keys` would be assigned with shift equal to `0`
+/// (i.e. by the seed-independent part of the mapping).
 #[inline] fn shifts0<'k, 'c, C: Core>(keys: &'k [u64], conf: &'c C) -> impl Iterator<Item = usize> + use<'k, 'c, C> {
     keys.iter().map(|key| conf.f_shift0(*key))
 }
 
+/// Returns the bits of `used_values` (starting from the shifted values) occupied by the given `shift`,
+/// merged (OR-ed) into `excluded`; a `1` bit means that the value is already taken.
 #[inline] fn occupy_sum<const UVS: usize>(mut excluded: u64, used_values: &CyclicSet<UVS>, without_shift: &[usize], shift: u16) -> u64 {
     for first in without_shift.iter() {
         excluded |= used_values.get64(*first + shift as usize);
@@ -26,22 +34,28 @@ use super::SeedChooser;
     excluded
 }
 
+/// Marks the values (shifted by `total_shift`) as used.
 #[inline] fn mark_used<const UVS: usize>(used_values: &mut CyclicSet<UVS>, without_shift: &[usize], total_shift: u16) {
     for first in without_shift {
         used_values.add(*first + total_shift as usize);
     }
 }
 
+/// [`SeedChooserCore`] of PHast+ without wrapping ([`ShiftOnly`]):
+/// the seed is used only as a shift added to the seed-independent value of a key.
 #[derive(Clone, Copy)]
 pub struct ShiftCore;
 
 impl SeedChooserCore for ShiftCore {
     const FUNCTION2_THRESHOLD: usize = 8192;
 
-    #[inline(always)] fn f<C: Core>(&self, primary_code: u64, seed: u16, conf: &C) -> usize {
-        conf.f_shift0(primary_code) + (seed-1) as usize
+    /// Returns the value of the function for given `key` and `seed`
+    /// (i.e. the value with the shift component equal to `seed-1`).
+    #[inline(always)] fn f<C: Core>(&self, key: u64, seed: u16, conf: &C) -> usize {
+        conf.f_shift0(key) + (seed-1) as usize
     }
 
+    /// Returns the maximal shift that the chooser can add to a value over the slice length.
     #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 {
         (1 << bits_per_seed) - 2
     }
@@ -76,6 +90,8 @@ impl SeedChooserConf for ShiftOnly {
 
     #[inline(always)] fn core(&self) -> Self::Core { ShiftCore }
 
+    /// Returns the bucket-evaluator weights tuned for [`ShiftOnly`]
+    /// and given `bits_per_seed` and `slice_len`.
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         Weights(
             if slice_len <= 256 { match (bits_per_seed, slice_len) {
@@ -101,7 +117,7 @@ impl SeedChooserConf for ShiftOnly {
                 (_, _) => [-4309, -487, 21662, 26095, 83370, 157063, 543843],   // 12, 6.8, slice=8192
             }
         })
-    }
+    }   // TODO these are tuned for WINDOW_SIZE=256
 
     #[inline] fn empty_used_values(&self) -> Self::UsedValues { Default::default() }
 
@@ -130,6 +146,8 @@ impl SeedChooserConf for ShiftOnly {
 
 impl SeedChooser for ShiftOnly {
 
+    /// Returns the lowest shift (increased by one) that does not make the bucket collide with the values used
+    /// by other processed buckets, or `0` (bumping) if there is no such shift.
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], conf: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<usize, 16>;

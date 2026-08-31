@@ -513,11 +513,13 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> ThreadBuil
         (self.span_begin + self.conf.span_limit as usize).min(self.buckets_num)
     }
 
+    /// Returns the number of keys in the given `bucket_nr`.
     #[inline]
     pub(crate) fn bucket_size(&self, bucket_nr: usize) -> usize {
         self.bucket_begin[bucket_nr+1] - self.bucket_begin[bucket_nr]
     }
 
+    /// Returns `true` if the given `bucket_nr` is empty (contains no keys).
     #[inline]
     pub(crate) fn bucket_is_empty(&self, bucket_nr: usize) -> bool {
         self.bucket_begin[bucket_nr+1] == self.bucket_begin[bucket_nr]

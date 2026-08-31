@@ -15,13 +15,13 @@ pub(crate) fn mult_hi(a: u64, b: u64) -> u64 {
     (r >> 64) as u64
 }    // compiles to one 64-bit multiplication
 
-/// Returns the value that mix `key` and `seed`. Fast.
+/// Returns the value that mixes `key` and `seed` into 16 bits. Fast.
 #[inline(always)]
 pub(crate) fn mix_key_seed(key: u64, seed: u16) -> u16 {
     mult_hi((seed as u64).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95 /*0x1d8e_4e27_c47d_124f*/), key) as u16
 }   // 0x51_7c_c1_b7_27_22_0a_95 is from FXHash
 
-/// Returns the value that mix `a` and `b` by multiplication and xoring.
+/// Returns the value that mixes `a` and `b` by multiplying and xoring.
 #[inline(always)]
 pub(crate) fn mix(a: u64, b: u64) -> u64 {
     let r = (a as u128) * (b as u128);
@@ -308,7 +308,7 @@ fn mix16fast(mut x: u16) -> u16 {
 
 //const SEEDS_MAP: [u64; 256] = std::array::from_fn(|i| mix64(i as u64));
 
-/// Returns bucket size proper for given number of `bits_per_seed`.
+/// Returns bucket size (as 100× average bucket size) proper for given number of `bits_per_seed`.
 #[inline]
 pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
     match bits_per_seed {
@@ -464,7 +464,7 @@ impl<P: Placement> Core for TurboCore<P> {
 
 
 
-/// Configuration a factory of the PHast [`Core`]s.
+/// Configuration and factory of the PHast [`Core`]s.
 pub trait CoreConf: Sync+Send {
     /// PHast Core to use.
     type Core: Core;
@@ -621,7 +621,8 @@ impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
         Self::generic8(bits_per_seed_to_100_bucket_size(8))
     }
 
-    /// Configuration used by default by `NBFunction`.
+    /// Configuration used by the `from_*_fast` constructors of [`NBFunction`](crate::phast::NBFunction).
+    /// It uses [`FastPlacement`] (a faster to evaluate, but slightly larger, placement).
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
     #[inline] pub fn generic8_nobump_fast(loading_factor_1000: u16) -> Self {
         Self {
@@ -634,8 +635,9 @@ impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
 }
 
 impl Conf<Bits8, Generic::<RandomPlacement>, BuildDefaultSeededHasher> {
-    /// Configuration used by default by `NBFunction`.
-    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
+    /// Configuration used by the `from_*` constructors of [`NBFunction`](crate::phast::NBFunction).
+    /// It uses [`RandomPlacement`] (a slightly smaller, but slower, placement).
+    /// Recommended `loading_factor_1000` is from `970` (for fast building) to `995` (for small range).
     #[inline] pub fn generic8_nobump(loading_factor_1000: u16) -> Self {
         Self {
             seed_size: Bits8,

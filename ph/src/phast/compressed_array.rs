@@ -196,8 +196,11 @@ impl LinearRegressionConstructor for LeastSquares {
 /// Implementation of `CompressedArray` that stores differences of values and linear regression
 /// with the same number of bits required to store the largest difference.
 pub struct LinearRegressionArray<C> {
+    /// Linear regression used to predict values.
     regression: LinearRegression,
+    /// Corrections added to the regression predictions.
     corrections: CompactFast,
+    /// Marker of the [`LinearRegressionConstructor`] used to build `self`.
     constructor: PhantomData<C>
 }
 
@@ -263,7 +266,9 @@ pub struct Compact {
 
 /// Builder of [`Compact`].
 pub struct CompactBuilder {
+    /// The array being built.
     compact: Compact,
+    /// Index of the value that will be stored by the next call to `push`.
     index: usize
 }
 
@@ -325,7 +330,9 @@ pub struct CompactFast {
 
 /// Builder of [`CompactFast`].
 pub struct CompactFastBuilder {
+    /// The array being built.
     compact: CompactFast,
+    /// Index of the first bit that will be used by the next call to `push`.
     first_bit: usize,
 }
 

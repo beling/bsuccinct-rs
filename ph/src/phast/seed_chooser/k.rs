@@ -84,6 +84,9 @@ impl KSeedEvaluatorConf for SumOfValues {
 
 
 
+/// For given `k`, `bits_per_seed` and `slice_len`, returns the rows of the tuning table
+/// that bracket `k`: the closest row below or at `k`, and – if `k` lays between two rows –
+/// the next row (otherwise `None`).
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
         /*(_, ..=512) => PROD_S8_L512.as_ref(),
@@ -105,6 +108,8 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 
 /// How close k is to nk for pk <= k <= nk; 1.0 if k==nk and 0.0 if k==pk.
 #[inline] fn next_weight(pk: u16, k: u16, nk: u16) -> f64 { (k-pk) as f64/(nk-pk) as f64 }
 
+/// Interpolates (linearly, `nw` being the weight of the `n` row)
+/// two tuning-table rows `p` and `n` into a single row.
 fn combine(p: &[i32; 7], n: &[i32; 7], nw: f64) -> [i32; 7] {
     let pw = 1.0 - nw;
     std::array::from_fn(|i| ((p[i] as f64 * pw) + (n[i] as f64 * nw)).round() as i32)
@@ -132,8 +137,12 @@ impl KSeedEvaluatorConf for ProdOfValues {
 /// sum_{x in bucket} log(f(x,seed) - first_weight*minimum value in the window - (1-first_weight)*minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
 #[derive(Clone, Copy)]
 pub struct ProdOfValuesKEval {
+    /// The weight given to the minimum value in the already-processed window
+    /// (as opposed to the minimum value in the bucket).
     pub first_weight: f64,
+    /// A shift added to each value.
     pub value_shift: f64,
+    /// A shift added to number of free slots.
     pub free_shift: f64
 }
 
@@ -179,6 +188,8 @@ impl KSeedEvaluator for ProdOfValuesKEval {
     }
 }
 
+/// [`SeedChooserCore`] of `k`-perfect functions: it passes all seed bits to the hash function
+/// and does not use shifting; the value of `k` is stored in the function structure.
 #[derive(Clone, Copy)]
 pub struct SeedOnlyKCore(pub u16);
 
@@ -213,7 +224,10 @@ impl SeedChooserCore for SeedOnlyKCore {
 /// which should lead to quite small size, but long construction time.
 #[derive(Clone, Copy)]
 pub struct SeedOnlyK<SE: KSeedEvaluatorConf = ProdOfValuesKEval> {
+    /// Seed evaluator used to compare the seeds of a bucket
+    /// (a concrete evaluator obtained from `SE` for the actual parameters).
     pub seed_evaluator: SE,
+    /// [`SeedChooserCore`] of the chooser, storing the value of `k`.
     pub core: SeedOnlyKCore,
 }
 
@@ -254,17 +268,23 @@ impl<SE: KSeedEvaluatorConf> SeedChooserConf for SeedOnlyK<SE> {
 }
 
 impl SeedOnlyK<ProdOfValues> {
+    /// Constructs the chooser for given `k`, using [`ProdOfValues`] as the seed evaluator.
     pub fn new(k: u16) -> Self {
         Self::with_evaluator(k, ProdOfValues)
     }
 }
 
 impl<SE: KSeedEvaluatorConf> SeedOnlyK<SE> {
+    /// Constructs the chooser for given `k` and `seed_evaluator`.
     pub fn with_evaluator(k: u16, seed_evaluator: SE) -> Self {
         Self { seed_evaluator, core: SeedOnlyKCore(k) }
     }
 }
 
+/// Selects, among all feasible seeds, the one minimizing the value returned by `seed_evaluator`
+/// and returns it (through `best_seed`). A seed is feasible if none of the values it assigns
+/// exhausts the remaining free slots; the slots taken by a candidate seed are temporarily
+/// decremented in `free_values` (and restored if the seed turns out not to be the best).
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_chooser: &SC, seed_evaluator: &SE, best_value: &mut SE::Value, best_seed: &mut u16, free_values: &mut FreeValueMultiSetU16, keys: &[u64], core: &C, seeds_num: u16, bucket_nr: usize, first_bucket_in_window: usize) {
@@ -293,6 +313,8 @@ fn best_seed_k<SC: SeedChooser, SE: KSeedEvaluator, C: Core>(k: u16, seed_choose
 
 impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
    
+    /// Returns the seed with the lowest evaluation value, or `0` (which indicates bumping)
+    /// if there is no feasible seed.
     #[inline(always)]
     fn best_seed<C: Core>(&self, free_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, bucket_nr: usize, first_bucket_in_window: usize) -> u16 {
         let mut best_seed = 0;

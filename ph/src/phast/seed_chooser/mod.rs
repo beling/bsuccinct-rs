@@ -82,8 +82,12 @@ pub trait SeedChooserConf: Clone + Sync {
 
     type UsedValues: Send;
 
+    /// Returns the part of the seed chooser that is stored in a function
+    /// and needed only at evaluation time.
     fn core(&self) -> Self::Core;
 
+    /// Returns the seed chooser that chooses the best seed for a bucket,
+    /// during construction for given `bits_per_seed` and `slice_len`.
     fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16) -> Self::SeedChooser;
 
     /// Returns bucket evaluator which compares buckets (for choosing the best one).
@@ -98,10 +102,16 @@ pub trait SeedChooserConf: Clone + Sync {
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
     #[inline(always)] fn k(&self) -> u16 { self.core().k() }
 
+    /// Returns an empty structure for recording the values used by the keys
+    /// whose buckets have already been processed.
     fn empty_used_values(&self) -> Self::UsedValues;
 
+    /// Records `value` (assigned by an already-processed bucket) as used in `used_values`.
     fn add_used(&self, used_values: &mut Self::UsedValues, value: usize);
 
+    /// Marks `value` as totally free again in `used_values`
+    /// as its bucket is no longer in the processed window.
+    /// Does nothing if `used_values` is not cyclic.
     fn clear_used(&self, used_values: &mut Self::UsedValues, value: usize);
 
     /// Returns slice length suitable to given `output_range`, `bits_per_seed` and `preferred_slice_len`.

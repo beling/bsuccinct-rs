@@ -1,11 +1,10 @@
 
-//! Cyclic set of values used during the construction of PHast functions.
+//! Cyclic sets and arrays of values used during the construction of PHast functions.
 //!
 //! During the construction of PHast functions, values assigned by already-processed buckets
 //! must be recorded so that later buckets avoid collisions. Since a window of buckets
-//! covers only a cyclic range of values, these sets are cyclic: each value
-//! is stored at the position modulo size.
-//! (for [`CyclicArray`]), which avoids wasting space for unused value ranges.
+//! covers only a cyclic range of values, these sets are cyclic,
+//! which avoids wasting space for unused value ranges.
 
 use bitm::BitAccess;
 use std::ops::{Index, IndexMut};
@@ -136,7 +135,7 @@ impl<T, const SIZE: usize> IndexMut<usize> for CyclicArray<T, SIZE> {
     }
 }*/
 
-/// A cyclic array (see [`CyclicArray`]) of `u16` counters over [`MAX_VALUES`] values,
+/// A cyclic array of `u16` counters over `MAX_VALUES` values,
 /// used to count, for each value, how many keys (from the not-yet-assigned buckets)
 /// are willing to take it (0 means that the value is free).
 pub type FreeValueMultiSetU16 = CyclicArray<u16, MAX_VALUES>;
