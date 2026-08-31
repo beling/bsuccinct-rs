@@ -108,7 +108,7 @@ impl SeedEvaluator for SumOfValues {
 
     #[inline] fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, _core: &C) -> Self::BucketData { }
 
-    fn eval(&self, values_used_by_seed: &[usize], _bucket_data: Self::BucketData) -> Self::Value {
+    #[inline] fn eval(&self, values_used_by_seed: &[usize], _bucket_data: Self::BucketData) -> Self::Value {
         values_used_by_seed.iter().sum()
     }
 
