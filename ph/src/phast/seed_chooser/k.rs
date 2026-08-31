@@ -310,9 +310,10 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
-const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512
+const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 7] = [   // for W=512
     (2, [0, 76473, 93538, 100036, 111405, 124459, 127558], P{value_shift: 0.00968, free_shift: 1.94309, first_weight: 0.28871}), // 1.28% for λ=6.88
     (4, [0, 124831, 125295, 125906, 134811, 144356, 145403], P{value_shift: 0.00668, free_shift: 1.29751, first_weight: 0.27419}), // 1.12% for λ=11.02
+    (6, [0, 149127, 160970, 171446, 177056, 182860, 183392], P{value_shift: 0.005145, free_shift: 1.194641, first_weight: 0.584520}), //0.99% for λ=14.76
     (8, [0, 163258, 202756, 216115, 219743, 223466, 223810], P{value_shift: 0.00364, free_shift: 1.21311, first_weight: 0.85403}), // 0.92% for λ=18.28
     (12, [0, 169779, 209752, 213158, 213291, 213433, 213442], P{value_shift: 0.003807, free_shift: 1.141909, first_weight: 0.857620}), // 0.86% for λ=24.90
     (16, [0, 170107, 206229, 210576, 210830, 211146, 211180], P{value_shift: 0.00365, free_shift: 1.12751, first_weight: 0.87378}), // 0.85% for λ=31.16
@@ -326,7 +327,7 @@ const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 33] = [   // for W=512
     //(5, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00396, free_shift: 2.35814, first_weight: 0.62478 }), // O1.04%
     (6, [0, 164475, 244036, 270054, 271239, 272210, 272747], P{value_shift: 0.003458, free_shift: 1.157448, first_weight: 0.813080}), // 1.05% for λ=14.76
     (7, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00352, free_shift: 2.79442, first_weight: 0.74567 }), // O0.88%
-    (8, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00320, free_shift: 2.91581, first_weight: 0.73696 }), // O0.80%
+    (8, [0, 132557, 183504, 217346, 240456, 257524, 268553], P{value_shift: 0.00324, free_shift: 2.79127, first_weight: 0.76304}), // 1.56% for λ=18.28
     (9, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00344, free_shift: 3.05469, first_weight: 0.72960 }), // O0.73%
     (10, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00357, free_shift: 3.23864, first_weight: 0.73775 }), // O0.67%
     (11, [0, 128493, 183625, 213859, 234965, 251661, 261834], P{value_shift: 0.00326, free_shift: 3.31397, first_weight: 0.71208 }), // O0.63%
