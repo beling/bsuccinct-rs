@@ -225,6 +225,10 @@ pub struct Conf {
     #[arg(short='b')]
     pub bucket_size: Option<BucketSize>,
 
+    /// Do not adjust the bucket size to the given k
+    #[arg(short='B', default_value_t = false)]
+    pub explicit_b: bool,
+
     /// Desired loading factor * 1000
     #[arg(short='a', long, default_value_t = 1000, value_parser = clap::value_parser!(u16).range(1..=1000))]
     pub alpha: u16,
@@ -304,9 +308,12 @@ impl Conf {
     }
 
     pub fn bucket_size(&self) -> BucketSize {
-        self.bucket_size.unwrap_or_else(|| BucketSize::Size100(
-            (ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed) as f64 * bucket_size_normalization_multiplier(self.k)) as u16
-        ))
+        let b = match self.bucket_size {
+            Some(b) if self.explicit_b || self.k == 1 => return b,
+            Some(b) => b.into(),
+            None => ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed)
+        };
+        BucketSize::Size100((b as f64 * bucket_size_normalization_multiplier(self.k)) as u16)
     }
 
     pub fn is_turbo(&self) -> bool {
