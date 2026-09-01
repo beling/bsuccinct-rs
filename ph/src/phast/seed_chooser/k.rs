@@ -332,8 +332,9 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
-const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512
+const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 14] = [   // for W=512
     (2, [0, 76473, 93538, 100036, 111405, 124459, 127558], P{value_shift: 0.00968, free_shift: 1.94309, first_weight: 0.28871}), // 1.28% for λ=6.88
+    (3, [0, 43209, 47718, 47849, 56764, 62883, 65002], P{value_shift: 0.009677, free_shift: 1.317506, first_weight: 0.310870}), // 1.18% for λ=9.02
     (4, [0, 124831, 125295, 125906, 134811, 144356, 145403], P{value_shift: 0.00668, free_shift: 1.29751, first_weight: 0.27419}), // 1.12% for λ=11.02
     (6, [0, 149127, 160970, 171446, 177056, 182860, 183392], P{value_shift: 0.005145, free_shift: 1.194641, first_weight: 0.584520}), //0.99% for λ=14.76
     (8, [0, 163258, 202756, 216115, 219743, 223466, 223810], P{value_shift: 0.00364, free_shift: 1.21311, first_weight: 0.85403}), // 0.92% for λ=18.28
@@ -345,6 +346,7 @@ const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512
     (32, [0, 179706, 199221, 210865, 213144, 215884, 216163], P{value_shift: 0.003632, free_shift: 1.128020, first_weight: 0.916687}), // 0.79% for λ=54.24
     (48, [0, 179533, 198080, 208200, 210344, 212994, 213256], P{value_shift: 0.003635, free_shift: 1.173609, first_weight: 0.925055}), // 0.77% for λ=75.62
     (64, [0, 181531, 198187, 207728, 209818, 212437, 212699], P{value_shift: 0.003652, free_shift: 1.229707, first_weight: 0.913129}), // 0.79% for λ=96.01
+    (100, [0, 188236, 199627, 208338, 209812, 211581, 211790], P{value_shift: 0.003562, free_shift: 1.285305, first_weight: 0.862204}), // 0.91% for λ=139.64
 ];
 #[cfg(not(feature = "W256"))]
 const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 33] = [   // for W=512
