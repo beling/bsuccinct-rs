@@ -28,6 +28,16 @@ fn print_vec(x: &[f64], params: &[(&str, Constrain, Constrain, usize)]) {
     }
 }
 
+/// Count range violations.
+fn violations(x: &[f64], params: &[(&str, Constrain, Constrain, usize)]) -> usize {
+    x.iter().zip(params).map(|(x, (_, l, h, _))| {
+        let mut result = 0;
+        if let Constrain::Strong(l) = l && x < l { result += 1 }
+        if let Constrain::Strong(h) = h && x > h { result += 1 }
+        result
+    }).sum()
+}
+
 /// Cost function that can work with many optimizers via `Cost`.
 pub trait CostFn {
     /// Returns the value of the function at `x`.
@@ -117,21 +127,8 @@ impl<'c, CF: CostFn> argmin::core::CostFunction for Cost<'c, CF> {
     }
 }
 
-/// Penalty value for `x` not being increasing.
-fn non_increasing_penalty(x: &[f64], per_dim: f64) -> f64 {
-    x.windows(2).map(|d| if d[1]>d[0] { 0.0 } else {per_dim + d[0] - d[1]}).sum()
-}
-
-fn to_small_penalty(x: f64, lo_limit: f64, diff_mult: f64, c: usize) -> usize {
-    if x < lo_limit { ((lo_limit - x) * diff_mult) as usize + c } else { 0 }
-}
-
-fn to_large_penalty(x: f64, hi_limit: f64, diff_mult: f64, c: usize) -> usize {
-    if x > hi_limit { ((x - hi_limit) * diff_mult) as usize + c } else { 0 }
-}
-
-fn out_of_range_penalty(x: f64, lo_limit: f64, hi_limit: f64, diff_mult: f64, c: usize) -> usize {
-    to_small_penalty(x, lo_limit, diff_mult, c) + to_large_penalty(x, hi_limit, diff_mult, c)
+fn decreasing_violations(x: &[f64]) -> usize {
+    x.windows(2).filter(|d| d[0] >= d[1]).count()
 }
 
 /// Cost function for direct bucket weights optimization.
@@ -140,9 +137,9 @@ pub struct WeightsCost<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect());
+        if let v = decreasing_violations(&w.0) && v != 0 { return v * conf.keys_num as usize * conf.sample_size as usize; }
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&self.0), (self.0.clone(), &w)).1)
-                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -165,10 +162,10 @@ pub struct DeltaWeightsCost<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub 
 impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for DeltaWeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from_deltas(x);
+        if let v = decreasing_violations(&w.0) && v != 0 { return v * conf.keys_num as usize * conf.sample_size as usize; }
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&self.0),
                     (self.0.clone(), &w)).1)
-                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -203,10 +200,10 @@ pub struct WeightsCost4<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost4<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from4(x);
+        if let v = decreasing_violations(&w.0) && v != 0 { return v * conf.keys_num as usize * conf.sample_size as usize; }
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&self.0),
                     (self.0.clone(), &w)).1)
-                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -240,10 +237,10 @@ pub struct WeightsCost6<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost6<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let w = WeightsF::from6(x);
+        if let v = decreasing_violations(&w.0) && v != 0 { return v * conf.keys_num as usize * conf.sample_size as usize; }
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&self.0),
                     (self.0.clone(), &w)).1)
-                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -272,14 +269,11 @@ pub struct PerfectLogCost;
 
 impl CostFn for PerfectLogCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        if let v = violations(x, &self.params(conf)) && v != 0 { return v * conf.keys_num as usize * conf.sample_size as usize }
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
-            + to_small_penalty(x[0], 0.0, 1_000_000.0, 1000000)
-            + to_small_penalty(x[1], 0.0, 1_000_000.0, 1000000)
-            + to_small_penalty(x[3], 0.0, 1_000_000.0, 1000000)
-            + to_small_penalty(x[2], 0.2, 1_000_000.0, 100000)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -289,8 +283,8 @@ impl CostFn for PerfectLogCost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 5),
-            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
+            ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 5),
+            ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
             ("free_values_weight", Constrain::Strong(/*0.5*/0.2), Constrain::Weak(5.0/*2.0*/), 5),
             ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
         ]
@@ -351,13 +345,11 @@ pub struct PerfectProdKCost;
 
 impl CostFn for PerfectProdKCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        if let v = violations(x, &self.params(conf)) && v != 0 { return v * conf.keys_num as usize * conf.sample_size as usize }
         let e = ProdOfValuesKEval { value_shift: x[0], free_shift: x[1], first_weight: x[2] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
-            + to_small_penalty(x[0], 0.0, 1000000.0, 1000000)
-            + to_small_penalty(x[1], 0.0, 1000000.0, 1000000)
-            + out_of_range_penalty(x[2], 0.0, 1.0, 1000000.0, 1000000)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -367,8 +359,8 @@ impl CostFn for PerfectProdKCost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 5),
-            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
+            ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 5),
+            ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
             ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
         ]
     }
@@ -712,13 +704,12 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
         let e = ProdOfValuesKEval { value_shift: x[6], free_shift: x[7], first_weight: x[8] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         let w = WeightsF::from6(&x[..6]);
+        if let v = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]) && v != 0 {
+            return v * conf.keys_num as usize * conf.sample_size as usize;
+        }
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
                     conf.core(&s),
                     (s, &w)).1)
-                    + non_increasing_penalty(&w.0, 10_000_000.0) as usize
-                    + to_small_penalty(x[6], 0.0, 1000000.0, 1000000)
-                    + to_small_penalty(x[7], 0.0, 1000000.0, 1000000)
-                    + out_of_range_penalty(x[8], 0.0, 1.0, 1000000.0, 1000000)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -744,8 +735,8 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
-            ("value_shift", Constrain::Strong(0.00001), Constrain::Weak(200.0/*0.01*/), 6),
-            ("free_shift", Constrain::Strong(0.00001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
+            ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 6),
+            ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
             ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
         ]
     }
