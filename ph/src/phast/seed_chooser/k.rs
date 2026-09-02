@@ -89,11 +89,7 @@ impl KSeedEvaluatorConf for SumOfValues {
 /// the next row (otherwise `None`).
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
-        /*(_, ..=512) => PROD_S8_L512.as_ref(),
-        (_, ..=1024) => PROD_S8_L1024.as_ref(),
-        (_, ..=2048) => PROD_S8_L2048.as_ref(),
-        (_, ..=4096) => PROD_S8_L4096.as_ref(),
-        (_, _) => PROD_S8_L8192.as_ref(),*/
+        (_, ..=128) => PROD_S8_L128.as_ref(),
         (_, ..=256) => PROD_S8_L256.as_ref(),
         (_, ..=512) => PROD_S8_L512.as_ref(),
         (_, _) => PROD_S8_L1024.as_ref()
