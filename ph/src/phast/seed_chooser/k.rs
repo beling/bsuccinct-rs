@@ -329,15 +329,17 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
-const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512
+const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 7] = [   // for W=512
     (4, [0, 110413, 110620, 110911, 113235, 114185, 114812], P{value_shift: 0.003871, free_shift: 1.475669, first_weight: 0.925269}),   // moreit 1.25% 4.3 λ=10.53
     (8, [0, 162849, 198446, 211248, 214495, 217616, 217883], P{value_shift: 0.004086, free_shift: 1.389829, first_weight: 0.824165}), // 0.74% for 4.3 λ=17.47
+    (10, [0, 169623, 206514, 217060, 219809, 222516, 222721], P{value_shift: 0.004067, free_shift: 1.375535, first_weight: 0.806195}), // 0.67% for 4.3 λ=20.68
     (16, [0, 161968, 197262, 213450, 215417, 217410, 217540], P{value_shift: 0.004056, free_shift: 1.396727, first_weight: 0.817199}),  // 0.55% for 4.3 λ=29.77
     (24, [0, 162930, 189680, 213629, 215007, 216432, 216511], P{value_shift: 0.004318, free_shift: 1.361641, first_weight: 0.855886}),  // 0.47% for 4.3 λ=41.09
     (32, [0, 156538, 181148, 205030, 206957, 209066, 209141], P{value_shift: 0.004403, free_shift: 1.443351, first_weight: 0.869070}),  // 0.43% for 4,3 λ=51.83
     (40, [0, 156395, 179151, 204246, 206144, 208242, 208306], P{value_shift: 0.004449, free_shift: 1.510469, first_weight: 0.869724}),  // 0.40% for 4.3 λ=62.19
 ];
-const PROD_S8_L256: [(u16, [i32; 7], ProdOfValuesKEval); 10] = [   // for W=512
+const PROD_S8_L256: [(u16, [i32; 7], ProdOfValuesKEval); 11] = [   // for W=512
+    (4, [0, 57685, 57723, 57728, 61161, 61641, 62552], P{value_shift: 0.001942, free_shift: 1.701445, first_weight: 0.954089}), // 0.86% for 4.3 λ=10.53
     (8, [0, 166697, 193622, 206442, 209316, 212165, 212424], P{value_shift: 0.004140, free_shift: 1.255893, first_weight: 0.875665}), // 0.59% for 4.3 λ=17.47
     (9, [0, 166713, 199138, 207845, 210338, 212795, 213011], P{value_shift: 0.004204, free_shift: 1.256947, first_weight: 0.871172}), // 0.56% for 4.3 λ=19.09
     //(10, [0, 167183, 200649, 210689, 212859, 215093, 215267], P{value_shift: 0.003928, free_shift: 1.181003, first_weight: 0.881245}), // 0.83% for 4.5 λ=21.64; 0.54% for 4.3 λ=20.68
