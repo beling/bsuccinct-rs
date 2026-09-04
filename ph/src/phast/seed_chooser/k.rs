@@ -383,7 +383,8 @@ const PROD_S8_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512
     (16, [0, 132238, 192126, 228640, 246369, 263743, 270676], P{value_shift: 0.003030, free_shift: 3.179457, first_weight: 0.781803}), // 1.15% for 4.5 λ=31.16
     (32, [0, 133295, 192878, 217607, 233213, 247494, 251097], P{value_shift: 0.002571, free_shift: 3.173833, first_weight: 0.733757}), // 0.94% for 4.5 λ=54.24
 ];
-const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512
+const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
     (2, [0, 111221, 167294, 202302, 247997, 294597, 303462], P{value_shift: 0.005305, free_shift: 1.383475, first_weight: 0.110148}),   // 1.13% for 4.5 λ=6.88
+    (3, [0, 56117, 57002, 59755, 107832, 149272, 154934], P{value_shift: 0.006703, free_shift: 1.359536, first_weight: 0.160694}), // 0.90% for 4.4 λ=8.82
     (8, [0, 140681, 188411, 228234, 228489, 228727, 228748], P{value_shift: 0.00316, free_shift: 1.15326, first_weight: 0.82834}), // 1.16% for 4.5 λ=18.28
 ];
