@@ -400,5 +400,5 @@ const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
 ];
 //const PROD_S8_L4096: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
 //  (2, [0, 133106, 143860, 200802, 286510, 386696, 403358], P{value_shift: 0.003347, free_shift: 1.333880, first_weight: 0.137510}),   // 1.17% for 4.5 λ=6.88
-//  ()
+//  (3, [0, 86092, 88391, 92980, 149041, 253305, 263578], P{value_shift: 0.006365, free_shift: 1.316446, first_weight: 0.116298})   // 0.95% for 4.4 λ=8.82
 //]
