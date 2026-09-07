@@ -599,6 +599,12 @@ impl<SS: SeedSize> Conf<SS, Generic, BuildDefaultSeededHasher> {
     #[inline] pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
         Self { seed_size, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
     }
+
+    /// Constructs the configuration with generic core, given seed size and 100*average bucket size, `preferred_slice_len`,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
+    #[inline] pub fn generic_with_psl(seed_size: SS, bucket_size100: u16, preferred_slice_len: u16) -> Self {
+        Self { seed_size, core_conf: Generic::with_psl(bucket_size100, preferred_slice_len), hasher: Default::default(), loading_factor_1000: 1000 }
+    }
 }
 
 impl Conf<Bits8, Turbo, BuildDefaultSeededHasher> {
