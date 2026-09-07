@@ -253,9 +253,6 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftOnlyWrapped<MULTIPLIER> {
 
 impl<const MULTIPLIER: u8> SeedChooser for ShiftOnlyWrapped<MULTIPLIER> {
 
-
-
-
     #[inline]
     fn best_seed<C: Core>(&self, used_values: &mut Self::UsedValues, keys: &[u64], core: &C, bits_per_seed: u8, _bucket_nr: usize, _first_bucket_in_window: usize) -> u16 {
         let mut without_shift_arrayvec: arrayvec::ArrayVec::<(usize, u16), 16>;

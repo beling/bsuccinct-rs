@@ -501,14 +501,14 @@ impl<P> Generic<P> {
     /// Constructs the configuration with given 100*average bucket size
     /// and preferred slice length.
     #[inline]
-    pub fn new_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
+    pub fn with_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
         Self { bucket_size100, preferred_slice_len, placement: Default::default() }
     }
 
     /// Constructs the configuration with 100*average bucket size proper for
     /// given `bits_per_seed` (see [`bits_per_seed_to_100_bucket_size`]).
     #[inline]
-    pub fn new_for_bps(bits_per_seed: u8) -> Self {
+    pub fn with_bps(bits_per_seed: u8) -> Self {
         Self::new(bits_per_seed_to_100_bucket_size(bits_per_seed))
     }
 
@@ -550,7 +550,7 @@ impl<P> Turbo<P> {
 
     /// Constructs the turbo configuration with given preferred slice length.
     #[inline]
-    pub fn new_psl(preferred_slice_len: u16) -> Self {
+    pub fn with_psl(preferred_slice_len: u16) -> Self {
         Self { preferred_slice_len, placement: Default::default() }
     }
 
@@ -594,10 +594,24 @@ impl<SS: SeedSize, CC, S> Conf<SS, CC, S> {
 }
 
 impl<SS: SeedSize> Conf<SS, Generic, BuildDefaultSeededHasher> {
-    /// Constructs the configuration with given seed size and 100*average bucket size,
+    /// Constructs the configuration with generic core, given seed size and 100*average bucket size,
     /// the default hasher and the loading factor of 1 (i.e. a minimal function).
     #[inline] pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
         Self { seed_size, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
+    }
+}
+
+impl Conf<Bits8, Turbo, BuildDefaultSeededHasher> {
+    /// Constructs the configuration with turbo core, 8 bits/seed,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
+    #[inline] pub fn turbo() -> Self {
+        Self { seed_size: Bits8, core_conf: Turbo::new(), hasher: Default::default(), loading_factor_1000: 1000 }
+    }
+
+    /// Constructs the configuration with turbo core, 8 bits/seed, `preferred_slice_len`,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
+    #[inline] pub fn turbo_with_psl(preferred_slice_len: u16) -> Self {
+        Self { seed_size: Bits8, core_conf: Turbo::with_psl(preferred_slice_len), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 }
 
@@ -609,11 +623,25 @@ impl<SS: SeedSize, S> Conf<SS, Generic, S> {
     }
 }
 
+impl<S> Conf<Bits8, Turbo, S> {
+    /// Constructs the configuration with turbo core, given seed size and hasher;
+    /// the loading factor is 1 (i.e. a minimal function).
+    #[inline] pub fn turbo_with_hash(hasher: S) -> Self {
+        Self { seed_size: Bits8, core_conf: Turbo::new(), hasher, loading_factor_1000: 1000 }
+    }
+}
+
 impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
     /// Constructs the configuration with 8 bits per seed, given 100*average bucket size,
     /// the default hasher and the loading factor of 1 (i.e. a minimal function).
     #[inline] pub fn generic8(bucket_size100: u16) -> Self {
         Self { seed_size: Bits8, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
+    }
+
+    /// Constructs the configuration with 8 bits per seed, given 100*average bucket size, `preferred_slice_len`,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
+    #[inline] pub fn generic8_with_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
+        Self { seed_size: Bits8, core_conf: Generic::with_psl(bucket_size100, preferred_slice_len), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 
     /// Constructs the default configuration with 8 bits per seed (see [`bits_per_seed_to_100_bucket_size`]).
@@ -627,7 +655,7 @@ impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
     #[inline] pub fn generic8_nobump_fast(loading_factor_1000: u16) -> Self {
         Self {
             seed_size: Bits8,
-            core_conf: Generic::new_psl(300, 4096),
+            core_conf: Generic::with_psl(300, 4096),
             hasher: Default::default(),
             loading_factor_1000
         }
@@ -641,7 +669,7 @@ impl Conf<Bits8, Generic::<RandomPlacement>, BuildDefaultSeededHasher> {
     #[inline] pub fn generic8_nobump(loading_factor_1000: u16) -> Self {
         Self {
             seed_size: Bits8,
-            core_conf: Generic::<RandomPlacement>::new_psl(300, 4096),
+            core_conf: Generic::<RandomPlacement>::with_psl(300, 4096),
             hasher: Default::default(),
             loading_factor_1000
         }

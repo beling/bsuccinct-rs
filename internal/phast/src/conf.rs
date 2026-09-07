@@ -327,7 +327,7 @@ impl Conf {
     pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic> {
         ph::phast::Conf {
             seed_size,
-            core_conf: Generic::new_psl(bucket_size100, self.slice_len),
+            core_conf: Generic::with_psl(bucket_size100, self.slice_len),
             hasher: Default::default(),
             loading_factor_1000: self.alpha
         }
@@ -336,7 +336,7 @@ impl Conf {
     pub fn params_random<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic<RandomPlacement>> {
         ph::phast::Conf {
             seed_size,
-            core_conf: Generic::new_psl(bucket_size100, self.slice_len),
+            core_conf: Generic::with_psl(bucket_size100, self.slice_len),
             hasher: Default::default(),
             loading_factor_1000: self.alpha
         }
@@ -345,7 +345,7 @@ impl Conf {
     pub fn params_turbo(&self) -> ph::phast::Conf<Bits8, Turbo> {
         ph::phast::Conf {
             seed_size: Bits8,
-            core_conf: Turbo::new_psl(self.slice_len),
+            core_conf: Turbo::with_psl(self.slice_len),
             hasher: Default::default(),
             loading_factor_1000: self.alpha
         }
