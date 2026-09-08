@@ -36,7 +36,11 @@ impl Weight for u32 {
     #[inline(always)] fn of(value: u32) -> Self { value }
 }
 
-/// Types that implement this trait can count number of occurrences of values.
+/// Types that implement this trait can count numbers of occurrences of values.
+///
+/// The trait is implemented for [`HashMap`](std::collections::HashMap) and
+/// [`BTreeMap`](std::collections::BTreeMap) that assign weights to values,
+/// and for arrays of weights indexed by values of type `u8` or `u16`.
 pub trait Frequencies {
     /// Type of value.
     type Value;
@@ -91,7 +95,11 @@ pub trait Frequencies {
         for v in iter { self.add_occurrence_of(v.borrow().clone()); }
     }
 
-    /// Returns the Shannon entropy of the values counted so far.
+    /// Returns the Shannon entropy (in bits, i.e. based on the binary logarithm)
+    /// of the values counted so far.
+    ///
+    /// See also [`entropy_to_bpf`](crate::entropy_to_bpf), which heuristically
+    /// converts the entropy to the number of bits per fragment.
     fn entropy(&self) -> f64 {
         let sum = self.total_occurrences() as f64;
         - FSum::with_all(self.occurrences()
@@ -195,6 +203,8 @@ impl<Value: Ord, W: Weight> Frequencies for BTreeMap<Value, W> {
     #[inline(always)] fn without_occurrences() -> Self { Default::default() }
 }
 
+/// Implements [`Frequencies`] for arrays of weights indexed by values
+/// of the given unsigned integer type.
 macro_rules! impl_frequencies_by_array_for {($Value:ty) => {
 impl<W: Weight> Frequencies for [W; 1 << <$Value>::BITS] {
     type Value = $Value;

@@ -10,6 +10,7 @@ use crate::{BitsPerFragment, Coding, DecodingResult, TreeDegree};
 ///
 /// Memory complexity: *O(1)*
 pub struct Decoder<'huff, ValueType, D = BitsPerFragment> {
+    /// The coding whose values are decoded.
     coding: &'huff Coding<ValueType, D>,
     /// shift+fragment is a current position (node number, counting from the left) at current level.
     shift: u32,
@@ -49,7 +50,8 @@ impl<'huff, ValueType, D: TreeDegree> Decoder<'huff, ValueType, D> {
     /// - an [`DecodingResult::Incomplete`] if the codeword is incomplete and the next fragment is needed;
     /// - or [`DecodingResult::Invalid`] if the codeword is invalid (possible only for bits per fragment > 1).
     ///
-    /// Result is undefined if `fragment` exceeds `tree_degree`.
+    /// Result is undefined if `fragment` is not less than the tree degree
+    /// (see [`TreeDegree::as_u32`]); see also [`Self::consume_checked`].
     pub fn consume(&mut self, fragment: u32) -> DecodingResult<&'huff ValueType> {
         self.shift += fragment;
         let internal_nodes_count = self.internal_nodes_count();

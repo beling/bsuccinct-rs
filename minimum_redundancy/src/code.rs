@@ -4,6 +4,19 @@ use std::iter::FusedIterator;
 use crate::TreeDegree;
 
 /// Represents a codeword.
+///
+/// # Example
+/// ```
+/// use minimum_redundancy::{BitsPerFragment, Code};
+///
+/// // a codeword that consists of 3 fragments of 2 bits each: 11, 10, 01
+/// let code = Code { content: 0b_11_10_01, len: 3 };
+/// assert_eq!(code.get_rev(0, BitsPerFragment(2)), Some(0b01));
+/// assert_eq!(code.get_rev(1, BitsPerFragment(2)), Some(0b10));
+/// assert_eq!(code.get_rev(2, BitsPerFragment(2)), Some(0b11));
+/// assert_eq!(code.get(0, BitsPerFragment(2)), Some(0b11));
+/// assert_eq!(code.get(2, BitsPerFragment(2)), Some(0b01));
+/// ```
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Default)]
 pub struct Code {
     /// Concatenated fragments of the codeword.
@@ -85,7 +98,9 @@ impl Code {
 
 /// Iterator over the fragments of (unreversed) code.
 pub struct CodeIterator<D: TreeDegree> {
+    /// The remaining part of the code whose fragments are exposed.
     code: Code,
+    /// The degree used to extract the fragments.
     degree: D
 }
 
@@ -112,7 +127,9 @@ impl<D: TreeDegree> Iterator for CodeIterator<D> {
 
 /// Iterator over the fragments of reversed code.
 pub struct ReversedCodeIterator<D: TreeDegree> {
+    /// The remaining part of the code whose fragments are exposed.
     code: Code,
+    /// The degree used to extract the fragments.
     degree: D
 }
 

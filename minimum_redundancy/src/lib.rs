@@ -23,7 +23,18 @@ pub use iterators::{CodesIterator, ReversedCodesIterator, LevelIterator};
 
 
 /// Succinct representation of minimum-redundancy coding
-/// (huffman tree of some degree in the canonical form).
+/// (Huffman tree of some degree in the canonical form).
+///
+/// The coding is represented by the values sorted by their frequencies
+/// (from the most frequent to the least frequent one) and by the numbers of internal
+/// (non-leaf) nodes at the successive levels of the canonical Huffman tree
+/// (the root is not counted and the last number is always zero).
+/// Such a representation is sufficient to assign a codeword to each value
+/// (see [`Self::codes`]) and to decode values, consuming one codeword fragment at a time
+/// (see [`Self::decoder`]).
+///
+/// The coding can be constructed with [`Self::from_frequencies`] (or [`Self::from_iter`]),
+/// and written to / read from an I/O stream with [`Self::write`] / [`Self::read`].
 pub struct Coding<ValueType, D = BitsPerFragment> {
     /// Values, from the most frequent to the least.
     pub values: Box<[ValueType]>,
@@ -34,8 +45,8 @@ pub struct Coding<ValueType, D = BitsPerFragment> {
     pub degree: D
 }
 
-/// Points the number of bytes needed to store value of the type `ValueType`.
-/// This number of bytes can be constant or can depend on the value.
+/// Describes the number of bytes needed to store a value of the type `ValueType`.
+/// The number can be constant or can depend on the particular value.
 pub enum ValueSize<'v, ValueType> {
     /// Holds constant number of bytes needed to store each value.
     Const(usize),
@@ -52,14 +63,16 @@ impl<ValueType: GetSize, D> GetSize for Coding<ValueType, D> {
 
 impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
 
-    /// Constructs coding for given `frequencies` of values and `degree` of the Huffman tree.
+    /// Constructs the coding for the given `frequencies` of values
+    /// and the given `degree` of the Huffman tree.
     pub fn from_frequencies<F: Frequencies<Value=ValueType>>(degree: D, frequencies: F) -> Self {
         let (values, mut freq) = frequencies.into_sorted();
         Self::from_sorted(degree, values, &mut freq)
     }
 
-    /// Constructs coding for given `frequencies` of values and `degree` of the Huffman tree.
-    /// Values are cloned from `frequencies`.
+    /// Constructs the coding for the given `frequencies` of values
+    /// and the given `degree` of the Huffman tree.
+    /// The values are cloned from `frequencies`.
     pub fn from_frequencies_cloned<F: Frequencies<Value=ValueType>>(degree: D, frequencies: &F) -> Self
         where F::Value: Clone
     {
@@ -67,8 +80,8 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         Self::from_sorted(degree, values, &mut freq)
     }
 
-    /// Counts occurrences of all values exposed by `iter` and constructs coding for obtained
-    /// frequencies of values and `degree` of the Huffman tree.
+    /// Counts the occurrences of all values exposed by `iter` and constructs the coding
+    /// for the obtained frequencies of the values and the given `degree` of the Huffman tree.
     pub fn from_iter<Iter>(degree: D, iter: Iter) -> Self
         where Iter: IntoIterator, Iter::Item: Borrow<ValueType>, ValueType: Hash + Eq + Clone
     {
@@ -83,17 +96,22 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         self.levels().map(|(values, _, fragments)| values.len()*fragments as usize).sum()
     }
 
-    /// Returns decoder that allows for decoding a value.
+    /// Returns a decoder that allows for decoding a value of `self`,
+    /// consuming one codeword fragment at a time.
     #[inline] pub fn decoder(&'_ self) -> Decoder<'_, ValueType, D> {
         return Decoder::<ValueType, D>::new(self);
     }
 
-    /// Construct coding (of given `degree`) for the given `values`, where
+    /// Constructs the coding (of the given `degree`) for the given `values`, where
     /// `freq` is an array of numbers of occurrences of corresponding values.
-    /// `freq` has to be in non-descending order and of the same length as values.
+    /// `freq` has to be in non-descending order and of the same length as `values`.
     ///
     /// The algorithm runs in *O(values.len)* time,
-    /// in-place (it uses and changes `freq` and move values to the returned `Coding` object).
+    /// in-place (it uses and changes `freq` and moves the values to the returned `Coding` object).
+    ///
+    /// # Panics
+    /// Panics if there are more than 2 to the power of 32 different values
+    /// (the check is performed on 64-bit platforms only).
     pub fn from_sorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
         where W: Weight
     {
@@ -166,8 +184,9 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         return result;
     }
 
-    /// Construct coding (of the given `degree`) for the given `values`, where
-    /// `freq` has to be of the same length as values and contain number of occurrences of corresponding values.
+    /// Constructs the coding (of the given `degree`) for the given `values`, where
+    /// `freq` is an array of numbers of occurrences of corresponding values
+    /// (in any order) and has to be of the same length as `values`.
     ///
     /// The algorithm runs in *O(values.len * log(values.len))* time.
     pub fn from_unsorted<W>(degree: D, mut values: Box<[ValueType]>, freq: &mut [W]) -> Self
@@ -177,20 +196,23 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         Self::from_sorted(degree, values, freq)
     }
 
-    /// Returns number of bytes which `write_internal_nodes_count` will write.
+    /// Returns number of bytes which [`Self::write_internal_nodes_count`] will write.
     pub fn write_internal_nodes_count_bytes(&self) -> usize {
         VByte::array_size(&self.internal_nodes_count[..self.internal_nodes_count.len()-1])
     }
 
-    /// Writes `internal_nodes_count` to `output` as the following `internal_nodes_count.len()`, VByte values:
-    /// `internal_nodes_count.len()-1` (=l), `internal_nodes_count[0]`, `internal_nodes_count[1]`, ..., `internal_nodes_count[l]`
+    /// Writes the numbers of internal nodes at the successive levels of the tree
+    /// (i.e. `self.internal_nodes_count` without its last, always zero, element) to `output`,
+    /// preceded by the number of the written values; all as VByte values.
     pub fn write_internal_nodes_count(&self, output: &mut dyn std::io::Write) -> std::io::Result<()> {
         VByte::write_array(output, &self.internal_nodes_count[..self.internal_nodes_count.len()-1])
         //<VByte as Serializer::<u32>>::write_all(output, &self.internal_nodes_count[..l])
         //self.internal_nodes_count[..l].iter().try_for_each(|v| vbyte_write(output, *v as u64))
     }
 
-    /// Reads (written by `write_internal_nodes_count`) `internal_nodes_count` from `input`.
+    /// Reads (previously written by [`Self::write_internal_nodes_count`])
+    /// `internal_nodes_count` from `input`.
+    /// The returned boxed slice contains exactly one zero, at its end.
     pub fn read_internal_nodes_count(input: &mut dyn std::io::Read) -> std::io::Result<Box<[u32]>> {
         let s: usize = VByte::read(input)?;
         let mut v = Vec::<u32>::with_capacity(s + 1);
@@ -227,8 +249,8 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         Ok(v.into_boxed_slice())
     }
 
-    /// Returns number of bytes which `write` will write,
-    /// assuming that each call to `write_value` writes the number of bytes pointed by `value_size`.
+    /// Returns number of bytes which [`Self::write`] will write,
+    /// assuming that writing each value takes the number of bytes given by `value_size`.
     pub fn write_size_bytes(&self, value_size: ValueSize<ValueType>) -> usize {
         self.degree.write_size_bytes() + self.write_internal_nodes_count_bytes()
             + self.write_values_size_bytes(value_size)
@@ -256,17 +278,18 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         })
     }
 
-    /// Returns iterator over the levels of the huffman tree.
+    /// Returns iterator over the levels of the Huffman tree
+    /// (see [`LevelIterator`] for the description of the exposed data).
     #[inline] pub fn levels(&self) -> LevelIterator<'_, ValueType, D> {
         LevelIterator::<'_, ValueType, D>::new(&self)
     }
 
-    /// Reverse the `codeword`.
+    /// Reverses the order of the fragments of the `codeword` (in place).
     #[inline(always)] pub fn reverse_code(&self, codeword: &mut Code) {
         codeword.content = self.degree.reverse_code(codeword.content, codeword.len);
     }
 
-    /// Returns reversed copy of the given `codeword`.
+    /// Returns a reversed copy of the given `codeword`.
     #[inline(always)] pub fn reversed_code(&self, codeword: Code) -> Code {
         Code {
             content: self.degree.reverse_code(codeword.content, codeword.len),
@@ -274,12 +297,14 @@ impl<ValueType, D: TreeDegree> Coding<ValueType, D> {
         }
     }
 
-    /// Returns iterator over value-codeword pairs.
+    /// Returns iterator over value-codeword pairs for all values,
+    /// with the codewords in the canonical form (see [`CodesIterator`]).
     #[inline] pub fn codes(&self) -> CodesIterator<'_, ValueType, D> {
         CodesIterator::<'_, ValueType, D>::new(&self)
     }
 
-    /// Returns iterator over value-codeword pairs with reversed codewords.
+    /// Returns iterator over value-codeword pairs for all values,
+    /// with the codewords reversed (see [`ReversedCodesIterator`]).
     #[inline] pub fn reversed_codes(&self) -> ReversedCodesIterator<'_, ValueType, D> {
         ReversedCodesIterator::<'_, ValueType, D>::new(&self)
     }
@@ -342,6 +367,7 @@ impl<ValueType: Hash + Eq + Clone, D: TreeDegree> Coding<ValueType, D> {
 
 impl<D: TreeDegree> Coding<u8, D> {
     /// Returns array indexed by values that contains the lengths of their codes.
+    /// The lengths of the codes of the values that do not occur are zero.
     pub fn code_lengths_array(&self) -> [u32; 256] {
         let mut result = [0; 256];
         for (value, code) in self.codes() {
@@ -351,6 +377,7 @@ impl<D: TreeDegree> Coding<u8, D> {
     }
 
     /// Returns array indexed by values that contains their codes.
+    /// The codes of the values that do not occur are empty (default).
     pub fn codes_for_values_array(&self) -> [Code; 256] {
         let mut result = [Default::default(); 256];
         for (value, code) in self.codes() {
@@ -360,6 +387,7 @@ impl<D: TreeDegree> Coding<u8, D> {
     }
 
     /// Returns array indexed by values that contains their reversed codes.
+    /// The codes of the values that do not occur are empty (default).
     pub fn reversed_codes_for_values_array(&self) -> [Code; 256] {
         let mut result = [Default::default(); 256];
         for (value, code) in self.reversed_codes() {
@@ -369,7 +397,8 @@ impl<D: TreeDegree> Coding<u8, D> {
     }
 }
 
-/// Result of fragment decoding returned be `consume` method of `Decoder`.
+/// Result of decoding a value, returned by [`Decoder::consume`],
+/// [`Decoder::decode`] and [`Decoder::decode_next`].
 #[derive(PartialOrd, Ord, PartialEq, Eq, Debug, Clone, Hash)]
 pub enum DecodingResult<T> {
     /// Completed value that has been successfully decoded.
@@ -380,14 +409,19 @@ pub enum DecodingResult<T> {
     Invalid
 }
 
+/// Converts [`None`] into [`DecodingResult::Invalid`] and [`Some`] into [`DecodingResult::Value`].
 impl<T> From<Option<T>> for DecodingResult<T> {
     #[inline(always)] fn from(option: Option<T>) -> Self {
         if let Some(v) = option { DecodingResult::Value(v) } else { DecodingResult::Invalid }
     }
 }    // Note: Brodnik describes also faster decoder that runs in expected loglog(length of the longest code) expected time, but requires all codeword bits in advance.
 
-/// Heuristically calculates bits per fragment that gives about constant length average code size.
-/// `entropy` should equals to entropy or a bit less, e.g. entropy minus `0.2`
+/// Heuristically calculates the number of bits per fragment
+/// for which the average codeword length is about constant.
+///
+/// `entropy` should be the (Shannon) entropy of the values (see [`Frequencies::entropy`])
+/// or a bit less, e.g. entropy minus `0.2`. The returned number is not greater than 8
+/// and can be used to construct [`Coding`] with the [`BitsPerFragment`] degree.
 pub fn entropy_to_bpf(entropy: f64) -> u8 {
     (1f64.max(entropy).ceil() as u64 - 1).min(8) as u8
 }

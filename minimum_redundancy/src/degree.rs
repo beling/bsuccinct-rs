@@ -1,3 +1,7 @@
+//! Abstraction of the Huffman tree degree, i.e. the [`TreeDegree`] trait
+//! and its two implementers: [`BitsPerFragment`] (for degrees that are powers of two)
+//! and [`Degree`] (for arbitrary degrees).
+
 use std::convert::TryFrom;
 use std::ops::Mul;
 use binout::{AsIs, VByte, Serializer};
@@ -5,6 +9,14 @@ use binout::{AsIs, VByte, Serializer};
 /// Represents the degree of the Huffman tree,
 /// which is equal to the number of different
 /// values of a single codeword fragment.
+///
+/// A codeword consists of fragments, each of which is less than the tree degree.
+/// The fragments are stored in the bits of a `u32` number, beginning either
+/// at its least significant end (reversed code) or at the most significant end
+/// of the represented fragments (unreversed code); see [`crate::Code`].
+///
+/// The trait is implemented by [`BitsPerFragment`], which should be preferred
+/// for degrees that are powers of two, and by [`Degree`], which supports arbitrary degrees.
 pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     /// Returns the degree of the Huffman tree as `u32`.
     fn as_u32(&self) -> u32;
@@ -22,10 +34,11 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     /// Reads `Self` from `input`.
     fn read(input: &mut dyn std::io::Read) -> std::io::Result<Self>;
 
-    /// Returns the `fragment_nr`-th fragment of `bits`. Result is less than `self.tree_degree()`.
+    /// Returns the `fragment_nr`-th (counting from the least significant one)
+    /// fragment of `bits`. Result is less than `self.as_u32()`.
     fn get_fragment(&self, bits: u32, fragment_nr: u32) -> u32;
 
-    /// Appends the `fragment` (that must be less than `self.tree_degree`)
+    /// Appends the `fragment` (that must be less than `self.as_u32()`)
     /// to the least significant digit (bits) of `bits`.
     fn push_front(&self, bits: &mut u32, fragment: u32) {
         *bits = *self * *bits + fragment;
@@ -38,6 +51,12 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     /// Longer codes begin with a sequence of zeros and only their last fragments are explicitly represented.
     fn code_capacity(&self) -> u8;
 
+    /// Returns `bits` with the order of its first `len` fragments reversed
+    /// (i.e. the least significant fragment of `bits` becomes the most significant one of the result).
+    ///
+    /// Fragments that are not explicitly represented in `bits` are treated as zeros;
+    /// however, the (zero) fragments are appended to the result only while it fits
+    /// into the `u32` (see also [`Self::code_capacity`]).
     fn reverse_code(&self, bits: u32, len: u32) -> u32;
 
     //type MULTIPLIER; ??
@@ -60,12 +79,14 @@ pub trait TreeDegree: Sized + Copy + Mul<u32, Output=u32> {
     //fn reversed_push_front(&self, bits: u32, len: u32, fragment_nr: u32);
 }
 
-/// `BitsPerFragment` represents the Huffman's tree degree that is the power of two.
-/// It represents number of bits needed to store the degree.
+/// Represents the Huffman tree degree that is a power of two,
+/// given as the number of bits needed to store a single codeword fragment
+/// (so the degree equals 2 to the power of `self.0`).
+///
 /// It can be used to construct minimum-redundancy coding whose
 /// codeword lengths are a multiple of this number of bits.
-/// It is faster than `Degree` and should be preferred
-/// for degrees that are the powers of two.
+/// It is faster than [`Degree`] and should be preferred
+/// for degrees that are powers of two.
 #[derive(Copy, Clone)]
 pub struct BitsPerFragment(pub u8);
 
@@ -137,6 +158,7 @@ impl TreeDegree for BitsPerFragment {
     }*/
 }
 
+/// Converts [`Degree`] into [`BitsPerFragment`] if the degree is a power of two.
 impl TryFrom<Degree> for BitsPerFragment {
     type Error = &'static str;
 
@@ -149,9 +171,10 @@ impl TryFrom<Degree> for BitsPerFragment {
     }
 }
 
-/// `Degree` represents the degree of the Huffman tree.
-/// It is slower than `BitsPerFragment` and should be avoided
-/// when the degree is the power of two.
+/// Represents the degree of the Huffman tree (an arbitrary number, not necessarily a power of two).
+///
+/// It is slower than [`BitsPerFragment`] and should be avoided
+/// when the degree is a power of two.
 #[derive(Copy, Clone)]
 pub struct Degree(pub u32);
 
@@ -209,6 +232,7 @@ impl TreeDegree for Degree {
     
 }
 
+/// Converts [`BitsPerFragment`] into the equivalent [`Degree`].
 impl From<BitsPerFragment> for Degree {
     fn from(bits_per_fragment: BitsPerFragment) -> Self {
         Self(bits_per_fragment.as_u32())

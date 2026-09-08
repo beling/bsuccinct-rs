@@ -1,3 +1,5 @@
+//! Iterators over the levels of the Huffman tree and over value-codeword pairs.
+
 use std::iter::FusedIterator;
 use crate::{Code, Coding, TreeDegree};
 
@@ -61,6 +63,10 @@ impl<'coding, ValueType, D: TreeDegree> Iterator for LevelIterator<'coding, Valu
 }
 
 /// Iterator over value-codeword pairs.
+///
+/// The values are exposed from the most frequent to the least frequent one,
+/// and their codewords in the canonical form (i.e. values with codewords
+/// of the same length obtain successive codewords).
 #[derive(Copy, Clone)]
 pub struct CodesIterator<'coding, ValueType, D> {
     /// Iterator over levels.
@@ -72,6 +78,7 @@ pub struct CodesIterator<'coding, ValueType, D> {
 }
 
 impl<'coding, ValueType, D: TreeDegree> CodesIterator<'coding, ValueType, D> {
+    /// Returns iterator over value-codeword pairs of `coding`.
     #[inline] pub fn new(coding: &'coding Coding<ValueType, D>) -> Self {
         Self {
             level_iterator: LevelIterator::new(coding),
@@ -111,10 +118,18 @@ impl<'coding, ValueType, D: TreeDegree> Iterator for CodesIterator<'coding, Valu
 }
 
 /// Iterator over value / reversed codeword pairs.
+///
+/// It exposes the same pairs as [`CodesIterator`], but with each codeword reversed
+/// (i.e. with its first fragment stored on the least significant bits;
+/// see [`Coding::reverse_code`]).
 #[derive(Copy, Clone)]
-pub struct ReversedCodesIterator<'coding, ValueType, D>(CodesIterator<'coding, ValueType, D>);
+pub struct ReversedCodesIterator<'coding, ValueType, D>(
+    /// The wrapped iterator over (value, codeword) pairs.
+    CodesIterator<'coding, ValueType, D>
+);
 
 impl<'coding, ValueType, D: TreeDegree> ReversedCodesIterator<'coding, ValueType, D> {
+    /// Returns iterator over value-codeword pairs of `coding`, with reversed codewords.
     #[inline] pub fn new(coding: &'coding Coding<ValueType, D>) -> Self { Self(CodesIterator::new(coding)) }
 }
 
