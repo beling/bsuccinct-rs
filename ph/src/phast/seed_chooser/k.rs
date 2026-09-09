@@ -89,6 +89,7 @@ impl KSeedEvaluatorConf for SumOfValues {
 /// the next row (otherwise `None`).
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
+        (_, ..=64) => PROD_S8_L64.as_ref(),
         (_, ..=128) => PROD_S8_L128.as_ref(),
         (_, ..=256) => PROD_S8_L256.as_ref(),
         (_, ..=512) => PROD_S8_L512.as_ref(),
@@ -329,6 +330,10 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
+const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512
+    (64, [0, 124363, 142097, 173616, 176553, 180695, 180723], P{value_shift: 0.005643, free_shift: 1.984586, first_weight: 0.871503}), // 0.49% for 4.3 λ=91.74
+    (100, [0, 128572, 134016, 166231, 169001, 173158, 173188], P{value_shift: 0.005566, free_shift: 2.037221, first_weight: 0.914972}),   // 0.50% for 4.3 λ=133.44
+];
 const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 16] = [   // for W=512
     (2, [0, 24277, 24703, 25815, 31487, 33627, 34732], P{value_shift: 0.005574, free_shift: 2.597737, first_weight: 0.854725}), // moreit 1.52% for 4.3 λ=6.58
     (3, [0, 20849, 26224, 26604, 30503, 34050, 34870], P{value_shift: 0.006452, free_shift: 1.847640, first_weight: 0.653357}), // moreit 1.23% for 4.3 λ=8.62
@@ -347,7 +352,7 @@ const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 16] = [   // for W=512
     (100, [0, 143383, 149074, 187039, 191152, 196513, 196573], P{value_shift: 0.004977, free_shift: 1.857305, first_weight: 0.868128}), // 0.38% for 4.3 λ=133.44
     (500, [0, 140744, 147663, 183997, 187664, 192567, 192619], P{value_shift: 0.005116, free_shift: 1.913994, first_weight: 0.859051}), // 0.97% for 4.3 λ=533.97
 ];
-const PROD_S8_L256: [(u16, [i32; 7], ProdOfValuesKEval); 18] = [   // for W=512
+const PROD_S8_L256: [(u16, [i32; 7], ProdOfValuesKEval); 19] = [   // for W=512
     (2, [0, 57696, 57734, 57739, 61173, 61653, 62564], P{value_shift: 0.001943, free_shift: 1.785186, first_weight: 0.954276}), // moreit 1.70% for 4.3 λ=6.58
     (3, [0, 57692, 57730, 57732, 61167, 61646, 62558], P{value_shift: 0.001988, free_shift: 1.786913, first_weight: 0.954204}), // 1.13% for 4.3 λ=8.62
     (4, [0, 57685, 57723, 57728, 61161, 61641, 62552], P{value_shift: 0.001942, free_shift: 1.701445, first_weight: 0.954089}), // 0.86% for 4.3 λ=10.53
@@ -368,6 +373,7 @@ const PROD_S8_L256: [(u16, [i32; 7], ProdOfValuesKEval); 18] = [   // for W=512
     (48, [0, 165661, 201039, 212449, 214213, 216231, 216334], P{value_shift: 0.004588, free_shift: 1.396611, first_weight: 0.891372}), // 0.40% for 4.3 λ=72.26
     (64, [0, 170057, 196548, 213218, 214873, 216775, 216865], P{value_shift: 0.004528, free_shift: 1.441268, first_weight: 0.891042}), // 0.41% for 4.3 λ=91.74
     (100, [0, 176142, 194487, 214698, 216127, 218350, 218447], P{value_shift: 0.005023, free_shift: 1.708545, first_weight: 0.894522}), // 0.47% for 4.3 λ=133.44
+    (500, [0, 166534, 182954, 194217, 196083, 198805, 198874], P{value_shift: 0.005345, free_shift: 1.861600, first_weight: 0.678491}), // 1.41% for 4.3 λ=533.97
 ];
 const PROD_S8_L512: [(u16, [i32; 7], ProdOfValuesKEval); 16] = [   // for W=512
     (2, [0, 76473, 93538, 100036, 111405, 124459, 127558], P{value_shift: 0.00968, free_shift: 1.94309, first_weight: 0.28871}), // 1.28% for 4.5 λ=6.88
