@@ -1,4 +1,4 @@
-use std::{cell::RefCell, usize};
+use std::cell::RefCell;
 
 use ph::{phast::{BucketEvaluator, ComparableF64, Core, FreeValueMultiSetU16, KSeedEvaluator, KSeedEvaluatorConf, Partial, ProdOfValues, ProdOfValuesKEval, SeedChooserConf, SeedEvaluator, SeedOnly, SeedOnlyK, Weights}, seeds::BitsFast};
 
