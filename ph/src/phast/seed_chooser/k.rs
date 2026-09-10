@@ -330,6 +330,9 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
+//const PROD_S8_L32: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512
+//    (500, [0, 129845, 135626, 168109, 170928, 175260, 175301], P{value_shift: 0.005704, free_shift: 2.072629, first_weight: 0.917840})  // 1.49% for 4.3 λ=533.97
+//];
 const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
     (64, [0, 124363, 142097, 173616, 176553, 180695, 180723], P{value_shift: 0.005643, free_shift: 1.984586, first_weight: 0.871503}), // 0.49% for 4.3 λ=91.74
     (100, [0, 128572, 134016, 166231, 169001, 173158, 173188], P{value_shift: 0.005566, free_shift: 2.037221, first_weight: 0.914972}),   // 0.50% for 4.3 λ=133.44
@@ -338,7 +341,7 @@ const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
 const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 16] = [   // for W=512
     (2, [0, 11278, 12169, 14655, 19070, 19296, 20608], P{value_shift: 0.008453, free_shift: 1.781514, first_weight: 0.641653}), // moreit 1.46% for 4.3 λ=6.58
     (3, [0, 14139, 14994, 16539, 19094, 19758, 20760], P{value_shift: 0.008845, free_shift: 1.500047, first_weight: 0.638345}), // moreit 1.19% for 4.3 λ=8.62
-    //(4, [0, 109423, 109898, 110036, 112396, 113365, 113991], P{value_shift: 0.004002, free_shift: 1.498892, first_weight: 0.925981}),   // restart? 1.25% for 4.3 λ=10.53
+    (4, [0, 27335, 27347, 27475, 29110, 29337, 29925], P{value_shift: 0.008588, free_shift: 1.461835, first_weight: 0.755033}),   // 1.05% for 4.3 λ=10.53
     (5, [0, 79730, 80680, 80897, 82706, 82843, 83299], P{value_shift: 0.004317, free_shift: 1.422497, first_weight: 0.939602}), // 0.96% for 4.3 λ=12.35
     (6, [0, 115382, 120335, 122656, 124498, 125352, 125700], P{value_shift: 0.004301, free_shift: 1.399241, first_weight: 0.813602}), // 0.85% for 4.3 λ=14.10
     (8, [0, 162849, 198446, 211248, 214495, 217616, 217883], P{value_shift: 0.004086, free_shift: 1.389829, first_weight: 0.824165}), // 0.74% for 4.3 λ=17.47
