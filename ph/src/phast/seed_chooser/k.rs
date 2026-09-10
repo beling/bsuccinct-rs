@@ -335,7 +335,7 @@ const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
     (100, [0, 128572, 134016, 166231, 169001, 173158, 173188], P{value_shift: 0.005566, free_shift: 2.037221, first_weight: 0.914972}),   // 0.50% for 4.3 λ=133.44
     (500, [0, 129118, 137023, 168151, 170969, 175185, 175237], P{value_shift: 0.005649, free_shift: 2.043347, first_weight: 0.928031}), // 1.09% for 4.3 λ=533.97
 ];
-const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 15] = [   // for W=512
+const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 16] = [   // for W=512
     (2, [0, 11278, 12169, 14655, 19070, 19296, 20608], P{value_shift: 0.008453, free_shift: 1.781514, first_weight: 0.641653}), // moreit 1.46% for 4.3 λ=6.58
     (3, [0, 14139, 14994, 16539, 19094, 19758, 20760], P{value_shift: 0.008845, free_shift: 1.500047, first_weight: 0.638345}), // moreit 1.19% for 4.3 λ=8.62
     //(4, [0, 109423, 109898, 110036, 112396, 113365, 113991], P{value_shift: 0.004002, free_shift: 1.498892, first_weight: 0.925981}),   // restart? 1.25% for 4.3 λ=10.53
@@ -352,6 +352,7 @@ const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 15] = [   // for W=512
     (64, [0, 152704, 166362, 195467, 199382, 203814, 203872], P{value_shift: 0.004627, free_shift: 1.615407, first_weight: 0.903999}), // 0.37% for 4.3 λ=91.74
     (100, [0, 143383, 149074, 187039, 191152, 196513, 196573], P{value_shift: 0.004977, free_shift: 1.857305, first_weight: 0.868128}), // 0.38% for 4.3 λ=133.44
     (500, [0, 140744, 147663, 183997, 187664, 192567, 192619], P{value_shift: 0.005116, free_shift: 1.913994, first_weight: 0.859051}), // 0.97% for 4.3 λ=533.97
+    (1000, [0, 145065, 152197, 189121, 190841, 193141, 193154], P{value_shift: 0.005130, free_shift: 1.919311, first_weight: 0.861437}), // moreit 1.25% for 4.3 λ=655.35
 ];
 const PROD_S8_L256: [(u16, [i32; 7], ProdOfValuesKEval); 19] = [   // for W=512
     (2, [0, 57696, 57734, 57739, 61174, 61654, 62565], P{value_shift: 0.001943, free_shift: 1.873405, first_weight: 0.954461}), // moreit 1.66% for 4.3 λ=6.58
