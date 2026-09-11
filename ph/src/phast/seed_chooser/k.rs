@@ -333,10 +333,12 @@ type P=ProdOfValuesKEval;
 //const PROD_S8_L32: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512
 //    (500, [0, 129845, 135626, 168109, 170928, 175260, 175301], P{value_shift: 0.005704, free_shift: 2.072629, first_weight: 0.917840})  // 1.49% for 4.3 λ=533.97
 //];
-const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
+const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 4] = [   // for W=512
     (64, [0, 124363, 142097, 173616, 176553, 180695, 180723], P{value_shift: 0.005643, free_shift: 1.984586, first_weight: 0.871503}), // 0.49% for 4.3 λ=91.74
     (100, [0, 128572, 134016, 166231, 169001, 173158, 173188], P{value_shift: 0.005566, free_shift: 2.037221, first_weight: 0.914972}),   // 0.50% for 4.3 λ=133.44
     (500, [0, 129118, 137023, 168151, 170969, 175185, 175237], P{value_shift: 0.005649, free_shift: 2.043347, first_weight: 0.928031}), // 1.09% for 4.3 λ=533.97
+    (1000, [0, 129224, 140183, 166986, 169801, 174013, 174067], P{value_shift: 0.005881, free_shift: 1.988958, first_weight: 0.937083}), // 0.99% for 4.3 λ=655.35
+    // W=1024, k=1000: 0.99%  0, 130889, 141308, 169391, 172222, 176429, 176482  value_shift: 0.006105, free_shift: 1.994368, first_weight: 0.935901
 ];
 const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 17] = [   // for W=512
     (2, [0, 11278, 12169, 14655, 19070, 19296, 20608], P{value_shift: 0.008453, free_shift: 1.781514, first_weight: 0.641653}), // moreit 1.46% for 4.3 λ=6.58
@@ -356,6 +358,7 @@ const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 17] = [   // for W=512
     (100, [0, 143383, 149074, 187039, 191152, 196513, 196573], P{value_shift: 0.004977, free_shift: 1.857305, first_weight: 0.868128}), // 0.38% for 4.3 λ=133.44
     (500, [0, 140744, 147663, 183997, 187664, 192567, 192619], P{value_shift: 0.005116, free_shift: 1.913994, first_weight: 0.859051}), // 0.97% for 4.3 λ=533.97
     (1000, [0, 143613, 152250, 188755, 190535, 192925, 192935], P{value_shift: 0.005362, free_shift: 1.934122, first_weight: 0.865017}), // 1.25% for 4.3 λ=655.35
+    // W=1024, k=1000: 1.25%  0, 143722, 152365, 188897, 190678, 193070, 193080  value_shift: 0.005362, free_shift: 1.934127, first_weight: 0.885969
 ];
 const PROD_S8_L256: [(u16, [i32; 7], ProdOfValuesKEval); 20] = [   // for W=512
     (2, [0, 57696, 57734, 57739, 61174, 61654, 62565], P{value_shift: 0.001943, free_shift: 1.873405, first_weight: 0.954461}), // moreit 1.66% for 4.3 λ=6.58
