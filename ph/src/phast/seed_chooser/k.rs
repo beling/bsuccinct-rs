@@ -89,6 +89,7 @@ impl KSeedEvaluatorConf for SumOfValues {
 /// the next row (otherwise `None`).
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
+        (_, ..=32) => PROD_S8_L32.as_ref(),
         (_, ..=64) => PROD_S8_L64.as_ref(),
         (_, ..=128) => PROD_S8_L128.as_ref(),
         (_, ..=256) => PROD_S8_L256.as_ref(),
@@ -330,9 +331,10 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
-//const PROD_S8_L32: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512
-//    (500, [0, 129845, 135626, 168109, 170928, 175260, 175301], P{value_shift: 0.005704, free_shift: 2.072629, first_weight: 0.917840})  // 1.49% for 4.3 λ=533.97
-//];
+const PROD_S8_L32: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512
+    (500, [0, 129845, 135626, 168109, 170928, 175260, 175301], P{value_shift: 0.005704, free_shift: 2.072629, first_weight: 0.917840}),  // moreit 1.49% for 4.3 λ=533.97
+    (1000, [0, 141145, 145990, 175372, 178466, 183077, 183146], P{value_shift: 0.005780, free_shift: 2.083312, first_weight: 0.841375}), // moreit 1.34% for 4.3 λ=655.35
+];
 const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512
     (64, [0, 124363, 142097, 173616, 176553, 180695, 180723], P{value_shift: 0.005643, free_shift: 1.984586, first_weight: 0.871503}), // 0.49% for 4.3 λ=91.74
     (100, [0, 128572, 134016, 166231, 169001, 173158, 173188], P{value_shift: 0.005566, free_shift: 2.037221, first_weight: 0.914972}),   // 0.50% for 4.3 λ=133.44
