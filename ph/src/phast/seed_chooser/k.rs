@@ -363,7 +363,7 @@ const PROD_S8_L64: [(u16, [i32; 7], ProdOfValuesKEval); 4] = [   // for W=512
 ];
 const PROD_S8_L128: [(u16, [i32; 7], ProdOfValuesKEval); 17] = [   // for W=512
     (2, [0, 11278, 12169, 14655, 19070, 19296, 20608], P{value_shift: 0.008453, free_shift: 1.781514, first_weight: 0.641653}), // moreit 1.46% for 4.3 λ=6.58
-    (3, [0, 14139, 14994, 16539, 19094, 19758, 20760], P{value_shift: 0.008845, free_shift: 1.500047, first_weight: 0.638345}), // moreit 1.19% for 4.3 λ=8.62
+    (3, [0, 14810, 15013, 16541, 19100, 19765, 20766], P{value_shift: 0.008849, free_shift: 1.500312, first_weight: 0.637867}), // 1.19% for 4.3 λ=8.62
     (4, [0, 27335, 27347, 27475, 29110, 29337, 29925], P{value_shift: 0.008588, free_shift: 1.461835, first_weight: 0.755033}),   // 1.05% for 4.3 λ=10.53
     (5, [0, 79730, 80680, 80897, 82706, 82843, 83299], P{value_shift: 0.004317, free_shift: 1.422497, first_weight: 0.939602}), // 0.96% for 4.3 λ=12.35
     (6, [0, 115382, 120335, 122656, 124498, 125352, 125700], P{value_shift: 0.004301, free_shift: 1.399241, first_weight: 0.813602}), // 0.85% for 4.3 λ=14.10
