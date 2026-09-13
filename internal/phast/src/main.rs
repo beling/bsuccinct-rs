@@ -185,6 +185,7 @@ fn main() {
         (Method::optprod, 1, _, _, _, _) => conf.optimize_genericprod(),
         (Method::optprod, _, _, _, _, _) => conf.optimize_kprod(),
         (Method::optall, _, _, _, _, _) => conf.optimize_allk(),    // TODO version for k = 1
+        (Method::optfull, _, _, _, _, _) => conf.optimize_fullk(),
         (Method::optwgenprod, _, _, _, _, _) => conf.optimize_wgenericprod(),
 
         (Method::none, _, _, _, _, _) => {},

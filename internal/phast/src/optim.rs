@@ -697,6 +697,7 @@ impl CostFn for WGenericProdOfValues {
 
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
+/// + 3 seed evaluation parameters.
 pub struct PerfectProdKAndWeightsCost6;
 
 impl CostFn for PerfectProdKAndWeightsCost6 {
@@ -738,6 +739,58 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
             ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 6),
             ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
             ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
+        ]
+    }
+}
+
+
+/// Cost function for bucket weights optimization that exposes 7 weights:
+/// first as absolute, last as relative, middle and rest as weighted average coefficients
+/// + 4 seed evaluation parameters.
+pub struct PerfectProdK4AndWeightsCost6;
+
+impl CostFn for PerfectProdK4AndWeightsCost6 {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = SumOfLogValuesFEval { free_values_weight: x[6], value_shift: x[7], free_shift: x[8], first_weight: x[9] };
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
+        let w = WeightsF::from6(&x[..6]);
+        if let v = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]) && v != 0 {
+            return v * conf.keys_num as usize * conf.sample_size as usize;
+        }
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(&s),
+                    (s, &w)).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        //let e = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
+        v.push(e.value_shift);
+        v.push(e.free_shift);
+        v.push(1.0);    // e.free_values_weight
+        v.push(e.first_weight);
+        v
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print!("{}  ", WeightsF::from6(&x[..6]).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print_vec(&x[6..], &self.params(conf)[6..])
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
+            ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 5),
+            ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
+            ("free_values_weight", Constrain::Strong(/*0.5*/0.2), Constrain::Weak(5.0/*2.0*/), 5),
+            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
         ]
     }
 }
