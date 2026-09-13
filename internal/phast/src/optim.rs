@@ -621,9 +621,13 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
 
 #[derive(Clone, Copy)]
 pub struct GenericProdOfValues {
-    pub first_weight: f64,
+    pub first_weight: f64,  // usually 0.0 (and used) is good for k=1
     pub shift: f64,
 }   // first_weight: 1.098765e-5, shift: 145 1.16%
+
+impl Default for GenericProdOfValues {
+    fn default() -> Self { Self { first_weight: 0.0, shift: 95.0 } }
+}
 
 impl SeedEvaluator for GenericProdOfValues {
 
@@ -697,7 +701,51 @@ impl CostFn for WGenericProdOfValues {
 
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
-/// + 3 seed evaluation parameters.
+/// + 1 seed evaluation parameter (for 1-perfect function).
+pub struct PerfectProdAndWeightsCost6;
+
+impl CostFn for PerfectProdAndWeightsCost6 {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = GenericProdOfValues { shift: x[6], ..Default::default() };
+        let s = SeedOnly(e);
+        let w = WeightsF::from6(&x[..6]);
+        if let v = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]) && v != 0 {
+            return v * conf.keys_num as usize * conf.sample_size as usize;
+        }
+        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
+                    conf.core(&s),
+                    (s, &w)).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let e = GenericProdOfValues::default();
+        let s = SeedOnly(e);
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
+        v.push(e.shift);
+        v
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print!("{}  ", WeightsF::from6(&x[..6]).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print_vec(&x[6..], &self.params(conf)[6..])
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
+            ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
+            ("shift", Constrain::Strong(0.0000000001), Constrain::Weak(1000.0), 0),
+        ]
+    }
+}
+
+/// Cost function for bucket weights optimization that exposes 7 weights:
+/// first as absolute, last as relative, middle and rest as weighted average coefficients
+/// + 3 seed evaluation parameters (for k-perfect function).
 pub struct PerfectProdKAndWeightsCost6;
 
 impl CostFn for PerfectProdKAndWeightsCost6 {
@@ -746,7 +794,7 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
 
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
-/// + 4 seed evaluation parameters.
+/// + 4 seed evaluation parameters (for k-perfect function).
 pub struct PerfectProdK4AndWeightsCost6;
 
 impl CostFn for PerfectProdK4AndWeightsCost6 {

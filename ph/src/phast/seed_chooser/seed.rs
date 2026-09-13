@@ -49,8 +49,8 @@ impl SeedEvaluator for ProdOfValues {
         
     type BucketData = usize;
     
-    fn for_bucket<C: Core>(&self, _bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
-       core.slice_begin_for_bucket(_bucket_nr).wrapping_sub(95)
+    fn for_bucket<C: Core>(&self, bucket_nr: usize, _first_bucket_in_window: usize, core: &C) -> Self::BucketData {
+       core.slice_begin_for_bucket(bucket_nr).wrapping_sub(95)
     }
 
     fn eval(&self, values_used_by_seed: &[usize], to_extract: Self::BucketData) -> Self::Value {

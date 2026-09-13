@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand, ValueEnum};
 use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooserConf, Turbo, Weights, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdK4AndWeightsCost6, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdAndWeightsCost6, PerfectProdK4AndWeightsCost6, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -532,16 +532,20 @@ impl Conf {
         self.optimize(PerfectLog1Cost);
     }
 
-    pub fn optimize_kprod(&self) {
-        self.optimize(PerfectProdKCost);
+    pub fn optimize_prod(&self) {
+        if self.k == 1 {
+            self.optimize(ProdOfValuesCost)
+        } else {
+            self.optimize(PerfectProdKCost);
+        }
     }
 
-    pub fn optimize_genericprod(&self) {
-        self.optimize(ProdOfValuesCost)
-    }
-
-    pub fn optimize_allk(&self) {
-        self.optimize(PerfectProdKAndWeightsCost6);
+    pub fn optimize_all(&self) {
+        if self.k == 1 {
+            self.optimize(PerfectProdAndWeightsCost6);
+        } else {
+            self.optimize(PerfectProdKAndWeightsCost6);
+        }
     }
 
     pub fn optimize_fullk(&self) {
