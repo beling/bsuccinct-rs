@@ -331,6 +331,25 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
+/*const PROD_S7_L128: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512  S8 params work excellent for k=16?, 8?; and OK+ for k=4, 2
+    (2, [0, 17541, 23276, 31067, 33136, 35908, 37599], P{value_shift: 0.012291, free_shift: 1.788075, first_weight: 0.318863}), // 1.55% for 3.7 λ=5.66
+    (4, [0, 27081, 27394, 27406, 30181, 30538, 31529], P{value_shift: 0.008558, free_shift: 1.485461, first_weight: 0.760050}), // 1.19% for 3.7 λ=9.06
+    //(8, [0, 165499, 193996, 196607, 199647, 202566, 202938], P{value_shift: 0.004170, free_shift: 1.272015, first_weight: 0.862649}), // 0.69% for 3.7 λ=15.03
+    //(16, [0, 168010, 204328, 216786, 218828, 220943, 221117], P{value_shift: 0.004016, free_shift: 1.275868, first_weight: 0.895949}),  // 0.53% for 3.7 λ=25.62
+];
+const PROD_S7_L256: [(u16, [i32; 7], ProdOfValuesKEval); 4] = [   // for W=512  S8 params work excellent for k=16, 8, 4; and OK+ for k=2
+    (2, [0, 57695, 57724, 57733, 61175, 61657, 62568], P{value_shift: 0.001943, free_shift: 1.965737, first_weight: 0.954503}), // 2.05% for 3.7 λ=5.66
+    (4, [0, 57685, 57721, 57727, 61162, 61642, 62554], P{value_shift: 0.002039, free_shift: 1.701494, first_weight: 0.954207}), // 1.11% for 3.7 λ=9.06
+    (8, [0, 165499, 193996, 196607, 199647, 202566, 202938], P{value_shift: 0.004170, free_shift: 1.272015, first_weight: 0.862649}), // 0.69% for 3.7 λ=15.03
+    (16, [0, 168010, 204328, 216786, 218828, 220943, 221117], P{value_shift: 0.004016, free_shift: 1.275868, first_weight: 0.895949}),  // 0.53% for 3.7 λ=25.62
+];
+const PROD_S7_L512: [(u16, [i32; 7], ProdOfValuesKEval); 4] = [   // for W=512  S8 params work excellent for k=16, 8; and OK for k=4, 2
+    (2, [0, 53734, 90838, 106780, 121153, 129986, 134635], P{value_shift: 0.015365, free_shift: 1.708053, first_weight: 0.152936}), // 0.89% for 3.7 λ=5.66
+    (4, [0, 110051, 116177, 117546, 127941, 137379, 139980], P{value_shift: 0.006757, free_shift: 1.596317, first_weight: 0.261390}), // 0.84% for 3.7 λ=9.06
+    (8, [0, 152357, 186920, 194422, 198098, 201709, 202066], P{value_shift: 0.003710, free_shift: 1.230614, first_weight: 0.873711}), // 0.67% for 3.7 λ=15.03
+    (16, [0, 168134, 203917, 208613, 208915, 209295, 209333], P{value_shift: 0.003667, free_shift: 1.182518, first_weight: 0.876810}),  // 0.59% for 3.7 λ=25.62
+];*/
+
 const PROD_S8_L32: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512
     (500, [0, 129845, 135626, 168109, 170928, 175260, 175301], P{value_shift: 0.005704, free_shift: 2.072629, first_weight: 0.917840}),  // moreit 1.49% for 4.3 λ=533.97
     (1000, [0, 141145, 145990, 175372, 178466, 183077, 183146], P{value_shift: 0.005780, free_shift: 2.083312, first_weight: 0.841375}), // moreit 1.34% for 4.3 λ=655.35
