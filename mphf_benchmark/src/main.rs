@@ -101,7 +101,7 @@ pub struct PHastConf {
 
     /// Expected number of keys per bucket multipled by 100
     #[arg()]
-    pub bucket_size: Option<u16>,
+    pub bucket_size: Option<u32>,
 
     /// Test with Elias-Fano encoder of array that makes PHast minimal
     #[arg(short='e', long="ef", default_value_t = false)]
@@ -121,7 +121,7 @@ pub struct PHastConf {
 }
 
 impl PHastConf {
-    fn bucket_size(&self) -> u16 {
+    fn bucket_size(&self) -> u32 {
         self.bucket_size.unwrap_or_else(|| bits_per_seed_to_100_bucket_size(self.bits_per_seed))
     }
 
