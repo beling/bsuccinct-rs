@@ -38,7 +38,7 @@ Guidance for AI agents working in this repository (BSuccinct: Rust libraries and
 - `unsafe` functions and blocks require a `# Safety` explanation of the obligations of the caller or of the code itself.
 - Short, runnable examples are welcome in `///` docs (`# Example`) and in READMEs; they are doctested.
 - Formatting: rustfmt defaults (there is no `rustfmt.toml`). Format only the code you touch; never reformat unrelated code.
-- The edition may be bumped when a change genuinely needs it, but not gratuitously. The MSRV is the latest stable Rust (it is not pinned in `Cargo.toml`); if the installed compiler is older than the change needs, ask the user to update the toolchain instead of working around it. Avoid nightly-only features unless they sit behind an optional feature (see `sip13`).
+- The edition may be bumped when a change genuinely needs it, but not gratuitously. The MSRV is the latest stable Rust (it is not pinned in `Cargo.toml`); if the installed compiler is older than the change needs, ask the user to update the toolchain instead of working around it. Avoid nightly-only features.
 - Comments explain *why*; code explains *what*.
 - Keep the dependency footprint small: prefer `std` or already-used crates, add optional dependencies behind features, and keep the `version` alongside each `path` dependency because crates are published. A dependency version may be bumped when a change genuinely needs it, but never without such a need.
 - `Cargo.toml` metadata follows the existing pattern: `license = "MIT OR Apache-2.0"`, `repository`, `documentation`, `include = [ "**/*.rs", "Cargo.toml", "README.md" ]`, `categories`, `keywords`. Do not set `readme`, it defaults to `README.md`.
@@ -55,7 +55,7 @@ Guidance for AI agents working in this repository (BSuccinct: Rust libraries and
 - Larger code changes are fine — the user reviews every change before committing. Keep such changes reviewable: explain the intent, the approach, and anything that may affect performance or memory usage.
 - Do not create commits; leave committing to the user.
 - Do not rewrite the "Bibliography" and "Reproducing experiments from the papers" sections of the benchmark READMEs — they document published results.
-- The user's own commit messages are English and terse, often just two or three words (e.g. `compilation fix`, `fixed warnings`); agents may write slightly longer ones, but keep them short and to the point. Work on `main`.
+- The user's own commit messages are English and terse, often just two or three words (e.g. `compilation fix`, `fixed warnings`); agents may write slightly longer ones, but keep them short and to the point.
 - Before finishing, verify: run `cargo build`/`cargo test` (plus the relevant feature combination), check that no new warnings appear, and re-run any benchmark or helper script affected by the change. State explicitly what was run and with which features.
 
 ## AI usage
