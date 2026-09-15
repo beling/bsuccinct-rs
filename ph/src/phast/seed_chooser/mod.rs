@@ -143,11 +143,11 @@ pub trait SeedChooserConf: Clone + Sync {
     /// How much the chooser can add to value over slice length.
     #[inline(always)] fn extra_shift(&self, bits_per_seed: u8) -> u16 { self.core().extra_shift(bits_per_seed) }
 
-    fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
+    fn generic_f_core<P: Placement>(&self, output_range: usize, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u32, preferred_slice_len: u16) -> GenericCore<P> {
         GenericCore::new(output_range, num_of_keys, bucket_size_100, self.slice_len(output_range, bits_per_seed, preferred_slice_len), self.extra_shift(bits_per_seed))
     }
 
-    #[inline(always)] fn minimal_generic_f_core<P: Placement>(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u16, preferred_slice_len: u16) -> GenericCore<P> {
+    #[inline(always)] fn minimal_generic_f_core<P: Placement>(&self, num_of_keys: usize, bits_per_seed: u8, bucket_size_100: u32, preferred_slice_len: u16) -> GenericCore<P> {
         self.generic_f_core(self.minimal_output_range(num_of_keys), num_of_keys, bits_per_seed, bucket_size_100, preferred_slice_len)
     }
 

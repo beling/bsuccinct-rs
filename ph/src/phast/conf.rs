@@ -310,7 +310,7 @@ fn mix16fast(mut x: u16) -> u16 {
 
 /// Returns bucket size (as 100× average bucket size) proper for given number of `bits_per_seed`.
 #[inline]
-pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u16 {
+pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u32 {
     match bits_per_seed {
         0..=4 => 250,
         5 => 290,
@@ -330,7 +330,7 @@ impl<P: Placement> GenericCore<P> {
 
     /// Constructs the core for given output range, number of keys, 100*average bucket size,
     /// slice length and maximal shift that can be added to a value.
-    pub(crate) fn new(output_range: usize, num_of_keys: usize, bucket_size_100: u16, slice_len: u16, max_shift: u16) -> Self {
+    pub(crate) fn new(output_range: usize, num_of_keys: usize, bucket_size_100: u32, slice_len: u16, max_shift: u16) -> Self {
         let bucket_size_100 = bucket_size_100 as usize;
         Self {
             buckets_num: 1.max((num_of_keys * 100 + bucket_size_100/2) / bucket_size_100),
@@ -484,7 +484,7 @@ pub trait CoreConf: Sync+Send {
 #[derive(Clone, Copy)]
 pub struct Generic<P = FastPlacement> {
     /// 100 * average bucket size.
-    pub bucket_size100: u16,
+    pub bucket_size100: u32,
     /// Preferred slice length; `0` means that the seed chooser picks a default.
     pub preferred_slice_len: u16,
     placement: PhantomData<P>
@@ -494,14 +494,14 @@ impl<P> Generic<P> {
     /// Constructs the configuration with given 100*average bucket size
     /// and the default (chooser-dependent) slice length.
     #[inline]
-    pub fn new(bucket_size100: u16) -> Self {
+    pub fn new(bucket_size100: u32) -> Self {
         Self { bucket_size100, preferred_slice_len: 0, placement: Default::default() }
     }
 
     /// Constructs the configuration with given 100*average bucket size
     /// and preferred slice length.
     #[inline]
-    pub fn with_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
+    pub fn with_psl(bucket_size100: u32, preferred_slice_len: u16) -> Self {
         Self { bucket_size100, preferred_slice_len, placement: Default::default() }
     }
 
@@ -596,13 +596,13 @@ impl<SS: SeedSize, CC, S> Conf<SS, CC, S> {
 impl<SS: SeedSize> Conf<SS, Generic, BuildDefaultSeededHasher> {
     /// Constructs the configuration with generic core, given seed size and 100*average bucket size,
     /// the default hasher and the loading factor of 1 (i.e. a minimal function).
-    #[inline] pub fn generic(seed_size: SS, bucket_size100: u16) -> Self {
+    #[inline] pub fn generic(seed_size: SS, bucket_size100: u32) -> Self {
         Self { seed_size, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 
     /// Constructs the configuration with generic core, given seed size and 100*average bucket size, `preferred_slice_len`,
     /// the default hasher and the loading factor of 1 (i.e. a minimal function).
-    #[inline] pub fn generic_with_psl(seed_size: SS, bucket_size100: u16, preferred_slice_len: u16) -> Self {
+    #[inline] pub fn generic_with_psl(seed_size: SS, bucket_size100: u32, preferred_slice_len: u16) -> Self {
         Self { seed_size, core_conf: Generic::with_psl(bucket_size100, preferred_slice_len), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 }
@@ -624,7 +624,7 @@ impl Conf<Bits8, Turbo, BuildDefaultSeededHasher> {
 impl<SS: SeedSize, S> Conf<SS, Generic, S> {
     /// Constructs the configuration with given seed size, 100*average bucket size and hasher;
     /// the loading factor is 1 (i.e. a minimal function).
-    #[inline] pub fn generic_with_hash(seed_size: SS, bucket_size100: u16, hasher: S) -> Self {
+    #[inline] pub fn generic_with_hash(seed_size: SS, bucket_size100: u32, hasher: S) -> Self {
         Self { seed_size, core_conf: Generic::new(bucket_size100), hasher, loading_factor_1000: 1000 }
     }
 }
@@ -640,13 +640,13 @@ impl<S> Conf<Bits8, Turbo, S> {
 impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
     /// Constructs the configuration with 8 bits per seed, given 100*average bucket size,
     /// the default hasher and the loading factor of 1 (i.e. a minimal function).
-    #[inline] pub fn generic8(bucket_size100: u16) -> Self {
+    #[inline] pub fn generic8(bucket_size100: u32) -> Self {
         Self { seed_size: Bits8, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 
     /// Constructs the configuration with 8 bits per seed, given 100*average bucket size, `preferred_slice_len`,
     /// the default hasher and the loading factor of 1 (i.e. a minimal function).
-    #[inline] pub fn generic8_with_psl(bucket_size100: u16, preferred_slice_len: u16) -> Self {
+    #[inline] pub fn generic8_with_psl(bucket_size100: u32, preferred_slice_len: u16) -> Self {
         Self { seed_size: Bits8, core_conf: Generic::with_psl(bucket_size100, preferred_slice_len), hasher: Default::default(), loading_factor_1000: 1000 }
     }
 

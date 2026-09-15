@@ -284,7 +284,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     }
 
     /*#[inline(always)]
-    fn finish_building<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S, level0: SeedEx<SS>, unassigned_values: Box<[u64]>, unassigned_len: usize) -> Self where K: Hash+Sync+Send, S: Sync {
+    fn finish_building<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u32, threads_num: usize, hasher: S, level0: SeedEx<SS>, unassigned_values: Box<[u64]>, unassigned_len: usize) -> Self where K: Hash+Sync+Send, S: Sync {
         let mut level0_unassigned = unassigned_values.bit_ones();
         let mut unassigned = Vec::with_capacity(unassigned_len * 3 / 2);
 
@@ -317,7 +317,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         }
     }*/
 
-    /*pub fn new2<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u16, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
+    /*pub fn new2<K>(mut keys: Vec::<K>, bits_per_seed: SS, bucket_size100: u32, threads_num: usize, hasher: S) -> Self where K: Hash+Sync+Send, S: Sync {
         let keys_len = keys.len();
         let (level0, unassigned_values, _unassigned_len) =
             Self::build_level(&mut keys, bits_per_seed, bucket_size100, threads_num, &hasher, 0);

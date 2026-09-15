@@ -8,7 +8,7 @@ pub struct PHastBencher<SC, SS, S, AC = DefaultCompressedArray> {
     hash: std::marker::PhantomData<S>,
     array_compression: std::marker::PhantomData<AC>,
     bits_per_seed: SS,
-    bucket_size_100: u16,
+    bucket_size_100: u32,
     seed_chooser: SC,
 }
 
@@ -54,7 +54,7 @@ impl<SC, SS, S, K, AC> MPHFBuilder<K> for PHastBencher<SC, SS, S, AC>
     println!(" \t{}", b);
 }*/
 
-pub fn benchmark_with<SC, S, SS, AC, K>(bits_per_seed: SS, bucket_size_100: u16, i: &(Vec<K>, Vec<K>), conf: &Conf, seed_chooser: SC) -> BenchmarkResult
+pub fn benchmark_with<SC, S, SS, AC, K>(bits_per_seed: SS, bucket_size_100: u32, i: &(Vec<K>, Vec<K>), conf: &Conf, seed_chooser: SC) -> BenchmarkResult
 where SC: SeedChooser, SS: SeedSize, S: BuildSeededHasher + Default + Sync, K: Hash + Sync + Send + Clone + TypeToQuery, AC: CompressedArray+GetSize
 {
     benchmark(PHastBencher { hash: std::marker::PhantomData::<S>::default(),

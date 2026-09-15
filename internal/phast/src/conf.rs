@@ -152,7 +152,7 @@ pub const CSV_HEADER: &'static str = "keys_num method k bits/seed bucket_size100
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum BucketSize {
-    Size100(u16),
+    Size100(u32),
     Turbo
 }
 
@@ -179,8 +179,8 @@ impl std::fmt::Display for BucketSize {
     }
 }
 
-impl Into<u16> for BucketSize {
-    fn into(self) -> u16 {
+impl Into<u32> for BucketSize {
+    fn into(self) -> u32 {
         match self {
             BucketSize::Size100(v) => v,
             BucketSize::Turbo => 400,
@@ -234,7 +234,7 @@ pub struct Conf {
     pub explicit_b: bool,
 
     /// Desired loading factor * 1000
-    #[arg(short='a', long, default_value_t = 1000, value_parser = clap::value_parser!(u16).range(1..=1000))]
+    #[arg(short='a', long, default_value_t = 1000, value_parser = clap::value_parser!(u16).range(1..))]
     pub alpha: u16,
 
     /// Number of times to perform evaluation (over all keys) test
@@ -317,7 +317,7 @@ impl Conf {
             Some(b) => b.into(),
             None => ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed)
         };
-        BucketSize::Size100((b as f64 * bucket_size_normalization_multiplier(self.k)) as u16)
+        BucketSize::Size100((b as f64 * bucket_size_normalization_multiplier(self.k)) as u32)
     }
 
     pub fn is_turbo(&self) -> bool {
@@ -328,7 +328,7 @@ impl Conf {
         butils::XorShift64(seed as u64).take(self.keys_num as usize).collect()
     }
 
-    pub fn params<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic> {
+    pub fn params<SS>(&self, seed_size: SS, bucket_size100: u32) -> ph::phast::Conf<SS, Generic> {
         ph::phast::Conf {
             seed_size,
             core_conf: Generic::with_psl(bucket_size100, self.slice_len),
@@ -337,7 +337,7 @@ impl Conf {
         }
     }
 
-    pub fn params_random<SS>(&self, seed_size: SS, bucket_size100: u16) -> ph::phast::Conf<SS, Generic<RandomPlacement>> {
+    pub fn params_random<SS>(&self, seed_size: SS, bucket_size100: u32) -> ph::phast::Conf<SS, Generic<RandomPlacement>> {
         ph::phast::Conf {
             seed_size,
             core_conf: Generic::with_psl(bucket_size100, self.slice_len),
