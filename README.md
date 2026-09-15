@@ -48,3 +48,6 @@ for example
 
 # Platforms with 32-bit addressing
 For portability, BSuccinct components compile and run on platforms with 32-bit addressing (like wasm32). However, they are optimized primarily with 64-bit CPUs in mind.
+
+# The Use of Artificial Intelligence
+The vast majority of BSuccinct's code is written without the assistance of AI agents. Agents are used primarily to correct and enhance documentation, and occasionally to write code. The results of their work are always verified manually. The models will be increasingly used as their quality improves.
