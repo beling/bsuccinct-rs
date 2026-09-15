@@ -15,7 +15,7 @@ Included libraries:
 - `binout` ([crate](https://crates.io/crates/binout), [doc](https://docs.rs/binout)) - binary encoding, decoding, serialization, deserialization;
 - `fsum` ([crate](https://crates.io/crates/fsum), [doc](https://docs.rs/fsum)) - calculate accurate sum of floats;
 - `dyn_size_of` ([crate](https://crates.io/crates/dyn_size_of), [doc](https://docs.rs/dyn_size_of)) - calculate memory consumed by variables, including the memory allocated on heap,
-- `butils` ([crate](https://crates.io/crates/butils), [doc](https://docs.rs/butils)) - (internal) utilities shared by software included in BSuccinct.
+- `butils` ([crate](https://crates.io/crates/butils), [doc](https://docs.rs/butils)) - small utilities shared by software included in BSuccinct (published only as a dependency, not intended for direct use).
 
 Included programs:
 - `mphf_benchmark` ([crate](https://crates.io/crates/mphf_benchmark), [doc](https://docs.rs/mphf_benchmark)) - benchmarking minimal perfect hash functions,
