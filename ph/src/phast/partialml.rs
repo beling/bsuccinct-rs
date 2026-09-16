@@ -2,9 +2,10 @@
 
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
-use std::hash::Hash;
+use std::{hash::Hash, io};
 
 use crate::{phast::{Conf, SeedChooserConf, SeedChooserCore, SeedOnlyCore, conf::{Core, CoreConf}, function::{Level, SeedEx}, perfect::{build_level_from_slice_no_bitmap_mt, build_level_from_slice_no_bitmap_st, build_level_no_bitmap_mt, build_level_no_bitmap_st}}, seeds::SeedSize};
+use binout::{Serializer, VByte};
 
 /// Minimum size of the part of the output range that is left for the last level of [`PartialML`]:
 /// the successive levels are constructed as long as the part of the output range not used yet
@@ -90,6 +91,49 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> PartialML<C, SS, SCC, S> {
         } else {
             self.level0.core.output_range(self.seed_chooser, self.seed_size.into())
         }
+    }
+
+    /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`](crate::phast::Perfect) function `self`.
+    #[inline(always)] pub fn k(&self) -> u16 { self.seed_chooser.k() }
+
+    /// Returns number of bytes which `write` will write.
+    pub fn write_bytes(&self) -> usize {
+        self.seed_chooser.write_bytes() +
+        self.level0.write_bytes() +
+        VByte::size(self.levels.len()) +
+        self.levels.iter().map(|l| l.write_bytes()).sum::<usize>()
+    }
+
+    /// Writes `self` to the `output`.
+    pub fn write(&self, output: &mut dyn io::Write) -> io::Result<()>
+    {
+        self.seed_chooser.write(output)?;
+        self.level0.write(output, self.seed_size)?;
+        VByte::write(output, self.levels.len())?;
+        for level in &self.levels {
+            level.write(output, self.seed_size)?;
+        }
+        Ok(())
+    }
+
+    /// Reads `Self` from the `input`. `hasher` must be the same as used by the structure written.
+    pub fn read_with_hasher(input: &mut dyn io::Read, hasher: S) -> io::Result<Self> {
+        let seed_chooser = SCC::read(input)?;
+        let (seed_size, level0) = SeedEx::read(input)?;
+        let levels_num: usize = VByte::read(input)?;
+        let mut levels = Vec::with_capacity(levels_num);
+        for _ in 0..levels_num {
+            levels.push(Level::read::<SS>(input)?.1);
+        }
+        Ok(Self { level0, levels: levels.into_boxed_slice(), hasher, seed_chooser, seed_size })
+    }
+}
+
+impl<C: Core, SS: SeedSize> PartialML<C, SS, SeedOnlyCore, BuildDefaultSeededHasher> {
+
+    /// Reads `Self` from the `input`. Uses the default hasher and seed chooser.
+    pub fn read(input: &mut dyn io::Read) -> io::Result<Self> {
+        Self::read_with_hasher(input, BuildDefaultSeededHasher::default())
     }
 }
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialML<C, SS, SCC, S> {
@@ -271,6 +315,7 @@ pub(crate) mod tests {
         let input = [1u16, 2, 3, 4, 5];
         let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, Conf::generic8(400), SeedOnly(ProdOfValues));
         assert_eq!(f.levels(), 1);      // a loading factor of 1 builds a single level
+        assert_eq!(f.k(), 1);           // SeedOnly builds a (1-)perfect function
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input, |key| f.get(key));
         assert_eq!(unassigned.len(), unassigned_count(&f, &input));
@@ -336,6 +381,7 @@ pub(crate) mod tests {
             let mut conf = Conf::generic8(400);
             conf.loading_factor_1000 = loading_factor_1000;
             let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, conf, SeedOnlyK::with_evaluator(3, ProdOfValues));
+            assert_eq!(f.k(), 3);
             if loading_factor_1000 > 1000 {
                 assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
             }
@@ -419,6 +465,35 @@ pub(crate) mod tests {
         assert_eq!(f1.levels(), fm.levels());
         assert_eq!(unassigned_1.len(), unassigned_m.len());
         for key in input.iter() { assert_eq!(f1.get(key), fm.get(key)); }
+    }
+
+    /// Checks that `write`/`read` round-trips preserve the function's behavior.
+    fn check_read_write<C: Core, SS: SeedSize>(f: &PartialML<C, SS, SeedOnlyCore>, input: &[u16], unassigned: &[u16]) {
+        let mut buffer = Vec::new();
+        f.write(&mut buffer).unwrap();
+        // `write_bytes` underestimates the size written, as it does not include the bytes
+        // written by `SeedSize::write` for each level (the same holds for `Function`/`KFunction`).
+        let read = PartialML::<C, SS, SeedOnlyCore>::read(&mut &buffer[..]).unwrap();
+        assert_eq!(f.levels(), read.levels());
+        assert_eq!(f.output_range(), read.output_range());
+        for key in input {
+            assert_eq!(f.get(key), read.get(key));
+        }
+        assert_eq!(unassigned.len(), unassigned_count(&read, input));
+    }
+
+    #[test]
+    fn test_read_write() {
+        let input: Box<[u16]> = (0..1000).collect();
+        let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, Conf::generic8(400), SeedOnly(ProdOfValues));
+        check_read_write(&f, &input, &unassigned);      // a single level
+
+        let input: Box<[u16]> = (0..20000).collect();
+        let mut conf = Conf::generic8(400);
+        conf.loading_factor_1000 = 3000;
+        let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, conf, SeedOnly(ProdOfValues));
+        assert!(f.levels() > 2);
+        check_read_write(&f, &input, &unassigned);      // multiple levels
     }
 
     #[test]
