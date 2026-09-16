@@ -6,9 +6,10 @@ use std::hash::Hash;
 
 use crate::{phast::{Conf, SeedChooserConf, SeedChooserCore, SeedOnlyCore, conf::{Core, CoreConf}, function::{Level, SeedEx}, perfect::{build_level_from_slice_no_bitmap_mt, build_level_from_slice_no_bitmap_st, build_level_no_bitmap_mt, build_level_no_bitmap_st}}, seeds::SeedSize};
 
-/// Minimum size of the part of the minimal output range that is left for the last level of [`PartialML`]:
-/// the successive levels are constructed as long as the part of the minimal output range not used yet
-/// by the previous levels is at least this large; otherwise it is consumed in full by the last level.
+/// Minimum size of the part of the output range that is left for the last level of [`PartialML`]:
+/// the successive levels are constructed as long as the part of the output range not used yet
+/// by the previous levels is at least this large; otherwise it is consumed in full by the last level
+/// (which can be the first one).
 pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 4096;
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
@@ -22,6 +23,10 @@ pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 4096;
 /// Each level hashes keys with its own seed (the level number).
 /// Each level uses a disjoint part of the output range, so each key is assigned a value
 /// by the first level that does not bump it; only the keys bumped at the last level are assigned `None`.
+/// 
+/// Levels are constructed only while the part of the output range not used yet
+/// by the previous levels is at least [`PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD`] large;
+/// otherwise this part is consumed in full by the last level (which can be the first one).
 /// 
 /// The behavior depends on the loading factor in the configuration ([`Conf::loading_factor_1000`] stores 1000 * loading factor)
 /// and on the minimal output range, i.e. the output range of a minimal (perfect or k-perfect) function for the considered
@@ -40,8 +45,6 @@ pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 4096;
 /// If the loading factor is greater than 1, then the output range of the entire function is equal to the minimal one.
 /// Every level except, at most, the last one is constructed with the loading factor given in configuration,
 /// so its output range is below the minimal one for the keys it handles.
-/// If the part of the minimal output range not used yet by the previous levels falls below [`PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD`],
-/// it is fully consumed by the last level.
 /// 
 /// Can be used with any seed chooser (which specifies a particular PHast variant):
 /// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped), [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped),
@@ -131,6 +134,11 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
         // so that the keys bumped from it fit in the still unused part of the desired output range of the function.
         let first_range = if loading_factor_1000 > 1000 { seed_chooser.output_range(num_of_keys, loading_factor_1000) }
             else { minimal_range };
+        // If the part of the output range that would be left after the first level is below
+        // PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD, the first level consumes the entire output range
+        // (no additional level is constructed for such a small part).
+        let first_range = if total_range < first_range + PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD { total_range }
+            else { first_range };
 
         let (mut keys, level0) = build_first(&conf, first_range);
 
@@ -208,11 +216,13 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     /// assert_eq!(unassigned.len(), keys.iter().filter(|key| f.get(*key).is_none()).count());
     /// 
     /// // A loading factor greater than 1 splits the construction into more levels,
-    /// // but the output range of the entire function is still the minimal one:
+    /// // but the output range of the entire function is still the minimal one.
+    /// // For such a small input, the part of the output range left after the first level would be
+    /// // below PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD, so a single level is constructed:
     /// let mut conf = Conf::generic8(400);
     /// conf.loading_factor_1000 = 1500;
     /// let (f, unassigned) = PartialML::with_slice_conf_threads_sc_u(&keys, conf, 4, SeedOnly(ProdOfValues));
-    /// assert!(f.levels() > 1);
+    /// assert_eq!(f.levels(), 1);
     /// assert_eq!(f.output_range(), f.minimal_output_range(keys.len()));
     /// assert_eq!(unassigned.len(), keys.iter().filter(|key| f.get(*key).is_none()).count());
     /// ```
@@ -283,7 +293,9 @@ pub(crate) mod tests {
         let mut conf = Conf::generic8(400);
         conf.loading_factor_1000 = 1500;
         let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, conf, SeedOnly(ProdOfValues));
-        assert!(f.levels() > 1);    // the keys bumped at a level are mapped by the following levels
+        // The part of the output range left after the first level would be below
+        // PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD, so a single level is constructed:
+        assert_eq!(f.levels(), 1);
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
         assert_eq!(unassigned.len(), unassigned_count(&f, &input));
