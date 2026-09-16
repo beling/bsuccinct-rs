@@ -2,10 +2,9 @@
 
 use dyn_size_of::GetSize;
 use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
-use voracious_radix_sort::RadixSort;
 use std::hash::Hash;
 
-use crate::{phast::{Conf, SeedChooserConf, SeedChooserCore, SeedOnlyCore, builder::build_st, conf::{Core, CoreConf}, function::{Level, SeedEx}}, seeds::SeedSize};
+use crate::{phast::{Conf, SeedChooserConf, SeedChooserCore, SeedOnlyCore, conf::{Core, CoreConf}, function::{Level, SeedEx}, perfect::build_level_no_bitmap_st}, seeds::SeedSize};
 
 /// Minimum size of the part of the minimal output range that is left for the last level of [`PartialML`]:
 /// the successive levels are constructed as long as the part of the minimal output range not used yet
@@ -111,28 +110,6 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
         None
     }
 
-    /// Builds a level with the given output `range` for the `keys`, hashing them with `level_nr` as the seed,
-    /// using a single thread. Leaves in `keys` only the keys bumped (without an assigned value) by the level.
-    /// Returns the level and the number of bumped keys.
-    #[inline]
-    fn build_level_st<K, CC, SC>(keys: &mut Vec<K>, conf: &Conf<SS, CC, S>, seed_chooser: &SC, range: usize, level_nr: u64)
-     -> (SeedEx<SS::VecElement, C>, usize)
-        where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
-    {
-        let mut hashes: Box<[u64]> = keys.iter().map(|key| conf.hasher.hash_one(key, level_nr)).collect();
-        hashes.voracious_sort();
-        let core = seed_chooser.f_core(range, keys.len(), &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
-        let bumped = builder.bumped_len(&seeds);
-        drop(builder);
-        keys.retain(|key| {
-            // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
-            unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
-        });
-        (SeedEx { seeds, core }, bumped)
-    }
-
     /// Constructs [`PartialML`] for given `keys` and configuration, using a single thread.
     /// Returns the function and the number of keys without assigned values
     /// (i.e. the keys bumped at the last level).
@@ -173,7 +150,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
         let first_range = if loading_factor_1000 > 1000 { seed_chooser.output_range(num_of_keys, loading_factor_1000) }
             else { minimal_range };
 
-        let (level0, mut unassigned) = Self::build_level_st(&mut keys, &conf, &seed_chooser, first_range, 0);
+        let (level0, mut unassigned) = build_level_no_bitmap_st(&mut keys, first_range, &conf, seed_chooser.clone(), 0);
 
         let mut levels = Vec::new();
         let mut shift = first_range;
@@ -187,8 +164,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
             // PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD; it is then consumed in full by the last level.
             let last_level = range + PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD > remaining;
             let range = if last_level { remaining } else { range };
-            let (seeds, bumped) = Self::build_level_st(&mut keys, &conf, &seed_chooser, range, level_nr);
-            debug_assert_eq!(bumped, keys.len());
+            let (seeds, bumped) = build_level_no_bitmap_st(&mut keys, range, &conf, seed_chooser.clone(), level_nr);
             levels.push(Level { seeds, shift });
             shift += range;
             remaining -= range;
@@ -347,5 +323,38 @@ pub(crate) mod tests {
         assert_eq!(f.levels(), 1);
         assert_eq!(f.output_range(), 0);
         assert_eq!(unassigned, 0);
+    }
+
+    /// TEMPORARY (to be removed): measures the construction time of `PartialML` and `Perfect`.
+    #[test]
+    #[ignore]
+    fn measure_construction_time() {
+        use std::hint::black_box;
+        use std::time::Instant;
+        use crate::phast::Perfect;
+
+        let input: Box<[u64]> = (0..1_000_000u64).map(|i| i.wrapping_mul(0x9E37_79B9_7F4A_7C15)).collect();
+        for loading_factor_1000 in [1000u16, 1500] {
+            let mut best = f64::MAX;
+            for _ in 0..3 {
+                let mut conf = Conf::generic8(400);
+                conf.loading_factor_1000 = loading_factor_1000;
+                let start = Instant::now();
+                let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf, SeedOnly(ProdOfValues));
+                let elapsed = start.elapsed().as_secs_f64();
+                black_box((&f, unassigned));
+                best = best.min(elapsed);
+            }
+            println!("PartialML (lf = {loading_factor_1000}) build: {:.2} ms", best * 1000.0);
+        }
+        let mut best = f64::MAX;
+        for _ in 0..3 {
+            let start = Instant::now();
+            let f = Perfect::with_slice_conf_sc(&input[..], Conf::generic8(400), SeedOnly(ProdOfValues));
+            let elapsed = start.elapsed().as_secs_f64();
+            black_box(&f);
+            best = best.min(elapsed);
+        }
+        println!("Perfect (slice_st, lf = 1000) build: {:.2} ms", best * 1000.0);
     }
 }

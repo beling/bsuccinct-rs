@@ -8,6 +8,112 @@ use rayon::prelude::*;
 
 use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValues, SeedChooserCore, SeedOnly, SeedOnlyCore, SeedOnlyK, SeedOnlyKCore, SumOfValues, builder::{build_mt, build_st}, conf::Core, function::{Level, SeedEx, hash_all_par}, seed_chooser::SeedChooserConf}, seeds::{Bits8, SeedSize}};
 
+
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice
+/// with the given `output_range`; returns the keys bumped to the next level,
+/// the level and the number of the bumped keys.
+/// Does not compute the bitmap of values free in the level (hence *no_bitmap*). Uses a single thread.
+#[inline]
+pub(crate) fn build_level_from_slice_no_bitmap_st<K, SS, CC, SC, S>(keys: &[K], output_range: usize, conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64)
+    -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, usize)
+    where K: Hash+Clone, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
+{
+    let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
+    //radsort::unopt::sort(&mut hashes);
+    hashes.voracious_sort();
+    let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+    let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
+    let bumped_len = builder.bumped_len(&seeds);
+    drop(builder);
+    let mut keys_vec = Vec::with_capacity(bumped_len);
+    keys_vec.extend(keys.iter().filter(|key| {
+        // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
+        unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
+    }).cloned());
+    (keys_vec, SeedEx{ seeds, core }, bumped_len)
+}
+
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice
+/// with the given `output_range`; returns the keys bumped to the next level,
+/// the level and the number of the bumped keys.
+/// Does not compute the bitmap of values free in the level (hence *no_bitmap*).
+/// Uses up to `threads_num` threads.
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_level_from_slice_no_bitmap_mt<K, SS, CC, SC, S>(keys: &[K], output_range: usize, conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC, level_nr: u64)
+    -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, usize)
+    where K: Hash+Sync+Send+Clone, S: BuildSeededHasher+Sync, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf
+{
+    let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
+    //radsort::unopt::sort(&mut hashes);
+    hashes.voracious_mt_sort(threads_num);
+    let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+    let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
+    let bumped_len = builder.bumped_len(&seeds);
+    drop(builder);
+    let mut keys_vec = Vec::with_capacity(bumped_len);
+    keys_vec.par_extend(keys.into_par_iter().filter(|key| {
+        // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
+        unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
+    }).cloned());
+    (keys_vec, SeedEx{ seeds, core }, bumped_len)
+}
+
+
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`
+/// with the given `output_range`; leaves the keys bumped to the next level in `keys`
+/// and returns the level together with the number of the bumped keys.
+/// Does not compute the bitmap of values free in the level (hence *no_bitmap*). Uses a single thread.
+#[inline]
+pub(crate) fn build_level_no_bitmap_st<K, SS, CC, SC, S>(keys: &mut Vec<K>, output_range: usize, conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64)
+    -> (SeedEx<SS::VecElement, CC::Core>, usize)
+    where K: Hash, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
+{
+    let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
+    hashes.voracious_sort();
+    let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+    let (seeds, _) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
+    keys.retain(|key| {
+        // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
+        unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
+    });
+    // The retained keys are exactly those bumped to the next level, so their number is available for free.
+    (SeedEx{ seeds, core }, keys.len())
+}
+
+/// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`
+/// with the given `output_range`; leaves the keys bumped to the next level in `keys`
+/// and returns the level together with the number of the bumped keys.
+/// Does not compute the bitmap of values free in the level (hence *no_bitmap*).
+/// Uses up to `threads_num` threads.
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_level_no_bitmap_mt<K, SS, CC, SC, S>(keys: &mut Vec<K>, output_range: usize, conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC, level_nr: u64)
+    -> (SeedEx<SS::VecElement, CC::Core>, usize)
+    where K: Hash+Sync+Send, S: BuildSeededHasher+Sync, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf
+{
+    let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
+    //radsort::unopt::sort(&mut hashes);
+    hashes.voracious_mt_sort(threads_num);
+    let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+    let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
+    let mut result = Vec::with_capacity(builder.bumped_len(&seeds));
+    drop(builder);
+    std::mem::swap(keys, &mut result);
+    keys.par_extend(result.into_par_iter().filter(|key| {
+        // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
+        unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
+    }));
+    // The retained keys are exactly those bumped to the next level, so their number is available for free.
+    (SeedEx{ seeds, core }, keys.len())
+}
+
+
+
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
 /// Experimental.
@@ -159,18 +265,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> (Vec<K>, SeedEx<SS::VecElement, C>)
         where K: Hash+Clone, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
-        //radsort::unopt::sort(&mut hashes);
-        hashes.voracious_sort();
-        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
-        let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
-        drop(builder);
-        keys_vec.extend(keys.iter().filter(|key| {
-            unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
-        }).cloned());
-        (keys_vec, SeedEx{ seeds, core })
+        let (keys_vec, level, _) =
+            build_level_from_slice_no_bitmap_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, seed_chooser, level_nr);
+        (keys_vec, level)
     }
 
     /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice;
@@ -180,18 +277,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> (Vec<K>, SeedEx<SS::VecElement, C>)
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
-        //radsort::unopt::sort(&mut hashes);
-        hashes.voracious_mt_sort(threads_num);
-        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
-        let mut keys_vec = Vec::with_capacity(builder.bumped_len(&seeds));
-        drop(builder);
-        keys_vec.par_extend(keys.into_par_iter().filter(|key| {
-            unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
-        }).cloned());
-        (keys_vec, SeedEx{ seeds, core })
+        let (keys_vec, level, _) =
+            build_level_from_slice_no_bitmap_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, threads_num, seed_chooser, level_nr);
+        (keys_vec, level)
     }
 
     /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
@@ -200,15 +288,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
     fn build_level_st<K, CC, SC>(keys: &mut Vec::<K>, conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64) -> SeedEx<SS::VecElement, C>
         where K: Hash, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
-        hashes.voracious_sort();
-        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, _) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
-        keys.retain(|key| {
-            unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
-        });
-        SeedEx{ seeds, core }
+        build_level_no_bitmap_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, seed_chooser, level_nr).0
     }
 
     /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
@@ -218,19 +298,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> SeedEx<SS::VecElement, C>
         where K: Hash+Sync+Send, S: Sync, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
-        //radsort::unopt::sort(&mut hashes);
-        hashes.voracious_mt_sort(threads_num);
-        let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
-        let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
-        let mut result = Vec::with_capacity(builder.bumped_len(&seeds));
-        drop(builder);
-        std::mem::swap(keys, &mut result);
-        keys.par_extend(result.into_par_iter().filter(|key| {
-            unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
-        }));
-        SeedEx{ seeds, core }
+        build_level_no_bitmap_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, threads_num, seed_chooser, level_nr).0
     }
 
     /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.
