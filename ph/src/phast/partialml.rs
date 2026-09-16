@@ -143,7 +143,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
         let num_of_keys = keys.len();
         let minimal_range = seed_chooser.minimal_output_range(num_of_keys);
         // The output range of the entire function is never below the minimal one.
-        let total_range = if loading_factor_1000 > 1000 { minimal_range }
+        let total_range = if loading_factor_1000 >= 1000 { minimal_range }
             else { seed_chooser.output_range(num_of_keys, loading_factor_1000) };
         // With a loading factor below 1, the first level gets the minimal output range (as for a loading factor of 1),
         // so that the keys bumped from it fit in the still unused part of the desired output range of the function.
@@ -151,7 +151,6 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
             else { minimal_range };
 
         let level0 = build_level_no_bitmap_st(&mut keys, first_range, &conf, seed_chooser.clone(), 0);
-        let mut unassigned = keys.len();
 
         let mut levels = Vec::new();
         let mut shift = first_range;
@@ -169,9 +168,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
             levels.push(Level { seeds, shift });
             shift += range;
             remaining -= range;
-            unassigned = keys.len();
             level_nr += 1;
-            if last_level { break; }
         }
 
         (Self {
@@ -180,7 +177,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
             hasher: conf.hasher,
             seed_chooser: seed_chooser.core(),
             seed_size: conf.seed_size,
-        }, unassigned)
+        }, keys.len())
     }
 }
 
