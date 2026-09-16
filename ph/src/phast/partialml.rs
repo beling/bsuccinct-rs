@@ -1,10 +1,11 @@
 //! [`PartialML`] – multi-level map-or-bump function based on PHast.
 
 use dyn_size_of::GetSize;
+use seedable_hash::{BuildDefaultSeededHasher, BuildSeededHasher};
 use voracious_radix_sort::RadixSort;
+use std::hash::Hash;
 
-use crate::{phast::{Conf, SeedChooser, SeedChooserConf, SeedChooserCore, SeedOnlyCore, builder::{BuildConf, build_mt, build_st}, conf::{Core, CoreConf}, evaluator::BucketEvaluator, function::{Level, SeedEx}}, seeds::SeedSize};
-use std::hash::{BuildHasher, Hash, RandomState};
+use crate::{phast::{Conf, SeedChooserConf, SeedChooserCore, SeedOnlyCore, builder::build_st, conf::{Core, CoreConf}, function::{Level, SeedEx}}, seeds::SeedSize};
 
 /// Minimum size of the part of the minimal output range that is left for the last level of [`PartialML`]:
 /// the successive levels are constructed as long as the part of the minimal output range not used yet
@@ -19,6 +20,7 @@ pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 4096;
 /// It constructs multiple levels. The first level is for all keys,
 /// the second for those bumped at the first level,
 /// the third for those bumped at the second level, and so on.
+/// Each level hashes keys with its own seed (the level number).
 /// Each level uses a disjoint part of the output range, so each key is assigned a value
 /// by the first level that does not bump it; only the keys bumped at the last level are assigned `None`.
 /// 
@@ -26,7 +28,7 @@ pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 4096;
 /// and on the minimal output range, i.e. the output range of a minimal (perfect or k-perfect) function for the considered
 /// number of keys (`number_of_keys / k` for a k-perfect function and `number_of_keys` for a perfect one;
 /// see [`Partial::minimal_output_range`](crate::phast::Partial::minimal_output_range)).
-/// The output range of the entire function (`output_range()`) is never below the minimal one.
+/// The output range of the entire function ([`PartialML::output_range`]) is never below the minimal one.
 /// 
 /// If the loading factor is less than 1, then the output range of the entire function is greater than the minimal one.
 /// Each level is constructed with the minimal output range for the keys it handles (as for a loading factor of 1),
@@ -48,16 +50,302 @@ pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 4096;
 /// 
 /// See:
 /// Piotr Beling, Peter Sanders, *PHast - Perfect Hashing made fast*, 2025, <https://arxiv.org/abs/2504.17918>
-pub struct PartialML<C, SS, SCC = SeedOnlyCore, S = RandomState> where C: Core, SS: SeedSize {
+pub struct PartialML<C, SS, SCC = SeedOnlyCore, S = BuildDefaultSeededHasher> where C: Core, SS: SeedSize {
     /// Seeds and core of the first level (constructed for all keys).
     level0: SeedEx<SS::VecElement, C>,
     /// Seeds, cores and shifts of the successive levels,
     /// constructed for the keys bumped at the previous levels.
     levels: Box<[Level<SS::VecElement, C>]>,
-    /// Hasher used to hash keys.
+    /// Hasher used to hash keys; each level uses the level number as the seed.
     hasher: S,
     /// Core of the seed chooser used at evaluation time.
     seed_chooser: SCC,
     /// Seed size (number of bits per seed).
     seed_size: SS,
+}
+
+impl<C: Core, SS: SeedSize, SCC, S> GetSize for PartialML<C, SS, SCC, S> {
+    fn size_bytes_dyn(&self) -> usize { self.level0.size_bytes_dyn() + self.levels.size_bytes_dyn() }
+    fn size_bytes_content_dyn(&self) -> usize { self.level0.size_bytes_content_dyn() + self.levels.size_bytes_content_dyn() }
+    const USES_DYN_MEM: bool = true;
+}
+
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> PartialML<C, SS, SCC, S> {
+    /// Returns the number of levels of `self` (including the first one).
+    #[inline] pub fn levels(&self) -> usize { self.levels.len() + 1 }
+
+    /// Returns output range of minimal (perfect or k-perfect) function for given number of keys,
+    /// i.e. 1 + maximum value that minimal function can return.
+    #[inline(always)] pub fn minimal_output_range(&self, num_of_keys: usize) -> usize {
+        self.seed_chooser.minimal_output_range(num_of_keys)
+    }
+
+    /// Returns output range of `self`, i.e. 1 + maximum value that `self` can return
+    /// (the total output range of all its levels).
+    pub fn output_range(&self) -> usize {
+        if let Some(last_level) = self.levels.last() {
+            last_level.shift + last_level.seeds.core.output_range(self.seed_chooser, self.seed_size.into())
+        } else {
+            self.level0.core.output_range(self.seed_chooser, self.seed_size.into())
+        }
+    }
+}
+impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialML<C, SS, SCC, S> {
+    /// Returns value assigned to the given `key` or `None`.
+    /// 
+    /// The returned value is in the range from `0` (inclusive) to [`PartialML::output_range`] (exclusive).
+    /// `key` must come from the input key collection given during construction;
+    /// for any other key the result is unspecified (it can be `None` or any value).
+    #[inline(always)]
+    pub fn get<K>(&self, key: &K) -> Option<usize> where K: Hash + ?Sized {
+        let key_hash = self.hasher.hash_one(key, 0);
+        // SAFETY: the bucket number returned by `bucket_for` is always within the level's seeds array.
+        let seed = unsafe { self.level0.seed_for(self.seed_size, key_hash) };
+        if seed != 0 { return Some(self.seed_chooser.f(key_hash, seed, &self.level0.core)); }
+        for (level_nr, level) in self.levels.iter().enumerate() {
+            let key_hash = self.hasher.hash_one(key, level_nr as u64 + 1);
+            // SAFETY: the bucket number returned by `bucket_for` is always within the level's seeds array.
+            let seed = unsafe { level.seeds.seed_for(self.seed_size, key_hash) };
+            if seed != 0 { return Some(self.seed_chooser.f(key_hash, seed, &level.seeds.core) + level.shift); }
+        }
+        None
+    }
+
+    /// Builds a level with the given output `range` for the `keys`, hashing them with `level_nr` as the seed,
+    /// using a single thread. Leaves in `keys` only the keys bumped (without an assigned value) by the level.
+    /// Returns the level and the number of bumped keys.
+    #[inline]
+    fn build_level_st<K, CC, SC>(keys: &mut Vec<K>, conf: &Conf<SS, CC, S>, seed_chooser: &SC, range: usize, level_nr: u64)
+     -> (SeedEx<SS::VecElement, C>, usize)
+        where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
+    {
+        let mut hashes: Box<[u64]> = keys.iter().map(|key| conf.hasher.hash_one(key, level_nr)).collect();
+        hashes.voracious_sort();
+        let core = seed_chooser.f_core(range, keys.len(), &conf.core_conf, conf.bits_per_seed());
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len());
+        let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
+        let bumped = builder.bumped_len(&seeds);
+        drop(builder);
+        keys.retain(|key| {
+            // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
+            unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
+        });
+        (SeedEx { seeds, core }, bumped)
+    }
+
+    /// Constructs [`PartialML`] for given `keys` and configuration, using a single thread.
+    /// Returns the function and the number of keys without assigned values
+    /// (i.e. the keys bumped at the last level).
+    /// 
+    /// # Example
+    /// ```
+    /// use ph::phast::{Conf, PartialML, ProdOfValues, SeedOnly};
+    /// 
+    /// let keys: Vec<u16> = (0..1000).collect();
+    /// // The loading factor of 1 (the default) gives exactly one level with the minimal output range:
+    /// let (f, unassigned) = PartialML::with_keys_conf_sc_u(keys.iter().copied(), Conf::generic8(400), SeedOnly(ProdOfValues));
+    /// assert_eq!(f.levels(), 1);
+    /// assert_eq!(f.output_range(), f.minimal_output_range(keys.len()));
+    /// assert_eq!(unassigned, keys.iter().filter(|key| f.get(*key).is_none()).count());
+    /// 
+    /// // A loading factor greater than 1 splits the construction into more levels,
+    /// // but the output range of the entire function is still the minimal one:
+    /// let mut conf = Conf::generic8(400);
+    /// conf.loading_factor_1000 = 1500;
+    /// let (f, unassigned) = PartialML::with_keys_conf_sc_u(keys.iter().copied(), conf, SeedOnly(ProdOfValues));
+    /// assert_eq!(f.levels(), 2);
+    /// assert_eq!(f.output_range(), f.minimal_output_range(keys.len()));
+    /// assert_eq!(unassigned, keys.iter().filter(|key| f.get(*key).is_none()).count());
+    /// ```
+    pub fn with_keys_conf_sc_u<K, CC, SC>(keys: impl Iterator<Item = K>, conf: Conf<SS, CC, S>, seed_chooser: SC)
+     -> (Self, usize)
+        where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
+    {
+        let mut keys: Vec<K> = keys.collect();
+        let loading_factor_1000 = conf.loading_factor_1000;
+        let num_of_keys = keys.len();
+        let minimal_range = seed_chooser.minimal_output_range(num_of_keys);
+        // The output range of the entire function is never below the minimal one.
+        let total_range = if loading_factor_1000 > 1000 { minimal_range }
+            else { seed_chooser.output_range(num_of_keys, loading_factor_1000) };
+        // With a loading factor below 1, the first level gets the minimal output range (as for a loading factor of 1),
+        // so that the keys bumped from it fit in the still unused part of the desired output range of the function.
+        let first_range = if loading_factor_1000 > 1000 { seed_chooser.output_range(num_of_keys, loading_factor_1000) }
+            else { minimal_range };
+
+        let (level0, mut unassigned) = Self::build_level_st(&mut keys, &conf, &seed_chooser, first_range, 0);
+
+        let mut levels = Vec::new();
+        let mut shift = first_range;
+        let mut remaining = total_range - first_range;  // part of the output range not used yet by the previous levels
+        let mut level_nr = 1u64;
+        while !keys.is_empty() && remaining > 0 {
+            let level_keys = keys.len();
+            let range = if loading_factor_1000 > 1000 { seed_chooser.output_range(level_keys, loading_factor_1000) }
+                else { seed_chooser.minimal_output_range(level_keys) };
+            // The remainder of the output range is no longer split if it is smaller than
+            // PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD; it is then consumed in full by the last level.
+            let last_level = range + PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD > remaining;
+            let range = if last_level { remaining } else { range };
+            let (seeds, bumped) = Self::build_level_st(&mut keys, &conf, &seed_chooser, range, level_nr);
+            debug_assert_eq!(bumped, keys.len());
+            levels.push(Level { seeds, shift });
+            shift += range;
+            remaining -= range;
+            unassigned = bumped;
+            level_nr += 1;
+            if last_level { break; }
+        }
+
+        (Self {
+            level0,
+            levels: levels.into_boxed_slice(),
+            hasher: conf.hasher,
+            seed_chooser: seed_chooser.core(),
+            seed_size: conf.seed_size,
+        }, unassigned)
+    }
+}
+
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use crate::phast::{Partial, ProdOfValues, SeedOnly, SeedOnlyK};
+    use crate::utils::{verify_partial_kphf, verify_partial_phf};
+
+    use super::*;
+
+    /// Returns the number of `keys` that `f` assigns no value.
+    fn unassigned_count<K, C, SS, SCC, S>(f: &PartialML<C, SS, SCC, S>, keys: &[K]) -> usize
+        where K: Hash, C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher
+    {
+        keys.iter().filter(|key| f.get(*key).is_none()).count()
+    }
+
+    #[test]
+    fn test_small() {
+        let input = [1u16, 2, 3, 4, 5];
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), Conf::generic8(400), SeedOnly(ProdOfValues));
+        assert_eq!(f.levels(), 1);      // a loading factor of 1 builds a single level
+        assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
+        verify_partial_phf(f.output_range(), &input, |key| f.get(key));
+        assert_eq!(unassigned, unassigned_count(&f, &input));
+        assert!(f.size_bytes_dyn() > 0);
+    }
+
+    #[test]
+    fn test_medium() {
+        let input: Box<[u16]> = (0..1000).collect();
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), Conf::generic8(400), SeedOnly(ProdOfValues));
+        assert_eq!(f.levels(), 1);
+        assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
+        verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
+        assert_eq!(unassigned, unassigned_count(&f, &input));
+    }
+
+    #[test]
+    fn test_lf_above_1() {
+        let input: Box<[u16]> = (0..1000).collect();
+        let mut conf = Conf::generic8(400);
+        conf.loading_factor_1000 = 1500;
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf, SeedOnly(ProdOfValues));
+        assert!(f.levels() > 1);    // the keys bumped at a level are mapped by the following levels
+        assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
+        verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
+        assert_eq!(unassigned, unassigned_count(&f, &input));
+    }
+
+    #[test]
+    fn test_lf_below_1() {
+        let input: Box<[u16]> = (0..1000).collect();
+        let seed_chooser = SeedOnly(ProdOfValues);
+        let desired_range = seed_chooser.output_range(input.len(), 950);
+        let mut conf = Conf::generic8(400);
+        conf.loading_factor_1000 = 950;
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf, seed_chooser);
+        assert!(f.output_range() > f.minimal_output_range(input.len()));
+        assert!(f.output_range() <= desired_range);     // the desired output range is not exceeded
+        verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
+        assert_eq!(unassigned, unassigned_count(&f, &input));
+    }
+
+    /// Checks the case where the remainder of the output range is still large enough
+    /// to be split into more levels (so more than two levels are constructed).
+    #[test]
+    fn test_many_levels() {
+        let input: Box<[u16]> = (0..20000).collect();
+        let mut conf = Conf::generic8(400);
+        conf.loading_factor_1000 = 3000;
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf, SeedOnly(ProdOfValues));
+        assert!(f.levels() > 2);
+        assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
+        verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
+        assert_eq!(unassigned, unassigned_count(&f, &input));
+    }
+
+    #[test]
+    fn test_k_perfect() {
+        let input: Box<[u16]> = (0..1000).collect();
+        for loading_factor_1000 in [1000, 1500] {
+            let mut conf = Conf::generic8(400);
+            conf.loading_factor_1000 = loading_factor_1000;
+            let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf, SeedOnlyK::with_evaluator(3, ProdOfValues));
+            if loading_factor_1000 > 1000 {
+                assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
+            }
+            verify_partial_kphf(3, f.output_range(), &input[..], |key| f.get(key));
+            assert_eq!(unassigned, unassigned_count(&f, &input));
+        }
+    }
+
+    #[test]
+    fn test_turbo_core() {
+        let input: Box<[u16]> = (0..1000).collect();
+        let mut conf = Conf::turbo();
+        conf.loading_factor_1000 = 1500;
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf, SeedOnly(ProdOfValues));
+        assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
+        verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
+        assert_eq!(unassigned, unassigned_count(&f, &input));
+    }
+
+    /// Checks that a single level built by `PartialML` (a loading factor of 1)
+    /// is the same as the one built by [`Partial`] for the same hashes.
+    #[test]
+    fn test_vs_partial() {
+        let input: Box<[u16]> = (0..1000).collect();
+        // The default hasher is deterministic, so an independently built instance can be used
+        // to prepare the hashes passed to `Partial` (note that `Partial` sorts them in place):
+        let hasher = Conf::generic8(400).hasher;
+        let mut hashes: Box<[u64]> = input.iter().map(|key| hasher.hash_one(key, 0)).collect();
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), Conf::generic8(400), SeedOnly(ProdOfValues));
+        let (p, partial_unassigned) = Partial::with_hashes_conf_sc_u(&mut hashes, &Conf::generic8(400), SeedOnly(ProdOfValues));
+        assert_eq!(unassigned, partial_unassigned);
+        for key in input.iter() {
+            assert_eq!(f.get(key), p.get_for_hash(hasher.hash_one(key, 0)));
+        }
+    }
+
+    #[test]
+    fn test_determinism() {
+        let input: Box<[u16]> = (0..1000).collect();
+        let mut conf1 = Conf::generic8(400);
+        conf1.loading_factor_1000 = 1300;
+        let mut conf2 = Conf::generic8(400);
+        conf2.loading_factor_1000 = 1300;
+        let (f1, unassigned1) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf1, SeedOnly(ProdOfValues));
+        let (f2, unassigned2) = PartialML::with_keys_conf_sc_u(input.iter().copied(), conf2, SeedOnly(ProdOfValues));
+        assert_eq!(unassigned1, unassigned2);
+        assert_eq!(f1.levels(), f2.levels());
+        for key in input.iter() { assert_eq!(f1.get(key), f2.get(key)); }
+    }
+
+    #[test]
+    fn test_empty() {
+        let input: [u16; 0] = [];
+        let (f, unassigned) = PartialML::with_keys_conf_sc_u(input.iter().copied(), Conf::generic8(400), SeedOnly(ProdOfValues));
+        assert_eq!(f.levels(), 1);
+        assert_eq!(f.output_range(), 0);
+        assert_eq!(unassigned, 0);
+    }
 }
