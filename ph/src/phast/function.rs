@@ -45,7 +45,7 @@ impl<SSVecElement, C: Core> SeedEx<SSVecElement, C> {
 impl<SSVecElement: GetSize, C: Core> SeedEx<SSVecElement, C> {
     /// Returns number of bytes which `write` will write.
     pub fn write_bytes(&self) -> usize {
-        self.core.write_bytes() + GetSize::size_bytes_dyn(&self.seeds)
+        self.core.write_bytes() + crate::seeds::write_seed_vec_bytes(&self.seeds)
     }
 }
 
@@ -419,7 +419,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         self.level0.write_bytes() +
         self.bumped_index_to_value.write_bytes() +
         VByte::size(self.bumped_to_index.len()) +
-        self.bumped_to_index.iter().map(|l| l.size_bytes()).sum::<usize>()
+        self.bumped_to_index.iter().map(|l| l.write_bytes()).sum::<usize>()
     }
 
     /// Writes `self` to the `output`.
@@ -501,7 +501,7 @@ pub(crate) mod tests {
     {
         let mut buff = Vec::new();
         h.write(&mut buff).unwrap();
-        //assert_eq!(buff.len(), h.write_bytes());
+        assert_eq!(buff.len(), h.write_bytes());
         let read = Function::<C, SS>::read(&mut &buff[..]).unwrap();
         assert_eq!(h.level0.core, read.level0.core);
         assert_eq!(h.bumped_to_index.len(), read.bumped_to_index.len());

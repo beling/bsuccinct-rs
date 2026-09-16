@@ -13,6 +13,13 @@ where E: Into<Box<dyn std::error::Error + Send + Sync>> {
     std::io::Error::new(std::io::ErrorKind::InvalidData, err)
 }
 
+
+/// Returns bytes which `SeedSize::write_seed_vec` (for any `SeedSize`)
+/// will write for `seeds`: 1 + size of seeds in bytes
+pub fn write_seed_vec_bytes<VecElement>(seeds: &[VecElement]) -> usize {
+    1 + seeds.len() * std::mem::size_of::<VecElement>()
+}
+
 /// Implementations of `SeedSize` represent seed size in fingerprinting-based minimal perfect hashing with group optimization.
 pub trait SeedSize: Copy + Into<u8> + Sync + Send + TryFrom<u8, Error=&'static str> {
     type VecElement: Copy + Send + Sync + Sized + GetSize;

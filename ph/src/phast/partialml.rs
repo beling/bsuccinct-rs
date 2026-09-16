@@ -471,8 +471,7 @@ pub(crate) mod tests {
     fn check_read_write<C: Core, SS: SeedSize>(f: &PartialML<C, SS, SeedOnlyCore>, input: &[u16], unassigned: &[u16]) {
         let mut buffer = Vec::new();
         f.write(&mut buffer).unwrap();
-        // `write_bytes` underestimates the size written, as it does not include the bytes
-        // written by `SeedSize::write` for each level (the same holds for `Function`/`KFunction`).
+        assert_eq!(buffer.len(), f.write_bytes());
         let read = PartialML::<C, SS, SeedOnlyCore>::read(&mut &buffer[..]).unwrap();
         assert_eq!(f.levels(), read.levels());
         assert_eq!(f.output_range(), read.output_range());
