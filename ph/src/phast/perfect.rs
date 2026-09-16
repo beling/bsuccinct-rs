@@ -10,12 +10,11 @@ use crate::{phast::{Conf, CoreConf, GenericCore, KSeedEvaluatorConf, ProdOfValue
 
 
 /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice
-/// with the given `output_range`; returns the keys bumped to the next level,
-/// the level and the number of the bumped keys.
+/// with the given `output_range`; returns the keys bumped to the next level and the level.
 /// Does not compute the bitmap of values free in the level (hence *no_bitmap*). Uses a single thread.
 #[inline]
 pub(crate) fn build_level_from_slice_no_bitmap_st<K, SS, CC, SC, S>(keys: &[K], output_range: usize, conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64)
-    -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, usize)
+    -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>)
     where K: Hash+Clone, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
@@ -31,18 +30,17 @@ pub(crate) fn build_level_from_slice_no_bitmap_st<K, SS, CC, SC, S>(keys: &[K], 
         // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
         unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
     }).cloned());
-    (keys_vec, SeedEx{ seeds, core }, bumped_len)
+    (keys_vec, SeedEx{ seeds, core })
 }
 
 /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice
-/// with the given `output_range`; returns the keys bumped to the next level,
-/// the level and the number of the bumped keys.
+/// with the given `output_range`; returns the keys bumped to the next level and the level.
 /// Does not compute the bitmap of values free in the level (hence *no_bitmap*).
 /// Uses up to `threads_num` threads.
 #[inline]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_level_from_slice_no_bitmap_mt<K, SS, CC, SC, S>(keys: &[K], output_range: usize, conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC, level_nr: u64)
-    -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>, usize)
+    -> (Vec<K>, SeedEx<SS::VecElement, CC::Core>)
     where K: Hash+Sync+Send+Clone, S: BuildSeededHasher+Sync, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf
 {
     let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
@@ -58,17 +56,17 @@ pub(crate) fn build_level_from_slice_no_bitmap_mt<K, SS, CC, SC, S>(keys: &[K], 
         // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
         unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
     }).cloned());
-    (keys_vec, SeedEx{ seeds, core }, bumped_len)
+    (keys_vec, SeedEx{ seeds, core })
 }
 
 
 /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`
 /// with the given `output_range`; leaves the keys bumped to the next level in `keys`
-/// and returns the level together with the number of the bumped keys.
+/// and returns the level.
 /// Does not compute the bitmap of values free in the level (hence *no_bitmap*). Uses a single thread.
 #[inline]
 pub(crate) fn build_level_no_bitmap_st<K, SS, CC, SC, S>(keys: &mut Vec<K>, output_range: usize, conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64)
-    -> (SeedEx<SS::VecElement, CC::Core>, usize)
+    -> SeedEx<SS::VecElement, CC::Core>
     where K: Hash, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf, S: BuildSeededHasher
 {
     let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
@@ -81,18 +79,18 @@ pub(crate) fn build_level_no_bitmap_st<K, SS, CC, SC, S>(keys: &mut Vec<K>, outp
         unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
     });
     // The retained keys are exactly those bumped to the next level, so their number is available for free.
-    (SeedEx{ seeds, core }, keys.len())
+    SeedEx{ seeds, core }
 }
 
 /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`
 /// with the given `output_range`; leaves the keys bumped to the next level in `keys`
-/// and returns the level together with the number of the bumped keys.
+/// and returns the level.
 /// Does not compute the bitmap of values free in the level (hence *no_bitmap*).
 /// Uses up to `threads_num` threads.
 #[inline]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_level_no_bitmap_mt<K, SS, CC, SC, S>(keys: &mut Vec<K>, output_range: usize, conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC, level_nr: u64)
-    -> (SeedEx<SS::VecElement, CC::Core>, usize)
+    -> SeedEx<SS::VecElement, CC::Core>
     where K: Hash+Sync+Send, S: BuildSeededHasher+Sync, SC: SeedChooserConf, SS: SeedSize, CC: CoreConf
 {
     let mut hashes: Box<[_]> = hash_all_par(keys, &conf.hasher, level_nr);
@@ -109,10 +107,8 @@ pub(crate) fn build_level_no_bitmap_mt<K, SS, CC, SC, S>(keys: &mut Vec<K>, outp
         unsafe { conf.seed_size.get_seed(&seeds, core.bucket_for(conf.hasher.hash_one(key, level_nr))) == 0 }
     }));
     // The retained keys are exactly those bumped to the next level, so their number is available for free.
-    (SeedEx{ seeds, core }, keys.len())
+    SeedEx{ seeds, core }
 }
-
-
 
 /// PHast (Perfect Hashing made fast) - (K-)Perfect (not necessary minimal) Hash Function
 /// with very fast evaluation developed by Piotr Beling and Peter Sanders.
@@ -265,9 +261,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> (Vec<K>, SeedEx<SS::VecElement, C>)
         where K: Hash+Clone, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let (keys_vec, level, _) =
-            build_level_from_slice_no_bitmap_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, seed_chooser, level_nr);
-        (keys_vec, level)
+        build_level_from_slice_no_bitmap_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, seed_chooser, level_nr)
     }
 
     /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys` given as a slice;
@@ -277,9 +271,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> (Vec<K>, SeedEx<SS::VecElement, C>)
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        let (keys_vec, level, _) =
-            build_level_from_slice_no_bitmap_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, threads_num, seed_chooser, level_nr);
-        (keys_vec, level)
+        build_level_from_slice_no_bitmap_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, threads_num, seed_chooser, level_nr)
     }
 
     /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
@@ -288,7 +280,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
     fn build_level_st<K, CC, SC>(keys: &mut Vec::<K>, conf: &Conf<SS, CC, S>, seed_chooser: SC, level_nr: u64) -> SeedEx<SS::VecElement, C>
         where K: Hash, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        build_level_no_bitmap_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, seed_chooser, level_nr).0
+        build_level_no_bitmap_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, seed_chooser, level_nr)
     }
 
     /// Builds a level (with given `level_nr`, used to seed the hasher) for `keys`;
@@ -298,7 +290,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> Perfect<
         -> SeedEx<SS::VecElement, C>
         where K: Hash+Sync+Send, S: Sync, SC: SeedChooserConf<Core=SCC>, CC: CoreConf<Core = C>
     {
-        build_level_no_bitmap_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, threads_num, seed_chooser, level_nr).0
+        build_level_no_bitmap_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), conf, threads_num, seed_chooser, level_nr)
     }
 
     /// Returns maximum number of keys which can be mapped to the same value by `k`-[`Perfect`] function `self`.

@@ -150,7 +150,8 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
         let first_range = if loading_factor_1000 > 1000 { seed_chooser.output_range(num_of_keys, loading_factor_1000) }
             else { minimal_range };
 
-        let (level0, mut unassigned) = build_level_no_bitmap_st(&mut keys, first_range, &conf, seed_chooser.clone(), 0);
+        let level0 = build_level_no_bitmap_st(&mut keys, first_range, &conf, seed_chooser.clone(), 0);
+        let mut unassigned = keys.len();
 
         let mut levels = Vec::new();
         let mut shift = first_range;
@@ -164,11 +165,11 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
             // PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD; it is then consumed in full by the last level.
             let last_level = range + PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD > remaining;
             let range = if last_level { remaining } else { range };
-            let (seeds, bumped) = build_level_no_bitmap_st(&mut keys, range, &conf, seed_chooser.clone(), level_nr);
+            let seeds = build_level_no_bitmap_st(&mut keys, range, &conf, seed_chooser.clone(), level_nr);
             levels.push(Level { seeds, shift });
             shift += range;
             remaining -= range;
-            unassigned = bumped;
+            unassigned = keys.len();
             level_nr += 1;
             if last_level { break; }
         }
