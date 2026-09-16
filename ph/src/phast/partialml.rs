@@ -27,7 +27,7 @@ const MINIMAL_LEVEL_THRESHOLD: usize = 4096;
 /// If the loading factor is grater than 1, then the output range of the entire function is equal to the minimal one.
 /// Every level except, at most, the last one is constructed with the loading factor given in configuration
 /// (with output range below minimal). If the remaining output range falls below the `MINIMAL_LEVEL_THRESHOLD`,
-/// it is fully consumed (by the last level).
+/// it is fully consumed by the last level.
 /// 
 /// Can be used with any seed chooser (which specify a particular PHast variant):
 /// [`ShiftOnlyWrapped`](crate::phast::ShiftOnlyWrapped), [`ShiftSeedWrapped`](crate::phast::ShiftSeedWrapped),
