@@ -11,6 +11,7 @@
 //! - [`Perfect`] – (k-)perfect (not necessarily minimal) hash function,
 //! - [`KFunction`] – k-perfect hash function,
 //! - [`Partial`] – map-or-bump function (assigns values to some keys only),
+//! - [`PartialML`] – like [`Partial`] but usually smaller and slower to evaluate, and with different support for loading factor > 1,
 //! - [`NBFunction`] – a no-bumping variant with single-cache-miss evaluation.
 //!
 //! The particular PHast variant is selected by a *seed chooser*
@@ -41,6 +42,9 @@ pub use perfect::Perfect;
 
 mod partial;
 pub use partial::Partial;
+
+mod partialml;
+pub use partialml::PartialML;
 
 mod kfunction;
 pub use kfunction::KFunction;
