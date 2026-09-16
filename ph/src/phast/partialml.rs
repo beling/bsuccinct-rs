@@ -114,10 +114,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     /// giving it the `first_range` output range computed by this method,
     /// then repeatedly builds the next levels with `build_level` as long as there are bumped keys
     /// and a part of the output range not used yet by the previous levels.
-    /// Returns the function and the number of keys without assigned values
+    /// Returns the function and the keys without assigned values
     /// (the keys left in the vector built by `build_first` and the following `build_level` calls).
     #[inline]
-    fn _new<K, BF, BL, CC, SC>(build_first: BF, build_level: BL, conf: Conf<SS, CC, S>, seed_chooser: &SC, num_of_keys: usize) -> (Self, usize)
+    fn _new<K, BF, BL, CC, SC>(build_first: BF, build_level: BL, conf: Conf<SS, CC, S>, seed_chooser: &SC, num_of_keys: usize) -> (Self, Vec<K>)
         where BF: FnOnce(&Conf<SS, CC, S>, usize) -> (Vec<K>, SeedEx<SS::VecElement, C>),
             BL: Fn(&mut Vec<K>, usize, u64, &Conf<SS, CC, S>) -> SeedEx<SS::VecElement, C>,
             K: Hash, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
@@ -158,13 +158,13 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
             hasher: conf.hasher,
             seed_chooser: seed_chooser.core(),
             seed_size: conf.seed_size,
-        }, keys.len())
+        }, keys)
     }
 
     /// Constructs [`PartialML`] for given `keys` (given as a vector), configuration and seed chooser,
-    /// using a single thread. Returns the function and the number of keys without assigned values
+    /// using a single thread. Returns the function and the keys without assigned values
     /// (i.e. the keys bumped at the last level). `keys` cannot contain duplicates.
-    pub fn with_vec_conf_sc_u<K, CC, SC>(mut keys: Vec<K>, conf: Conf<SS, CC, S>, seed_chooser: SC) -> (Self, usize)
+    pub fn with_vec_conf_sc_u<K, CC, SC>(mut keys: Vec<K>, conf: Conf<SS, CC, S>, seed_chooser: SC) -> (Self, Vec<K>)
         where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let num_of_keys = keys.len();
@@ -177,9 +177,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     }
 
     /// Constructs [`PartialML`] for given `keys` (given as a vector), configuration and seed chooser,
-    /// using multiple (given number of) threads. Returns the function and the number of keys
+    /// using multiple (given number of) threads. Returns the function and the keys
     /// without assigned values (i.e. the keys bumped at the last level). `keys` cannot contain duplicates.
-    pub fn with_vec_conf_threads_sc_u<K, CC, SC>(mut keys: Vec<K>, conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> (Self, usize)
+    pub fn with_vec_conf_threads_sc_u<K, CC, SC>(mut keys: Vec<K>, conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> (Self, Vec<K>)
         where K: Hash+Sync+Send, S: Sync, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         if threads_num == 1 { return Self::with_vec_conf_sc_u(keys, conf, seed_chooser); }
@@ -193,7 +193,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     }
 
     /// Constructs [`PartialML`] for given `keys` (given as a slice), configuration and seed chooser,
-    /// using a single thread. Returns the function and the number of keys without assigned values
+    /// using a single thread. Returns the function and the keys without assigned values
     /// (i.e. the keys bumped at the last level). `keys` cannot contain duplicates.
     /// 
     /// # Example
@@ -205,7 +205,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     /// let (f, unassigned) = PartialML::with_slice_conf_sc_u(&keys, Conf::generic8(400), SeedOnly(ProdOfValues));
     /// assert_eq!(f.levels(), 1);
     /// assert_eq!(f.output_range(), f.minimal_output_range(keys.len()));
-    /// assert_eq!(unassigned, keys.iter().filter(|key| f.get(*key).is_none()).count());
+    /// assert_eq!(unassigned.len(), keys.iter().filter(|key| f.get(*key).is_none()).count());
     /// 
     /// // A loading factor greater than 1 splits the construction into more levels,
     /// // but the output range of the entire function is still the minimal one:
@@ -214,9 +214,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     /// let (f, unassigned) = PartialML::with_slice_conf_threads_sc_u(&keys, conf, 4, SeedOnly(ProdOfValues));
     /// assert!(f.levels() > 1);
     /// assert_eq!(f.output_range(), f.minimal_output_range(keys.len()));
-    /// assert_eq!(unassigned, keys.iter().filter(|key| f.get(*key).is_none()).count());
+    /// assert_eq!(unassigned.len(), keys.iter().filter(|key| f.get(*key).is_none()).count());
     /// ```
-    pub fn with_slice_conf_sc_u<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, seed_chooser: SC) -> (Self, usize)
+    pub fn with_slice_conf_sc_u<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, seed_chooser: SC) -> (Self, Vec<K>)
         where K: Hash+Clone, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         Self::_new(|conf, first_range| {
@@ -227,9 +227,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     }
 
     /// Constructs [`PartialML`] for given `keys` (given as a slice), configuration and seed chooser,
-    /// using multiple (given number of) threads. Returns the function and the number of keys
+    /// using multiple (given number of) threads. Returns the function and the keys
     /// without assigned values (i.e. the keys bumped at the last level). `keys` cannot contain duplicates.
-    pub fn with_slice_conf_threads_sc_u<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> (Self, usize)
+    pub fn with_slice_conf_threads_sc_u<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> (Self, Vec<K>)
         where K: Hash+Sync+Send+Clone, S: Sync, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         if threads_num == 1 { return Self::with_slice_conf_sc_u(keys, conf, seed_chooser); }
@@ -263,7 +263,7 @@ pub(crate) mod tests {
         assert_eq!(f.levels(), 1);      // a loading factor of 1 builds a single level
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input, |key| f.get(key));
-        assert_eq!(unassigned, unassigned_count(&f, &input));
+        assert_eq!(unassigned.len(), unassigned_count(&f, &input));
         assert!(f.size_bytes_dyn() > 0);
     }
 
@@ -274,7 +274,7 @@ pub(crate) mod tests {
         assert_eq!(f.levels(), 1);
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
-        assert_eq!(unassigned, unassigned_count(&f, &input));
+        assert_eq!(unassigned.len(), unassigned_count(&f, &input));
     }
 
     #[test]
@@ -286,7 +286,7 @@ pub(crate) mod tests {
         assert!(f.levels() > 1);    // the keys bumped at a level are mapped by the following levels
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
-        assert_eq!(unassigned, unassigned_count(&f, &input));
+        assert_eq!(unassigned.len(), unassigned_count(&f, &input));
     }
 
     #[test]
@@ -300,7 +300,7 @@ pub(crate) mod tests {
         assert!(f.output_range() > f.minimal_output_range(input.len()));
         assert!(f.output_range() <= desired_range);     // the desired output range is not exceeded
         verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
-        assert_eq!(unassigned, unassigned_count(&f, &input));
+        assert_eq!(unassigned.len(), unassigned_count(&f, &input));
     }
 
     /// Checks the case where the remainder of the output range is still large enough
@@ -314,7 +314,7 @@ pub(crate) mod tests {
         assert!(f.levels() > 2);
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
-        assert_eq!(unassigned, unassigned_count(&f, &input));
+        assert_eq!(unassigned.len(), unassigned_count(&f, &input));
     }
 
     #[test]
@@ -328,7 +328,7 @@ pub(crate) mod tests {
                 assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
             }
             verify_partial_kphf(3, f.output_range(), &input[..], |key| f.get(key));
-            assert_eq!(unassigned, unassigned_count(&f, &input));
+            assert_eq!(unassigned.len(), unassigned_count(&f, &input));
         }
     }
 
@@ -340,7 +340,7 @@ pub(crate) mod tests {
         let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, conf, SeedOnly(ProdOfValues));
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
-        assert_eq!(unassigned, unassigned_count(&f, &input));
+        assert_eq!(unassigned.len(), unassigned_count(&f, &input));
     }
 
     /// Checks that a single level built by `PartialML` (a loading factor of 1)
@@ -354,7 +354,7 @@ pub(crate) mod tests {
         let mut hashes: Box<[u64]> = input.iter().map(|key| hasher.hash_one(key, 0)).collect();
         let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, Conf::generic8(400), SeedOnly(ProdOfValues));
         let (p, partial_unassigned) = Partial::with_hashes_conf_sc_u(&mut hashes, &Conf::generic8(400), SeedOnly(ProdOfValues));
-        assert_eq!(unassigned, partial_unassigned);
+        assert_eq!(unassigned.len(), partial_unassigned);
         for key in input.iter() {
             assert_eq!(f.get(key), p.get_for_hash(hasher.hash_one(key, 0)));
         }
@@ -376,6 +376,8 @@ pub(crate) mod tests {
 
     /// Checks that multi-threaded construction (of vectors and slices, for a loading factor
     /// greater than 1 and equal to 1) gives the same results as the single-threaded one.
+    /// The order of the returned unassigned keys is unspecified (it may differ between
+    /// single- and multi-threaded construction), so only their numbers are compared here.
     #[test]
     fn test_mt() {
         let input: Box<[u16]> = (0..1000).collect();
@@ -388,8 +390,8 @@ pub(crate) mod tests {
         let mut conf = Conf::generic8(400);
         conf.loading_factor_1000 = 1500;
         let (fsl, unassigned_sl) = PartialML::with_slice_conf_threads_sc_u(&input, conf, 4, SeedOnly(ProdOfValues));
-        assert_eq!(unassigned_s, unassigned_v);
-        assert_eq!(unassigned_s, unassigned_sl);
+        assert_eq!(unassigned_s.len(), unassigned_v.len());
+        assert_eq!(unassigned_s.len(), unassigned_sl.len());
         assert_eq!(fs.levels(), fv.levels());
         assert_eq!(fs.levels(), fsl.levels());
         for key in input.iter() {
@@ -397,13 +399,13 @@ pub(crate) mod tests {
             assert_eq!(fs.get(key), fsl.get(key));
         }
         verify_partial_phf(fv.output_range(), &input[..], |key| fv.get(key));
-        assert_eq!(unassigned_v, unassigned_count(&fv, &input));
+        assert_eq!(unassigned_v.len(), unassigned_count(&fv, &input));
 
         // A loading factor of 1 gives a single level, again with the same result as single-threaded:
         let (f1, unassigned_1) = PartialML::with_slice_conf_sc_u(&input, Conf::generic8(400), SeedOnly(ProdOfValues));
         let (fm, unassigned_m) = PartialML::with_vec_conf_threads_sc_u(input.to_vec(), Conf::generic8(400), 4, SeedOnly(ProdOfValues));
         assert_eq!(f1.levels(), fm.levels());
-        assert_eq!(unassigned_1, unassigned_m);
+        assert_eq!(unassigned_1.len(), unassigned_m.len());
         for key in input.iter() { assert_eq!(f1.get(key), fm.get(key)); }
     }
 
@@ -413,7 +415,7 @@ pub(crate) mod tests {
         let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, Conf::generic8(400), SeedOnly(ProdOfValues));
         assert_eq!(f.levels(), 1);
         assert_eq!(f.output_range(), 0);
-        assert_eq!(unassigned, 0);
+        assert!(unassigned.is_empty());
     }
 
     /// TEMPORARY (to be removed): measures the construction time of `PartialML` and `Perfect`.
