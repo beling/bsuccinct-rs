@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooserConf, Turbo, Weights, bucket_size_normalization_multiplier}, utils::verify_partial_kphf};
+use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooserConf, Turbo, Weights, bucket_size_normalization_multiplier}, seeds::SeedSize, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdAndWeightsCost6, PerfectProdK4AndWeightsCost6, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdAndWeightsCost6, PerfectProdK4AndWeightsCost6, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}, partial::{partial, partialml}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -442,6 +442,16 @@ impl Conf {
             total += result;
         }
         total.print_avg(self);
+    }
+
+    /// Runs the benchmark of a partial function built by `partial`, or by `partialml` if the multi-level flag is set.
+    pub fn run_partial<SS: SeedSize, SC: SeedChooserConf>(&self, seed_size: SS, bucket_size100: u32, seed_chooser: SC) {
+        let threads_num = self.threads();
+        if self.multi_level {
+            self.runp(|keys| partialml(keys, self.params(seed_size, bucket_size100), threads_num, seed_chooser.clone()))
+        } else {
+            self.runp(|keys| partial(keys, self.params(seed_size, bucket_size100), threads_num, seed_chooser.clone()))
+        }
     }
 
     pub fn core<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> ph::phast::GenericCore {
