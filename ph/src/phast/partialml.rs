@@ -11,7 +11,7 @@ use binout::{Serializer, VByte};
 /// the successive levels are constructed as long as the part of the output range not used yet
 /// by the previous levels is at least this large; otherwise it is consumed in full by the last level
 /// (which can be the first one).
-pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 4096;
+pub const PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD: usize = 256;
 
 /// Map-or-bump function that assigns different numbers to some keys and `None` to other.
 /// It is similar to [`Partial`](crate::phast::Partial), but usually uses less memory (see [`GetSize`](crate::GetSize))
