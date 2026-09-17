@@ -445,13 +445,28 @@ impl Conf {
     }
 
     /// Runs the benchmark of a partial function built by `partial`, or by `partialml` if the multi-level flag is set.
-    pub fn run_partial<SS: SeedSize, SC: SeedChooserConf>(&self, seed_size: SS, bucket_size100: u32, seed_chooser: SC) {
+    pub fn run_partial<SS: SeedSize, SC: SeedChooserConf>(&self, seed_size: SS, seed_chooser: SC) {
+        let bucket_size100: u32 = self.bucket_size().into();
         let threads_num = self.threads();
         if self.multi_level {
             self.runp(|keys| partialml(keys, self.params(seed_size, bucket_size100), threads_num, seed_chooser.clone()))
         } else {
             self.runp(|keys| partial(keys, self.params(seed_size, bucket_size100), threads_num, seed_chooser.clone()))
         }
+    }
+
+    /// Runs the benchmark of a complete function built by `build` with the generic core and given seed size.
+    pub fn run_phast<SS: SeedSize, SC: SeedChooserConf, F, B>(&self, build: B, seed_size: SS, seed_chooser: SC)
+        where F: Function, B: Fn(&[u64], ph::phast::Conf<SS, Generic>, usize, SC) -> F
+    {
+        self.run(|keys| build(keys, self.params(seed_size, self.bucket_size().into()), self.threads(), seed_chooser.clone()))
+    }
+
+    /// Runs the benchmark of a complete function built by `build` with the turbo core configuration.
+    pub fn run_turbo<SC: SeedChooserConf, F, B>(&self, build: B, seed_chooser: SC)
+        where F: Function, B: Fn(&[u64], ph::phast::Conf<Bits8, Turbo>, usize, SC) -> F
+    {
+        self.run(|keys| build(keys, self.params_turbo(), self.threads(), seed_chooser.clone()))
     }
 
     pub fn core<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> ph::phast::GenericCore {
