@@ -44,12 +44,14 @@ impl std::ops::AddAssign for Result {
 /// `keys_to_map` must be positive and may be fractional when averaging multiple tries.
 /// Metadata, select indexes and word padding are omitted.
 ///
-/// With `l` low bits, each element costs `l + 1 + output_range / (keys_to_map * 2^l)` bits.
+/// With `l` low bits, each element costs `l + 1 + ceil(output_range / 2^l) / keys_to_map` bits.
+/// This counts one zero per high-bit interval, including the optional trailing zero.
 /// The low-bit width cannot be negative, even when repeated values make the element
 /// count exceed the output range.
 fn elias_fano_cost(keys_to_map: f64, output_range: u32) -> f64 {
     let low_bits = (output_range as f64 / keys_to_map).log2().floor().max(0.0);
-    low_bits + 1.0 + output_range as f64 / (keys_to_map * 2f64.powf(low_bits))
+    low_bits + 1.0 + (output_range as f64 / 2f64.powf(low_bits)).ceil() / keys_to_map
+    // simpler formula almost as accurate as above: low_bits + 1.0 + output_range as f64 / (keys_to_map * 2f64.powf(low_bits))
 }
 
 impl Result {
@@ -158,6 +160,12 @@ mod tests {
     fn elias_fano_sparse() {
         assert_eq!(elias_fano_cost(4.0, 64), 6.0);
         assert_eq!(elias_fano_cost(4.0, 48), 5.5);
+    }
+
+    /// A partially filled high-bit interval still needs a whole unary zero.
+    #[test]
+    fn elias_fano_rounds_up_high_intervals() {
+        assert_eq!(elias_fano_cost(4.0, 49), 5.75);
     }
 
     /// Equal element count and range need no low bits.
