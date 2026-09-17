@@ -40,10 +40,16 @@ impl std::ops::AddAssign for Result {
     }
 }
 
-/// Returns the cost (in bits per mapped key) of mapping `keys_to_map` keys
-/// to given `output_range` by Elias-Fano.
+/// Estimates bits per element for an Elias-Fano non-decreasing sequence in `0..output_range`.
+/// `keys_to_map` must be positive and may be fractional when averaging multiple tries.
+/// Metadata, select indexes and word padding are omitted.
+///
+/// With `l` low bits, each element costs `l + 1 + output_range / (keys_to_map * 2^l)` bits.
+/// The low-bit width cannot be negative, even when repeated values make the element
+/// count exceed the output range.
 fn elias_fano_cost(keys_to_map: f64, output_range: u32) -> f64 {
-    (output_range as f64 / keys_to_map).log2()/*.ceil()*/ + 2.0
+    let low_bits = (output_range as f64 / keys_to_map).log2().floor().max(0.0);
+    low_bits + 1.0 + output_range as f64 / (keys_to_map * 2f64.powf(low_bits))
 }
 
 impl Result {
@@ -140,4 +146,40 @@ pub fn benchmark<R, F: FnOnce() -> R>(f: F) -> (R, Duration) {
     let r = f();
     let time = start_moment.elapsed();
     (r, time)
+}
+
+/// Tests for the Elias-Fano space estimate used in benchmark output.
+#[cfg(test)]
+mod tests {
+    use super::elias_fano_cost;
+
+    /// Sparse sequences include both low bits and the unary high-bit vector.
+    #[test]
+    fn elias_fano_sparse() {
+        assert_eq!(elias_fano_cost(4.0, 64), 6.0);
+        assert_eq!(elias_fano_cost(4.0, 48), 5.5);
+    }
+
+    /// Equal element count and range need no low bits.
+    #[test]
+    fn elias_fano_equal_count_and_range() {
+        assert_eq!(elias_fano_cost(8.0, 8), 2.0);
+    }
+
+    /// Repeated values can make the element count exceed the output range.
+    #[test]
+    fn elias_fano_dense() {
+        assert_eq!(elias_fano_cost(16.0, 4), 1.25);
+        // Counts averaged over multiple tries need not be integers.
+        assert_eq!(elias_fano_cost(2.5, 1), 1.4);
+    }
+
+    /// The reported k=1000 case must add a positive repair cost to the base size.
+    #[test]
+    fn elias_fano_large_k_repair() {
+        let key_num = 1_000_000.0;
+        let bumped_keys = 61_500.0;
+        let repair_cost = (elias_fano_cost(bumped_keys, 1000) + 2.0) * bumped_keys / key_num;
+        assert!((repair_cost - 0.1855).abs() < 1e-12);
+    }
 }
