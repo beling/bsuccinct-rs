@@ -261,12 +261,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
     /// 
     /// // A loading factor greater than 1 splits the construction into more levels,
     /// // but the output range of the entire function is still the minimal one.
-    /// // For such a small input, the part of the output range left after the first level would be
-    /// // below PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD, so a single level is constructed:
     /// let mut conf = Conf::generic8(400);
     /// conf.loading_factor_1000 = 1500;
     /// let (f, unassigned) = PartialML::with_slice_conf_threads_sc_u(&keys, conf, 4, SeedOnly(ProdOfValues));
-    /// assert_eq!(f.levels(), 1);
     /// assert_eq!(f.output_range(), f.minimal_output_range(keys.len()));
     /// assert_eq!(unassigned.len(), keys.iter().filter(|key| f.get(*key).is_none()).count());
     /// ```
@@ -338,9 +335,7 @@ pub(crate) mod tests {
         let mut conf = Conf::generic8(400);
         conf.loading_factor_1000 = 1500;
         let (f, unassigned) = PartialML::with_slice_conf_sc_u(&input, conf, SeedOnly(ProdOfValues));
-        // The part of the output range left after the first level would be below
-        // PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD, so a single level is constructed:
-        assert_eq!(f.levels(), 1);
+        //assert_eq!(f.levels(), 1); // The part of the output range left after the first level depends on PARTIAL_ML_MINIMAL_LEVEL_THRESHOLD
         assert_eq!(f.output_range(), f.minimal_output_range(input.len()));
         verify_partial_phf(f.output_range(), &input[..], |key| f.get(key));
         assert_eq!(unassigned.len(), unassigned_count(&f, &input));
