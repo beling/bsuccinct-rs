@@ -3,6 +3,7 @@
 use std::{fmt::Debug, io, marker::PhantomData};
 
 use binout::{Serializer, VByte};
+use bitm::ceiling_div;
 use seedable_hash::{BuildDefaultSeededHasher, map64_to_64};
 
 use crate::{fmph::Bits8, phast::SeedChooserCore, seeds::SeedSize};
@@ -422,7 +423,7 @@ impl<P: Placement> Core for TurboCore<P> {
 
     #[inline(always)]
     fn buckets_num(&self) -> usize {
-        (self.num_of_slices-1)/4+1
+        ceiling_div(self.num_of_slices, 4)
     }
 
     #[inline(always)]
