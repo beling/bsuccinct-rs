@@ -314,14 +314,14 @@ fn mix16fast(mut x: u16) -> u16 {
 pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u32 {
     match bits_per_seed {
         0..=4 => 250,
-        5 => 290,
+        5 => 280,
         6 => 320,
         7 => 380,
         8 => 450,
-        9 => 530,
-        10 => 590,
+        9 => 520,
+        10 => 580,
         11 => 650,
-        12 => 720,
+        12 => 710,
         13 => 770,
         _ => 830
     }
