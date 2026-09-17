@@ -265,6 +265,10 @@ pub struct Conf {
     #[arg(short='1', long, default_value_t = false)]
     pub one: bool,
 
+    /// Whether to build partial function with multiple levels
+    #[arg(short='m', long="ml", default_value_t = false, conflicts_with = "one")]
+    pub multi_level: bool,
+
     /// Number of iterations done by optimization (50 if 0) commands or number of times to perform the construction (1 if 0)
     #[arg(short='i', long, default_value_t = 0)]
     pub iters: u32,
