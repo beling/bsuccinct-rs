@@ -92,6 +92,7 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 
         (..=7, ..=128) => PROD_S7_L128.as_ref(),
         (..=7, ..=256) => PROD_S7_L256.as_ref(),
         (..=7, ..=512) => PROD_S7_L512.as_ref(),
+        (..=7, ..=1024) => PROD_S7_L1024.as_ref(),
         (8.., ..=32) => PROD_S8_L32.as_ref(),
         (8.., ..=64) => PROD_S8_L64.as_ref(),
         (8.., ..=128) => PROD_S8_L128.as_ref(),
@@ -372,6 +373,11 @@ const PROD_S7_L512: [(u16, [i32; 7], ProdOfValuesKEval); 11] = [   // for W=512 
     (48, [0, 177774, 196262, 205304, 207456, 210099, 210363], P{value_shift: 0.003662, free_shift: 1.209650, first_weight: 0.933524}), // 0.63% for 3.7 λ=62.17
     (64, [0, 184577, 200634, 210743, 212854, 215492, 215753], P{value_shift: 0.003648, free_shift: 1.232832, first_weight: 0.915246}), // 0.68% for 3.7 λ=78.94
     (100, [0, 191138, 206055, 211005, 212694, 214720, 214950], P{value_shift: 0.003571, free_shift: 1.288549, first_weight: 0.864340}), // 0.83% for 3.7 λ=114.82
+];
+const PROD_S7_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [
+    (2, [0, 194115, 262904, 298616, 320000, 340438, 349425], P{value_shift: 0.003744, free_shift: 1.613469, first_weight: 0.083098}), // 0.75% for 3.7 λ=5.66
+    (4, [0, 84289, 85985, 87816, 107883, 125221, 128993], P{value_shift: 0.007127, free_shift: 1.433053, first_weight: 0.232233}), // 0.78% for 3.7 λ=9.06
+    (8, [0, 125573, 174661, 203836, 209019, 213636, 214168], P{value_shift: 0.003374, free_shift: 1.226815, first_weight: 0.843214}), // 0.69% for 3.7 λ=15.03
 ];
 
 const PROD_S8_L32: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512
