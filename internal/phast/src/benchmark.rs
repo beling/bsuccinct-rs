@@ -77,9 +77,8 @@ impl Result {
             // per each key of this level
             let range_proportion = minimum_range_x_tries as f64 / self.range as f64;   // scales bits_per_key and number of assigned keys
             bits_per_key_final *= range_proportion;
-            // it can get negative only if k does not divide key_num: then the minimal range has spare slots
             repaired_keys = (total_keys as f64 - range_proportion * (total_keys as f64 - self.bumped_keys as f64))
-                            .max(0.0);
+                            .max(0.0);  // it can get negative only if k does not divide key_num: then the minimal range has spare slots
             repaired_share = repaired_keys / total_keys as f64;
         }
         let mut repair_cost_per_key = 0.0;
