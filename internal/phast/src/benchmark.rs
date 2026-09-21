@@ -54,8 +54,8 @@ fn elias_fano_cost(keys_to_map: f64, output_range: f64) -> f64 {
     // simpler formula almost as accurate as above: low_bits + 1.0 + output_range as f64 / (keys_to_map * 2f64.powf(low_bits))
 }
 
-/// Estimates the number of keys bumped by the main part of a function whose output range is expanded
-/// from `used_range` to `final_range`, which must not be smaller than `used_range`.
+/// Estimates the number of keys finally bumped (i.e. left for the repair structure) when the output
+/// range of a function is expanded from `used_range` to `final_range`, not smaller than `used_range`.
 /// These keys are assigned by the repair structure, so the whole function leaves no key unassigned.
 /// The so far unused part of the range is assumed to assign keys with the same effectiveness
 /// as the part used so far, i.e. to assign `assigned`/`used_range` keys per unit of the range.
@@ -76,13 +76,17 @@ impl Result {
         let minimum_range_x_tries = minimum_range as usize * tries as usize;
         let bumped_share = self.bumped_keys as f64 / total_keys as f64;
         
-        let mut bits_per_key_final = bits_per_key;  // virtual, final value after using remaining range with same efficiency as before
-        let mut repaired_keys = self.bumped_keys as f64;    // bumped by the main part, assigned by the repair structure
+        let mut bits_per_key_final = bits_per_key;  // virtual final MPHF: all levels + repair of finally bumped keys
+        let mut repaired_keys = self.bumped_keys as f64;    // finally bumped keys, assigned by the repair structure
         let mut repaired_share = bumped_share;
         if self.range < minimum_range_x_tries {   // overloading
-            bits_per_key_final *= minimum_range_x_tries as f64 / self.range as f64; // we need extra space for storing seeds of unused range
-            // the unused range is assumed to assign keys with the same efficiency as the used one,
-            // so it takes over part of the keys bumped so far
+            // the unused range is assumed to assign keys with the same efficiency as the used one:
+            // the unused range is covered by further levels having the same loading factor and effectiveness
+            // as this one, so each of them bumps the same share of its keys and its range is proportional
+            // to the number of its keys; as the levels together use up the whole minimum range (the keys
+            // that do not fit are finally bumped), they process minimum_range_x_tries/self.range keys
+            // per each key of this level
+            bits_per_key_final *= minimum_range_x_tries as f64 / self.range as f64;
             repaired_keys = keys_to_repair(
                 self.bumped_keys as f64,
                 (total_keys - self.bumped_keys) as f64,
