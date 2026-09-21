@@ -54,13 +54,14 @@ fn elias_fano_cost(keys_to_map: f64, output_range: f64) -> f64 {
     // simpler formula almost as accurate as above: low_bits + 1.0 + output_range as f64 / (keys_to_map * 2f64.powf(low_bits))
 }
 
-/// Estimates the number of keys that remain bumped (unassigned) after the output range of a function
-/// is expanded from `used_range` to `final_range`, which must not be smaller than `used_range`.
+/// Estimates the number of keys bumped by the main part of a function whose output range is expanded
+/// from `used_range` to `final_range`, which must not be smaller than `used_range`.
+/// These keys are assigned by the repair structure, so the whole function leaves no key unassigned.
 /// The so far unused part of the range is assumed to assign keys with the same effectiveness
 /// as the part used so far, i.e. to assign `assigned`/`used_range` keys per unit of the range.
 /// As it can take over only the keys bumped so far, the result is never negative.
 /// Ranges and key numbers are totals over all tries; `used_range` must be positive.
-fn final_bumped_keys(bumped: f64, assigned: f64, used_range: f64, final_range: f64) -> f64 {
+fn keys_to_repair(bumped: f64, assigned: f64, used_range: f64, final_range: f64) -> f64 {
     (bumped - (final_range - used_range) * assigned / used_range).max(0.0)
 }
 
@@ -72,31 +73,29 @@ impl Result {
         let total_keys = tries as usize * key_num as usize;
         
         let bits_per_key = (8*self.size_bytes) as f64 / total_keys as f64;
-        print!("{bits_per_key:.3} bits/key");
-
         let minimum_range_x_tries = minimum_range as usize * tries as usize;
         let bumped_share = self.bumped_keys as f64 / total_keys as f64;
         
         let mut bits_per_key_final = bits_per_key;  // virtual, final value after using remaining range with same efficiency as before
-        let mut bumped_keys_final = self.bumped_keys as f64;
-        let mut bumped_share_final = bumped_share;
+        let mut repaired_keys = self.bumped_keys as f64;    // bumped by the main part, assigned by the repair structure
+        let mut repaired_share = bumped_share;
         if self.range < minimum_range_x_tries {   // overloading
             bits_per_key_final *= minimum_range_x_tries as f64 / self.range as f64; // we need extra space for storing seeds of unused range
             // the unused range is assumed to assign keys with the same efficiency as the used one,
             // so it takes over part of the keys bumped so far
-            bumped_keys_final = final_bumped_keys(
+            repaired_keys = keys_to_repair(
                 self.bumped_keys as f64,
                 (total_keys - self.bumped_keys) as f64,
                 self.range as f64,
                 minimum_range_x_tries as f64,
             );
-            bumped_share_final = bumped_keys_final / total_keys as f64;
+            repaired_share = repaired_keys / total_keys as f64;
         }
         let mut repair_cost_per_key = 0.0;
-        if bumped_keys_final != 0.0 {   // adds cost of repairing bumped keys
+        if repaired_keys != 0.0 {   // adds cost of repairing bumped keys
             repair_cost_per_key += 
-                (elias_fano_cost(bumped_keys_final / tries as f64, minimum_range as f64)
-                + 2.0) * bumped_share_final;    // 2.0 bits/key is a cost of building MPHF for bumped keys
+                (elias_fano_cost(repaired_keys / tries as f64, minimum_range as f64)
+                + 2.0) * repaired_share;    // 2.0 bits/key is a cost of building MPHF for bumped keys
         }
         if self.range > minimum_range_x_tries { // adds cost of shrinking output range to minimal one
             // here *_final has same values as normal counterparts
@@ -105,13 +104,16 @@ impl Result {
                 + if k > 1 { 2.0 } else { 0.0 }) * total_keys_to_map / total_keys as f64;
                 // if k>1 we assume that we build MPHF for keys with values >minimum_range from scratch, using 2.0 bits/key
         }
+        print!("{bits_per_key:.3}");
+        if bits_per_key != bits_per_key_final { print!(" ({bits_per_key_final:.3})"); }
+        print!(" bits/key");
         if repair_cost_per_key != 0.0 { print!(" (≈{:.3} MPHF)", bits_per_key_final + repair_cost_per_key) }
         if self.bumped_keys != 0 || self.range != minimum_range_x_tries { // α = number of mapped keys / number of slots
             print!(", α={:.1}%", (100 * (total_keys - self.bumped_keys as usize)) as f64 / (self.range * k as usize) as f64);
         }
         if self.bumped_keys != 0 {
             print!(", {:.2}%", bumped_share * 100.0);
-            if bumped_share != bumped_share_final { print!(" ({:.2}%)", bumped_share_final * 100.0) }
+            if bumped_share != repaired_share { print!(" ({:.2}%)", repaired_share * 100.0) }
             print!(" bumped");
         }
         if tries > 1 && self.bumpless_builds != tries {
@@ -184,7 +186,7 @@ pub fn benchmark<R, F: FnOnce() -> R>(f: F) -> (R, Duration) {
 /// Tests for the estimates used in benchmark output.
 #[cfg(test)]
 mod tests {
-    use super::{elias_fano_cost, final_bumped_keys};
+    use super::{elias_fano_cost, keys_to_repair};
 
     /// Sparse sequences include both low bits and the unary high-bit vector.
     #[test]
@@ -224,13 +226,13 @@ mod tests {
 
     /// The unused part of the range takes over bumped keys with the effectiveness of the used one.
     #[test]
-    fn final_bumped_keys_expansion() {
+    fn keys_to_repair_expansion() {
         // k=1, n=1000: 600 keys assigned in 800 values; 200 more values take over 150 keys.
-        assert_eq!(final_bumped_keys(200.0, 600.0, 800.0, 1000.0), 50.0);
+        assert_eq!(keys_to_repair(200.0, 600.0, 800.0, 1000.0), 50.0);
         // Full effectiveness of the used range (alpha=100%): all bumped keys are taken over.
-        assert_eq!(final_bumped_keys(1.0, 4.0, 2.0, 3.0), 0.0); // k=2, n=5
-        assert_eq!(final_bumped_keys(100.0, 900.0, 900.0, 1000.0), 0.0); // k=1, n=1000
-        // Nothing to expand: all bumped keys stay bumped.
-        assert_eq!(final_bumped_keys(200.0, 600.0, 1000.0, 1000.0), 200.0);
+        assert_eq!(keys_to_repair(1.0, 4.0, 2.0, 3.0), 0.0); // k=2, n=5
+        assert_eq!(keys_to_repair(100.0, 900.0, 900.0, 1000.0), 0.0); // k=1, n=1000
+        // Nothing to expand: all bumped keys must be repaired.
+        assert_eq!(keys_to_repair(200.0, 600.0, 1000.0, 1000.0), 200.0);
     }
 }
