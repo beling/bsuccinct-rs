@@ -54,17 +54,6 @@ fn elias_fano_cost(keys_to_map: f64, output_range: f64) -> f64 {
     // simpler formula almost as accurate as above: low_bits + 1.0 + output_range as f64 / (keys_to_map * 2f64.powf(low_bits))
 }
 
-/// Estimates the number of keys finally bumped (i.e. left for the repair structure) when the output
-/// range of a function is expanded from `used_range` to `final_range`, not smaller than `used_range`.
-/// These keys are assigned by the repair structure, so the whole function leaves no key unassigned.
-/// The so far unused part of the range is assumed to assign keys with the same effectiveness
-/// as the part used so far, i.e. to assign `assigned`/`used_range` keys per unit of the range.
-/// As it can take over only the keys bumped so far, the result is never negative.
-/// Ranges and key numbers are totals over all tries; `used_range` must be positive.
-fn keys_to_repair(bumped: f64, assigned: f64, used_range: f64, final_range: f64) -> f64 {
-    (bumped - (final_range - used_range) * assigned / used_range).max(0.0)
-}
-
 impl Result {
 
     #[inline(never)]
@@ -86,13 +75,9 @@ impl Result {
             // to the number of its keys; as the levels together use up the whole minimum range (the keys
             // that do not fit are finally bumped), they process minimum_range_x_tries/self.range keys
             // per each key of this level
-            bits_per_key_final *= minimum_range_x_tries as f64 / self.range as f64;
-            repaired_keys = keys_to_repair(
-                self.bumped_keys as f64,
-                (total_keys - self.bumped_keys) as f64,
-                self.range as f64,
-                minimum_range_x_tries as f64,
-            );
+            let range_proportion = minimum_range_x_tries as f64 / self.range as f64;   // scales bits_per_key and number of assigned keys
+            bits_per_key_final *= range_proportion;
+            repaired_keys = total_keys as f64 - range_proportion * (total_keys as f64 - self.bumped_keys as f64);
             repaired_share = repaired_keys / total_keys as f64;
         }
         let mut repair_cost_per_key = 0.0;
@@ -190,7 +175,7 @@ pub fn benchmark<R, F: FnOnce() -> R>(f: F) -> (R, Duration) {
 /// Tests for the estimates used in benchmark output.
 #[cfg(test)]
 mod tests {
-    use super::{elias_fano_cost, keys_to_repair};
+    use super::elias_fano_cost;
 
     /// Sparse sequences include both low bits and the unary high-bit vector.
     #[test]
@@ -226,17 +211,5 @@ mod tests {
         let bumped_keys = 61_500.0;
         let repair_cost = (elias_fano_cost(bumped_keys, 1000.0) + 2.0) * bumped_keys / key_num;
         assert!((repair_cost - 0.1855).abs() < 1e-12);
-    }
-
-    /// The unused part of the range takes over bumped keys with the effectiveness of the used one.
-    #[test]
-    fn keys_to_repair_expansion() {
-        // k=1, n=1000: 600 keys assigned in 800 values; 200 more values take over 150 keys.
-        assert_eq!(keys_to_repair(200.0, 600.0, 800.0, 1000.0), 50.0);
-        // Full effectiveness of the used range (alpha=100%): all bumped keys are taken over.
-        assert_eq!(keys_to_repair(1.0, 4.0, 2.0, 3.0), 0.0); // k=2, n=5
-        assert_eq!(keys_to_repair(100.0, 900.0, 900.0, 1000.0), 0.0); // k=1, n=1000
-        // Nothing to expand: all bumped keys must be repaired.
-        assert_eq!(keys_to_repair(200.0, 600.0, 1000.0, 1000.0), 200.0);
     }
 }
