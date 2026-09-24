@@ -490,8 +490,9 @@ const PROD_S8_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512 
 /*const PROD_S9_L512: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys
     (2, [0, 46165, 49877, 58897, 72999, 80109, 82703], P{value_shift: 0.011864, free_shift: 1.492050, first_weight: 0.226916}) // 1.06% for 5.1 λ=7.80
 ]*/
-const PROD_S9_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 5] = [   // for W=512 10M keys
+const PROD_S9_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512 10M keys
     (2, [0, 123136, 187512, 211642, 232036, 253456, 257619], P{value_shift: 0.005129, free_shift: 1.522596, first_weight: 0.098544}), // 0.96% for 5.1 λ=7.80
+    (3, [0, 106512, 112212, 117445, 127477, 143930, 146016], P{value_shift: 0.005462, free_shift: 1.224635, first_weight: 0.150164}), // 0.95% for 5.1 λ=10.22
     (4, [0, 138417, 194657, 203576, 213399, 220665, 221743], P{value_shift: 0.004996, free_shift: 1.199566, first_weight: 0.291018}), // 0.94% for 5.1 λ=12.49
     (8, [0, 159067, 238460, 248458, 248565, 248679, 248709], P{value_shift: 0.003129, free_shift: 1.169975, first_weight: 0.878484}), // 0.87% for 5.1 λ=20.72
     (10, [0, 143781, 197521, 207428, 209154, 211047, 211079], P{value_shift: 0.003506, free_shift: 1.186065, first_weight: 0.651800}), // 0.90% for 5.1 λ=24.53
