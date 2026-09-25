@@ -246,7 +246,7 @@ pub struct GenericCore<P = FastPlacement> {
 
 impl<P: Placement> Core for GenericCore<P> {
 
-    type Placement = FastPlacement;
+    type Placement = P;
 
     #[inline(always)]
     fn buckets_num(&self) -> usize {
