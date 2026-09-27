@@ -351,7 +351,7 @@ const PROD_S7_L128: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512 
     (16, [0, 162711, 200329, 214414, 216920, 219451, 219630], P{value_shift: 0.004117, free_shift: 1.382515, first_weight: 0.828996}),  // 0.61% for 3.7 λ=25.62
     (32, [0, 156601, 181879, 204016, 207628, 211799, 211931], P{value_shift: 0.004465, free_shift: 1.477724, first_weight: 0.880750}), // 0.47% for 3.7 λ=44.60
     (48, [0, 159405, 177822, 204014, 207410, 211179, 211297], P{value_shift: 0.004564, free_shift: 1.560099, first_weight: 0.873904}), // 0.43% for 3.7 λ=62.17
-    (64, [0, 156956, 168028, 196164, 200703, 206064, 206167], P{value_shift: 0.004683, free_shift: 1.674317, first_weight: 0.893788}), // 0.41% for 3.7 λ=78.94
+    (64, [0, 153047, 166297, 193709, 198002, 203054, 203150], P{value_shift: 0.004819, free_shift: 1.688580, first_weight: 0.922953}), // 0.29% for 3.6 λ=76.80 70M
     (100, [0, 143687, 154872, 187396, 191615, 197645, 197725], P{value_shift: 0.005121, free_shift: 1.822026, first_weight: 0.934671}), // 0.26% for 3.6 λ=111.71 100M
 ];
 const PROD_S7_L256: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512 15M keys S8 params work excellent for k=32, 16, 8, 4; and OK+ for k=48, 2, OK k=64
@@ -365,7 +365,7 @@ const PROD_S7_L256: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512 
     (16, [0, 168010, 204328, 216786, 218828, 220943, 221117], P{value_shift: 0.004016, free_shift: 1.275868, first_weight: 0.895949}),  // 0.53% for 3.7 λ=25.62
     (32, [0, 165994, 187969, 204877, 207653, 210568, 210742], P{value_shift: 0.004443, free_shift: 1.368928, first_weight: 0.866410}), // 0.45% for 3,7 λ=44.60
     (48, [0, 165941, 201443, 210090, 212555, 215303, 215462], P{value_shift: 0.004655, free_shift: 1.405678, first_weight: 0.883681}), // 0.43% for 3.7 λ=62.17
-    (64, [0, 173974, 200289, 214737, 217338, 220320, 220471], P{value_shift: 0.004484, free_shift: 1.452345, first_weight: 0.893218}), // 0.45% for 3.7 λ=78.94
+    (64, [0, 173253, 204791, 218680, 221049, 223780, 223897], P{value_shift: 0.004575, free_shift: 1.494077, first_weight: 0.899156}), // 0.23% for 3.6 λ=76.80 70M
     (100, [0, 174348, 192293, 207123, 209100, 212159, 212290], P{value_shift: 0.005116, free_shift: 1.720470, first_weight: 0.922365}), // 0.20% for 3.6 λ=111.71 100M
 ];
 const PROD_S7_L512: [(u16, [i32; 7], ProdOfValuesKEval); 14] = [   // for W=512 15M keys  S8 params work excellent for k=64, 48, 32, 16, 8; and OK for k=4, 2
@@ -384,7 +384,7 @@ const PROD_S7_L512: [(u16, [i32; 7], ProdOfValuesKEval); 14] = [   // for W=512 
     (64, [0, 184577, 200634, 210743, 212854, 215492, 215753], P{value_shift: 0.003648, free_shift: 1.232832, first_weight: 0.915246}), // 0.68% for 3.7 λ=78.94
     (100, [0, 191138, 206055, 211005, 212694, 214720, 214950], P{value_shift: 0.003571, free_shift: 1.288549, first_weight: 0.864340}), // 0.83% for 3.7 λ=114.82
 ];
-const PROD_S7_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [
+const PROD_S7_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [    // for W=512 15M keys
     (2, [0, 194115, 262904, 298616, 320000, 340438, 349425], P{value_shift: 0.003744, free_shift: 1.613469, first_weight: 0.083098}), // 0.75% for 3.7 λ=5.66
     (3, [0, 105965, 133029, 153884, 181896, 203218, 208434], P{value_shift: 0.007560, free_shift: 1.495320, first_weight: 0.101414}), // 0.80% for 3.7 λ=7.42
     (4, [0, 84289, 85985, 87816, 107883, 125221, 128993], P{value_shift: 0.007127, free_shift: 1.433053, first_weight: 0.232233}), // 0.78% for 3.7 λ=9.06
