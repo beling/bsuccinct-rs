@@ -8,4 +8,5 @@ cseq_benchmark/utils/*.html
 cseq_benchmark/utils/*.csv
 .snapshots/
 *.csv
+*.png
 __pycache__
