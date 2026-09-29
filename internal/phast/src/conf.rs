@@ -51,10 +51,10 @@ pub enum Method {
     /// k-perfect PHast with logarithmic seed evaluation
     perfectlog,
 
-    /// k-perfect PHast with logarithmic seed evaluation and first_weight=0
+    /// k-perfect PHast with logarithmic seed evaluation and window_weight=0
     perfectlog0,
 
-    /// k-perfect PHast with logarithmic seed evaluation and first_weight=1
+    /// k-perfect PHast with logarithmic seed evaluation and window_weight=1
     perfectlog1,
 
     /// Optimize weights for selecting buckets by PHast
@@ -93,10 +93,10 @@ pub enum Method {
     /// Optimize seed evaluation in perfectlog
     optperfectlog,
 
-    /// Optimize seed evaluation in perfectlog with first_weight=0
+    /// Optimize seed evaluation in perfectlog with window_weight=0
     optperfectlog0,
 
-    /// Optimize seed evaluation in perfectlog with first_weight=1
+    /// Optimize seed evaluation in perfectlog with window_weight=1
     optperfectlog1,
 
     /// Optimize seed evaluation in perfectlog with free_values_weight=1
@@ -137,8 +137,8 @@ impl std::fmt::Display for Method {
             Method::optplusprodwrap6 { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights (6)"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
-            Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=0"),
-            Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with first_weight=1"),
+            Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with window_weight=0"),
+            Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with window_weight=1"),
             Method::optprod => write!(f, "Optimize seed evaluation in ProdOfValues"),
             Method::optall => write!(f, "Optimize parameters for selecting buckets and seeds"),
             Method::optfull => write!(f, "Optimize parameters for selecting buckets and seeds (4 parameters)"),

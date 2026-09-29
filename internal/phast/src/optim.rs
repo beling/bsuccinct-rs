@@ -275,7 +275,7 @@ impl CostFn for PerfectLogCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let total_violation = violations(x, &self.params(conf));
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize }
-        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: x[3] };
+        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], window_weight: x[3] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
@@ -283,7 +283,7 @@ impl CostFn for PerfectLogCost {
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
         let s = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
-        vec![s.value_shift, s.free_shift, s.free_values_weight, s.first_weight]
+        vec![s.value_shift, s.free_shift, s.free_values_weight, s.window_weight]
     }
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
@@ -291,7 +291,7 @@ impl CostFn for PerfectLogCost {
             ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 5),
             ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
             ("free_values_weight", Constrain::Strong(/*0.5*/0.2), Constrain::Weak(5.0/*2.0*/), 5),
-            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
+            ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
         ]
     }
 }
@@ -301,7 +301,7 @@ pub struct PerfectLog0Cost;
 
 impl CostFn for PerfectLog0Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 0.0 };
+        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], window_weight: 0.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
@@ -326,7 +326,7 @@ pub struct PerfectLog1Cost;
 
 impl CostFn for PerfectLog1Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], first_weight: 1.0 };
+        let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], window_weight: 1.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
@@ -352,7 +352,7 @@ impl CostFn for PerfectProdKCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let total_violation = violations(x, &self.params(conf));
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize }
-        let e = ProdOfValuesKEval { value_shift: x[0], free_shift: x[1], first_weight: x[2] };
+        let e = ProdOfValuesKEval { value_shift: x[0], free_shift: x[1], window_weight: x[2] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
@@ -360,14 +360,14 @@ impl CostFn for PerfectProdKCost {
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
         let s = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
-        vec![s.value_shift, s.free_shift, s.first_weight]
+        vec![s.value_shift, s.free_shift, s.window_weight]
     }
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
             ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 5),
             ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 5),
-            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
+            ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
         ]
     }
 }
@@ -377,7 +377,7 @@ pub struct ProdOfValuesCost;
 
 impl CostFn for ProdOfValuesCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        let s = SeedOnly(GenericProdOfValues { first_weight: x[0], shift: x[1] });
+        let s = SeedOnly(GenericProdOfValues { window_weight: x[0], shift: x[1] });
         conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
             conf.core(&s), s).1)
     }
@@ -388,7 +388,7 @@ impl CostFn for ProdOfValuesCost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
+            ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 5),
             ("shift", Constrain::Strong(0.00001), Constrain::Weak(300.0), 5),
         ]
     }
@@ -495,7 +495,7 @@ impl KSeedEvaluatorConf for SumOfLogValuesF0 {
         let s = SumOfLogValuesF.seed_evaluator_k(k, bits_per_seed, slice_len);
         SumOfLogValuesFEval {
             free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64, free_shift: s.free_shift as f64,
-            first_weight: 0.0, 
+            window_weight: 0.0, 
         }
     }
     
@@ -506,7 +506,7 @@ impl KSeedEvaluatorConf for SumOfLogValuesF0 {
 
 /// Chooses seed that minimizes
 /// sum_{x in bucket} log(f(x,seed) - minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
-/// where minimum value in the bucket = first_weight * minimal value in window  +  (1-first_weight) * minimal value in bucket
+/// where minimum value in the bucket = window_weight * minimal value in window  +  (1-window_weight) * minimal value in bucket
 #[derive(Clone, Copy)]
 pub struct SumOfLogValuesF;
 
@@ -515,37 +515,37 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
 
     fn seed_evaluator_k(&self, k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator {
         match k {
-            ..=2 => SumOfLogValuesFEval { free_values_weight: 1.75456, value_shift: 0.00370, free_shift: 3.15671, first_weight: 0.10135 },  // for2 1.01%
-            3 => SumOfLogValuesFEval { free_values_weight: 1.53878, value_shift: 0.00325, free_shift: 3.09695, first_weight: 0.16796 }, // 1.08%
-                // or: free_values_weight: 1.67798, value_shift: 0.00376, free_shift: 3.28776, first_weight: 0.11358
-            4 => SumOfLogValuesFEval { free_values_weight: 1.22552, value_shift: 0.00385, free_shift: 2.68325, first_weight: 0.36487 }, // 1.09%
-                // or: free_values_weight: 0.86019, value_shift: 0.00126, free_shift: 1.54111, first_weight: 0.32114
-            5 => SumOfLogValuesFEval { free_values_weight: 1.16738, value_shift: 0.00341, free_shift: 2.85818, first_weight: 0.57022 }, // 1.05%
-                // or (1.04%): free_values_weight: 0.95556, value_shift: -0.00787, free_shift: 2.09489, first_weight: 0.54287
-            6 => SumOfLogValuesFEval { free_values_weight: 1.07811, value_shift: 0.00306, free_shift: 3.01460, first_weight: 0.74649 }, // 0.97%
-            7 => SumOfLogValuesFEval { free_values_weight: 1.05410, value_shift: 0.00314, free_shift: 3.02227, first_weight: 0.72770 }, // 0.89%
-            8 => SumOfLogValuesFEval { free_values_weight: 1.03750, value_shift: 0.00307, free_shift: 3.16688, first_weight: 0.73473 }, // 0.81%
-            9 => SumOfLogValuesFEval { free_values_weight: 1.05199, value_shift: 0.00307, free_shift: 3.31693, first_weight: 0.71391 }, // 0.74%
-            10 => SumOfLogValuesFEval { free_values_weight: 1.02577, value_shift: 0.00305, free_shift: 3.32123, first_weight: 0.71673 }, // 0.68%
-            11 => SumOfLogValuesFEval { free_values_weight: 1.00964, value_shift: 0.00307, free_shift: 3.34136, first_weight: 0.70944 }, // 0.63%
-            12 => SumOfLogValuesFEval { free_values_weight: 0.97919, value_shift: 0.00305, free_shift: 3.25671, first_weight: 0.70222 }, // 0.60%
-            13 => SumOfLogValuesFEval { free_values_weight: 1.00290, value_shift: 0.00296, free_shift: 3.49979, first_weight: 0.70233 }, // 0.57%
-            14 => SumOfLogValuesFEval { free_values_weight: 1.00255, value_shift: 0.00303, free_shift: 3.55407, first_weight: 0.68480 }, // 0.56%
-            15 => SumOfLogValuesFEval { free_values_weight: 0.99834, value_shift: 0.00304, free_shift: 3.54822, first_weight: 0.67896 }, // 0.55%
-            16..32 => SumOfLogValuesFEval { free_values_weight: 0.99529, value_shift: 0.00308, free_shift: 3.62006, first_weight: 0.68640 }, // 0.54%
-            32..48 => SumOfLogValuesFEval { free_values_weight: 0.92816, value_shift: 0.00307, free_shift: 3.91187, first_weight: 0.66890 }, // 0.63%
-            48..64 => SumOfLogValuesFEval { free_values_weight: 0.90327, value_shift: 0.00330, free_shift: 4.21686, first_weight: 0.64461 }, // 0.74%
-            64..80 => SumOfLogValuesFEval { free_values_weight: 0.86516, value_shift: 0.00324, free_shift: 4.15503, first_weight: 0.66520 }, // 0.84%
-            80..100 => SumOfLogValuesFEval { free_values_weight: 0.87878, value_shift: 0.00331, free_shift: 4.10116, first_weight: 0.67052 }, // 0.55%
-            100..128 => SumOfLogValuesFEval { free_values_weight: 0.86586, value_shift: 0.00344, free_shift: 4.10146, first_weight: 0.66337 },  // 0.60%
-            128..200 => SumOfLogValuesFEval { free_values_weight: 0.84560, value_shift: 0.00332, free_shift: 4.22102, first_weight: 0.69698 },  // 0.68%
-            200..256 => SumOfLogValuesFEval { free_values_weight: 0.83602, value_shift: 0.00353, free_shift: 4.34861, first_weight: 0.66096 }, // 0.94%
-            256..300 => SumOfLogValuesFEval { free_values_weight: 0.87853, value_shift: 0.00384, free_shift: 5.43240, first_weight: 0.60892 },  // 1.16%
-            300..400 => SumOfLogValuesFEval { free_values_weight: 0.94034, value_shift: 0.00279, free_shift: 8.08843, first_weight: 0.61947 }, // 1.34%
-            400..500 => SumOfLogValuesFEval { free_values_weight: 0.86279, value_shift: 0.00392, free_shift: 5.79904, first_weight: 0.58109 }, // 1.79%
-            500..1000 => SumOfLogValuesFEval { free_values_weight: 0.86415, value_shift: 0.00393, free_shift: 5.81884, first_weight: 0.59772 }, // 2.23%
-            1000..1024 => SumOfLogValuesFEval { free_values_weight: 0.88145, value_shift: 0.00397, free_shift: 5.73186, first_weight: 0.60419 }, // 2.25%
-            1024.. => SumOfLogValuesFEval { free_values_weight: 0.88038, value_shift: 0.00399, free_shift: 5.96197, first_weight: 0.59852 } // 2.24%
+            ..=2 => SumOfLogValuesFEval { free_values_weight: 1.75456, value_shift: 0.00370, free_shift: 3.15671, window_weight: 0.10135 },  // for2 1.01%
+            3 => SumOfLogValuesFEval { free_values_weight: 1.53878, value_shift: 0.00325, free_shift: 3.09695, window_weight: 0.16796 }, // 1.08%
+                // or: free_values_weight: 1.67798, value_shift: 0.00376, free_shift: 3.28776, window_weight: 0.11358
+            4 => SumOfLogValuesFEval { free_values_weight: 1.22552, value_shift: 0.00385, free_shift: 2.68325, window_weight: 0.36487 }, // 1.09%
+                // or: free_values_weight: 0.86019, value_shift: 0.00126, free_shift: 1.54111, window_weight: 0.32114
+            5 => SumOfLogValuesFEval { free_values_weight: 1.16738, value_shift: 0.00341, free_shift: 2.85818, window_weight: 0.57022 }, // 1.05%
+                // or (1.04%): free_values_weight: 0.95556, value_shift: -0.00787, free_shift: 2.09489, window_weight: 0.54287
+            6 => SumOfLogValuesFEval { free_values_weight: 1.07811, value_shift: 0.00306, free_shift: 3.01460, window_weight: 0.74649 }, // 0.97%
+            7 => SumOfLogValuesFEval { free_values_weight: 1.05410, value_shift: 0.00314, free_shift: 3.02227, window_weight: 0.72770 }, // 0.89%
+            8 => SumOfLogValuesFEval { free_values_weight: 1.03750, value_shift: 0.00307, free_shift: 3.16688, window_weight: 0.73473 }, // 0.81%
+            9 => SumOfLogValuesFEval { free_values_weight: 1.05199, value_shift: 0.00307, free_shift: 3.31693, window_weight: 0.71391 }, // 0.74%
+            10 => SumOfLogValuesFEval { free_values_weight: 1.02577, value_shift: 0.00305, free_shift: 3.32123, window_weight: 0.71673 }, // 0.68%
+            11 => SumOfLogValuesFEval { free_values_weight: 1.00964, value_shift: 0.00307, free_shift: 3.34136, window_weight: 0.70944 }, // 0.63%
+            12 => SumOfLogValuesFEval { free_values_weight: 0.97919, value_shift: 0.00305, free_shift: 3.25671, window_weight: 0.70222 }, // 0.60%
+            13 => SumOfLogValuesFEval { free_values_weight: 1.00290, value_shift: 0.00296, free_shift: 3.49979, window_weight: 0.70233 }, // 0.57%
+            14 => SumOfLogValuesFEval { free_values_weight: 1.00255, value_shift: 0.00303, free_shift: 3.55407, window_weight: 0.68480 }, // 0.56%
+            15 => SumOfLogValuesFEval { free_values_weight: 0.99834, value_shift: 0.00304, free_shift: 3.54822, window_weight: 0.67896 }, // 0.55%
+            16..32 => SumOfLogValuesFEval { free_values_weight: 0.99529, value_shift: 0.00308, free_shift: 3.62006, window_weight: 0.68640 }, // 0.54%
+            32..48 => SumOfLogValuesFEval { free_values_weight: 0.92816, value_shift: 0.00307, free_shift: 3.91187, window_weight: 0.66890 }, // 0.63%
+            48..64 => SumOfLogValuesFEval { free_values_weight: 0.90327, value_shift: 0.00330, free_shift: 4.21686, window_weight: 0.64461 }, // 0.74%
+            64..80 => SumOfLogValuesFEval { free_values_weight: 0.86516, value_shift: 0.00324, free_shift: 4.15503, window_weight: 0.66520 }, // 0.84%
+            80..100 => SumOfLogValuesFEval { free_values_weight: 0.87878, value_shift: 0.00331, free_shift: 4.10116, window_weight: 0.67052 }, // 0.55%
+            100..128 => SumOfLogValuesFEval { free_values_weight: 0.86586, value_shift: 0.00344, free_shift: 4.10146, window_weight: 0.66337 },  // 0.60%
+            128..200 => SumOfLogValuesFEval { free_values_weight: 0.84560, value_shift: 0.00332, free_shift: 4.22102, window_weight: 0.69698 },  // 0.68%
+            200..256 => SumOfLogValuesFEval { free_values_weight: 0.83602, value_shift: 0.00353, free_shift: 4.34861, window_weight: 0.66096 }, // 0.94%
+            256..300 => SumOfLogValuesFEval { free_values_weight: 0.87853, value_shift: 0.00384, free_shift: 5.43240, window_weight: 0.60892 },  // 1.16%
+            300..400 => SumOfLogValuesFEval { free_values_weight: 0.94034, value_shift: 0.00279, free_shift: 8.08843, window_weight: 0.61947 }, // 1.34%
+            400..500 => SumOfLogValuesFEval { free_values_weight: 0.86279, value_shift: 0.00392, free_shift: 5.79904, window_weight: 0.58109 }, // 1.79%
+            500..1000 => SumOfLogValuesFEval { free_values_weight: 0.86415, value_shift: 0.00393, free_shift: 5.81884, window_weight: 0.59772 }, // 2.23%
+            1000..1024 => SumOfLogValuesFEval { free_values_weight: 0.88145, value_shift: 0.00397, free_shift: 5.73186, window_weight: 0.60419 }, // 2.25%
+            1024.. => SumOfLogValuesFEval { free_values_weight: 0.88038, value_shift: 0.00399, free_shift: 5.96197, window_weight: 0.59852 } // 2.24%
         }
     }
 
@@ -564,14 +564,14 @@ impl KSeedEvaluatorConf for SumOfLogValuesF1 {
 
     fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator {
         match k {
-            ..=2 => SumOfLogValuesFEval { free_values_weight: 43.422, value_shift: 55.238, free_shift: 184.280, first_weight: 1.0 },// 1.08%
-            3 => SumOfLogValuesFEval { free_values_weight: 42.541, value_shift: 54.427, free_shift: 185.614, first_weight: 1.0 },// 1.02%
-            4 => SumOfLogValuesFEval { free_values_weight: 19.648, value_shift: 11.240, free_shift: 84.452, first_weight: 1.0 },    //0.92%
-            5 => SumOfLogValuesFEval { free_values_weight: 17.982, value_shift: 11.444, free_shift: 84.680, first_weight: 1.0 },    //0.85%
-            16 => SumOfLogValuesFEval { free_values_weight: 1.464, value_shift: 0.0, free_shift: 9.789, first_weight: 1.0 },    //0.38%
+            ..=2 => SumOfLogValuesFEval { free_values_weight: 43.422, value_shift: 55.238, free_shift: 184.280, window_weight: 1.0 },// 1.08%
+            3 => SumOfLogValuesFEval { free_values_weight: 42.541, value_shift: 54.427, free_shift: 185.614, window_weight: 1.0 },// 1.02%
+            4 => SumOfLogValuesFEval { free_values_weight: 19.648, value_shift: 11.240, free_shift: 84.452, window_weight: 1.0 },    //0.92%
+            5 => SumOfLogValuesFEval { free_values_weight: 17.982, value_shift: 11.444, free_shift: 84.680, window_weight: 1.0 },    //0.85%
+            16 => SumOfLogValuesFEval { free_values_weight: 1.464, value_shift: 0.0, free_shift: 9.789, window_weight: 1.0 },    //0.38%
                 // free_values_weight: 1.794, value_shift: -77.768, free_shift: 9.832 // 0.35%
             _ => {
-                SumOfLogValuesFEval { first_weight: 1.0, ..SumOfLogValuesF.seed_evaluator_k(k, bits_per_seed, slice_len) }
+                SumOfLogValuesFEval { window_weight: 1.0, ..SumOfLogValuesF.seed_evaluator_k(k, bits_per_seed, slice_len) }
             }
         }
     }
@@ -584,10 +584,10 @@ impl KSeedEvaluatorConf for SumOfLogValuesF1 {
 
 
 /// Chooses seed that minimizes
-/// sum_{x in bucket} log(f(x,seed) - first_weight*minimum value in the window - (1-first_weight)*minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
+/// sum_{x in bucket} log(f(x,seed) - window_weight*minimum value in the window - (1-window_weight)*minimum value in the bucket + value_shift) - free_values_weight * log(freeSlots(f(x,seed)))
 #[derive(Clone, Copy)]
 pub struct SumOfLogValuesFEval {
-    pub first_weight: f64,
+    pub window_weight: f64,
     pub free_values_weight: f64,
     pub value_shift: f64,
     pub free_shift: f64
@@ -609,8 +609,8 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
     type BucketData = f64;   
 
     fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData {
-       core.slice_begin_for_bucket(bucket_nr) as f64 * (1.0-self.first_weight) +
-       core.slice_begin_for_bucket(first_bucket_in_window) as f64 * self.first_weight
+       core.slice_begin_for_bucket(bucket_nr) as f64 * (1.0-self.window_weight) +
+       core.slice_begin_for_bucket(first_bucket_in_window) as f64 * self.window_weight
         - self.value_shift
     }
 
@@ -627,12 +627,12 @@ impl KSeedEvaluator for SumOfLogValuesFEval {
 
 #[derive(Clone, Copy)]
 pub struct GenericProdOfValues {
-    pub first_weight: f64,  // usually 0.0 (and used) is good for k=1
+    pub window_weight: f64,  // usually 0.0 (and used) is good for k=1
     pub shift: f64,
-}   // first_weight: 1.098765e-5, shift: 145 1.16%
+}   // window_weight: 1.098765e-5, shift: 145 1.16%
 
 impl Default for GenericProdOfValues {
-    fn default() -> Self { Self { first_weight: 0.0, shift: 95.0 } }
+    fn default() -> Self { Self { window_weight: 0.0, shift: 95.0 } }
 }
 
 impl SeedEvaluator for GenericProdOfValues {
@@ -644,8 +644,8 @@ impl SeedEvaluator for GenericProdOfValues {
     type BucketData = f64;
     
     fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData {
-       core.slice_begin_for_bucket(bucket_nr) as f64 * (1.0-self.first_weight) +
-       core.slice_begin_for_bucket(first_bucket_in_window) as f64 * self.first_weight
+       core.slice_begin_for_bucket(bucket_nr) as f64 * (1.0-self.window_weight) +
+       core.slice_begin_for_bucket(first_bucket_in_window) as f64 * self.window_weight
         - self.shift
     }
 
@@ -757,7 +757,7 @@ pub struct PerfectProdKAndWeightsCost6;
 
 impl CostFn for PerfectProdKAndWeightsCost6 {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        let e = ProdOfValuesKEval { value_shift: x[6], free_shift: x[7], first_weight: x[8] };
+        let e = ProdOfValuesKEval { value_shift: x[6], free_shift: x[7], window_weight: x[8] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         let w = WeightsF::from6(&x[..6]);
         let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
@@ -773,7 +773,7 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
         let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
         v.push(e.value_shift);
         v.push(e.free_shift);
-        v.push(e.first_weight);
+        v.push(e.window_weight);
         v
     }
 
@@ -792,7 +792,7 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
             ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
             ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 6),
             ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
-            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
+            ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
         ]
     }
 }
@@ -805,7 +805,7 @@ pub struct PerfectProdK4AndWeightsCost6;
 
 impl CostFn for PerfectProdK4AndWeightsCost6 {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        let e = SumOfLogValuesFEval { value_shift: x[6], free_shift: x[7], first_weight: x[8], free_values_weight: x[9] };
+        let e = SumOfLogValuesFEval { value_shift: x[6], free_shift: x[7], window_weight: x[8], free_values_weight: x[9] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         let w = WeightsF::from6(&x[..6]);
         let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
@@ -822,7 +822,7 @@ impl CostFn for PerfectProdK4AndWeightsCost6 {
         let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
         v.push(e.value_shift);
         v.push(e.free_shift);
-        v.push(e.first_weight);
+        v.push(e.window_weight);
         v.push(1.0);    // e.free_values_weight
         v
     }
@@ -842,7 +842,7 @@ impl CostFn for PerfectProdK4AndWeightsCost6 {
             ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
             ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 6),
             ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
-            ("first_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
+            ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
             ("free_values_weight", Constrain::Strong(0.1), Constrain::Weak(10.0), 6),
         ]
     }
