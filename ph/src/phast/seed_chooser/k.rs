@@ -175,18 +175,18 @@ impl KSeedEvaluator for ProdOfValuesKEval {
     type Value = ProdCmp;
     const MAX: Self::Value = ProdCmp::MAX;
 
-    type BucketData = (f64, f64);   
+    type BucketData = f64;   
 
     fn for_bucket<C: Core>(&self, bucket_nr: usize, first_bucket_in_window: usize, core: &C) -> Self::BucketData {
-       (core.slice_begin_for_bucket(bucket_nr) as f64 * (1.0-self.window_weight) +
+       core.slice_begin_for_bucket(bucket_nr) as f64 * (1.0-self.window_weight) +
        core.slice_begin_for_bucket(first_bucket_in_window) as f64 * self.window_weight
-        - self.value_shift, self.free_shift)
+        - self.value_shift
     }
 
-    fn eval_and_remove(&self, _k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, (to_subtract_from_value, free_shift): Self::BucketData) -> Self::Value {
+    fn eval_and_remove(&self, _k: u16, values_used_by_seed: &[usize], free_values: &mut FreeValueMultiSetU16, to_subtract_from_value: Self::BucketData) -> Self::Value {
         let mut result = ProdCmp::default();
         for value in values_used_by_seed.iter().copied() {
-            result *= (value as f64 - to_subtract_from_value) / (free_shift + free_values[value] as f64);
+            result *= (value as f64 - to_subtract_from_value) / (self.free_shift + free_values[value] as f64);
             free_values[value] += 1;
         }
         result
