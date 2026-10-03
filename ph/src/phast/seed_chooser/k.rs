@@ -354,7 +354,7 @@ const PROD_S7_L128: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512 
     (64, [0, 153047, 166297, 193709, 198002, 203054, 203150], P{value_shift: 0.004819, free_shift: 1.688580, window_weight: 0.922953}), // 0.29% for 3.6 λ=76.80 70M
     (100, [0, 143687, 154872, 187396, 191615, 197645, 197725], P{value_shift: 0.005121, free_shift: 1.822026, window_weight: 0.934671}), // 0.26% for 3.6 λ=111.71 100M
 ];
-const PROD_S7_L256: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512 15M keys S8 params work excellent for k=32, 16, 8, 4; and OK+ for k=48, 2, OK k=64
+const PROD_S7_L256: [(u16, [i32; 7], ProdOfValuesKEval); 13] = [   // for W=512 15M keys S8 params work excellent for k=32, 16, 8, 4; and OK+ for k=48, 2, OK k=64
     (2, [0, 57695, 57724, 57733, 61175, 61657, 62568], P{value_shift: 0.001943, free_shift: 1.965737, window_weight: 0.954503}), // 2.05% for 3.7 λ=5.66
     (3, [0, 57690, 57723, 57730, 61169, 61650, 62561], P{value_shift: 0.001991, free_shift: 1.924222, window_weight: 0.954355}), // 1.49% for 3.7 λ=7.42
     (4, [0, 57685, 57721, 57727, 61162, 61642, 62554], P{value_shift: 0.002039, free_shift: 1.701494, window_weight: 0.954207}), // 1.11% for 3.7 λ=9.06
@@ -367,6 +367,7 @@ const PROD_S7_L256: [(u16, [i32; 7], ProdOfValuesKEval); 12] = [   // for W=512 
     (48, [0, 161126, 196805, 204692, 207202, 210055, 210186], P{value_shift: 0.004743, free_shift: 1.456763, window_weight: 0.896127}), // 0.26% for 3.6 λ=60.49 50M
     (64, [0, 173253, 204791, 218680, 221049, 223780, 223897], P{value_shift: 0.004575, free_shift: 1.494077, window_weight: 0.899156}), // 0.23% for 3.6 λ=76.80 70M
     (100, [0, 174348, 192293, 207123, 209100, 212159, 212290], P{value_shift: 0.005116, free_shift: 1.720470, window_weight: 0.922365}), // 0.20% for 3.6 λ=111.71 100M
+    (1000, [0, 174235, 190906, 205900, 207460, 209870, 209938], P{value_shift: 0.005183, free_shift: 1.756795, window_weight: 0.912032}), // 0.49% for 3.6 λ=823.25 100M
 ];
 const PROD_S7_L512: [(u16, [i32; 7], ProdOfValuesKEval); 14] = [   // for W=512 15M keys  S8 params work excellent for k=64, 48, 32, 16, 8; and OK for k=4, 2
     (2, [0, 53734, 90838, 106780, 121153, 129986, 134635], P{value_shift: 0.015365, free_shift: 1.708053, window_weight: 0.152936}), // 0.89% for 3.7 λ=5.66
