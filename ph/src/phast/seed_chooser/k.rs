@@ -347,7 +347,7 @@ type P=ProdOfValuesKEval;
 //];
 //const PROD_S6_L512: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 16M keys
 //    (10, [0, 162308, 188401, 194757, 198886, 202768, 203292], P{value_shift: 0.003758, free_shift: 1.241938, window_weight: 0.887839}), // 0.73% for 3.1 λ=14.91
-//    (100, [0, 178054, 196679, 210246, 212796, 216765, 216938], P{value_shift: 0.005150, free_shift: 1.719539, window_weight: 0.931391}), // 0.22% for 3.0 λ=93.09 100M
+//    (100, [0, 186032, 201260, 205441, 206716, 208305, 208513], P{value_shift: 0.003703, free_shift: 1.334236, window_weight: 0.863755}), // 0.23% for 3.0 λ=93.09 100M
 //];
 /*const PROD_S7_L64: [(u16, [i32; 7], ProdOfValuesKEval); 11] = [   // for W=512 15M keys
     (2, [0, 11434, 15588, 18313, 19728, 21685, 22467], P{value_shift: 0.014315, free_shift: 1.751797, window_weight: 0.278672})  // 2.30% for 3.7 λ=5.66
