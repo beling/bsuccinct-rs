@@ -89,10 +89,14 @@ impl KSeedEvaluatorConf for SumOfValues {
 /// the next row (otherwise `None`).
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
-        (..=7, ..=128) => PROD_S7_L128.as_ref(),
-        (..=7, ..=256) => PROD_S7_L256.as_ref(),
-        (..=7, ..=512) => PROD_S7_L512.as_ref(),
-        (..=7, _) => PROD_S7_L1024.as_ref(),
+        (..=6, ..=128) => PROD_S6_L128.as_ref(),
+        (..=6, ..=256) => PROD_S6_L256.as_ref(),
+        (..=6, _) => PROD_S6_L512.as_ref(),
+        //(..=6, _) => PROD_S6_L1024.as_ref(),
+        (7, ..=128) => PROD_S7_L128.as_ref(),
+        (7, ..=256) => PROD_S7_L256.as_ref(),
+        (7, ..=512) => PROD_S7_L512.as_ref(),
+        (7, _) => PROD_S7_L1024.as_ref(),
         (8, ..=32) => PROD_S8_L32.as_ref(),
         (8, ..=64) => PROD_S8_L64.as_ref(),
         (8, ..=128) => PROD_S8_L128.as_ref(),
@@ -340,19 +344,19 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
-//const PROD_S6_L128: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 16M keys
-//    (10, [0, 128028, 132672, 138590, 141975, 144226, 144650], P{value_shift: 0.004160, free_shift: 1.367330, window_weight: 0.844929}), // 0.84% for 3.1 λ=14.91
-//    (100, [0, 147532, 157470, 189382, 193966, 200600, 200730], P{value_shift: 0.005213, free_shift: 1.783900, window_weight: 0.953582}), // 0.30% for 3.0 λ=93.09 100M
-//];
-//const PROD_S6_L256: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 16M keys
-//    (10, [0, 168253, 195647, 197500, 201410, 205161, 205703], P{value_shift: 0.004284, free_shift: 1.308742, window_weight: 0.854566}), // 0.74% for 3.1 λ=14.91
-//    (100, [0, 178054, 196679, 210246, 212796, 216765, 216938], P{value_shift: 0.005150, free_shift: 1.719539, window_weight: 0.931391}), // 0.22% for 3.0 λ=93.09 100M
-//    (1000, [0, 178241, 193291, 205538, 207912, 211504, 211602], P{value_shift: 0.005307, free_shift: 1.713287, window_weight: 0.906782}), // 0.53% for 3.0 λ=686.04 100M
-//];
-//const PROD_S6_L512: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 16M keys
-//    (10, [0, 162308, 188401, 194757, 198886, 202768, 203292], P{value_shift: 0.003758, free_shift: 1.241938, window_weight: 0.887839}), // 0.73% for 3.1 λ=14.91
-//    (100, [0, 186032, 201260, 205441, 206716, 208305, 208513], P{value_shift: 0.003703, free_shift: 1.334236, window_weight: 0.863755}), // 0.23% for 3.0 λ=93.09 100M
-//];
+const PROD_S6_L128: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 16M keys
+    (10, [0, 128028, 132672, 138590, 141975, 144226, 144650], P{value_shift: 0.004160, free_shift: 1.367330, window_weight: 0.844929}), // 0.84% for 3.1 λ=14.91
+    (100, [0, 147532, 157470, 189382, 193966, 200600, 200730], P{value_shift: 0.005213, free_shift: 1.783900, window_weight: 0.953582}), // 0.30% for 3.0 λ=93.09 100M
+];
+const PROD_S6_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 16M keys
+    (10, [0, 168253, 195647, 197500, 201410, 205161, 205703], P{value_shift: 0.004284, free_shift: 1.308742, window_weight: 0.854566}), // 0.74% for 3.1 λ=14.91
+    (100, [0, 178054, 196679, 210246, 212796, 216765, 216938], P{value_shift: 0.005150, free_shift: 1.719539, window_weight: 0.931391}), // 0.22% for 3.0 λ=93.09 100M
+    (1000, [0, 178241, 193291, 205538, 207912, 211504, 211602], P{value_shift: 0.005307, free_shift: 1.713287, window_weight: 0.906782}), // 0.53% for 3.0 λ=686.04 100M
+];
+const PROD_S6_L512: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 16M keys
+    (10, [0, 162308, 188401, 194757, 198886, 202768, 203292], P{value_shift: 0.003758, free_shift: 1.241938, window_weight: 0.887839}), // 0.73% for 3.1 λ=14.91
+    (100, [0, 186032, 201260, 205441, 206716, 208305, 208513], P{value_shift: 0.003703, free_shift: 1.334236, window_weight: 0.863755}), // 0.23% for 3.0 λ=93.09 100M
+];
 /*const PROD_S7_L64: [(u16, [i32; 7], ProdOfValuesKEval); 11] = [   // for W=512 15M keys
     (2, [0, 11434, 15588, 18313, 19728, 21685, 22467], P{value_shift: 0.014315, free_shift: 1.751797, window_weight: 0.278672})  // 2.30% for 3.7 λ=5.66
 ];*/
