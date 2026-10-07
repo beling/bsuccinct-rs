@@ -364,7 +364,7 @@ const PROD_S6_L512: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512 1
 ];
 const PROD_S6_L1024: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 16M keys
     (2, [0, 233748, 315966, 358822, 384535, 407022, 418757], P{value_shift: 0.003863, free_shift: 1.486350, window_weight: 0.079398}),  // 1.31% for 3.2 λ=4.89
-    (4, [0, 86011, 87100, 88683, 112191, 132178, 138206], P{value_shift: 0.007409, free_shift: 1.418589, window_weight: 0.239478}),  // 1.29% for 3.2 λ=7.83
+    (4, [0, 70166, 73545, 75473, 110273, 140990, 146203], P{value_shift: 0.007904, free_shift: 1.470643, window_weight: 0.229561}),  // 1.27% for 3.2 λ=7.83
 ];
 /*const PROD_S7_L64: [(u16, [i32; 7], ProdOfValuesKEval); 11] = [   // for W=512 15M keys
     (2, [0, 11434, 15588, 18313, 19728, 21685, 22467], P{value_shift: 0.014315, free_shift: 1.751797, window_weight: 0.278672})  // 2.30% for 3.7 λ=5.66
