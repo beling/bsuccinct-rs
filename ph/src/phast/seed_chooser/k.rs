@@ -277,6 +277,34 @@ impl<SE: KSeedEvaluatorConf> SeedChooserConf for SeedOnlyK<SE> {
     fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
         self.seed_evaluator.bucket_evaluator_k(self.k(), bits_per_seed, slice_len)
     }
+
+    fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {
+        let max_res = match (bits_per_seed, self.k(), output_range.saturating_sub(self.extra_shift(bits_per_seed) as usize)) {
+            (_, _, n @ 0..64) => (n/2+1).next_power_of_two() as u16,
+            (_, _, 64..1300) => 64,
+            (_, _, 1300..9500) => 128,
+            _ if preferred_slice_len != 0 => preferred_slice_len,
+
+            (..=6, ..=4, _) => 1024,    // TODO check exact k border
+            (..=6, ..=12, _) => 512,    // TODO check exact k border
+            (..=6, _, _) => 256,
+
+            (7, ..=5, _) => 1024,   // TODO check exact k border
+            (7, ..=12, _) => 512,   // TODO check exact k border
+            (7, _, _) => 256,
+
+            (8, ..=2, _) => 2048,   // TODO check exact k border
+            (8, ..=5, _) => 1024,   // TODO check exact k border
+            (8, ..=12, _) => 512,   // TODO check exact k border
+            (8, _, _) => 256,
+
+            (9.., ..=2, _) => 2048,   // TODO check exact k border
+            (9.., ..=3, _) => 1024,   // TODO check exact k border
+            (9.., ..=8, _) => 512,   // TODO check exact k border
+            (9.., _, _) => 256,
+        };
+        if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
+    }
 }
 
 impl SeedOnlyK<ProdOfValues> {
@@ -558,3 +586,10 @@ const PROD_S9_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 8] = [   // for W=512 
     (10, [0, 134372, 189460, 225676, 226023, 226349, 226376], P{value_shift: 0.003278, free_shift: 1.216569, window_weight: 0.830729}), // 1.12% for 5.1 λ=24.53
     (16, [0, 136763, 191986, 224518, 224715, 224891, 224905], P{value_shift: 0.003326, free_shift: 1.153749, window_weight: 0.847241}), // 1.20% for 5.1 λ=35.31 20M
 ];
+//const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys
+//  (10, [0, 136523, 188124, 191937, 196595, 201671, 201672], P{value_shift: 0.003575, free_shift: 1.224974, window_weight: 0.670027}), // 0.63% for 5.7 λ=27.42
+//  (100, [0, 102921, 188407, 294112, 294339, 294631, 294678], P{value_shift: 0.004607, free_shift: 1.696350, window_weight: 0.721485}) // 0.21% for 5.6 λ=173.78
+//];
+//const PROD_S10_L512: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys
+//    (10, [0, 149239, 200013, 207397, 209455, 211771, 211803], P{value_shift: 0.003702, free_shift: 1.175097, window_weight: 0.632076}), // 0.65% for 5.7 λ=27.42
+//];
