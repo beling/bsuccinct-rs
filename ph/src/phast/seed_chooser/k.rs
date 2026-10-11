@@ -380,11 +380,12 @@ type P=ProdOfValuesKEval;
 ];*/
 const PROD_S6_L128: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 16M keys
     (10, [0, 128028, 132672, 138590, 141975, 144226, 144650], P{value_shift: 0.004160, free_shift: 1.367330, window_weight: 0.844929}), // 0.84% for 3.1 λ=14.91
-    (16, [0, 170847, 210345, 225135, 227766, 230424, 230612], P{value_shift: 0.004117, free_shift: 1.382515, window_weight: 0.828996}), // 0.69% for 3.1 λ=21.46
+    (16, [0, 173573, 213907, 225160, 228818, 232421, 232688], P{value_shift: 0.004107, free_shift: 1.376566, window_weight: 0.838948}), // 0.68% for 3.1 λ=21.46
     (100, [0, 147532, 157470, 189382, 193966, 200600, 200730], P{value_shift: 0.005213, free_shift: 1.783900, window_weight: 0.953582}), // 0.30% for 3.0 λ=93.09 100M
 ];
-const PROD_S6_L256: [(u16, [i32; 7], ProdOfValuesKEval); 5] = [   // for W=512 16M keys
-    (8, [0, 41938, 43328, 43948, 47620, 49256, 50042], P{value_shift: 0.005401, free_shift: 1.350394, window_weight: 0.789398}), // 0.81% for 3.1 λ=12.59 TODO moreit
+const PROD_S6_L256: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512 16M keys
+    (6, [0, 39930, 41433, 41570, 44975, 45135, 46748], P{value_shift: 0.005627, free_shift: 1.530868, window_weight: 0.768346}), // 0.94% for 3.1 λ=10.17
+    (8, [0, 41944, 43228, 43882, 47534, 49148, 49934], P{value_shift: 0.005545, free_shift: 1.350731, window_weight: 0.789078}), // 0.81% for 3.1 λ=12.59
     (10, [0, 168253, 195647, 197500, 201410, 205161, 205703], P{value_shift: 0.004284, free_shift: 1.308742, window_weight: 0.854566}), // 0.74% for 3.1 λ=14.91
     (16, [0, 166216, 201914, 211076, 214098, 217209, 217509], P{value_shift: 0.004008, free_shift: 1.303037, window_weight: 0.912569}), // 0.60% for 3.1 λ=21.46
     (100, [0, 178054, 196679, 210246, 212796, 216765, 216938], P{value_shift: 0.005150, free_shift: 1.719539, window_weight: 0.931391}), // 0.22% for 3.0 λ=93.09 100M
@@ -393,8 +394,8 @@ const PROD_S6_L256: [(u16, [i32; 7], ProdOfValuesKEval); 5] = [   // for W=512 1
 const PROD_S6_L512: [(u16, [i32; 7], ProdOfValuesKEval); 6] = [   // for W=512 16M keys
     (2, [0, 63883, 113935, 137606, 149724, 161962, 168432], P{value_shift: 0.017016, free_shift: 1.588817, window_weight: 0.167693}), // 1.43% for 3.2 λ=4.89
     (4, [0, 37861, 37976, 41042, 59436, 71527, 74687], P{value_shift: 0.008497, free_shift: 1.508332, window_weight: 0.297361}), // 1.28% for 3.2 λ=7.83
-    (6, [0, 58052, 60285, 60554, 74367, 76888, 78904], P{value_shift: 0.006596, free_shift: 1.337162, window_weight: 0.262227}), // 0.88% for 3.1 λ=10.17 TODO moreit
-    (8, [0, 52497, 52613, 52815, 55797, 56699, 57746], P{value_shift: 0.004437, free_shift: 1.323356, window_weight: 0.823483}), // 0.79% for 3.1 λ=12.59 TODO moreit
+    (6, [0, 58120, 59926, 60382, 74177, 76787, 78796], P{value_shift: 0.006723, free_shift: 1.342556, window_weight: 0.269844}), // 0.88% for 3.1 λ=10.17
+    (8, [0, 52671, 52871, 52987, 55973, 56876, 57923], P{value_shift: 0.004438, free_shift: 1.332068, window_weight: 0.823758}), // 0.79% for 3.1 λ=12.59
     (10, [0, 162308, 188401, 194757, 198886, 202768, 203292], P{value_shift: 0.003758, free_shift: 1.241938, window_weight: 0.887839}), // 0.73% for 3.1 λ=14.91
     (100, [0, 186032, 201260, 205441, 206716, 208305, 208513], P{value_shift: 0.003703, free_shift: 1.334236, window_weight: 0.863755}), // 0.23% for 3.0 λ=93.09 100M
 ];
