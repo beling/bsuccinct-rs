@@ -344,6 +344,12 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
+/*const PROD_S5_L128: [(u16, [i32; 5], ProdOfValuesKEval); 3] = [   // for W=512 20M keys
+    (10, [0, 128541, 136153, 138674, 142299, 144709, 145141], P{value_shift: 0.004174, free_shift: 1.371972, window_weight: 0.847798}), // 0.88% for 2.3 λ=11.06 TODO moreit
+];*/
+/*const PROD_S5_L256: [(u16, [i32; 5], ProdOfValuesKEval); 3] = [   // for W=512 20M keys
+    (10, [0, 17521, 17828, 17898, 21109, 21717, 23363], P{value_shift: 0.006240, free_shift: 1.577266, window_weight: 0.623148}), // 0.51% for 2.3 λ=11.06
+];*/
 const PROD_S6_L128: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 16M keys
     (10, [0, 128028, 132672, 138590, 141975, 144226, 144650], P{value_shift: 0.004160, free_shift: 1.367330, window_weight: 0.844929}), // 0.84% for 3.1 λ=14.91
     (16, [0, 170847, 210345, 225135, 227766, 230424, 230612], P{value_shift: 0.004117, free_shift: 1.382515, window_weight: 0.828996}), // 0.69% for 3.1 λ=21.46
