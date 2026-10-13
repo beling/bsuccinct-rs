@@ -374,10 +374,11 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 type P=ProdOfValuesKEval;
 /*const PROD_S5_L128: [(u16, [i32; 5], ProdOfValuesKEval); 3] = [   // for W=512 20M keys
     (10, [0, 128541, 136153, 138674, 142299, 144709, 145141], P{value_shift: 0.004174, free_shift: 1.371972, window_weight: 0.847798}), // 0.88% for 2.3 λ=11.06 TODO moreit
+    (100, [0, 152016, 160356, 191001, 195790, 202641, 202848], P{value_shift: 0.005259, free_shift: 1.771463, window_weight: 0.959031}), // 0.30% for 2.4 λ=74.47 100M TODO moreit
 ];*/
 /*const PROD_S5_L256: [(u16, [i32; 5], ProdOfValuesKEval); 3] = [   // for W=512 20M keys
     (10, [0, 17521, 17828, 17898, 21109, 21717, 23363], P{value_shift: 0.006240, free_shift: 1.577266, window_weight: 0.623148}), // 0.51% for 2.3 λ=11.06
-    (100, [0, 178898, 198543, 209686, 213595, 219501, 219763], P{value_shift: 0.005140, free_shift: 1.706599, window_weight: 0.942970}), // 0.25% for 2.4 λ=74.47
+    (100, [0, 178898, 198543, 209686, 213595, 219501, 219763], P{value_shift: 0.005140, free_shift: 1.706599, window_weight: 0.942970}), // 0.25% for 2.4 λ=74.47 100M
 ];*/
 const PROD_S6_L128: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 16M keys
     (10, [0, 128028, 132672, 138590, 141975, 144226, 144650], P{value_shift: 0.004160, free_shift: 1.367330, window_weight: 0.844929}), // 0.84% for 3.1 λ=14.91
