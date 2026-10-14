@@ -380,7 +380,7 @@ const PROD_S5_L128: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 2
     (1000, [0, 152590, 160162, 192512, 197242, 203991, 204138], P{value_shift: 0.005305, free_shift: 1.736112, window_weight: 0.954771}) // 0.75% for 2.4 λ=548.83 100M
 ];
 const PROD_S5_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 20M keys
-    (10, [0, 17521, 17828, 17898, 21109, 21717, 23363], P{value_shift: 0.006240, free_shift: 1.577266, window_weight: 0.623148}), // 0.51% for 2.3 λ=11.06
+    (10, [0, 17885, 17977, 18051, 21226, 21819, 23405], P{value_shift: 0.006305, free_shift: 1.509043, window_weight: 0.654340}), // 0.90% for 2.5 λ=12.02 TODO moreit
     (100, [0, 178898, 198543, 209686, 213595, 219501, 219763], P{value_shift: 0.005140, free_shift: 1.706599, window_weight: 0.942970}), // 0.25% for 2.4 λ=74.47 100M
     (1000, [0, 177637, 194111, 204080, 207805, 213413, 213550], P{value_shift: 0.005349, free_shift: 1.711154, window_weight: 0.917018}), // 0.54% for 2.4 λ=548.83 100M
 ];
