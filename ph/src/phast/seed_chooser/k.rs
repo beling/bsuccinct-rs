@@ -289,6 +289,8 @@ impl<SE: KSeedEvaluatorConf> SeedChooserConf for SeedOnlyK<SE> {
             (_, _, 1300..9500) => 128,
             _ if preferred_slice_len != 0 => preferred_slice_len,
 
+            (..=5, _, _) => 256,
+
             (..=6, ..=4, _) => 1024,    // TODO check exact k border
             (..=6, ..=12, _) => 512,    // TODO check exact k border
             (..=6, _, _) => 256,
@@ -382,7 +384,7 @@ const PROD_S4_L128: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 4
     (1000, [0, 154305, 164637, 196871, 201455, 207940, 208127], P{value_shift: 0.005449, free_shift: 1.732168, window_weight: 0.952813}) // 1.02% for 2.2 λ=503.09 100M TODO moreit
 ];
 const PROD_S4_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 40M keys
-    (10, [0, 10011, 12899, 13062, 18646, 21614, 25770], P{value_shift: 0.008509, free_shift: 1.931638, window_weight: 0.942058}), // 2.32% for 2.2 λ=10.58 TODO moreit
+    (10, [0, 10011, 12899, 13062, 18646, 21614, 25770], P{value_shift: 0.008509, free_shift: 1.931638, window_weight: 0.942058}), // 2.32% for 2.2 λ=10.58
     (100, [0, 177165, 193324, 218185, 221773, 228109, 228843], P{value_shift: 0.005271, free_shift: 2.145369, window_weight: 0.935827}), // 0.80% for 2.2 λ=68.27 100M
     (1000, [0, 209745, 226171, 226832, 230801, 237362, 237609], P{value_shift: 0.005819, free_shift: 1.458893, window_weight: 0.742259}) // 0.78% for 2.2 λ=503.09 100M
 ];
