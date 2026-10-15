@@ -6,7 +6,7 @@ use binout::{Serializer, VByte};
 use bitm::ceiling_div;
 use seedable_hash::{BuildDefaultSeededHasher, map64_to_64};
 
-use crate::{fmph::Bits8, phast::SeedChooserCore, seeds::SeedSize};
+use crate::{seeds::Bits8, seeds::TwoToPowerBitsStatic, phast::SeedChooserCore, seeds::SeedSize};
 
 /// Returns most significant 64-bit half of `a*b`.
 #[inline(always)]
@@ -666,6 +666,25 @@ impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
             hasher: Default::default(),
             loading_factor_1000
         }
+    }
+}
+
+impl Conf<TwoToPowerBitsStatic::<2>, Generic, BuildDefaultSeededHasher> {
+    /// Constructs the configuration with 8 bits per seed, given 100*average bucket size,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
+    #[inline] pub fn generic4(bucket_size100: u32) -> Self {
+        Self { seed_size: TwoToPowerBitsStatic::<2>, core_conf: Generic::new(bucket_size100), hasher: Default::default(), loading_factor_1000: 1000 }
+    }
+
+    /// Constructs the configuration with 8 bits per seed, given 100*average bucket size, `preferred_slice_len`,
+    /// the default hasher and the loading factor of 1 (i.e. a minimal function).
+    #[inline] pub fn generic4_with_psl(bucket_size100: u32, preferred_slice_len: u16) -> Self {
+        Self { seed_size: TwoToPowerBitsStatic::<2>, core_conf: Generic::with_psl(bucket_size100, preferred_slice_len), hasher: Default::default(), loading_factor_1000: 1000 }
+    }
+
+    /// Constructs the default configuration with 8 bits per seed (see [`bits_per_seed_to_100_bucket_size`]).
+    #[inline] pub fn default_generic4() -> Self {
+        Self::generic4(bits_per_seed_to_100_bucket_size(4))
     }
 }
 
