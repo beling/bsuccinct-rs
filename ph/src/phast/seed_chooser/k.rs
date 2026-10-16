@@ -89,8 +89,10 @@ impl KSeedEvaluatorConf for SumOfValues {
 /// the next row (otherwise `None`).
 fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
-        (..=3, ..=128) => PROD_S3_L128.as_ref(),
-        (..=3, ..=256) => PROD_S3_L256.as_ref(),
+        (..=2, ..=128) => PROD_S2_L128.as_ref(),
+        (..=2, ..=256) => PROD_S2_L256.as_ref(),
+        (3, ..=128) => PROD_S3_L128.as_ref(),
+        (3, ..=256) => PROD_S3_L256.as_ref(),
         (4, ..=128) => PROD_S4_L128.as_ref(),
         (4, ..=256) => PROD_S4_L256.as_ref(),
         (5, ..=128) => PROD_S5_L128.as_ref(),
@@ -380,6 +382,16 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 
 type P=ProdOfValuesKEval;
+const PROD_S2_L128: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 50M keys
+    (10, [0, 16264, 17623, 19105, 80713, 93834, 100300], P{value_shift: 0.005113, free_shift: 2.543081, window_weight: 0.556236}), // 10.88% for 1.6 λ=7.69 TODO moreit
+    //(100, [0, 147275, 157075, 184288, 193795, 208405, 209328], P{value_shift: 0.005361, free_shift: 2.155627, window_weight: 0.877523}), // 1.83% for 1.8 λ=55.85 100M
+    //(1000, [0, 218734, 232944, 236048, 240387, 247393, 247804], P{value_shift: 0.005879, free_shift: 1.460326, window_weight: 0.753191}) // 1.09% for 1.8 λ=411.62 100M TODO moreit
+];
+const PROD_S2_L256: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 50M keys
+    (10, [0, 2758, 3546, 3554, 21059, 26847, 44750], P{value_shift: 0.008705, free_shift: 1.760856, window_weight: 0.998068}), // 11.04% for 1.6 λ=7.69
+    //(100, [0, 179395, 187047, 209644, 216252, 227551, 228922], P{value_shift: 0.005281, free_shift: 2.190872, window_weight: 0.925006}), // 1.63% for 1.8 λ=55.85 100M
+    //(1000, [0, 218734, 232944, 236048, 240387, 247393, 247804], P{value_shift: 0.005879, free_shift: 1.460326, window_weight: 0.753191}) // 1.09% for 1.8 λ=411.62 100M TODO moreit
+];
 const PROD_S3_L128: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 50M keys
     (10, [0, 30949, 33490, 33507, 55682, 62166, 65524], P{value_shift: 0.006407, free_shift: 1.852792, window_weight: 0.544414}), // 4.63% for 1.8 λ=8.65
     (100, [0, 147275, 157075, 184288, 193795, 208405, 209328], P{value_shift: 0.005361, free_shift: 2.155627, window_weight: 0.877523}), // 1.83% for 1.8 λ=55.85 100M
