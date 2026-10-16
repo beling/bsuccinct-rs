@@ -383,7 +383,7 @@ impl<SE: KSeedEvaluator> SeedChooser for SeedOnlyK<SE> {
 
 type P=ProdOfValuesKEval;
 const PROD_S2_L128: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 50M keys
-    (10, [0, 16264, 17623, 19105, 80713, 93834, 100300], P{value_shift: 0.005113, free_shift: 2.543081, window_weight: 0.556236}), // 10.88% for 1.6 λ=7.69 TODO moreit
+    (10, [0, 16172, 17512, 19058, 79355, 92014, 99249], P{value_shift: 0.005121, free_shift: 2.533247, window_weight: 0.571104}), // 10.88% for 1.6 λ=7.69 TODO moreit
     //(100, [0, 147275, 157075, 184288, 193795, 208405, 209328], P{value_shift: 0.005361, free_shift: 2.155627, window_weight: 0.877523}), // 1.83% for 1.8 λ=55.85 100M
     //(1000, [0, 218734, 232944, 236048, 240387, 247393, 247804], P{value_shift: 0.005879, free_shift: 1.460326, window_weight: 0.753191}) // 1.09% for 1.8 λ=411.62 100M TODO moreit
 ];
