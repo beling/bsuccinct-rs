@@ -387,9 +387,9 @@ const PROD_S2_L128: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 5
     //(100, [0, 147275, 157075, 184288, 193795, 208405, 209328], P{value_shift: 0.005361, free_shift: 2.155627, window_weight: 0.877523}), // 1.83% for 1.8 λ=55.85 100M
     //(1000, [0, 218734, 232944, 236048, 240387, 247393, 247804], P{value_shift: 0.005879, free_shift: 1.460326, window_weight: 0.753191}) // 1.09% for 1.8 λ=411.62 100M TODO moreit
 ];
-const PROD_S2_L256: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 50M keys
+const PROD_S2_L256: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 50M keys
     (10, [0, 2758, 3546, 3554, 21059, 26847, 44750], P{value_shift: 0.008705, free_shift: 1.760856, window_weight: 0.998068}), // 11.04% for 1.6 λ=7.69
-    //(100, [0, 179395, 187047, 209644, 216252, 227551, 228922], P{value_shift: 0.005281, free_shift: 2.190872, window_weight: 0.925006}), // 1.63% for 1.8 λ=55.85 100M
+    (100, [0, 7227, 7487, 7526, 11257, 12869, 16742], P{value_shift: 0.008489, free_shift: 3.326709, window_weight: 0.825169}), // 4.45% for 1.6 λ=49.65 100M
     //(1000, [0, 218734, 232944, 236048, 240387, 247393, 247804], P{value_shift: 0.005879, free_shift: 1.460326, window_weight: 0.753191}) // 1.09% for 1.8 λ=411.62 100M TODO moreit
 ];
 const PROD_S3_L128: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 50M keys
