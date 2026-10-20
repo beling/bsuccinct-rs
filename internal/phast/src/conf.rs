@@ -372,7 +372,7 @@ impl Conf {
     pub fn print_csv(&self) {
         print!("{} {} {} {} {} {} {}",
             self.keys_num, self.method.to_string().replace(" ", "_"),
-            self.k, self.bits_per_seed, self.bucket_size(), self.slice_len, self.threads())
+            self.k, self.bits_per_seed, Into::<u32>::into(self.bucket_size()), self.slice_len, self.threads())
     }
 
     pub fn run<F, B>(&self, build: B)
