@@ -30,14 +30,14 @@ pub enum Method {
         multiplier: u8
     },
 
-    /// PHast+ with wrapping and building last level using regular PHast
-    pluswrap2 {
+    /// PHast+ with wrapping, seed evaluating by sum, and building last level using regular PHast
+    pluswrap2sum {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=7))]
         multiplier: u8
     },
 
-    // / PHast+ with wrapping, seed evaluating by product, and building last level using regular PHast
-    pluswrap2prod {
+    /// PHast+ with wrapping, seed evaluating by product, and building last level using regular PHast
+    pluswrap2 {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=5))]
         multiplier: u8
     },
@@ -121,8 +121,8 @@ impl std::fmt::Display for Method {
             Method::phast2 => write!(f, "PHast2"),
             Method::nbphast => write!(f, "PHast without bumping"),
             Method::pluswrap { multiplier } => write!(f, "PHast+wrap {multiplier}"),
-            Method::pluswrap2 { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
-            Method::pluswrap2prod { multiplier } => write!(f, "PHast2Prod+wrap {multiplier}"),
+            Method::pluswrap2sum { multiplier } => write!(f, "PHast2+wrap {multiplier}"),
+            Method::pluswrap2 { multiplier } => write!(f, "PHast2Prod+wrap {multiplier}"),
             Method::plus => write!(f, "PHast+"),
             Method::perfect => write!(f, "Perfect"),
             Method::perfectlog => write!(f, "Perfect with: log(f(x) - minimum sum + value_shift) - free_values_weight * log(free(f(x)+free_shift))"),

@@ -94,55 +94,55 @@ fn main() {
         (Method::pluswrap { multiplier: 5 }, 1, b, false, false) => conf.run_phast(phast, BitsFast(b), ShiftOnlyWrapped::<5>),
         (Method::pluswrap { multiplier: 7 }, 1, b, false, false) => conf.run_phast(phast, BitsFast(b), ShiftOnlyWrapped::<7>),
 
-        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<1>),
-        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<2>),
-        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<3>),
-        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<5>),
-        (Method::pluswrap2 { multiplier: 7 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<7>),
-        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<1>),
-        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<2>),
-        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<3>),
-        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<5>),
-        (Method::pluswrap2 { multiplier: 7 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<7>),
-        (Method::pluswrap2 { multiplier: 1 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<1>),
-        (Method::pluswrap2 { multiplier: 2 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<2>),
-        (Method::pluswrap2 { multiplier: 3 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<3>),
-        (Method::pluswrap2 { multiplier: 5 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<5>),
-        (Method::pluswrap2 { multiplier: 7 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<7>),
+        (Method::pluswrap2sum { multiplier: 1 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<1>),
+        (Method::pluswrap2sum { multiplier: 2 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<2>),
+        (Method::pluswrap2sum { multiplier: 3 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<3>),
+        (Method::pluswrap2sum { multiplier: 5 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<5>),
+        (Method::pluswrap2sum { multiplier: 7 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyWrapped::<7>),
+        (Method::pluswrap2sum { multiplier: 1 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<1>),
+        (Method::pluswrap2sum { multiplier: 2 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<2>),
+        (Method::pluswrap2sum { multiplier: 3 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<3>),
+        (Method::pluswrap2sum { multiplier: 5 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<5>),
+        (Method::pluswrap2sum { multiplier: 7 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyWrapped::<7>),
+        (Method::pluswrap2sum { multiplier: 1 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<1>),
+        (Method::pluswrap2sum { multiplier: 2 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<2>),
+        (Method::pluswrap2sum { multiplier: 3 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<3>),
+        (Method::pluswrap2sum { multiplier: 5 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<5>),
+        (Method::pluswrap2sum { multiplier: 7 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyWrapped::<7>),
 
-        (Method::pluswrap2prod { multiplier: 1 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<1>),
-        (Method::pluswrap2prod { multiplier: 2 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<2>),
-        (Method::pluswrap2prod { multiplier: 3 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<3>),
-        (Method::pluswrap2prod { multiplier: 5 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<5>),
-        (Method::pluswrap2prod { multiplier: 1 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<1>),
-        (Method::pluswrap2prod { multiplier: 2 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<2>),
-        (Method::pluswrap2prod { multiplier: 3 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<3>),
-        (Method::pluswrap2prod { multiplier: 5 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<5>),
-        (Method::pluswrap2prod { multiplier: 1 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<1>),
-        (Method::pluswrap2prod { multiplier: 2 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<2>),
-        (Method::pluswrap2prod { multiplier: 3 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<3>),
-        (Method::pluswrap2prod { multiplier: 5 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<5>),
+        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<1>),
+        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<2>),
+        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<3>),
+        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnlyProdWrapped::<5>),
+        (Method::pluswrap2 { multiplier: 1 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<1>),
+        (Method::pluswrap2 { multiplier: 2 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<2>),
+        (Method::pluswrap2 { multiplier: 3 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<3>),
+        (Method::pluswrap2 { multiplier: 5 }, 1, 8, false, false) => conf.run_phast(phast2, Bits8, ShiftOnlyProdWrapped::<5>),
+        (Method::pluswrap2 { multiplier: 1 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<1>),
+        (Method::pluswrap2 { multiplier: 2 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<2>),
+        (Method::pluswrap2 { multiplier: 3 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<3>),
+        (Method::pluswrap2 { multiplier: 5 }, 1, b, false, false) => conf.run_phast(phast2, BitsFast(b), ShiftOnlyProdWrapped::<5>),
 
-        (Method::pluswrap { multiplier: 1 } | Method::pluswrap2 { multiplier: 1 }, 1, 8, true, false) =>
+        (Method::pluswrap { multiplier: 1 } | Method::pluswrap2sum { multiplier: 1 }, 1, 8, true, false) =>
             conf.run_partial(Bits8, ShiftOnlyWrapped::<1>),
-        (Method::pluswrap { multiplier: 2 } | Method::pluswrap2 { multiplier: 2 }, 1, 8, true, false) =>
+        (Method::pluswrap { multiplier: 2 } | Method::pluswrap2sum { multiplier: 2 }, 1, 8, true, false) =>
             conf.run_partial(Bits8, ShiftOnlyWrapped::<2>),
-        (Method::pluswrap { multiplier: 3 } | Method::pluswrap2 { multiplier: 3 }, 1, 8, true, false) =>
+        (Method::pluswrap { multiplier: 3 } | Method::pluswrap2sum { multiplier: 3 }, 1, 8, true, false) =>
             conf.run_partial(Bits8, ShiftOnlyWrapped::<3>),
-        (Method::pluswrap { multiplier: 5 } | Method::pluswrap2 { multiplier: 5 }, 1, 8, true, false) =>
+        (Method::pluswrap { multiplier: 5 } | Method::pluswrap2sum { multiplier: 5 }, 1, 8, true, false) =>
             conf.run_partial(Bits8, ShiftOnlyWrapped::<5>),
-        (Method::pluswrap { multiplier: 7 } | Method::pluswrap2 { multiplier: 7 }, 1, 8, true, false) =>
+        (Method::pluswrap { multiplier: 7 } | Method::pluswrap2sum { multiplier: 7 }, 1, 8, true, false) =>
             conf.run_partial(Bits8, ShiftOnlyWrapped::<7>),
 
-        (Method::pluswrap { multiplier: 1 }| Method::pluswrap2 { multiplier: 1 }, 1, b, true, false) =>
+        (Method::pluswrap { multiplier: 1 }| Method::pluswrap2sum { multiplier: 1 }, 1, b, true, false) =>
             conf.run_partial(BitsFast(b), ShiftOnlyWrapped::<1>),
-        (Method::pluswrap { multiplier: 2 }| Method::pluswrap2 { multiplier: 2 }, 1, b, true, false) =>
+        (Method::pluswrap { multiplier: 2 }| Method::pluswrap2sum { multiplier: 2 }, 1, b, true, false) =>
             conf.run_partial(BitsFast(b), ShiftOnlyWrapped::<2>),
-        (Method::pluswrap { multiplier: 3 }| Method::pluswrap2 { multiplier: 3 }, 1, b, true, false) =>
+        (Method::pluswrap { multiplier: 3 }| Method::pluswrap2sum { multiplier: 3 }, 1, b, true, false) =>
             conf.run_partial(BitsFast(b), ShiftOnlyWrapped::<3>),
-        (Method::pluswrap { multiplier: 5 }| Method::pluswrap2 { multiplier: 5 }, 1, b, true, false) =>
+        (Method::pluswrap { multiplier: 5 }| Method::pluswrap2sum { multiplier: 5 }, 1, b, true, false) =>
             conf.run_partial(BitsFast(b), ShiftOnlyWrapped::<5>),
-        (Method::pluswrap { multiplier: 7 }| Method::pluswrap2 { multiplier: 7 }, 1, b, true, false) =>
+        (Method::pluswrap { multiplier: 7 }| Method::pluswrap2sum { multiplier: 7 }, 1, b, true, false) =>
             conf.run_partial(BitsFast(b), ShiftOnlyWrapped::<7>),
 
         (Method::plus, 1, 8, false, true) => conf.run_turbo(phast2, ShiftOnly),
