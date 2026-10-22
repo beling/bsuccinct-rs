@@ -296,6 +296,10 @@ pub struct Conf {
     /// Sample size for numerical optimization 
     #[arg(long, aliases=["ss", "sample"], default_value_t = 96)]
     pub sample_size: u32,
+
+    /// A seed that affects the set of randomly generated keys
+    #[arg(long, aliases=["random-seed"], default_value_t = 0)]
+    pub seed: u32,
 }
 
 impl Conf {
@@ -329,7 +333,7 @@ impl Conf {
     }
 
     pub fn keys_for_seed(&self, seed: u32) -> Box<[u64]> {
-        butils::XorShift64(seed as u64).take(self.keys_num as usize).collect()
+        butils::XorShift64(self.seed as u64 + seed as u64).take(self.keys_num as usize).collect()
     }
 
     pub fn params<SS>(&self, seed_size: SS, bucket_size100: u32) -> ph::phast::Conf<SS, Generic> {
