@@ -6,5 +6,5 @@ resolver = "2"
 [patch.crates-io]
 dyn_size_of = { version=">=0.1", path="dyn_size_of" }
 
-[profile.release]
-codegen-units = 1
+#[profile.release]
+#codegen-units = 1
