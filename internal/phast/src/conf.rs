@@ -90,6 +90,9 @@ pub enum Method {
     /// Optimize weights for selecting buckets by PHast+
     optplus,
 
+    /// Optimize weights for selecting buckets by PHast+, delta
+    optplus6,
+
     /// Optimize seed evaluation in perfectlog
     optperfectlog,
 
@@ -136,6 +139,7 @@ impl std::fmt::Display for Method {
             Method::optplusprodwrap { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights"),
             Method::optplusprodwrap6 { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights (6)"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
+            Method::optplus6 => write!(f, "Optimize PHast+ weights (6)"),
             Method::optperfectlog => write!(f, "Optimize seed evaluation in perfectlog"),
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with window_weight=0"),
             Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with window_weight=1"),
