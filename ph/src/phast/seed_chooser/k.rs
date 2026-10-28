@@ -113,10 +113,11 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 
         (8, ..=1024) => PROD_S8_L1024.as_ref(),
         (8, _) => PROD_S8_L2048.as_ref(),
         //(9.., ..=128) => PROD_S9_L128.as_ref(),
-        (9.., ..=256) => PROD_S9_L256.as_ref(),
-        (9.., ..=512) => PROD_S9_L512.as_ref(),
-        (9.., ..=1024) => PROD_S9_L1024.as_ref(),
-        (9.., _) => PROD_S9_L2048.as_ref(),
+        (9, ..=256) => PROD_S9_L256.as_ref(),
+        (9, ..=512) => PROD_S9_L512.as_ref(),
+        (9, ..=1024) => PROD_S9_L1024.as_ref(),
+        (9, _) => PROD_S9_L2048.as_ref(),
+        (_, _) => PROD_S10_L256.as_ref()
     };
     for (i, row) in values.iter().enumerate() {
         if row.0 >= k {
@@ -308,10 +309,15 @@ impl<SE: KSeedEvaluatorConf> SeedChooserConf for SeedOnlyK<SE> {
             (8, ..=12, _) => 512,   // TODO check exact k border
             (8, _, _) => 256,
 
-            (9.., ..=2, _) => 2048,   // TODO check exact k border
-            (9.., ..=3, _) => 1024,   // TODO check exact k border
-            (9.., ..=8, _) => 512,   // TODO check exact k border
-            (9.., _, _) => 256,
+            (9, ..=2, _) => 2048,   // TODO check exact k border
+            (9, ..=3, _) => 1024,   // TODO check exact k border
+            (9, ..=8, _) => 512,   // TODO check exact k border
+            (9, _, _) => 256,
+
+            (_, ..=2, _) => 2048,   // TODO check exact k border
+            (_, ..=3, _) => 1024,   // TODO check exact k border
+            (_, ..=8, _) => 512,   // TODO check exact k border
+            (_, _, _) => 256,
         };
         if preferred_slice_len != 0 { max_res.min(preferred_slice_len) } else { max_res }
     }
@@ -643,13 +649,13 @@ const PROD_S9_L2048: [(u16, [i32; 7], ProdOfValuesKEval); 8] = [   // for W=512 
     (10, [0, 134372, 189460, 225676, 226023, 226349, 226376], P{value_shift: 0.003278, free_shift: 1.216569, window_weight: 0.830729}), // 1.12% for 5.1 λ=24.53
     (16, [0, 136763, 191986, 224518, 224715, 224891, 224905], P{value_shift: 0.003326, free_shift: 1.153749, window_weight: 0.847241}), // 1.20% for 5.1 λ=35.31 20M
 ];
-//const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys
-//  (10, [0, 136523, 188124, 191937, 196595, 201671, 201672], P{value_shift: 0.003575, free_shift: 1.224974, window_weight: 0.670027}), // 0.63% for 5.7 λ=27.42
-//  (10, [0, 138805, 190593, 196310, 200349, 204813, 204927], P{value_shift: 0.003558, free_shift: 1.217001, window_weight: 0.690244}), // 0.75% for 5.8 λ=27.90
+const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 10M keys
+  //(10, [0, 136523, 188124, 191937, 196595, 201671, 201672], P{value_shift: 0.003575, free_shift: 1.224974, window_weight: 0.670027}), // 0.63% for 5.7 λ=27.42
+  (10, [0, 138805, 190593, 196310, 200349, 204813, 204927], P{value_shift: 0.003558, free_shift: 1.217001, window_weight: 0.690244}), // 0.75% for 5.8 λ=27.90
 //  (100, [0, 102921, 188407, 294112, 294339, 294631, 294678], P{value_shift: 0.004607, free_shift: 1.696350, window_weight: 0.721485}), // 0.21% for 5.6 λ=173.78
-//  (100, [0, 108372, 211316, 328268, 328638, 329318, 329392], P{value_shift: 0.005969, free_shift: 1.991858, window_weight: 0.992794}), // 0.24% for 5.7 λ=176.88 100M
-//  (1000, [0, 95730, 195085, 265933, 266163, 266476, 266519], P{value_shift: 0.004346, free_shift: 1.656095, window_weight: 0.726408}), // 0.56% for 5.7 λ=1303.48 100M
-//];
+  (100, [0, 108372, 211316, 328268, 328638, 329318, 329392], P{value_shift: 0.005969, free_shift: 1.991858, window_weight: 0.992794}), // 0.24% for 5.7 λ=176.88 100M
+  (1000, [0, 95730, 195085, 265933, 266163, 266476, 266519], P{value_shift: 0.004346, free_shift: 1.656095, window_weight: 0.726408}), // 0.56% for 5.7 λ=1303.48 100M
+];
 //const PROD_S10_L512: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys
 //    (10, [0, 149239, 200013, 207397, 209455, 211771, 211803], P{value_shift: 0.003702, free_shift: 1.175097, window_weight: 0.632076}), // 0.65% for 5.7 λ=27.42
 //];
