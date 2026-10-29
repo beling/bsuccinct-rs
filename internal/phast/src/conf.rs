@@ -75,6 +75,12 @@ pub enum Method {
         multiplier: u8
     },
 
+    /// Optimize weights for selecting buckets by PHast+ with wrapping, using "6" encoding
+    optpluswrap6 {
+        #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
+        multiplier: u8
+    },
+
     /// Optimize weights for selecting buckets by PHast+ with wrapping and product based seed evaluation
     optplusprodwrap {
         #[arg(default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=3))]
@@ -136,6 +142,7 @@ impl std::fmt::Display for Method {
             Method::optphast4 => write!(f, "Optimize PHast weights (4)"),
             Method::optphast6 => write!(f, "Optimize PHast weights (6)"),
             Method::optpluswrap { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights"),
+            Method::optpluswrap6 { multiplier } => write!(f, "Optimize PHast+wrap {multiplier} weights (6)"),
             Method::optplusprodwrap { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights"),
             Method::optplusprodwrap6 { multiplier } => write!(f, "Optimize PHastProd+wrap {multiplier} weights (6)"),
             Method::optplus => write!(f, "Optimize PHast+ weights"),
