@@ -127,6 +127,13 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S> Partial<C, SS, SCC, S> {
         (seed != 0).then(|| self.seed_chooser.f(key_hash, seed, &self.seeds.core))
     }
 
+    /// Prefetches the cache line containing the seed that [`Partial::get_for_hash`] reads
+    /// for the given `key_hash`.
+    #[inline(always)]
+    pub fn prefetch_for_hash(&self, key_hash: u64) {
+        self.seeds.prefetch(self.seed_size, key_hash)
+    }
+
     fn build_st<'k, BE, SC>(hashes: &'k mut [u64], seed_size: SS, core: C, hasher: S, seed_chooser: SC, bucket_evaluator: BE)
      -> (Self, BuildConf<'k, C, BE, SS, SC>)
         where BE: BucketEvaluator, C: Core, SC: SeedChooser<Core=SCC>
@@ -178,6 +185,14 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildHasher> Partial<C, SS,
     #[inline(always)]
     pub fn get<K>(&self, key: &K) -> Option<usize> where K: Hash + ?Sized {
         self.get_for_hash(self.hasher.hash_one(key))
+    }
+
+    /// Prefetches the cache line containing the seed that [`Partial::get`] reads for the given `key`.
+    ///
+    /// Intended for batching lookups: prefetch a batch of keys, then evaluate them with [`Partial::get`].
+    #[inline(always)]
+    pub fn prefetch<K>(&self, key: &K) where K: Hash + ?Sized {
+        self.prefetch_for_hash(self.hasher.hash_one(key))
     }
 
     /// Returns [`Partial`] function and number of keys with unassigned values for given `keys`,

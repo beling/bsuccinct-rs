@@ -80,6 +80,15 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         unreachable!()
     }
 
+    /// Prefetches the cache line containing the seed that [`KFunction::get`] reads first
+    /// for the given `key`, i.e. the seed of the key's bucket in the first level.
+    ///
+    /// Intended for batching lookups: prefetch a batch of keys, then evaluate them with [`KFunction::get`].
+    #[inline(always)]
+    pub fn prefetch<K>(&self, key: &K) where K: Hash + ?Sized {
+        self.level0.prefetch(self.seed_size, self.hasher.hash_one(key, 0))
+    }
+
     /// Constructs [`KFunction`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_vec_conf_sc<K, CC, SC>(mut keys: Vec::<K>, conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self

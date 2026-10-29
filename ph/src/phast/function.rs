@@ -27,6 +27,12 @@ impl<SSVecElement, C: Core> SeedEx<SSVecElement, C> {
         seed_size.get_seed(&self.seeds, self.core.bucket_for(key))
     }
 
+    /// Prefetches the cache line containing the seed assigned to the bucket of the `key`.
+    #[inline(always)]
+    pub(crate) fn prefetch<SS>(&self, seed_size: SS, key: u64) where SS: SeedSize<VecElement=SSVecElement> {
+        seed_size.prefetch_seed(&self.seeds, self.core.bucket_for(key))
+    }
+
     /// Writes `self` to the `output`.
     pub fn write<SS: SeedSize<VecElement = SSVecElement>>(&self, output: &mut dyn io::Write, seed_size: SS) -> io::Result<()>
     {
@@ -288,6 +294,15 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
             }
         }
         unreachable!()
+    }
+
+    /// Prefetches the cache line containing the seed that [`Function::get`] reads first
+    /// for the given `key`, i.e. the seed of the key's bucket in the first level.
+    ///
+    /// Intended for batching lookups: prefetch a batch of keys, then evaluate them with [`Function::get`].
+    #[inline(always)]
+    pub fn prefetch<K>(&self, key: &K) where K: Hash + ?Sized {
+        self.level0.prefetch(self.seed_size, self.hasher.hash_one(key, 0))
     }
 
     /// Constructs [`Function`] for given `keys`, using a single thread and given configuration.

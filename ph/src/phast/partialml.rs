@@ -157,6 +157,15 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildSeededHasher> PartialM
         None
     }
 
+    /// Prefetches the cache line containing the seed that [`PartialML::get`] reads first
+    /// for the given `key`, i.e. the seed of the key's bucket in the first level.
+    ///
+    /// Intended for batching lookups: prefetch a batch of keys, then evaluate them with [`PartialML::get`].
+    #[inline(always)]
+    pub fn prefetch<K>(&self, key: &K) where K: Hash + ?Sized {
+        self.level0.prefetch(self.seed_size, self.hasher.hash_one(key, 0))
+    }
+
     /// Common construction: builds the first level with `build_first` for all `num_of_keys` keys,
     /// giving it the `first_range` output range computed by this method,
     /// then repeatedly builds the next levels with `build_level` as long as there are bumped keys

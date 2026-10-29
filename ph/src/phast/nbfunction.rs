@@ -48,6 +48,15 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
         self.seed_chooser.f(key_hash, seed, &self.seeds.core)
     }
 
+    /// Prefetches the cache line containing the seed that [`NBFunction::get`] reads for the given `key`,
+    /// i.e. the only cache line that `get` needs.
+    ///
+    /// Intended for batching lookups: prefetch a batch of keys, then evaluate them with [`NBFunction::get`].
+    #[inline(always)]
+    pub fn prefetch<K>(&self, key: &K) where K: Hash + ?Sized {
+        self.seeds.prefetch(self.seed_size, self.hasher.hash_one(key, self.seed))
+    }
+
     /// Constructs [`NBFunction`] for given `keys`, using a single thread and given configuration.
     /// `keys` cannot contain duplicates.
     pub fn with_slice_conf_se<K, SE, CC>(keys: &[K], conf: Conf<SS, CC, S>, seed_evaluator: SE, tries: u64) -> Option<Self>
