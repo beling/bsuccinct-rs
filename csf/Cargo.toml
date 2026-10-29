@@ -12,7 +12,7 @@ categories = [ "data-structures", "algorithms", "compression", "science" ]
 keywords = [ "perfect", "hashing", "mphf", "map", "dictionary" ]
 
 [dependencies]
-bitm = { version=">=0.4, <0.6", path="../bitm" }
+bitm = { version=">=0.4, <0.7", path="../bitm" }
 ph = { version=">=0.9.7", path="../ph", features = ["wyhash"] }
 minimum_redundancy = { version="0.3", path="../minimum_redundancy" }
 binout = { version=">=0.2", path="../binout" }
