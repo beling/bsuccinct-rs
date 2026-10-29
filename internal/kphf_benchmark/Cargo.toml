@@ -14,6 +14,7 @@ keywords = [ "perfect", "hashing", "minimal", "mphf" ]
 
 [dependencies]
 ph = { version="0.11", path="../../ph" }
+butils = { version="0.1", path="../../butils" }
 sux = "0.14.0"  # for kptrhash
 rand = "0.10.2" # for kptrhash
 log = "0.4.29" # for kptrhash
