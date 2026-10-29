@@ -25,6 +25,7 @@ cacheline-ef = ["dep:cacheline-ef", "mem_dbg"]
 
 [dependencies]
 bitm = { version="0.5", path="../bitm" }
+prefetch-index = "0.2.0"
 dyn_size_of = { version="0.4", path="../dyn_size_of" }
 binout = { version=">=0.2", path="../binout" }
 rayon = "1.5"

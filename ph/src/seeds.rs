@@ -6,6 +6,7 @@ use std::ops::Mul;
 use binout::{AsIs, Serializer};
 use bitm::{BitAccess, BitVec, ceiling_div};
 use dyn_size_of::GetSize;
+use prefetch_index::prefetch_index;
 use crate::utils::read_bits;
 
 pub fn to_io_error<E>(err: E) -> std::io::Error
@@ -36,6 +37,24 @@ pub trait SeedSize: Copy + Into<u8> + Sync + Send + TryFrom<u8, Error=&'static s
     /// Gets seed with given `index` from `vec`.
     /// Does not check whether the `index` is within bounds.
     unsafe fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16;
+
+    /// Prefetches the cache line containing the seed with given `index` from `vec`
+    /// into all levels of the cache.
+    ///
+    /// `index` is not checked against the bounds of `vec`. Unlike [`SeedSize::get_seed`],
+    /// this is safe: prefetching does not dereference the memory, so it cannot fault
+    /// or break memory safety.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ph::seeds::{Bits8, SeedSize};
+    ///
+    /// let seeds = Bits8.new_seed_vec(0, 1000);
+    /// Bits8.prefetch_seed(&seeds, 500);   // prefetch the cache line holding seed 500
+    /// assert_eq!(seeds.len(), 1000);
+    /// ```
+    #[inline] fn prefetch_seed(&self, _vec: &[Self::VecElement], _index: usize) {}
 
     /// Sets seed with given `index` in `vec` to `seed`.
     /// Does not check whether the `index` is within bounds.
@@ -118,6 +137,10 @@ impl SeedSize for Bits {
         vec.get_fragment_unchecked(index, self.0) as u16
     }
 
+    #[inline(always)] fn prefetch_seed(&self, vec: &[Self::VecElement], index: usize) {
+        vec.prefetch_fragment(index, self.0)
+    }
+
     #[inline(always)] unsafe fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
         debug_assert!(seed < (1<<self.0));
         //vec.set_fragment(index, seed as u64, self.0)
@@ -190,6 +213,10 @@ impl SeedSize for BitsFast {
         (bitm::get_bits25(vec.as_ptr(), index * self.0 as usize) & ((1<<self.0)-1)) as u16
     }
 
+    #[inline(always)] fn prefetch_seed(&self, vec: &[Self::VecElement], index: usize) {
+        prefetch_index(vec, index.wrapping_mul(self.0 as usize) / 8)
+    }
+
     #[inline(always)] unsafe fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
         debug_assert!(seed < (1<<self.0));
         bitm::set_bits25(vec.as_mut_ptr(), index * self.0 as usize, seed as u32, (1<<self.0)-1)
@@ -237,6 +264,10 @@ impl SeedSize for Bits8 {
     #[inline] unsafe fn get_seed(&self, vec: &[Self::VecElement], index: usize) -> u16 {
         //vec[index] as u16
         *vec.get_unchecked(index) as u16
+    }
+
+    #[inline(always)] fn prefetch_seed(&self, vec: &[Self::VecElement], index: usize) {
+        prefetch_index(vec, index)
     }
 
     #[inline] unsafe fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
@@ -308,6 +339,10 @@ impl<const LOG2_BITS: u8> SeedSize for TwoToPowerBitsStatic<LOG2_BITS> {
         (*vec.get_unchecked(index / Self::VALUES_PER_64 as usize) >> Self::shift_for(index)) as u16 & Self::MASK16
     }
 
+    #[inline(always)] fn prefetch_seed(&self, vec: &[Self::VecElement], index: usize) {
+        vec.prefetch_fragment(index, Self::BITS)
+    }
+
     #[inline] unsafe fn set_seed(&self, vec: &mut [Self::VecElement], index: usize, seed: u16) {
         debug_assert!(seed < (1<<Self::BITS));
         //let v = &mut vec[index / Self::VALUES_PER_64 as usize];
@@ -339,5 +374,31 @@ impl<const LOG2_BITS: u8> Mul<usize> for TwoToPowerBitsStatic<LOG2_BITS> {
 
     #[inline(always)] fn mul(self, rhs: usize) -> Self::Output {
         rhs << LOG2_BITS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Calls `prefetch_seed` for in- and out-of-bounds `index` values
+    /// and asserts that it does not change the seeds.
+    fn prefetch_seed_is_harmless<SS: SeedSize>(seed_size: SS)
+        where SS::VecElement: PartialEq
+    {
+        let seeds = seed_size.new_seed_vec(1, 5);
+        let before = seeds.clone();
+        for index in [0, 1, 2, 4, 5, 8, 100, usize::MAX] {  // 5, 8, 100 and usize::MAX are out of bounds
+            seed_size.prefetch_seed(&seeds, index);
+        }
+        assert!(seeds.iter().eq(before.iter()), "prefetching changed the seeds");
+    }
+
+    #[test]
+    fn prefetch_seed_for_all_seed_sizes() {
+        prefetch_seed_is_harmless(Bits(8));
+        prefetch_seed_is_harmless(BitsFast(8));
+        prefetch_seed_is_harmless(Bits8);
+        prefetch_seed_is_harmless(TwoToPowerBitsStatic::<3>);
     }
 }
