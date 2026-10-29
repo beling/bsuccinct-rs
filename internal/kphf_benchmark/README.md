@@ -1,0 +1,1 @@
+`kphf_benchmark` is an internal BSuccinct program (by Piotr Beling) for benchmarking kPHFs.

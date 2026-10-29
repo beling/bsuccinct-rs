@@ -1,0 +1,34 @@
+[package]
+name = "kphf_benchmark"
+version = "0.0.0"
+license = "MIT OR Apache-2.0"
+description = "Internal BSuccinct program for benchmarking kphf"
+edition = "2024"
+repository = "https://github.com/beling/bsuccinct-rs"
+readme = "README.md"
+include = [ "**/*.rs", "Cargo.toml", "README.md" ]
+categories = [ "data-structures", "algorithms", "compression", "science" ]
+keywords = [ "perfect", "hashing", "minimal", "mphf" ]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ph = { version="0.11", path="../../ph" }
+sux = "0.14.0"  # for kptrhash
+rand = "0.10.2" # for kptrhash
+log = "0.4.29" # for kptrhash
+rapidhash = "4.4.1" # for kptrhash
+
+[features]
+default = ["sux", "gxhash"]
+gxhash = ["ph/gxhash"]
+rapidhash = ["ph/rapidhash"]
+wyhash = ["ph/wyhash"]
+xxhash-rust = ["ph/xxhash-rust"]
+sip13 = ["ph/sip13"]  # if enabled, makes available BuildSip13 that uses Sip13 from compiler internals
+fnv = ["ph/fnv"]
+sux = ["ph/sux"]
+
+#[profile.release]
+#lto = true
+#codegen-units = 1
