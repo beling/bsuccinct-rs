@@ -1,5 +1,6 @@
 use std::{iter::FusedIterator, ops::Range};
 use super::{ceiling_div, n_lowest_bits, n_lowest_bits_1_64};
+use prefetch_index::prefetch_index;
 
 /// Iterator over indices of bits set to 1 (if `B` is `true`) or 0 (if `B` is `false`) in a slice of `u64`.
 pub struct BitBIterator<'a, const B: bool> {
@@ -150,6 +151,7 @@ impl<'a> FusedIterator for BitIterator<'a> where Range<usize>: FusedIterator {}
 /// (otherwise they panic, or the result is undefined in the case of the `_unchecked` variants),
 /// except `init_bits*`, `xor_bits*` and `get_bits_unmasked*`, which accept `[0, 64]`
 /// (as they operate on at least `len` bits, so they can handle even a full 64-bit word).
+/// The `prefetch_bit` and `prefetch_fragment` methods do not validate their arguments at all.
 /// Methods returning [`Option`] report an out-of-bounds range as [`None`]; the other safe methods panic
 /// if the range of bits is out of bounds.
 ///
@@ -183,6 +185,32 @@ pub trait BitAccess {
         let result = self.get_bit(*bit_nr);
         *bit_nr += 1;
         result
+    }
+
+    /// Prefetches the cache line containing the bit with index `bit_nr` into all levels of the cache.
+    ///
+    /// `bit_nr` is not validated against the bounds of `self`; an out-of-bounds index is harmless
+    /// (the prefetch instruction does not fault), but the prefetched address is then meaningless.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use bitm::BitAccess;
+    ///
+    /// let v = [0u64; 2];
+    /// v.prefetch_bit(100);            // prefetch the cache line holding bit 100
+    /// v.prefetch_fragment(3, 30);     // prefetch the cache line holding bits 90..120
+    /// assert_eq!(v.get_bit(100), false);
+    /// ```
+    #[inline] fn prefetch_bit(&self, _bit_nr: usize) {}
+
+    /// Prefetches the cache line containing the first of the `v_size` bits of the `index`-th fragment,
+    /// i.e. the bits [`index*v_size`, `index*v_size+v_size`), into all levels of the cache.
+    ///
+    /// Neither `index` nor `v_size` is validated; an out-of-range fragment (including an overflowed
+    /// `index*v_size`) is harmless, but the prefetched address is then meaningless.
+    #[inline(always)] fn prefetch_fragment(&self, index: usize, v_size: u8) {
+        self.prefetch_bit(index.wrapping_mul(v_size as usize))
     }
 
     /// Sets bit with given index `bit_nr` to `value` (`1` if `true`, `0` otherwise). Panics if `bit_nr` is out of bounds.
@@ -688,6 +716,10 @@ impl BitAccess for [u64] {
         Some(self.get(bit_nr / 64)? & (1u64 << (bit_nr % 64) as u64) != 0)
     }
 
+    #[inline(always)] fn prefetch_bit(&self, bit_nr: usize) {
+        prefetch_index(self, bit_nr / 64)
+    }
+
     #[inline(always)] fn init_bit(&mut self, bit_nr: usize, value: bool) {
         self[bit_nr / 64] |= (value as u64) << (bit_nr % 64);
     }
@@ -1144,5 +1176,17 @@ mod tests {
         assert_eq!(all.len(), 0);
         assert_eq!(all.next(), None);
         assert_eq!(all.len(), 0);
+    }
+
+    #[test]
+    fn prefetch_is_harmless() {
+        let b = [0b101u64, u64::MAX];
+        for bit_nr in [0, 1, 63, 64, 127, 128, usize::MAX] {         // the last one is out of bounds
+            b.prefetch_bit(bit_nr);
+        }
+        for (index, v_size) in [(0, 3), (1, 3), (42, 3), (usize::MAX, 64)] {  // the last one is out of bounds and overflows
+            b.prefetch_fragment(index, v_size);
+        }
+        assert_eq!(b, [0b101u64, u64::MAX]);    // prefetching changes nothing
     }
 }
