@@ -6,7 +6,7 @@ use binout::{Serializer, VByte};
 use bitm::ceiling_div;
 use seedable_hash::{BuildDefaultSeededHasher, map64_to_64};
 
-use crate::{seeds::Bits8, seeds::TwoToPowerBitsStatic, phast::SeedChooserCore, seeds::SeedSize};
+use crate::{phast::{SeedChooserCore, bucket_size_normalization_multiplier}, seeds::{Bits8, SeedSize, TwoToPowerBitsStatic}};
 
 /// Returns most significant 64-bit half of `a*b`.
 #[inline(always)]
@@ -325,6 +325,27 @@ pub const fn bits_per_seed_to_100_bucket_size(bits_per_seed: u8) -> u32 {
         13 => 770,
         _ => 830
     }
+}
+
+/// Returns bucket size (as 100× average bucket size) proper for `k`-perfect hashing with
+/// given number of `bits_per_seed` and `k`.
+pub fn bits_per_seed_to_100_bucket_size_k(bits_per_seed: u8, k: u16) -> u32 {
+    if k == 1 { return bits_per_seed_to_100_bucket_size(bits_per_seed); }
+    (match bits_per_seed {
+        2 => 160,
+        3 => 180,
+        4 => 220,
+        5 => 240,
+        6 => 300,
+        7 => 360,
+        8 => 430,
+        9 => 510,
+        10 => 570,
+        11 => 640,  //?? unchecked
+        12 => 700,  //?? unchecked
+        13 => 760,  //?? unchecked
+        _ => 820    //?? unchecked
+    } as f64 * bucket_size_normalization_multiplier(k)) as u32
 }
 
 impl<P: Placement> GenericCore<P> {
