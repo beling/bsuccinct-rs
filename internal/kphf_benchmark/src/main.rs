@@ -1,31 +1,17 @@
 #![doc = include_str!("../README.md")]
 
-use std::time::{Duration, Instant};
-
-use ph::{GetSize, phast::{KFunction, SeedOnlyK, SeedOnlyKCore, compressed_array::SuxEliasFano}};
+use ph::{GetSize, fmph::{Bits8, SeedSize}, phast::{Generic, KFunction, Perfect, SeedOnlyK, bucket_size_normalization_multiplier, compressed_array::SuxEliasFano}, seeds::BitsFast};
 
 use crate::kptrhash::{KptrHash, Mode, space_lower_bound};
 
 mod kptrhash;
 
-#[derive(Default)]
-pub struct Result {
-    /// Total size
-    pub size_bytes: usize,
-
-    /// Total building time
-    pub build_time: Duration,
-
-    /// Total query time
-    pub evaluation_time: Duration,
-}
-
-pub fn benchmark<R, F: FnOnce() -> R>(f: F) -> (R, Duration) {
+/*pub fn benchmark<R, F: FnOnce() -> R>(f: F) -> (R, Duration) {
     let start_moment = Instant::now();
     let r = f();
     let time = start_moment.elapsed();
     (r, time)
-}
+}*/
 
 pub fn keys(keys_num: usize, seed: u32) -> Box<[u32]> {
     butils::XorShift32(seed).take(keys_num as usize).collect()
@@ -46,7 +32,7 @@ fn bench_kptrhash<const MODE: u8, const K: usize>(alpha: f32, factor: f32, keys:
 
     // Space
     let actual_bits_per_key = kphf.bits_used() as f32 / n as f32;
-    let bumped_frac = kphf.num_bumped() as f32 / n as f32;
+    //let bumped_frac = kphf.num_bumped() as f32 / n as f32;
     let actual_alpha = n as f32 / (kphf.num_bins() as f32 * K as f32);
    
     let start = std::time::Instant::now();
@@ -56,21 +42,23 @@ fn bench_kptrhash<const MODE: u8, const K: usize>(alpha: f32, factor: f32, keys:
 
     let loop_ns = start.elapsed().as_nanos() as f32 / n as f32;
 
-    let start = std::time::Instant::now();
+    /*let start = std::time::Instant::now();
     let lookahead = 32;
     for i in 0..keys.len().saturating_sub(lookahead) {
         kphf.prefetch(keys[i + lookahead]);
         std::hint::black_box(kphf.get(keys[i]));
     }
-    let throughput_ns = start.elapsed().as_nanos() as f32 / n as f32;
+    let throughput_ns = start.elapsed().as_nanos() as f32 / n as f32;*/
 
-    println!("{K} kPtrHash{MODE} {factor} {actual_bits_per_key} {actual_alpha} {bumped_frac} {build_ns} {loop_ns} {throughput_ns}");
+    println!("kPtrHash{MODE} {factor} α={actual_alpha:.3} {actual_bits_per_key:.2} bit/key {build_ns:.0} {loop_ns:.2}");
 }
 
-fn bench_kphast(k: u16, alpha: f32, bucket_size100: u32, keys: &[u32]) {
+fn bench_kphast<SS: SeedSize>(k: u16, mut conf: ph::phast::Conf<SS, Generic>, keys: &[u32]) {
     let n = keys.len();
+    conf.core_conf.bucket_size100 = (conf.core_conf.bucket_size100 as f64 * bucket_size_normalization_multiplier(k)) as _;
+    let bucket_size_100 = conf.core_conf.bucket_size100;
+    let seed_size: u8 = conf.seed_size.into();
 
-    let conf = ph::phast::Conf{loading_factor_1000: (alpha*1000.0).round() as u16, ..ph::phast::Conf::default_generic8_k(k) };
     let t0 = std::time::Instant::now();
     let f: KFunction<_, _, _, SuxEliasFano, _> = ph::phast::KFunction::with_slice_conf_sc(keys, conf, SeedOnlyK::new(k));
     let build_ns: f32 = t0.elapsed().as_nanos() as f32 / n as f32;
@@ -79,24 +67,52 @@ fn bench_kphast(k: u16, alpha: f32, bucket_size100: u32, keys: &[u32]) {
     for key in keys {
         std::hint::black_box(f.get(key));
     }
-
     let loop_ns = start.elapsed().as_nanos() as f32 / n as f32;
 
-    let start = std::time::Instant::now();
-    let lookahead = 32;
-    for i in 0..keys.len().saturating_sub(lookahead) {
-        f.prefetch(&keys[i + lookahead]);
-        std::hint::black_box(f.get(&keys[i]));
-    }
-    let throughput_ns = start.elapsed().as_nanos() as f32 / n as f32;
     let actual_bits_per_key = (f.size_bytes() * 8) as f32 / n as f32;
     let actual_alpha = n as f32 / (f.output_range() as f32 * k as f32);
-    println!("{k} kPHast {bucket_size100} {actual_bits_per_key} {actual_alpha} {build_ns} {loop_ns} {throughput_ns}");
+    println!("kPHast S={seed_size} repaired λ={:.2} α={actual_alpha:.3} {actual_bits_per_key:.2} bit/key {build_ns:.0} {loop_ns:.2}",
+            bucket_size_100 as f64/100.0);
+}
+
+fn bench_perfect<SS: SeedSize>(k: u16, mut conf: ph::phast::Conf<SS, Generic>, keys: &[u32]) {
+    let n = keys.len();
+    conf.core_conf.bucket_size100 = (conf.core_conf.bucket_size100 as f64 * bucket_size_normalization_multiplier(k)) as _;
+    let bucket_size_100 = conf.core_conf.bucket_size100;
+    let seed_size: u8 = conf.seed_size.into();
+
+    let t0 = std::time::Instant::now();
+    let f = Perfect::with_slice_conf_sc(keys, conf, SeedOnlyK::new(k));
+    let build_ns: f32 = t0.elapsed().as_nanos() as f32 / n as f32;
+   
+    let start = std::time::Instant::now();
+    for key in keys {
+        std::hint::black_box(f.get(key));
+    }
+    let loop_ns = start.elapsed().as_nanos() as f32 / n as f32;
+
+    let actual_bits_per_key = (f.size_bytes() * 8) as f32 / n as f32;
+    let actual_alpha = n as f32 / (f.output_range() as f32 * k as f32);
+    println!("kPHast S={seed_size} λ={:.2} α={actual_alpha:.3} {actual_bits_per_key:.2} bit/key {build_ns:.0} {loop_ns:.2}", bucket_size_100 as f64/100.0);
+}
+
+fn conf<SS: SeedSize>(seed_size: SS, alpha: f32, bucket_size100: u32) -> ph::phast::Conf<SS, Generic> {
+    ph::phast::Conf{
+        loading_factor_1000: (alpha*1000.0).round() as u16,
+        seed_size,
+        core_conf: Generic::new(bucket_size100),
+        hasher: ph::seedable_hash::BuildGxHash,
+    }
 }
 
 fn main() {
     let keys = keys(10_000_000, 1234);
     
+    println!("---- k=4: ----");
+    bench_perfect(4, conf(Bits8, 1.0, 482), &keys);
+    bench_perfect(4, conf(BitsFast(6), 1.0, 340), &keys);
+
+    bench_kphast(4, conf(Bits8, 0.98, 500), &keys);
+    bench_kphast(4, conf(BitsFast(6), 0.98, 330), &keys);
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.99, 1.5, &keys);
-    bench_kphast(4, 0.99, 400, &keys);
 }

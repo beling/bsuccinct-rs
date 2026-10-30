@@ -1,6 +1,9 @@
 // This file is copied from https://github.com/RagnarGrootKoerkamp/static-hash-sets
 // and is authored by Ragnar Groot Koerkamp
 
+// Only part of the upstream code is used by this benchmark, so unused items
+// are expected here. The file is kept close to the original for easy syncing.
+#![allow(dead_code)]
 
 use std::{
     fmt::Debug,
