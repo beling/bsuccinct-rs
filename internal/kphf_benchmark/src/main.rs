@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use ph::GetSize;
+use ph::{GetSize, phast::{KFunction, SeedOnlyK, SeedOnlyKCore, compressed_array::SuxEliasFano}};
 
 use crate::kptrhash::{KptrHash, Mode, space_lower_bound};
 
@@ -70,8 +70,9 @@ fn bench_kptrhash<const MODE: u8, const K: usize>(alpha: f32, factor: f32, keys:
 fn bench_kphast(k: u16, alpha: f32, bucket_size100: u32, keys: &[u32]) {
     let n = keys.len();
 
+    let conf = ph::phast::Conf{loading_factor_1000: (alpha*1000.0).round() as u16, ..ph::phast::Conf::default_generic8_k(k) };
     let t0 = std::time::Instant::now();
-    let f = ph::phast::KFunction::from_slice_st(k, keys);
+    let f: KFunction<_, _, _, SuxEliasFano, _> = ph::phast::KFunction::with_slice_conf_sc(keys, conf, SeedOnlyK::new(k));
     let build_ns: f32 = t0.elapsed().as_nanos() as f32 / n as f32;
    
     let start = std::time::Instant::now();
