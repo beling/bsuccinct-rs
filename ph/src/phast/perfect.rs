@@ -350,7 +350,7 @@ impl Perfect<GenericCore, Bits8, SeedOnlyKCore, BuildDefaultSeededHasher> {
     pub fn k_from_vec_se_st<K, SEC>(k: u16, keys: Vec::<K>, seed_evaluator: SEC) -> Self
         where K: Hash, SEC: KSeedEvaluatorConf
     {
-        Self::with_vec_conf_sc(keys, Conf::default_generic8(), SeedOnlyK::with_evaluator(k, seed_evaluator))
+        Self::with_vec_conf_sc(keys, Conf::default_generic8_k(k), SeedOnlyK::with_evaluator(k, seed_evaluator))
     }
 
     /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
@@ -360,7 +360,7 @@ impl Perfect<GenericCore, Bits8, SeedOnlyKCore, BuildDefaultSeededHasher> {
     pub fn k_from_vec_se_mt<K, SEC>(k: u16, keys: Vec::<K>, seed_evaluator: SEC) -> Self
         where K: Hash+Send+Sync, SEC: KSeedEvaluatorConf
     {
-        Self::with_vec_conf_threads_sc(keys, Conf::default_generic8(),
+        Self::with_vec_conf_threads_sc(keys, Conf::default_generic8_k(k),
         std::thread::available_parallelism().map_or(1, |v| v.into()), SeedOnlyK::with_evaluator(k, seed_evaluator))
     }
 
@@ -371,7 +371,7 @@ impl Perfect<GenericCore, Bits8, SeedOnlyKCore, BuildDefaultSeededHasher> {
     pub fn k_from_slice_se_st<K, SEC>(k: u16, keys: &[K], seed_evaluator: SEC) -> Self 
         where K: Hash+Clone, SEC: KSeedEvaluatorConf
     {
-        Self::with_slice_conf_sc(keys, Conf::default_generic8(), SeedOnlyK::with_evaluator(k, seed_evaluator))
+        Self::with_slice_conf_sc(keys, Conf::default_generic8_k(k), SeedOnlyK::with_evaluator(k, seed_evaluator))
     }
 
     /// Constructs `k`-[`Perfect`] function for given `keys`, using multiple threads.
@@ -380,7 +380,7 @@ impl Perfect<GenericCore, Bits8, SeedOnlyKCore, BuildDefaultSeededHasher> {
     /// `keys` cannot contain duplicates.
     pub fn k_from_slice_se_mt<K, SEC>(k: u16, keys: &[K], seed_evaluator: SEC) -> Self 
         where K: Hash+Clone+Send+Sync, SEC: KSeedEvaluatorConf {
-        Self::with_slice_conf_threads_sc(keys, Conf::default_generic8(),
+        Self::with_slice_conf_threads_sc(keys, Conf::default_generic8_k(k),
         std::thread::available_parallelism().map_or(1, |v| v.into()), SeedOnlyK::with_evaluator(k, seed_evaluator))
     }
 }
