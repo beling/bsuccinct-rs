@@ -342,14 +342,14 @@ impl KFunction<GenericCore, Bits8, SeedOnlyKCore, DefaultCompressedArray, BuildD
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_st<K>(k: u16, keys: Vec::<K>) -> Self where K: Hash {
-        Self::with_vec_conf_sc(keys, Conf::default_generic8(), SeedOnlyK::new(k))
+        Self::with_vec_conf_sc(keys, Conf::default_generic8_k(k), SeedOnlyK::new(k))
     }
 
     /// Constructs [`KFunction`] for given `keys`, using multiple threads.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_vec_mt<K>(k: u16, keys: Vec::<K>) -> Self where K: Hash+Send+Sync {
-        Self::with_vec_conf_threads_sc(keys, Conf::default_generic8(),
+        Self::with_vec_conf_threads_sc(keys, Conf::default_generic8_k(k),
         std::thread::available_parallelism().map_or(1, |v| v.into()), SeedOnlyK::new(k))
     }
 
@@ -357,14 +357,14 @@ impl KFunction<GenericCore, Bits8, SeedOnlyKCore, DefaultCompressedArray, BuildD
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_st<K>(k: u16, keys: &[K]) -> Self where K: Hash+Clone {
-        Self::with_slice_conf_sc(keys, Conf::default_generic8(), SeedOnlyK::new(k))
+        Self::with_slice_conf_sc(keys, Conf::default_generic8_k(k), SeedOnlyK::new(k))
     }
 
     /// Constructs [`KFunction`] for given `keys`, using multiple threads.
     /// 
     /// `keys` cannot contain duplicates.
     pub fn from_slice_mt<K>(k: u16, keys: &[K]) -> Self where K: Hash+Clone+Send+Sync {
-        Self::with_slice_conf_threads_sc(keys, Conf::default_generic8(),
+        Self::with_slice_conf_threads_sc(keys, Conf::default_generic8_k(k),
         std::thread::available_parallelism().map_or(1, |v| v.into()), SeedOnlyK::new(k))
     }
 

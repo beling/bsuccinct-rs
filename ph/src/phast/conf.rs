@@ -677,6 +677,11 @@ impl Conf<Bits8, Generic, BuildDefaultSeededHasher> {
         Self::generic8(bits_per_seed_to_100_bucket_size(8))
     }
 
+    /// Constructs the default configuration for kPHast with 8 bits per seed (see [`bits_per_seed_to_100_bucket_size`]).
+    #[inline] pub fn default_generic8_k(k: u16) -> Self {
+        Self::generic8(bits_per_seed_to_100_bucket_size_k(8, k))
+    }
+
     /// Configuration used by the `from_*_fast` constructors of [`NBFunction`](crate::phast::NBFunction).
     /// It uses [`FastPlacement`] (a faster to evaluate, but slightly larger, placement).
     /// Recommended `loading_factor_1000` is from `970` (for fast building) to `990` (for small range).
