@@ -172,12 +172,12 @@ fn k16_a80(keys: &[u32]) {
 }
 
 fn main() {
-    let keys = keys(30_000_000, 1234);
+    let keys = keys(100_000_000, 1234);
 
-    for b in (1500..3800).step_by(10) {
+    /*for b in (1500..3800).step_by(10) {
         println!("{b}");
         bench_perfect(16, conf(BitsFast(6), 0.81, b), &keys);
-    }
+    }*/
 
     k4_a80(&keys);
     k4_a90(&keys);
