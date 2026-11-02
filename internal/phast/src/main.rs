@@ -31,7 +31,7 @@ fn main() {
     if conf.csv && conf.support_csv() {
         if conf.head { println!("{}", conf::CSV_HEADER); }
     } else {
-        println!("{} k={}   space lower bound ≈ {:.3} bits/key", conf.method, conf.k, space_lower_bound(conf.k));
+        println!("{} k={} α={:.3}  space lower bound ≈ {:.3} bits/key", conf.method, conf.k, conf.alpha as f64 / 1000.0, space_lower_bound(conf.k));
         println!("n={} bits/seed={} λ={:.2} slice={} W={WINDOW_SIZE} threads={threads_num}",
         conf.keys_num, conf.bits_per_seed, bucket_size, conf.slice_len);
     }
