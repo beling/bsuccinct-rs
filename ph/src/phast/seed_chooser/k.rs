@@ -659,3 +659,8 @@ const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 
 //const PROD_S10_L512: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys
 //    (10, [0, 149239, 200013, 207397, 209455, 211771, 211803], P{value_shift: 0.003702, free_shift: 1.175097, window_weight: 0.632076}), // 0.65% for 5.7 λ=27.42
 //];
+
+
+//const PROD_S8_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
+//    (4, [0, 152767, 207233, 221180, 222464, 223270, 223413], P{value_shift: 0.005102, free_shift: 0.689373, window_weight: 0.323559}) // 0.94% for 7.4 λ=18.12
+//];
