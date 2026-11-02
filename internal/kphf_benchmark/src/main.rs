@@ -97,11 +97,11 @@ fn bench_perfect<SS: SeedSize>(k: u16, mut conf: ph::phast::Conf<SS, Generic>, k
     println!("kPHast S={seed_size} α={conf_loading_factor:.2} λ={:.2}  α={actual_alpha:.3}  {actual_bits_per_key:.3} bit/key  {build_ns:.0} {loop_ns:.2} ns/key", bucket_size_100 as f64/100.0);
 }
 
-fn conf<SS: SeedSize>(seed_size: SS, alpha: f32, bucket_size100: u32) -> ph::phast::Conf<SS, Generic> {
+fn conf<SS: SeedSize>(seed_size: SS, alpha: f32, bucket_size100: u32, preferred_slice_len: u16) -> ph::phast::Conf<SS, Generic> {
     ph::phast::Conf{
         loading_factor_1000: (alpha*1000.0).round() as u16,
         seed_size,
-        core_conf: Generic::new(bucket_size100),
+        core_conf: Generic::with_psl(bucket_size100, preferred_slice_len),
         hasher: ph::seedable_hash::BuildGxHash,
     }
 }
@@ -110,22 +110,22 @@ fn k16_a99(keys: &[u32]) {
     println!("---- k=16 α=0.99 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 16>(0.99, 1.5, &keys);
 
-    bench_perfect(16, conf(Bits8, 1.0, 570), &keys);
-    bench_perfect(16, conf(BitsFast(6), 1.0, 406), &keys);
+    bench_perfect(16, conf(Bits8, 1.0, 570, 0), &keys);
+    bench_perfect(16, conf(BitsFast(6), 1.0, 406, 0), &keys);
 
-    bench_kphast(16, conf(Bits8, 0.97, 520), &keys);
-    bench_kphast(16, conf(BitsFast(6), 0.97, 390), &keys);
+    bench_kphast(16, conf(Bits8, 0.97, 520, 0), &keys);
+    bench_kphast(16, conf(BitsFast(6), 0.97, 390, 0), &keys);
 }
 
 fn k16_a90(keys: &[u32]) {
     println!("---- k=16 α=0.9 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 16>(0.9, 1.5, &keys);    // α=0.896 0.098
 
-    bench_perfect(16, conf(Bits8, 0.91, 1100), &keys);  // 0.107
-    bench_perfect(16, conf(BitsFast(6), 0.92, 800), &keys); // 0.112 // or 0.91 790
+    bench_perfect(16, conf(Bits8, 0.91, 1100, 0), &keys);  // 0.107
+    bench_perfect(16, conf(BitsFast(6), 0.92, 800, 0), &keys); // 0.112 // or 0.91 790
 
-    bench_kphast(16, conf(Bits8, 0.896, 1010), &keys);  // 0.118
-    bench_kphast(16, conf(BitsFast(6), 0.896, 700), &keys); // 0.126
+    bench_kphast(16, conf(Bits8, 0.896, 1010, 0), &keys);  // 0.118
+    bench_kphast(16, conf(BitsFast(6), 0.896, 700, 0), &keys); // 0.126
 
 
 }
@@ -134,49 +134,49 @@ fn k4_a99(keys: &[u32]) {
     println!("---- k=4 α=0.99 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.99, 1.5, &keys);
 
-    bench_kphast(4, conf(Bits8, 0.98, 480), &keys);
-    bench_kphast(4, conf(BitsFast(6), 0.98, 340), &keys);
+    bench_kphast(4, conf(Bits8, 0.98, 480, 0), &keys);
+    bench_kphast(4, conf(BitsFast(6), 0.98, 340, 0), &keys);
 
-    bench_perfect(4, conf(Bits8, 1.0, 482), &keys);
-    bench_perfect(4, conf(BitsFast(6), 1.0, 340), &keys);
+    bench_perfect(4, conf(Bits8, 1.0, 482, 0), &keys);
+    bench_perfect(4, conf(BitsFast(6), 1.0, 340, 0), &keys);
 }
 
 fn k4_a90(keys: &[u32]) {
     println!("---- k=4 α=0.9 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.9, 1.5, &keys); // α=0.900 0.490
 
-    bench_perfect(4, conf(Bits8, 0.91, 730), &keys);    // 0.453
-    bench_perfect(4, conf(BitsFast(6), 0.91, 517), &keys);  // 0.479
+    bench_perfect(4, conf(Bits8, 0.91, 730, 0), &keys);    // 0.453
+    bench_perfect(4, conf(BitsFast(6), 0.91, 517, 0), &keys);  // 0.479
 
-    bench_kphast(4, conf(Bits8, 0.9, 720), &keys);  // 0.462
-    bench_kphast(4, conf(BitsFast(6), 0.9, 500), &keys);    // 0.496
+    bench_kphast(4, conf(Bits8, 0.9, 720, 0), &keys);  // 0.462
+    bench_kphast(4, conf(BitsFast(6), 0.9, 500, 0), &keys);    // 0.496
 }
 
 fn k4_a80(keys: &[u32]) {
     println!("---- k=4 α=0.8 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.8, 1.5, &keys); // α=0.800 0.316
+    // TODO is 256 optimal slice length?
+    bench_perfect(4, conf(Bits8, 0.81, 1115, 0), &keys);  // 0.297
+    bench_perfect(4, conf(BitsFast(6), 0.81, 765, 0), &keys);  // 0.324
 
-    bench_perfect(4, conf(Bits8, 0.81, 1115), &keys);  // 0.297
-    bench_perfect(4, conf(BitsFast(6), 0.81, 765), &keys);  // 0.324
-
-    bench_kphast(4, conf(Bits8, 0.8, 1070), &keys); // 0.310
-    bench_kphast(4, conf(BitsFast(6), 0.8, 730), &keys);    // 0.345
+    bench_kphast(4, conf(Bits8, 0.8, 1070, 0), &keys); // 0.310
+    bench_kphast(4, conf(BitsFast(6), 0.8, 730, 0), &keys);    // 0.345
 }
 
 fn k16_a80(keys: &[u32]) {
     println!("---- k=16 α=0.8 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 16>(0.8, 1.5, &keys); // α=0.798 0.041
 
-    bench_perfect(16, conf(Bits8, 0.81, 2210), &keys);  // 0.053
-    bench_perfect(16, conf(BitsFast(6), 0.81, 1540), &keys);   // 0.057
+    bench_perfect(16, conf(Bits8, 0.81, 2210, 0), &keys);  // 0.053
+    bench_perfect(16, conf(BitsFast(6), 0.81, 1540, 0), &keys);   // 0.057
 }
 
 fn main() {
-    let keys = keys(100_000_000, 1234);
+    let keys = keys(30_000_000, 1234);
 
-    /*for b in (1500..3800).step_by(10) {
+    /*for b in (730..900).step_by(10) {
         println!("{b}");
-        bench_perfect(16, conf(BitsFast(6), 0.81, b), &keys);
+        bench_perfect(4, conf(Bits8, 0.91, b, 0), &keys);    // 0.453
     }*/
 
     k4_a80(&keys);
