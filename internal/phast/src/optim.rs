@@ -139,8 +139,8 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost<SC> 
         let w: WeightsF = WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect());
         let total_violation = decreasing_violations(&w.0);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&self.0), (self.0.clone(), &w)).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(),
+                    (self.0.clone(), &w)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -165,9 +165,8 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for DeltaWeightsCost
         let w = WeightsF::from_deltas(x);
         let total_violation = decreasing_violations(&w.0);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&self.0),
-                    (self.0.clone(), &w)).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(),
+            (self.0.clone(), &w)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -204,9 +203,8 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost4<SC>
         let w = WeightsF::from4(x);
         let total_violation = decreasing_violations(&w.0);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&self.0),
-                    (self.0.clone(), &w)).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(),
+            (self.0.clone(), &w)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -242,9 +240,8 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost6<SC>
         let w = WeightsF::from6(x);
         let total_violation = decreasing_violations(&w.0);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&self.0),
-                    (self.0.clone(), &w)).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(),
+            (self.0.clone(), &w)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -277,8 +274,7 @@ impl CostFn for PerfectLogCost {
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize }
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], window_weight: x[3] };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(&s), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -303,8 +299,7 @@ impl CostFn for PerfectLog0Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], window_weight: 0.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(&s), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -328,8 +323,7 @@ impl CostFn for PerfectLog1Cost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let e = SumOfLogValuesFEval { free_values_weight: x[2], value_shift: x[0], free_shift: x[1], window_weight: 1.0 };
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(&s), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -378,8 +372,7 @@ pub struct ProdOfValuesCost;
 impl CostFn for ProdOfValuesCost {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let s = SeedOnly(GenericProdOfValues { window_weight: x[0], shift: x[1] });
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(&s), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, _conf: &Conf) -> Vec<f64> {
@@ -691,8 +684,7 @@ impl SeedEvaluator for WGenericProdOfValues {
 impl CostFn for WGenericProdOfValues {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
         let s = SeedOnly(WGenericProdOfValues(*x.as_array::<4>().unwrap()));
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-            conf.core(&s), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, _conf: &Conf) -> Vec<f64> {
@@ -719,9 +711,7 @@ impl CostFn for PerfectProdAndWeightsCost6 {
         if total_violation != 0 {
             return total_violation * conf.keys_num as usize * conf.sample_size as usize;
         }
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&s),
-                    (s, &w)).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -762,9 +752,7 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
         let w = WeightsF::from6(&x[..6]);
         let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&s),
-                    (s, &w)).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
@@ -810,9 +798,7 @@ impl CostFn for PerfectProdK4AndWeightsCost6 {
         let w = WeightsF::from6(&x[..6]);
         let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_bps_core_sc_u(keys, BitsFast(conf.bits_per_seed),
-                    conf.core(&s),
-                    (s, &w)).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
