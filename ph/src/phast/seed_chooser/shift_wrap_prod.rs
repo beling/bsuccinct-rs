@@ -214,11 +214,11 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftOnlyProdWrapped<MULTIPLIER> 
 
     #[inline(always)] fn core(&self) -> Self::Core { ShiftWrappedCore::<MULTIPLIER> }
 
-    fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+    fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::SeedChooser {
         *self
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         Weights(match MULTIPLIER {
             1 => shift_only_prod_wrapped_bucket_evaluator_m1(bits_per_seed, slice_len),
             2 => shift_only_prod_wrapped_bucket_evaluator_m2(bits_per_seed, slice_len),

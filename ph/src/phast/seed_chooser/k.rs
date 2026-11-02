@@ -26,10 +26,10 @@ pub trait KSeedEvaluatorConf: Clone + Sync {
     type KSeedEvaluator: KSeedEvaluator;
 
     /// Returns evaluator for given `k`.
-    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator;
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Self::KSeedEvaluator;
  
     /// Returns bucket evaluator that works well with seed evaluator returned by `seed_evaluator_k`.
-    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights;
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Weights;
 }
 
 /// Evaluate (harness of) seed for k-perfect function.
@@ -76,8 +76,8 @@ impl KSeedEvaluator for SumOfValues {
 
 impl KSeedEvaluatorConf for SumOfValues {
     type KSeedEvaluator = Self;
-    #[inline] fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator { SumOfValues }
-    #[inline] fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+    #[inline] fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::KSeedEvaluator { SumOfValues }
+    #[inline] fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         SumOfValues.bucket_evaluator(bits_per_seed, slice_len)
     }
 }
@@ -87,7 +87,7 @@ impl KSeedEvaluatorConf for SumOfValues {
 /// For given `k`, `bits_per_seed` and `slice_len`, returns the rows of the tuning table
 /// that bracket `k`: the closest row below or at `k`, and – if `k` lays between two rows –
 /// the next row (otherwise `None`).
-fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
+fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> (&'static (u16, [i32; 7], ProdOfValuesKEval), Option<&'static (u16, [i32; 7], ProdOfValuesKEval)>) {
     let values = match (bits_per_seed, slice_len) {
         (..=2, ..=128) => PROD_S2_L128.as_ref(),
         (..=2, ..=256) => PROD_S2_L256.as_ref(),
@@ -139,15 +139,15 @@ fn combine(p: &[i32; 7], n: &[i32; 7], nw: f64) -> [i32; 7] {
 impl KSeedEvaluatorConf for ProdOfValues {
     type KSeedEvaluator = ProdOfValuesKEval;
 
-    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator {       
-        let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Self::KSeedEvaluator {       
+        let (pk, nk) = prod_for(k, bits_per_seed, slice_len, bucket_size_100);
         if let Some(nk) = nk {
             pk.2.combine(&nk.2, next_weight(pk.0, k, nk.0) /*(k-*pk) as f64/(*nk-*pk) as f64*/)
         } else { pk.2 }
     }
 
-    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
-        let (pk, nk) = prod_for(k, bits_per_seed, slice_len);
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Weights {
+        let (pk, nk) = prod_for(k, bits_per_seed, slice_len, bucket_size_100);
         Weights(if let Some(nk) = nk {
             combine(&pk.1, &nk.1, next_weight(pk.0, k, nk.0))
         } else { pk.1 })
@@ -178,12 +178,12 @@ impl ProdOfValuesKEval {
 
 impl KSeedEvaluatorConf for ProdOfValuesKEval {
     type KSeedEvaluator = Self;
-    fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self { 
+    fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self { 
         //let mut r= *self; r.free_shift += k as f64; r 
         *self
     }
-    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
-        ProdOfValues.bucket_evaluator_k(k, bits_per_seed, slice_len)
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Weights {
+        ProdOfValues.bucket_evaluator_k(k, bits_per_seed, slice_len, bucket_size_100)
     }
 }
 
@@ -276,15 +276,15 @@ impl<SE: KSeedEvaluatorConf> SeedChooserConf for SeedOnlyK<SE> {
 
     #[inline(always)] fn core(&self) -> Self::Core { self.core }
     
-    #[inline(always)] fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16) -> Self::SeedChooser {
+    #[inline(always)] fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Self::SeedChooser {
         SeedOnlyK::<SE::KSeedEvaluator> {
-            seed_evaluator: self.seed_evaluator.seed_evaluator_k(self.k(), bits_per_seed, slice_len),
+            seed_evaluator: self.seed_evaluator.seed_evaluator_k(self.k(), bits_per_seed, slice_len, bucket_size_100),
             core: self.core,
         }
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
-        self.seed_evaluator.bucket_evaluator_k(self.k(), bits_per_seed, slice_len)
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Weights {
+        self.seed_evaluator.bucket_evaluator_k(self.k(), bits_per_seed, slice_len, bucket_size_100)
     }
 
     fn slice_len(&self, output_range: usize, bits_per_seed: u8, preferred_slice_len: u16) -> u16 {

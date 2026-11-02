@@ -131,7 +131,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
     where SE: SeedEvaluator, CC: CoreConf<Core = C>
     {
         hashes.voracious_sort();
-        let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len());
+        let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
         try_nobump_build_st(hashes, *core, conf.seed_size, evaluator, *seed_chooser, bucket_begin_st(hashes, core)).map(|(seeds, _)| seeds)
         /*.map(|(seeds, _)| {
             Self { seeds: SeedEx{ seeds, core: *core }, seed, hasher: conf.hasher.clone(), seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size }
@@ -149,7 +149,7 @@ impl<C: Core, SS: SeedSize, S: BuildSeededHasher> NBFunction<C, SS, S> {
             for seed in 0..tries {
                 let mut hashes = hashes(&conf.hasher, seed);
                 hashes.voracious_mt_sort(threads_num);
-                let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len());
+                let evaluator = seed_chooser.bucket_evaluator(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
                 if let Some((seeds, _)) = try_nobump_build_st(&hashes, core, conf.seed_size, evaluator, seed_chooser, bucket_begin_mt(&hashes, &core, threads_num)) {
                     return Some(Self { seeds: SeedEx{ seeds, core }, seed, hasher: conf.hasher, seed_chooser: SeedNoBumpCore, seed_size: conf.seed_size });
                 }

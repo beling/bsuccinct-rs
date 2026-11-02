@@ -88,15 +88,15 @@ pub trait SeedChooserConf: Clone + Sync {
 
     /// Returns the seed chooser that chooses the best seed for a bucket,
     /// during construction for given `bits_per_seed` and `slice_len`.
-    fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16) -> Self::SeedChooser;
+    fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Self::SeedChooser;
 
     /// Returns bucket evaluator which compares buckets (for choosing the best one).
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Self::BucketEvaluator;
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Self::BucketEvaluator;
 
     /// Returns bucket evaluator and seed chooser for given `bits_per_seed` and `slice_len`;
     /// a convenience method combining [`Self::bucket_evaluator`] and [`Self::seed_chooser`].
-    #[inline] fn evaluators(&self, bits_per_seed: u8, slice_len: u16) -> (Self::BucketEvaluator, Self::SeedChooser) {
-        (self.bucket_evaluator(bits_per_seed, slice_len), self.seed_chooser(bits_per_seed, slice_len))
+    #[inline] fn evaluators(&self, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> (Self::BucketEvaluator, Self::SeedChooser) {
+        (self.bucket_evaluator(bits_per_seed, slice_len, bucket_size_100), self.seed_chooser(bits_per_seed, slice_len, bucket_size_100))
     }
 
     /// Returns maximum number of keys mapped to each output value; `k` of `k`-perfect function.
@@ -200,12 +200,12 @@ impl<SC: SeedChooserConf, BE: BucketEvaluator> SeedChooserConf for (SC, BE) {
         self.0.core()
     }
 
-    #[inline(always)] fn bucket_evaluator(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::BucketEvaluator {
+    #[inline(always)] fn bucket_evaluator(&self, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::BucketEvaluator {
         self.1.clone()
     }
 
-    #[inline(always)] fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16) -> Self::SeedChooser {
-        self.0.seed_chooser(bits_per_seed, slice_len)
+    #[inline(always)] fn seed_chooser(&self, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Self::SeedChooser {
+        self.0.seed_chooser(bits_per_seed, slice_len, bucket_size_100)
     }
 
     #[inline(always)] fn empty_used_values(&self) -> Self::UsedValues {

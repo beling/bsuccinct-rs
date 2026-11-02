@@ -300,11 +300,11 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnly<SE> {
 
     #[inline(always)] fn core(&self) -> Self::Core { SeedOnlyCore }
 
-    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::SeedChooser {
         *self
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         self.0.bucket_evaluator(bits_per_seed, slice_len)
     }
 
@@ -379,11 +379,11 @@ impl<SE: SeedEvaluator> SeedChooserConf for SeedOnlyNoBump<SE> {
 
     #[inline(always)] fn core(&self) -> Self::Core { SeedNoBumpCore }
 
-    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::SeedChooser {
         *self
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         self.0.bucket_evaluator(bits_per_seed, slice_len)
     }
 }

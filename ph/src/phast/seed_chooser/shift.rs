@@ -82,7 +82,7 @@ impl SeedChooserConf for ShiftOnly {
 
     type UsedValues = UsedValueSetLarge;
     
-    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::SeedChooser {
         *self
     }
 
@@ -92,7 +92,7 @@ impl SeedChooserConf for ShiftOnly {
 
     /// Returns the bucket-evaluator weights tuned for [`ShiftOnly`]
     /// and given `bits_per_seed` and `slice_len`.
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         #[cfg(not(feature = "W256"))]    // W = 512
         return Weights(
             if slice_len <= 256 { match (bits_per_seed, slice_len) {

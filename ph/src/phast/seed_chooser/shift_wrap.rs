@@ -251,11 +251,11 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftOnlyWrapped<MULTIPLIER> {
 
     type UsedValues = UsedValueSet;
     
-    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::SeedChooser {
         *self
     }
 
-    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         Weights(match MULTIPLIER {
             1 => shift_only_wrapped_bucket_evaluator_m1(bits_per_seed, slice_len),
             2 => shift_only_wrapped_bucket_evaluator_m2(bits_per_seed, slice_len),
@@ -424,7 +424,7 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftSeedWrapped<MULTIPLIER> {
 
     #[inline(always)] fn core(&self) -> Self::Core { ShiftSeedCore::<MULTIPLIER>(self.0) }
     
-    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16) -> Self::SeedChooser {
+    #[inline(always)] fn seed_chooser(&self, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::SeedChooser {
         *self
     }
 
@@ -446,7 +446,7 @@ impl<const MULTIPLIER: u8> SeedChooserConf for ShiftSeedWrapped<MULTIPLIER> {
         }.min(if preferred_slice_len != 0 { preferred_slice_len } else { 1024 })    // TODO tune 1024
     }
 
-    #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16) -> Self::BucketEvaluator {
+    #[inline] fn bucket_evaluator(&self, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Self::BucketEvaluator {
         Weights::new(bits_per_seed, slice_len)
     }
 }

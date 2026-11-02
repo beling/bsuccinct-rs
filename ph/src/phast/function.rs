@@ -112,7 +112,7 @@ pub(crate) fn build_level_from_slice_st<K, SS, CC, SC, S>(keys: &[K], output_ran
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_sort();
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), core_conf.bucket_size100());
     let (seeds, builder) =
         build_st(&hashes, core, seed_size, bucket_evaluator, seed_chooser);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
@@ -151,7 +151,7 @@ pub(crate) fn build_level_from_slice_mt<K, SS, CC, SC, S>(keys: &[K], output_ran
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), core_conf.bucket_size100());
     let (seeds, builder) =
         build_mt(&hashes, core, seed_size, bucket_evaluator, seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);
@@ -176,7 +176,7 @@ pub(crate) fn build_level_st<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
     let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, level_nr)).collect();
     hashes.voracious_sort();
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), core_conf.bucket_size100());
     let (seeds, builder) =
         build_st(&hashes, core, seed_size, bucket_evaluator, seed_chooser);
     let (unassigned_values, _) = builder.unassigned_values(&seeds);
@@ -200,7 +200,7 @@ pub(crate) fn build_level_mt<K, SS, CC, SC, S>(keys: &mut Vec::<K>, output_range
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), core_conf, seed_size.into());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), core_conf.bucket_size100());
     let (seeds, builder) =
         build_mt(&hashes, core, seed_size, bucket_evaluator, seed_chooser, threads_num);
     let (unassigned_values, bumped_len) = builder.unassigned_values(&seeds);

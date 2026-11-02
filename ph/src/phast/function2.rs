@@ -269,7 +269,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let len100 = (keys.len()+10)*120;
         let core = SeedOnlyNoBump(ProdOfValues).minimal_generic_f_core((len100+50)/100,
             bits_per_seed.into(), 400, 0);  // TODO use turbo variant here
-        let evaluator = SeedOnlyNoBump(ProdOfValues).bucket_evaluator(bits_per_seed.into(), core.slice_len());
+        let evaluator = SeedOnlyNoBump(ProdOfValues).bucket_evaluator(bits_per_seed.into(), core.slice_len(), 400);
         loop {
             let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
             hashes.voracious_sort();    // maybe standard sort here?

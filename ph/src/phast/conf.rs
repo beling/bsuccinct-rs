@@ -498,6 +498,9 @@ pub trait CoreConf: Sync+Send {
     //fn bucket_size100(&self) -> u16;
     /// Preferred slice length (0 means the default chosen by the seed chooser).
     fn preferred_slice_len(&self) -> u16;
+
+    /// Returns 100 * average bucket size.
+    fn bucket_size100(&self) -> u32;
 }
 
 
@@ -551,6 +554,10 @@ impl<P: Placement> CoreConf for Generic<P> {
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
         self.preferred_slice_len
     }
+
+    #[inline(always)] fn bucket_size100(&self) -> u32 {
+        self.bucket_size100
+    }
 }
 
 
@@ -592,6 +599,10 @@ impl<P: Placement> CoreConf for Turbo<P> {
     
     #[inline(always)] fn preferred_slice_len(&self) -> u16 {
         self.preferred_slice_len
+    }
+
+    #[inline(always)] fn bucket_size100(&self) -> u32 {
+        400
     }
 }
 
