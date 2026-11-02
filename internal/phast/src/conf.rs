@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooserConf, Turbo, Weights, bucket_size_normalization_multiplier}, seeds::SeedSize, utils::verify_partial_kphf};
+use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooserConf, Turbo, Weights, bucket_size_normalization_multiplier}, seeds::{BitsFast, SeedSize}, utils::verify_partial_kphf};
 
 use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdAndWeightsCost6, PerfectProdK4AndWeightsCost6, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}, partial::{partial, partialml}};
 
@@ -483,8 +483,17 @@ impl Conf {
         self.run(|keys| build(keys, self.params_turbo(), self.threads(), seed_chooser.clone()))
     }
 
-    pub fn core<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> ph::phast::GenericCore {
-        seed_chooser.minimal_generic_f_core(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
+    pub fn slice_len<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> u16 {
+        seed_chooser.slice_len(self.keys_num as usize, self.bits_per_seed, self.slice_len)
+    }
+
+    pub fn phast_conf(&self) -> ph::phast::Conf<BitsFast, Generic> {
+        ph::phast::Conf {
+            seed_size: BitsFast(self.bits_per_seed),
+            core_conf: Generic::with_psl(self.bucket_size().into(), self.slice_len),
+            hasher: Default::default(),
+            loading_factor_1000: self.alpha,
+        }
     }
 
     pub fn par_eval<F: Fn(&mut [u64]) -> usize + Sync>(&self, f: F) -> usize {
