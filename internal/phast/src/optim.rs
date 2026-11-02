@@ -144,7 +144,7 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost<SC> 
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let all = self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len()).0;
+        let all = self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len(), conf.bucket_size().into()).0;
         all[1..].iter().map(|v| *v as f64 - all[0] as f64).collect()
     }
 
@@ -171,7 +171,7 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for DeltaWeightsCost
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len())).to_deltas().into_vec()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len(), conf.bucket_size().into())).to_deltas().into_vec()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
@@ -210,7 +210,7 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost4<SC>
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len())).to4().into()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len(), conf.bucket_size().into())).to4().into()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
@@ -248,7 +248,7 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost6<SC>
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len())).to6().into()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.core(&self.0).slice_len(), conf.bucket_size().into())).to6().into()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
@@ -282,7 +282,7 @@ impl CostFn for PerfectLogCost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        let s = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.bucket_size().into());
         vec![s.value_shift, s.free_shift, s.free_values_weight, s.window_weight]
     }
 
@@ -308,7 +308,7 @@ impl CostFn for PerfectLog0Cost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF0.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        let s = SumOfLogValuesF0.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.bucket_size().into());
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
@@ -333,7 +333,7 @@ impl CostFn for PerfectLog1Cost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF1.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        let s = SumOfLogValuesF1.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.bucket_size().into());
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
@@ -359,7 +359,7 @@ impl CostFn for PerfectProdKCost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        let s = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.bucket_size().into());
         vec![s.value_shift, s.free_shift, s.window_weight]
     }
 
@@ -491,15 +491,15 @@ pub struct SumOfLogValuesF0;
 impl KSeedEvaluatorConf for SumOfLogValuesF0 {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator {
-        let s = SumOfLogValuesF.seed_evaluator_k(k, bits_per_seed, slice_len);
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Self::KSeedEvaluator {
+        let s = SumOfLogValuesF.seed_evaluator_k(k, bits_per_seed, slice_len, bucket_size_100);
         SumOfLogValuesFEval {
             free_values_weight: s.free_values_weight, value_shift: s.value_shift as f64, free_shift: s.free_shift as f64,
             window_weight: 0.0, 
         }
     }
     
-    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
     }
 }
@@ -513,7 +513,7 @@ pub struct SumOfLogValuesF;
 impl KSeedEvaluatorConf for SumOfLogValuesF {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn seed_evaluator_k(&self, k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self::KSeedEvaluator {
+    fn seed_evaluator_k(&self, k: u16, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self::KSeedEvaluator {
         match k {
             ..=2 => SumOfLogValuesFEval { free_values_weight: 1.75456, value_shift: 0.00370, free_shift: 3.15671, window_weight: 0.10135 },  // for2 1.01%
             3 => SumOfLogValuesFEval { free_values_weight: 1.53878, value_shift: 0.00325, free_shift: 3.09695, window_weight: 0.16796 }, // 1.08%
@@ -549,7 +549,7 @@ impl KSeedEvaluatorConf for SumOfLogValuesF {
         }
     }
 
-    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
     }
 }
@@ -562,7 +562,7 @@ pub struct SumOfLogValuesF1;
 impl KSeedEvaluatorConf for SumOfLogValuesF1 {
     type KSeedEvaluator = SumOfLogValuesFEval;
 
-    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Self::KSeedEvaluator {
+    fn seed_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Self::KSeedEvaluator {
         match k {
             ..=2 => SumOfLogValuesFEval { free_values_weight: 43.422, value_shift: 55.238, free_shift: 184.280, window_weight: 1.0 },// 1.08%
             3 => SumOfLogValuesFEval { free_values_weight: 42.541, value_shift: 54.427, free_shift: 185.614, window_weight: 1.0 },// 1.02%
@@ -576,7 +576,7 @@ impl KSeedEvaluatorConf for SumOfLogValuesF1 {
         }
     }
 
-    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
+    fn bucket_evaluator_k(&self, _k: u16, bits_per_seed: u8, slice_len: u16, _bucket_size_100: u32) -> Weights {
         ProdOfValues.bucket_evaluator(bits_per_seed, slice_len)
     }
 }
@@ -595,10 +595,10 @@ pub struct SumOfLogValuesFEval {
 
 impl KSeedEvaluatorConf for SumOfLogValuesFEval {
     type KSeedEvaluator = Self;
-    fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16) -> Self { *self }
+    fn seed_evaluator_k(&self, _k: u16, _bits_per_seed: u8, _slice_len: u16, _bucket_size_100: u32) -> Self { *self }
 
-    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16) -> Weights {
-        ProdOfValues.bucket_evaluator_k(k, bits_per_seed, slice_len)
+    fn bucket_evaluator_k(&self, k: u16, bits_per_seed: u8, slice_len: u16, bucket_size_100: u32) -> Weights {
+        ProdOfValues.bucket_evaluator_k(k, bits_per_seed, slice_len, bucket_size_100)
     }
 }
 
@@ -727,7 +727,7 @@ impl CostFn for PerfectProdAndWeightsCost6 {
     fn init(&self, conf: &Conf) -> Vec<f64> {
         let e = GenericProdOfValues::default();
         let s = SeedOnly(e);
-        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len(), conf.bucket_size().into())).to6().to_vec();
         v.push(e.shift);
         v
     }
@@ -768,9 +768,10 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        let bucket_size_100 = conf.bucket_size().into();
+        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, bucket_size_100);
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len(), bucket_size_100)).to6().to_vec();
         v.push(e.value_shift);
         v.push(e.free_shift);
         v.push(e.window_weight);
@@ -816,10 +817,11 @@ impl CostFn for PerfectProdK4AndWeightsCost6 {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        let bucket_size_100 = conf.bucket_size().into();
+        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, bucket_size_100);
         //let e = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len())).to6().to_vec();
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.core(&s).slice_len(), bucket_size_100)).to6().to_vec();
         v.push(e.value_shift);
         v.push(e.free_shift);
         v.push(e.window_weight);
