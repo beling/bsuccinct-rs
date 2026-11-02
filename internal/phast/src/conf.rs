@@ -331,12 +331,11 @@ impl Conf {
     }
 
     pub fn bucket_size(&self) -> BucketSize {
-        let b = match self.bucket_size {
-            Some(b) if self.explicit_b || self.k == 1 => return b,
-            Some(b) => b.into(),
-            None => ph::phast::bits_per_seed_to_100_bucket_size(self.bits_per_seed)
-        };
-        BucketSize::Size100((b as f64 * bucket_size_normalization_multiplier(self.k)) as u32)
+        match self.bucket_size {
+            Some(b) if self.explicit_b || self.k == 1 => b,
+            Some(b) => BucketSize::Size100((Into::<u32>::into(b) as f64 * bucket_size_normalization_multiplier(self.k)) as u32),
+            None => BucketSize::Size100(ph::phast::bits_per_seed_to_100_bucket_size_k(self.bits_per_seed, self.k))
+        }
     }
 
     pub fn is_turbo(&self) -> bool {
