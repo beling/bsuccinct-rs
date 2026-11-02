@@ -483,8 +483,8 @@ impl Conf {
         self.run(|keys| build(keys, self.params_turbo(), self.threads(), seed_chooser.clone()))
     }
 
-    pub fn core<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> ph::phast::GenericCore {
-        seed_chooser.minimal_generic_f_core(self.keys_num as usize, self.bits_per_seed, self.bucket_size().into(), self.slice_len)
+    pub fn slice_len<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> u16 {
+        seed_chooser.slice_len(self.keys_num as usize, self.bits_per_seed, self.slice_len)
     }
 
     pub fn phast_conf(&self) -> ph::phast::Conf<BitsFast, Generic> {
