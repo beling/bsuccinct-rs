@@ -19,10 +19,11 @@ sux = "0.14.0"  # for kptrhash
 rand = "0.10.2" # for kptrhash
 log = "0.4.29" # for kptrhash
 rapidhash = "4.4.1" # for kptrhash
+gxhash = { version = "3.5", optional = true }
 
 [features]
 default = ["sux", "gxhash"]
-gxhash = ["ph/gxhash"]
+gxhash = ["dep:gxhash", "ph/gxhash"]  # also enables gxhash crate used directly by kptrhash
 rapidhash = ["ph/rapidhash"]
 wyhash = ["ph/wyhash"]
 xxhash-rust = ["ph/xxhash-rust"]

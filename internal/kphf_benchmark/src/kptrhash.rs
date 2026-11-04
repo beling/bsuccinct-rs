@@ -7,9 +7,12 @@
 
 use std::{
     fmt::Debug,
-    hash::{BuildHasher, Hash, Hasher},
+    hash::{Hash, Hasher},
     hint::cold_path,
 };
+// Only the rapidhash fallback (used when the `gxhash` feature is off) calls `build_hasher`.
+#[cfg(not(feature = "gxhash"))]
+use std::hash::BuildHasher;
 use sux::{traits::BitVecOpsMut, utils::prefetch_index};
 
 pub trait KphfT {
@@ -484,8 +487,8 @@ impl<const MODE: u8, const K: usize> KptrHash<MODE, K> {
     fn hash_key<T: Key>(&self, key: T) -> u64 {
         // let mut hasher = fxhash::FxHasher::default();
         // let mut hasher = wyhash::WyHash::default();
-        // let mut hasher = gxhash::GxHasher::default();
-        let mut hasher = rapidhash::fast::SeedableState::fixed().build_hasher();
+        #[cfg(feature = "gxhash")] let mut hasher = gxhash::GxHasher::default();
+        #[cfg(not(feature = "gxhash"))] let mut hasher = rapidhash::fast::SeedableState::fixed().build_hasher();
 
         (key.as_u64() ^ self.salt).hash(&mut hasher);
         hasher.finish()

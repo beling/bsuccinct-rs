@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use ph::{GetSize, fmph::{Bits8, SeedSize}, phast::{Generic, KFunction, Perfect, SeedOnlyK, bucket_size_normalization_multiplier, compressed_array::SuxEliasFano}, seeds::BitsFast};
+use ph::{GetSize, fmph::{Bits8, SeedSize}, phast::{Generic, KFunction, Perfect, SeedOnlyK, bucket_size_normalization_multiplier, compressed_array::DefaultCompressedArray}, seeds::BitsFast};
 
 use crate::kptrhash::{KptrHash, Mode, space_lower_bound};
 
@@ -60,7 +60,7 @@ fn bench_kphast<SS: SeedSize>(k: u16, mut conf: ph::phast::Conf<SS, Generic>, ke
     let seed_size: u8 = conf.seed_size.into();
 
     let t0 = std::time::Instant::now();
-    let f: KFunction<_, _, _, SuxEliasFano, _> = ph::phast::KFunction::with_slice_conf_sc(keys, conf, SeedOnlyK::new(k));
+    let f: KFunction<_, _, _, DefaultCompressedArray, _> = ph::phast::KFunction::with_slice_conf_sc(keys, conf, SeedOnlyK::new(k));
     let build_ns: f32 = t0.elapsed().as_nanos() as f32 / n as f32;
    
     let start = std::time::Instant::now();
