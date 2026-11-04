@@ -662,6 +662,11 @@ const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 
 
 //const PROD_S6_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
 //    (4, [0, 47275, 48624, 51936, 54070, 54225, 55153], P{value_shift: 0.005506, free_shift: 0.851065, window_weight: 0.922497}) // 0.86% for 7.5 λ=18.37
+//    (16, [0, 208359, 219838, 232709, 265217, 282653, 290611], P{value_shift: 0.004556, free_shift: 0.139561, window_weight: 0.979412}) // 0.49% for 15.60 λ=108.03
+//];
+
+//const PROD_S8_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
+//    (4, [0, 57704, 57731, 57741, 61170, 61650, 62559], P{value_shift: 0.001991, free_shift: 1.700801, window_weight: 0.977667}) // 1.88% for 10.90 λ=26.70
 //];
 
 //const PROD_S6_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91
