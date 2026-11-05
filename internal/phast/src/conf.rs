@@ -487,11 +487,11 @@ impl Conf {
         seed_chooser.slice_len(self.keys_num as usize, self.bits_per_seed, self.slice_len)
     }
 
-    pub fn phast_conf(&self) -> ph::phast::Conf<BitsFast, Generic> {
+    pub fn phast_conf(&self) -> ph::phast::Conf<BitsFast, Generic, ()> {
         ph::phast::Conf {
             seed_size: BitsFast(self.bits_per_seed),
             core_conf: Generic::with_psl(self.bucket_size().into(), self.slice_len),
-            hasher: Default::default(),
+            hasher: (),
             loading_factor_1000: self.alpha,
         }
     }

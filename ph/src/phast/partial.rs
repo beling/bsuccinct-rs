@@ -73,7 +73,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
 
     /// Constructs [`Partial`] from given key `hashes` and configuration, using a single thread.
     /// Returns the function and the number of keys (hashes) without assigned values.
-    pub fn with_hashes_conf_u<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, seed_chooser: SC) -> (Self, usize)
+    pub fn with_hashes_conf_u<CC, SC, S>(hashes: &mut [u64], conf: &Conf<SS, CC, S>, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
@@ -82,7 +82,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
 
     /// Constructs [`Partial`] from given key `hashes` and configuration, using up to `threads_num` threads.
     /// Returns the function and the number of keys (hashes) without assigned values.
-    pub fn with_hashes_conf_threads_sc_u<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> (Self, usize)
+    pub fn with_hashes_conf_threads_sc_u<CC, SC, S>(hashes: &mut [u64], conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
@@ -91,7 +91,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
 
 
     /// Constructs [`Partial`] from given key `hashes` and configuration, using a single thread.
-    pub fn with_hashes_conf_sc<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, seed_chooser: SC) -> Self
+    pub fn with_hashes_conf_sc<CC, SC, S>(hashes: &mut [u64], conf: &Conf<SS, CC, S>, seed_chooser: SC) -> Self
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
@@ -99,7 +99,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     }
 
     /// Constructs [`Partial`] from given key `hashes` and configuration, using up to `threads_num` threads.
-    pub fn with_hashes_conf_threads_sc<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, threads_num: usize, seed_chooser: SC) -> Self
+    pub fn with_hashes_conf_threads_sc<CC, SC, S>(hashes: &mut [u64], conf: &Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
@@ -109,7 +109,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
 
     /// Constructs [`Partial`] from given key `hashes` and configuration, using a single thread.
     /// Returns the function and the number of keys (hashes) without assigned values.
-    pub fn with_hashes_conf_sc_u<CC, SC>(hashes: &mut [u64], conf: &Conf<SS, CC>, seed_chooser: SC) -> (Self, usize)
+    pub fn with_hashes_conf_sc_u<CC, SC, S>(hashes: &mut [u64], conf: &Conf<SS, CC, S>, seed_chooser: SC) -> (Self, usize)
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
