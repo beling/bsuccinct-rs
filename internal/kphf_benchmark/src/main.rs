@@ -134,14 +134,14 @@ fn k4_a99(keys: &[u32]) {
     println!("---- k=4 α=0.99 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.99, 1.5, &keys);
 
-    bench_kphast(4, conf(Bits8, 0.98, 480, 0), &keys);
-    bench_kphast(4, conf(BitsFast(6), 0.98, 340, 0), &keys);
-
     bench_perfect(4, conf(Bits8, 1.0, 482, 0), &keys);
     bench_perfect(4, conf(BitsFast(6), 1.0, 340, 0), &keys);
+
+    bench_kphast(4, conf(Bits8, 0.98, 480, 0), &keys);
+    bench_kphast(4, conf(BitsFast(6), 0.98, 340, 0), &keys);
 }
 
-fn k4_a90(keys: &[u32]) {
+fn k4_a90(keys: &[u32]) {   // ??
     println!("---- k=4 α=0.9 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.9, 1.5, &keys); // α=0.900 0.490
 
@@ -155,15 +155,15 @@ fn k4_a90(keys: &[u32]) {
 fn k4_a80(keys: &[u32]) {
     println!("---- k=4 α=0.8 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.8, 1.5, &keys); // α=0.800 0.316
-    // TODO is 256 optimal slice length?
-    bench_perfect(4, conf(Bits8, 0.81, 1115, 0), &keys);  // 0.297
-    bench_perfect(4, conf(BitsFast(6), 0.81, 765, 0), &keys);  // 0.324
 
-    bench_kphast(4, conf(Bits8, 0.8, 1070, 0), &keys); // 0.310
-    bench_kphast(4, conf(BitsFast(6), 0.8, 730, 0), &keys);    // 0.345
+    bench_perfect(4, conf(Bits8, 0.81, 1130, 0), &keys);  // 0.293
+    bench_perfect(4, conf(BitsFast(6), 0.81, 770, 0), &keys);  // 0.322
+
+    //bench_kphast(4, conf(Bits8, 0.8, 1070, 0), &keys); // 0.310
+    //bench_kphast(4, conf(BitsFast(6), 0.8, 730, 0), &keys);    // 0.345
 }
 
-fn k16_a80(keys: &[u32]) {
+fn k16_a80(keys: &[u32]) {  //??
     println!("---- k=16 α=0.8 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 16>(0.8, 1.5, &keys); // α=0.798 0.041
 
@@ -174,10 +174,10 @@ fn k16_a80(keys: &[u32]) {
 fn main() {
     let keys = keys(30_000_000, 1234);
 
-    /*for b in (730..900).step_by(10) {
+    for b in (1100..2800).step_by(10) {
         println!("{b}");
-        bench_perfect(4, conf(Bits8, 0.91, b, 0), &keys);    // 0.453
-    }*/
+        bench_perfect(16, conf(Bits8, 0.91, b, 0), &keys);
+    }
 
     k4_a80(&keys);
     k4_a90(&keys);

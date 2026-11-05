@@ -97,11 +97,11 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, loading_factor_1000: u16)
         (4, ..=256, _) => PROD_S4_L256.as_ref(),
         (5, ..=128, _) => PROD_S5_L128.as_ref(),
         (5, ..=256, _) => PROD_S5_L256.as_ref(),
-        (6, ..=256, ..851) => PROD_S6_L256_A81.as_ref(),
-        (6, ..=256, 851..951) => PROD_S6_L256_A91.as_ref(),
-        (6, ..=512, 851..951) => PROD_S6_L512_A91.as_ref(),
-        (6, ..=1024, ..851) => PROD_S6_L1024_A81.as_ref(),
-        (6, ..=1024, 851..951) => PROD_S6_L1024_A91.as_ref(),
+        (6, 256, ..851) => PROD_S6_L256_A81.as_ref(),
+        (6, 256, 851..951) => PROD_S6_L256_A91.as_ref(),
+        (6, 512, 851..951) => PROD_S6_L512_A91.as_ref(),
+        (6, 1024, ..851) => PROD_S6_L1024_A81.as_ref(),
+        (6, 1024, 851..951) => PROD_S6_L1024_A91.as_ref(),
         (6, ..=128, _) => PROD_S6_L128.as_ref(),
         (6, ..=256, _) => PROD_S6_L256.as_ref(),
         (..=6, ..=512, _) => PROD_S6_L512.as_ref(),
@@ -110,10 +110,10 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, loading_factor_1000: u16)
         (7, ..=256, _) => PROD_S7_L256.as_ref(),
         (7, ..=512, _) => PROD_S7_L512.as_ref(),
         (7, _, _) => PROD_S7_L1024.as_ref(),
-        (8, ..=256, ..851) => PROD_S8_L256_A81.as_ref(),
-        (8, ..=256, 851..951) => PROD_S8_L256_A91.as_ref(),
-        (8, ..=1024, ..851) => PROD_S8_L1024_A81.as_ref(),
-        (8, ..=1024, 851..951) => PROD_S8_L1024_A91.as_ref(),
+        (8, 256, ..851) => PROD_S8_L256_A81.as_ref(),
+        (8, 256, 851..951) => PROD_S8_L256_A91.as_ref(),
+        (8, 1024, ..851) => PROD_S8_L1024_A81.as_ref(),
+        (8, 1024, 851..951) => PROD_S8_L1024_A91.as_ref(),
         (8, ..=32, _) => PROD_S8_L32.as_ref(),
         (8, ..=64, _) => PROD_S8_L64.as_ref(),
         (8, ..=128, _) => PROD_S8_L128.as_ref(),
@@ -692,7 +692,7 @@ const PROD_S6_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=5
 ];
 
 const PROD_S8_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91
-    (16, [0, 194635, 198590, 208181, 233542, 252228, 257238], P{value_shift: 0.004486, free_shift: 0.442012, window_weight: 0.961158}) // 1.11% for 11.2 λ=56.78 30M
+    (16, [0, 194635, 198590, 208181, 233542, 252228, 257238], P{value_shift: 0.004486, free_shift: 0.442012, window_weight: 0.961158}) // 1.11% for 11.2 λ=77.56 30M
 ];
 
 const PROD_S6_L512_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
