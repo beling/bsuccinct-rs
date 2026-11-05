@@ -131,16 +131,6 @@ fn decreasing_violations(x: &[f64]) -> usize {
     x.windows(2).filter(|d| d[0] >= d[1]).count()
 }
 
-/// Returns the slice length that the construction of a [`Partial`] will actually use for given `conf`
-/// and `seed_chooser`, i.e. the one implied by the core built for the loading-factor adjusted output range.
-///
-/// `init` of a cost function must use the same value, because `seed_chooser` selects its parameters
-/// (e.g. a row of a tuning table) depending on the slice length, not on the preferred one given in `conf`.
-fn constructed_slice_len<SC: SeedChooserConf>(conf: &Conf, seed_chooser: &SC) -> u16 {
-    let phast_conf = conf.phast_conf();
-    seed_chooser.f_core_lf(conf.keys_num as usize, conf.alpha, &phast_conf.core_conf, phast_conf.bits_per_seed()).slice_len()
-}
-
 /// Cost function for direct bucket weights optimization.
 pub struct WeightsCost<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 
@@ -288,7 +278,8 @@ impl CostFn for PerfectLogCost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.alpha);
+        let slice_len = conf.slice_len(&SeedOnlyK::<ProdOfValues>::new(conf.k));
+        let s = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
         vec![s.value_shift, s.free_shift, s.free_values_weight, s.window_weight]
     }
 
@@ -313,7 +304,8 @@ impl CostFn for PerfectLog0Cost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF0.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.alpha);
+        let slice_len = conf.slice_len(&SeedOnlyK::<ProdOfValues>::new(conf.k));
+        let s = SumOfLogValuesF0.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
@@ -337,7 +329,8 @@ impl CostFn for PerfectLog1Cost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = SumOfLogValuesF1.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.alpha);
+        let slice_len = conf.slice_len(&SeedOnlyK::<ProdOfValues>::new(conf.k));
+        let s = SumOfLogValuesF1.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
         vec![s.value_shift, s.free_shift, s.free_values_weight]
     }
 
@@ -362,7 +355,8 @@ impl CostFn for PerfectProdKCost {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let s = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.alpha);
+        let slice_len = conf.slice_len(&SeedOnlyK::<ProdOfValues>::new(conf.k));
+        let s = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
         vec![s.value_shift, s.free_shift, s.window_weight]
     }
 
@@ -726,7 +720,7 @@ impl CostFn for PerfectProdAndWeightsCost6 {
     fn init(&self, conf: &Conf) -> Vec<f64> {
         let e = GenericProdOfValues::default();
         let s = SeedOnly(e);
-        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, constructed_slice_len(conf, &s), conf.alpha)).to6().to_vec();
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.slice_len(&s), conf.alpha)).to6().to_vec();
         v.push(e.shift);
         v
     }
@@ -765,9 +759,9 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        // construction uses the slice length implied by the α-adjusted output range, so the tuning-table row
-        // (and hence the starting point) must be taken for that slice length, not for the preferred one
-        let slice_len = constructed_slice_len(conf, &SeedOnlyK::<ProdOfValues>::new(conf.k));
+        // the tuning-table row (and hence the seed evaluator) is selected by the slice length,
+        // which does not depend on the evaluator itself, so a chooser for `conf.k` is enough here
+        let slice_len = conf.slice_len(&SeedOnlyK::<ProdOfValues>::new(conf.k));
         let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
         let s = SeedOnlyK::with_evaluator(conf.k, e);
         let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, slice_len, conf.alpha)).to6().to_vec();
@@ -814,9 +808,9 @@ impl CostFn for PerfectProdK4AndWeightsCost6 {
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        // construction uses the slice length implied by the α-adjusted output range, so the tuning-table row
-        // (and hence the starting point) must be taken for that slice length, not for the preferred one
-        let slice_len = constructed_slice_len(conf, &SeedOnlyK::<ProdOfValues>::new(conf.k));
+        // the tuning-table row (and hence the seed evaluator) is selected by the slice length,
+        // which does not depend on the evaluator itself, so a chooser for `conf.k` is enough here
+        let slice_len = conf.slice_len(&SeedOnlyK::<ProdOfValues>::new(conf.k));
         let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
         //let e = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len);
         let s = SeedOnlyK::with_evaluator(conf.k, e);

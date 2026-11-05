@@ -483,8 +483,15 @@ impl Conf {
         self.run(|keys| build(keys, self.params_turbo(), self.threads(), seed_chooser.clone()))
     }
 
+    /// Returns the slice length that the construction (e.g. `Partial`) uses for the given `seed_chooser`,
+    /// i.e. the one implied by the output range resulting from the desired loading factor (`alpha`).
+    ///
+    /// `seed_chooser` selects its parameters (e.g. a row of a tuning table, see `SeedOnlyK`) depending
+    /// on the slice length, so this must be the value that [`SeedChooserConf::f_core_lf`] passes to
+    /// [`SeedChooserConf::slice_len`]; otherwise the optimization would measure and tune different
+    /// parameters than those used by the construction.
     pub fn slice_len<SC: SeedChooserConf>(&self, seed_chooser: &SC) -> u16 {
-        seed_chooser.slice_len(self.keys_num as usize, self.bits_per_seed, self.slice_len)
+        seed_chooser.slice_len(seed_chooser.output_range(self.keys_num as usize, self.alpha), self.bits_per_seed, self.slice_len)
     }
 
     pub fn phast_conf(&self) -> ph::phast::Conf<BitsFast, Generic, ()> {
