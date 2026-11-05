@@ -21,7 +21,7 @@ pub(crate) fn build_level_from_slice_no_bitmap_st<K, SS, CC, SC, S>(keys: &[K], 
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_sort();
     let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
     let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
     let bumped_len = builder.bumped_len(&seeds);
     drop(builder);
@@ -47,7 +47,7 @@ pub(crate) fn build_level_from_slice_no_bitmap_mt<K, SS, CC, SC, S>(keys: &[K], 
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
     let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
     let bumped_len = builder.bumped_len(&seeds);
     drop(builder);
@@ -72,7 +72,7 @@ pub(crate) fn build_level_no_bitmap_st<K, SS, CC, SC, S>(keys: &mut Vec<K>, outp
     let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, level_nr)).collect();
     hashes.voracious_sort();
     let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
     let (seeds, _) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
     keys.retain(|key| {
         // SAFETY: the bucket number returned by `bucket_for` is always within the `seeds` array.
@@ -97,7 +97,7 @@ pub(crate) fn build_level_no_bitmap_mt<K, SS, CC, SC, S>(keys: &mut Vec<K>, outp
     //radsort::unopt::sort(&mut hashes);
     hashes.voracious_mt_sort(threads_num);
     let core = seed_chooser.f_core(output_range, hashes.len(), &conf.core_conf, conf.bits_per_seed());
-    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+    let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
     let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
     let mut result = Vec::with_capacity(builder.bumped_len(&seeds));
     drop(builder);

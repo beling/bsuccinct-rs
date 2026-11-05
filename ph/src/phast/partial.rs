@@ -33,10 +33,10 @@ impl<C: Core, SC, SS: SeedSize, S> GetSize for Partial<C, SS, SC, S> {
 impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
     /// Constructs [`Partial`] from given key `hashes`, using a single thread.
     /// Returns the function and the number of keys (hashes) without assigned values.
-    pub fn with_hashes_bps_core_sc_u<SC>(hashes: &mut [u64], seed_size: SS, core: C, seed_chooser: SC, bucket_size_100: u32) -> (Self, usize)
+    pub fn with_hashes_bps_core_sc_u<SC>(hashes: &mut [u64], seed_size: SS, core: C, seed_chooser: SC, loading_factor_1000: u16) -> (Self, usize)
         where SC: SeedChooserConf<Core = SCC>
     {
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), bucket_size_100);
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), loading_factor_1000);
         let (f, build_conf) = Self::build_st(hashes, seed_size, core, (), seed_chooser, bucket_evaluator);
         let unassigned = build_conf.bumped_len(&f.seeds.seeds);
         (f, unassigned)
@@ -44,10 +44,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
 
     /// Constructs [`Partial`] from given key `hashes`, using up to `threads_num` threads.
     /// Returns the function and the number of keys (hashes) without assigned values.
-    fn with_hashes_bps_core_bs_threads_sc_u<SC>(hashes: &mut [u64], seed_size: SS, core: C, threads_num: usize, seed_chooser: SC, bucket_size_100: u32) -> (Self, usize)
+    fn with_hashes_bps_core_bs_threads_sc_u<SC>(hashes: &mut [u64], seed_size: SS, core: C, threads_num: usize, seed_chooser: SC, loading_factor_1000: u16) -> (Self, usize)
         where SC: SeedChooserConf<Core = SCC>
     {
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), bucket_size_100);
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), loading_factor_1000);
         let (f, build_conf) = Self::build_mt(hashes, seed_size, core, threads_num, (), seed_chooser, bucket_evaluator);
         let unassigned = build_conf.bumped_len(&f.seeds.seeds);
         (f, unassigned)
@@ -55,18 +55,18 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
 
 
     /// Constructs [`Partial`] from given key `hashes`, using a single thread.
-    fn with_hashes_bps_core_sc<SC>(hashes: &mut [u64], seed_size: SS, core: C, seed_chooser: SC, bucket_size_100: u32) -> Self
+    fn with_hashes_bps_core_sc<SC>(hashes: &mut [u64], seed_size: SS, core: C, seed_chooser: SC, loading_factor_1000: u16) -> Self
         where SC: SeedChooserConf<Core = SCC>
     {
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), bucket_size_100);
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), loading_factor_1000);
         Self::build_st(hashes, seed_size, core, (), seed_chooser, bucket_evaluator).0
     }
 
     /// Constructs [`Partial`] from given key `hashes`, using up to `threads_num` threads.
-    fn with_hashes_bps_core_bs_threads_sc<SC>(hashes: &mut [u64], seed_size: SS, core: C, threads_num: usize, seed_chooser: SC, bucket_size_100: u32) -> Self
+    fn with_hashes_bps_core_bs_threads_sc<SC>(hashes: &mut [u64], seed_size: SS, core: C, threads_num: usize, seed_chooser: SC, loading_factor_1000: u16) -> Self
         where SC: SeedChooserConf<Core = SCC>
     {
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), bucket_size_100);
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(seed_size.into(), core.slice_len(), loading_factor_1000);
         Self::build_mt(hashes, seed_size, core, threads_num, (), seed_chooser, bucket_evaluator).0
     }
 
@@ -77,7 +77,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        Self::with_hashes_bps_core_sc_u(hashes, conf.seed_size, core, seed_chooser, conf.core_conf.bucket_size100())
+        Self::with_hashes_bps_core_sc_u(hashes, conf.seed_size, core, seed_chooser, conf.loading_factor_1000)
     }
 
     /// Constructs [`Partial`] from given key `hashes` and configuration, using up to `threads_num` threads.
@@ -86,7 +86,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        Self::with_hashes_bps_core_bs_threads_sc_u(hashes, conf.seed_size, core, threads_num, seed_chooser, conf.core_conf.bucket_size100())
+        Self::with_hashes_bps_core_bs_threads_sc_u(hashes, conf.seed_size, core, threads_num, seed_chooser, conf.loading_factor_1000)
     }
 
 
@@ -95,7 +95,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        Self::with_hashes_bps_core_sc(hashes, conf.seed_size, core, seed_chooser, conf.core_conf.bucket_size100())
+        Self::with_hashes_bps_core_sc(hashes, conf.seed_size, core, seed_chooser, conf.loading_factor_1000)
     }
 
     /// Constructs [`Partial`] from given key `hashes` and configuration, using up to `threads_num` threads.
@@ -103,7 +103,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        Self::with_hashes_bps_core_bs_threads_sc(hashes, conf.seed_size, core, threads_num, seed_chooser, conf.core_conf.bucket_size100())
+        Self::with_hashes_bps_core_bs_threads_sc(hashes, conf.seed_size, core, threads_num, seed_chooser, conf.loading_factor_1000)
     }
 
 
@@ -113,7 +113,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore> Partial<C, SS, SCC, ()> {
         where CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        Self::with_hashes_bps_core_sc_u(hashes, conf.seed_size, core, seed_chooser, conf.core_conf.bucket_size100())
+        Self::with_hashes_bps_core_sc_u(hashes, conf.seed_size, core, seed_chooser, conf.loading_factor_1000)
     }
 }
 
@@ -203,7 +203,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, S: BuildHasher> Partial<C, SS,
     {
         let mut hashes: Box<[_]> = keys.map(|k| conf.hasher.hash_one(k)).collect();
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.seed_size.into(), core.slice_len(), conf.core_conf.bucket_size100());
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.seed_size.into(), core.slice_len(), conf.loading_factor_1000);
         let (f, build_conf) = Self::build_st(&mut hashes, conf.seed_size, core, conf.hasher, seed_chooser, bucket_evaluator);
         let unassigned = build_conf.bumped_len(&f.seeds.seeds);
         (f, unassigned)

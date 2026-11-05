@@ -95,13 +95,14 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         where K: Hash, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
         let number_of_keys = keys.len();
+        let loading_factor_1000 = conf.loading_factor_1000;
         Self::_new(|conf| {
             let (level0, unassigned_values) =
                 Self::build_level0_st(&mut keys, conf, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             let sc = SeedOnly(ProdOfValues);
-            build_level_st(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), Bits8, h, sc, level_nr)
+            build_level_st(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), loading_factor_1000, Bits8, h, sc, level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -112,13 +113,14 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     {
         if threads_num == 1 { return Self::with_vec_conf_sc(keys, conf, seed_chooser); }
         let number_of_keys = keys.len();
+        let loading_factor_1000 = conf.loading_factor_1000;
         Self::_new(|conf| {
             let (level0, unassigned_values) =
                 Self::build_level0_mt(&mut keys, conf, threads_num, seed_chooser.clone());  //TODO number_of_keys/k
             (keys, level0, unassigned_values)
         }, |keys, level_nr, h| {
             let sc = SeedOnly(ProdOfValues);
-            build_level_mt(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), Bits8, threads_num, h, sc, level_nr)
+            build_level_mt(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), loading_factor_1000, Bits8, threads_num, h, sc, level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -127,11 +129,12 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn with_slice_conf_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
         where K: Hash+Clone, CC: CoreConf<Core = C>, SC: SeedChooserConf<Core = SCC>
     {
+        let loading_factor_1000 = conf.loading_factor_1000;
         Self::_new(|conf| {
             Self::build_level0_from_slice_st(keys, conf, seed_chooser.clone())
         }, |keys, level_nr, h| {
             let sc = SeedOnly(ProdOfValues);
-            build_level_st(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), Bits8, h, sc, level_nr)
+            build_level_st(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), loading_factor_1000, Bits8, h, sc, level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 
@@ -140,11 +143,12 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn with_slice_conf_threads_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, threads_num: usize, seed_chooser: SC) -> Self
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C> {
         if threads_num == 1 { return Self::with_slice_conf_sc(keys, conf, seed_chooser); }
+        let loading_factor_1000 = conf.loading_factor_1000;
         Self::_new(|conf| {
             Self::build_level0_from_slice_mt(keys, conf, threads_num, seed_chooser.clone())
         }, |keys, level_nr, h| {
             let sc = SeedOnly(ProdOfValues);
-            build_level_mt(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), Bits8, threads_num, h, sc, level_nr)
+            build_level_mt(keys, sc.minimal_output_range(keys.len()), &Generic::with_bps(8), loading_factor_1000, Bits8, threads_num, h, sc, level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 
@@ -159,7 +163,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, 0)).collect();
         hashes.voracious_sort();
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
         let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         let mut keys_vec = Vec::with_capacity(bumped_num);
@@ -182,7 +186,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
         let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         let mut keys_vec = Vec::with_capacity(bumped_num);
@@ -204,7 +208,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let mut hashes: Box<[_]> = keys.iter().map(|k| conf.hasher.hash_one(k, 0)).collect();
         hashes.voracious_sort();
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
         let (seeds, builder) = build_st(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser);
         let (free_count, _) = builder.unassigned_values_k(&seeds);
         keys.retain(|key| {
@@ -225,7 +229,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         //radsort::unopt::sort(&mut hashes);
         hashes.voracious_mt_sort(threads_num);
         let core = seed_chooser.f_core_lf(hashes.len(), conf.loading_factor_1000, &conf.core_conf, conf.bits_per_seed());
-        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.core_conf.bucket_size100());
+        let (bucket_evaluator, seed_chooser) = seed_chooser.evaluators(conf.bits_per_seed(), core.slice_len(), conf.loading_factor_1000);
         let (seeds, builder) = build_mt(&hashes, core, conf.seed_size, bucket_evaluator, seed_chooser, threads_num);
         let (free_count, bumped_num) = builder.unassigned_values_k(&seeds);
         drop(builder);

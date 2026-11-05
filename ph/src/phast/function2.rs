@@ -120,10 +120,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|conf| {
             let (level0, unassigned_values) =
-                build_level_st(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.seed_size, &conf.hasher, seed_chooser.clone(), 0);
+                build_level_st(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, &conf.hasher, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, conf| {
-            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, &conf.hasher, seed_chooser.clone(), level_nr)
+            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, &conf.hasher, seed_chooser.clone(), level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -135,10 +135,10 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let number_of_keys = keys.len();
         Self::_new(|conf| {
             let (level0, unassigned_values) =
-                build_level_mt(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), 0);
+                build_level_mt(&mut keys, seed_chooser.output_range(number_of_keys, conf.loading_factor_1000), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), 0);
             (keys, level0, unassigned_values)
         }, |keys, level_nr, conf| {
-            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), level_nr)
+            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), level_nr)
         }, conf, seed_chooser.core(), number_of_keys)
     }
 
@@ -148,9 +148,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
     pub fn with_slice_conf_sc<K, CC, SC>(keys: &[K], conf: Conf<SS, CC, S>, seed_chooser: SC) -> Self
     where K: Hash+Clone, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C>  {
         Self::_new(|conf| {
-            build_level_from_slice_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, &conf.hasher, seed_chooser.clone(), 0)
+            build_level_from_slice_st(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, &conf.hasher, seed_chooser.clone(), 0)
         }, |keys, level_nr, conf| {
-            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, &conf.hasher, seed_chooser.clone(), level_nr)
+            build_level_st(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, &conf.hasher, seed_chooser.clone(), level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 
@@ -161,9 +161,9 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         where K: Hash+Sync+Send+Clone, S: Sync, SC: SeedChooserConf<Core = SCC>, CC: CoreConf<Core = C>  {
         if threads_num == 1 { return Self::with_slice_conf_sc(keys, conf, seed_chooser); }
         Self::_new(|conf| {
-            build_level_from_slice_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), 0)
+            build_level_from_slice_mt(keys, seed_chooser.output_range(keys.len(), conf.loading_factor_1000), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), 0)
         }, |keys, level_nr, conf| {
-            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), level_nr)
+            build_level_mt(keys, seed_chooser.minimal_output_range(keys.len()), &conf.core_conf, conf.loading_factor_1000, conf.seed_size, threads_num, &conf.hasher, seed_chooser.clone(), level_nr)
         }, conf, seed_chooser.core(), keys.len())
     }
 
@@ -269,7 +269,7 @@ impl<C: Core, SS: SeedSize, SCC: SeedChooserCore, CA: CompressedArray, S: BuildS
         let len100 = (keys.len()+10)*120;
         let core = SeedOnlyNoBump(ProdOfValues).minimal_generic_f_core((len100+50)/100,
             bits_per_seed.into(), 400, 0);  // TODO use turbo variant here
-        let evaluator = SeedOnlyNoBump(ProdOfValues).bucket_evaluator(bits_per_seed.into(), core.slice_len(), 400);
+        let evaluator = SeedOnlyNoBump(ProdOfValues).bucket_evaluator(bits_per_seed.into(), core.slice_len(), 1000);  // minimal level: loading factor 1
         loop {
             let mut hashes: Box<[_]> = keys.iter().map(|k| hasher.hash_one(k, *seed)).collect();
             hashes.voracious_sort();    // maybe standard sort here?
