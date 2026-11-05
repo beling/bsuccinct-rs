@@ -700,7 +700,7 @@ const PROD_S6_L512_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=5
 ];
 
 const PROD_S6_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
-    (4, [0, 82817, 88908, 90407, 127167, 158843, 162495], P{value_shift: 0.008186, free_shift: 0.867310, window_weight: 0.257443}) // 1.32% for 5.35 λ=13.10 
+    (4, [0, 88575, 91739, 96238, 137142, 172300, 178833], P{value_shift: 0.0074596, free_shift: 0.8362189, window_weight: 0.2962348}) // 1.28% for 5.35 λ=13.10 
 ];
 
 /*const PROD_S8_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
