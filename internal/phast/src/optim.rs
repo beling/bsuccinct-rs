@@ -131,6 +131,16 @@ fn decreasing_violations(x: &[f64]) -> usize {
     x.windows(2).filter(|d| d[0] >= d[1]).count()
 }
 
+/// Returns the slice length that the construction of a [`Partial`] will actually use for given `conf`
+/// and `seed_chooser`, i.e. the one implied by the core built for the loading-factor adjusted output range.
+///
+/// `init` of a cost function must use the same value, because `seed_chooser` selects its parameters
+/// (e.g. a row of a tuning table) depending on the slice length, not on the preferred one given in `conf`.
+fn constructed_slice_len<SC: SeedChooserConf>(conf: &Conf, seed_chooser: &SC) -> u16 {
+    let phast_conf = conf.phast_conf();
+    seed_chooser.f_core_lf(conf.keys_num as usize, conf.alpha, &phast_conf.core_conf, phast_conf.bits_per_seed()).slice_len()
+}
+
 /// Cost function for direct bucket weights optimization.
 pub struct WeightsCost<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 
@@ -710,13 +720,13 @@ impl CostFn for PerfectProdAndWeightsCost6 {
         if total_violation != 0 {
             return total_violation * conf.keys_num as usize * conf.sample_size as usize;
         }
-        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), (s, &w)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
         let e = GenericProdOfValues::default();
         let s = SeedOnly(e);
-        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.slice_len(&s), conf.alpha)).to6().to_vec();
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, constructed_slice_len(conf, &s), conf.alpha)).to6().to_vec();
         v.push(e.shift);
         v
     }
@@ -751,13 +761,16 @@ impl CostFn for PerfectProdKAndWeightsCost6 {
         let w = WeightsF::from6(&x[..6]);
         let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), (s, &w)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.alpha);
+        // construction uses the slice length implied by the α-adjusted output range, so the tuning-table row
+        // (and hence the starting point) must be taken for that slice length, not for the preferred one
+        let slice_len = constructed_slice_len(conf, &SeedOnlyK::<ProdOfValues>::new(conf.k));
+        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.slice_len(&s), conf.alpha)).to6().to_vec();
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, slice_len, conf.alpha)).to6().to_vec();
         v.push(e.value_shift);
         v.push(e.free_shift);
         v.push(e.window_weight);
@@ -797,14 +810,17 @@ impl CostFn for PerfectProdK4AndWeightsCost6 {
         let w = WeightsF::from6(&x[..6]);
         let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
-        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), s).1)
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), (s, &w)).1)
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len, conf.alpha);
-        //let e = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, conf.slice_len);
+        // construction uses the slice length implied by the α-adjusted output range, so the tuning-table row
+        // (and hence the starting point) must be taken for that slice length, not for the preferred one
+        let slice_len = constructed_slice_len(conf, &SeedOnlyK::<ProdOfValues>::new(conf.k));
+        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
+        //let e = SumOfLogValuesF.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len);
         let s = SeedOnlyK::with_evaluator(conf.k, e);
-        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.slice_len(&s), conf.alpha)).to6().to_vec();
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, slice_len, conf.alpha)).to6().to_vec();
         v.push(e.value_shift);
         v.push(e.free_shift);
         v.push(e.window_weight);
@@ -830,5 +846,59 @@ impl CostFn for PerfectProdK4AndWeightsCost6 {
             ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
             ("free_values_weight", Constrain::Strong(0.1), Constrain::Weak(10.0), 6),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conf::{BucketSize, Method, Optimizer};
+
+    /// Returns a small but representative configuration: `k`-perfect function for `k` = 4,
+    /// with the average bucket size (13.1 keys) and the slice length (1024) used by the tuning tables.
+    fn test_conf() -> Conf {
+        Conf {
+            method: Method::none,
+            bits_per_seed: 6,
+            bucket_size: Some(BucketSize::Size100(1310)),
+            explicit_b: true,
+            alpha: 910,
+            evaluations: 0,
+            verify: false,
+            keys_num: 20_000,
+            multiple_threads: false,
+            k: 4,
+            cooling: 0,
+            one: false,
+            multi_level: false,
+            iters: 0,
+            slice_len: 1024,
+            csv: false,
+            head: false,
+            less: false,
+            optimizer: Optimizer::NelderMead,
+            sample_size: 2,
+            seed: 0,
+        }
+    }
+
+    /// The bucket weights must affect the evaluated cost; otherwise `optall` reports a cost computed
+    /// with the weights taken from the tuning tables (instead of the optimized ones) and optimizes
+    /// only the seed evaluation parameters, so the reported result is not reproducible by a construction
+    /// that uses the printed weights.
+    #[test]
+    fn cost_depends_on_bucket_weights() {
+        let conf = test_conf();
+        let cost = PerfectProdKAndWeightsCost6;
+        let x = cost.init(&conf);
+        // Nearly equal weights make the bucket size almost irrelevant, so buckets are activated
+        // in (almost) the order of their numbers, which is a completely different policy than
+        // the one described by the tuning tables.
+        let mut flat = x.clone();
+        flat[..6].copy_from_slice(&WeightsF([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0].into()).to6());
+        assert_eq!(violations(&flat[6..], &cost.params(&conf)[6..]), 0);
+        assert_eq!(decreasing_violations(&WeightsF::from6(&flat[..6]).0), 0);
+        let (tuned, flat) = (cost.eval(&conf, &x), cost.eval(&conf, &flat));
+        assert_ne!(tuned, flat, "the bucket weights must affect the evaluated cost");
     }
 }
