@@ -675,7 +675,7 @@ const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 
 ];*/
 
 const PROD_S6_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81    TODO more iters
-    (4, [0, 65692, 69589, 69604, 118615, 150853, 153670], P{value_shift: 0.009583, free_shift: 0.482444, window_weight: 0.399393}) // 1.61% for 8.4 λ=20.57
+    (4, [0, 33544, 35609, 36946, 79524, 100338, 103569], P{value_shift: 0.003648, free_shift: 0.729005, window_weight: 0.708104}) // 1.28% for 8.3 λ=20.33
 ];
 
 /*const PROD_S8_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 10M keys, alpha=0.81
