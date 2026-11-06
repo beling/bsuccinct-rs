@@ -117,19 +117,6 @@ fn k16_a99(keys: &[u32]) {
     bench_kphast(16, conf(BitsFast(6), 0.97, 390, 0), &keys);
 }
 
-fn k16_a90(keys: &[u32]) {
-    println!("---- k=16 α=0.9 ----");
-    bench_kptrhash::<{ Mode::SortBump as u8 }, 16>(0.9, 1.5, &keys);    // α=0.896 0.098
-
-    bench_perfect(16, conf(Bits8, 0.91, 1100, 0), &keys);  // 0.107
-    bench_perfect(16, conf(BitsFast(6), 0.92, 800, 0), &keys); // 0.112 // or 0.91 790
-
-    bench_kphast(16, conf(Bits8, 0.896, 1010, 0), &keys);  // 0.118
-    bench_kphast(16, conf(BitsFast(6), 0.896, 700, 0), &keys); // 0.126
-
-
-}
-
 fn k4_a99(keys: &[u32]) {
     println!("---- k=4 α=0.99 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.99, 1.5, &keys);
@@ -141,16 +128,28 @@ fn k4_a99(keys: &[u32]) {
     bench_kphast(4, conf(BitsFast(6), 0.98, 340, 0), &keys);
 }
 
+fn k16_a90(keys: &[u32]) {
+    println!("---- k=16 α=0.9 ----");
+    bench_kptrhash::<{ Mode::SortBump as u8 }, 16>(0.9, 1.5, &keys);    // α=0.896 0.098
+
+    bench_perfect(16, conf(Bits8, 0.91, 1192, 0), &keys);  // 0.099
+    bench_perfect(16, conf(BitsFast(6), 0.91, 846, 0), &keys); // 0.104
+
+    //bench_kphast(16, conf(Bits8, 0.896, 1100, 0), &keys);  // 0.109
+    //bench_kphast(16, conf(BitsFast(6), 0.896, 775, 0), &keys); // 0.116
+}
+
 fn k4_a90(keys: &[u32]) {   // ??
     println!("---- k=4 α=0.9 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 4>(0.9, 1.5, &keys); // α=0.900 0.490
 
     bench_perfect(4, conf(Bits8, 0.91, 730, 0), &keys);    // 0.453
-    bench_perfect(4, conf(BitsFast(6), 0.91, 517, 0), &keys);  // 0.479
+    bench_perfect(4, conf(BitsFast(6), 0.91, 533, 0), &keys);  // 0.465
 
     bench_kphast(4, conf(Bits8, 0.9, 720, 0), &keys);  // 0.462
     bench_kphast(4, conf(BitsFast(6), 0.9, 500, 0), &keys);    // 0.496
 }
+
 
 fn k4_a80(keys: &[u32]) {
     println!("---- k=4 α=0.8 ----");
@@ -174,9 +173,9 @@ fn k16_a80(keys: &[u32]) {  //??
 fn main() {
     let keys = keys(30_000_000, 1234);
 
-    for b in (1100..2800).step_by(10) {
+    for b in (700..2800).step_by(10) {
         println!("{b}");
-        bench_perfect(16, conf(Bits8, 0.91, b, 0), &keys);
+        bench_kphast(16, conf(BitsFast(6), 0.896, b, 0), &keys);
     }
 
     k4_a80(&keys);
