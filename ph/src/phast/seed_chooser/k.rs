@@ -98,7 +98,7 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, loading_factor_1000: u16)
         (5, ..=128, _) => PROD_S5_L128.as_ref(),
         (5, ..=256, _) => PROD_S5_L256.as_ref(),
         //(6, 256, ..851) => PROD_S6_L256_A81.as_ref(),
-        //(6, 256, 851..951) => PROD_S6_L256_A91.as_ref(),
+        (6, 256, 851..951) => PROD_S6_L256_A91.as_ref(),
         (6, 512, 851..951) => PROD_S6_L512_A91.as_ref(),
         (6, 1024, ..851) => PROD_S6_L1024_A81.as_ref(),
         (6, 1024, 851..951) => PROD_S6_L1024_A91.as_ref(),
@@ -687,9 +687,9 @@ const PROD_S8_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=
     (4, [0, 177532, 230090, 232460, 238702, 243001, 243257], P{value_shift: 0.004677, free_shift: 0.504417, window_weight: 0.362794}) // 1.25% for 11.3 λ=27.68
 ];
 
-/*const PROD_S6_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91
-    (16, [0, 193579, 204266, 218907, 226211, 232008, 233479], P{value_shift: 0.005216, free_shift: 0.486000, window_weight: 0.986163}) // 1.41% for 8.2 λ=56.78 30M
-];*/
+const PROD_S6_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91
+    (16, [0, 197406, 201893, 212381, 218109, 222887, 223404], P{value_shift: 0.004169, free_shift: 0.737674, window_weight: 0.974546}) // 1.23% for 8.2 λ=56.78 30M
+];
 
 const PROD_S8_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91     TODO more iters.
     (16, [0, 170353, 206937, 212828, 218350, 223612, 224282], P{value_shift: 0.004182, free_shift: 1.106727, window_weight: 0.907689}) // 1.11% for 11.2 λ=77.56 30M
@@ -700,7 +700,7 @@ const PROD_S6_L512_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=5
 ];
 
 const PROD_S6_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
-    (4, [0, 88575, 91739, 96238, 137142, 172300, 178833], P{value_shift: 0.0074596, free_shift: 0.8362189, window_weight: 0.2962348}) // 1.28% for 5.35 λ=13.10 
+    (4, [0, 43334, 48797, 49823, 74134, 137981, 144506], P{value_shift: 0.007306, free_shift: 1.167883, window_weight: 0.482356}) // 1.22% for 5.35 λ=13.10 
 ];
 
 /*const PROD_S8_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
