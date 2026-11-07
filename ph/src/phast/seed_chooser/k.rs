@@ -113,7 +113,7 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, loading_factor_1000: u16)
         //(8, 256, ..851) => PROD_S8_L256_A81.as_ref(),
         (8, 256, 851..951) => PROD_S8_L256_A91.as_ref(),
         (8, 1024, ..851) => PROD_S8_L1024_A81.as_ref(),
-        //(8, 1024, 851..951) => PROD_S8_L1024_A91.as_ref(),
+        (8, 1024, 851..951) => PROD_S8_L1024_A91.as_ref(),
         (8, ..=32, _) => PROD_S8_L32.as_ref(),
         (8, ..=64, _) => PROD_S8_L64.as_ref(),
         (8, ..=128, _) => PROD_S8_L128.as_ref(),
@@ -675,7 +675,7 @@ const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 
 ];*/
 
 const PROD_S6_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81    TODO more iters
-    (4, [0, 33544, 35609, 36946, 79524, 100338, 103569], P{value_shift: 0.003648, free_shift: 0.729005, window_weight: 0.708104}) // 1.28% for 8.3 λ=20.33
+    (4, [0, 33711, 34825, 36148, 77467, 97021, 100140], P{value_shift: 0.002493, free_shift: 0.746179, window_weight: 0.744505}) // 1.28% for 8.3 λ=20.33
 ];
 
 /*const PROD_S8_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 10M keys, alpha=0.81
@@ -703,7 +703,8 @@ const PROD_S6_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=
     (4, [0, 43334, 48797, 49823, 74134, 137981, 144506], P{value_shift: 0.007306, free_shift: 1.167883, window_weight: 0.482356}) // 1.22% for 5.35 λ=13.10 
 ];
 
-/*const PROD_S8_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
-    (4, [0, 152767, 207233, 221180, 222464, 223270, 223413], P{value_shift: 0.005102, free_shift: 0.689373, window_weight: 0.323559}) // 0.94% for 7.4 λ=18.12
-];*/
+const PROD_S8_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
+    //(4, [0, 165126, 223393, 237744, 257745, 268246, 272252], P{value_shift: 0.004720, free_shift: 0.792409, window_weight: 0.350899}) // 0.85% for 7.4 λ=18.12
+    (4, [0, 76879, 122750, 148817, 154405, 159307, 162919], P{value_shift: 0.003430, free_shift: 1.122674, window_weight: 0.976634}) // 1.04% for 7.5 λ=18.37
+];
 
