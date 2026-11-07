@@ -97,7 +97,7 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, loading_factor_1000: u16)
         (4, ..=256, _) => PROD_S4_L256.as_ref(),
         (5, ..=128, _) => PROD_S5_L128.as_ref(),
         (5, ..=256, _) => PROD_S5_L256.as_ref(),
-        //(6, 256, ..851) => PROD_S6_L256_A81.as_ref(),
+        (6, 256, ..851) => PROD_S6_L256_A81.as_ref(),
         (6, 256, 851..951) => PROD_S6_L256_A91.as_ref(),
         (6, 512, 851..951) => PROD_S6_L512_A91.as_ref(),
         (6, 1024, ..851) => PROD_S6_L1024_A81.as_ref(),
@@ -669,10 +669,10 @@ const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 
 //    (10, [0, 149239, 200013, 207397, 209455, 211771, 211803], P{value_shift: 0.003702, free_shift: 1.175097, window_weight: 0.632076}), // 0.65% for 5.7 λ=27.42
 //];
 
-/*const PROD_S6_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 10M keys, alpha=0.81
+const PROD_S6_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 10M keys, alpha=0.81
     (4, [0, 47275, 48624, 51936, 54070, 54225, 55153], P{value_shift: 0.005506, free_shift: 0.851065, window_weight: 0.922497}), // 0.65% for 7.5 λ=18.37 TODO more iter, larger bucket
-    //WRONG (16, [0, 208359, 219838, 232709, 265217, 282653, 290611], P{value_shift: 0.004556, free_shift: 0.139561, window_weight: 0.979412}) // 0.49% for 15.60 λ=108.03
-];*/
+    (16, [0, 237407, 242115, 257905, 259560, 261221, 261439], P{value_shift: 0.004785, free_shift: 0.383388, window_weight: 0.981558}) // 0.67% for 15.90 λ=110.10
+];
 
 const PROD_S6_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81    TODO more iters
     (4, [0, 33626, 34761, 36081, 78527, 97496, 100644], P{value_shift: 0.002538, free_shift: 0.735067, window_weight: 0.776704}) // 1.27% for 8.3 λ=20.33
