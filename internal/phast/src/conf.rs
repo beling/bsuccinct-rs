@@ -3,7 +3,7 @@ use std::str::FromStr;
 use clap::{Parser, Subcommand, ValueEnum};
 use ph::{fmph::Bits8, phast::{Generic, RandomPlacement, SeedChooserConf, Turbo, Weights, bucket_size_normalization_multiplier}, seeds::{BitsFast, SeedSize}, utils::verify_partial_kphf};
 
-use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdAndWeightsCost6, PerfectProdK4AndWeightsCost6, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}, partial::{partial, partialml}};
+use crate::{benchmark::{Result, benchmark}, function::{Function, PartialFunction}, optim::{Cost, CostFn, DeltaWeightsCost, PerfectLog0Cost, PerfectLog1Cost, PerfectLogCost, PerfectProdAndWeightsCost, PerfectProdAndWeightsCost6, PerfectProdK4AndWeightsCost6, PerfectProdKAndWeightsCost, PerfectProdKAndWeightsCost6, PerfectProdKCost, ProdOfValuesCost, WGenericProdOfValues, WeightsCost, WeightsCost4, WeightsCost6}, partial::{partial, partialml}};
 
 use optimize::{Minimizer, NelderMeadBuilder};
 use ndarray::{Array, ArrayView1};
@@ -111,6 +111,9 @@ pub enum Method {
     /// Optimize seed evaluation in perfectlog with free_values_weight=1
     optprod,
 
+    /// Optimize parameters for selecting buckets and seeds at once, using "6" encoding
+    optall6,
+
     /// Optimize parameters for selecting buckets and seeds at once
     optall,
 
@@ -151,6 +154,7 @@ impl std::fmt::Display for Method {
             Method::optperfectlog0 => write!(f, "Optimize seed evaluation in perfectlog with window_weight=0"),
             Method::optperfectlog1 => write!(f, "Optimize seed evaluation in perfectlog with window_weight=1"),
             Method::optprod => write!(f, "Optimize seed evaluation in ProdOfValues"),
+            Method::optall6 => write!(f, "Optimize parameters for selecting buckets and seeds (6)"),
             Method::optall => write!(f, "Optimize parameters for selecting buckets and seeds"),
             Method::optfull => write!(f, "Optimize parameters for selecting buckets and seeds (4 parameters)"),
             Method::optwgenprod => write!(f, "Optimize WGenericProdOfValues"),
@@ -599,11 +603,19 @@ impl Conf {
         }
     }
 
-    pub fn optimize_all(&self) {
+    pub fn optimize_all6(&self) {
         if self.k == 1 {
             self.optimize(PerfectProdAndWeightsCost6);
         } else {
             self.optimize(PerfectProdKAndWeightsCost6);
+        }
+    }
+
+    pub fn optimize_all(&self) {
+        if self.k == 1 {
+            self.optimize(PerfectProdAndWeightsCost);
+        } else {
+            self.optimize(PerfectProdKAndWeightsCost);
         }
     }
 

@@ -186,6 +186,7 @@ fn main() {
         (Method::optperfectlog0, _, _, _, _) => conf.optimize_perfectlog0(),
         (Method::optperfectlog1, _, _, _, _) => conf.optimize_perfectlog1(),
         (Method::optprod, _, _, _, _) => conf.optimize_prod(),
+        (Method::optall6, _, _, _, _) => conf.optimize_all6(),
         (Method::optall, _, _, _, _) => conf.optimize_all(),
         (Method::optfull, _, _, _, _) => conf.optimize_fullk(),
         (Method::optwgenprod, _, _, _, _) => conf.optimize_wgenericprod(),

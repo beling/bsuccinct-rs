@@ -136,7 +136,7 @@ pub struct WeightsCost<SC: SeedChooserConf<BucketEvaluator = Weights>>(pub SC);
 
 impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost<SC> {
     fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
-        let w: WeightsF = WeightsF(std::iter::once(0.0).chain(x.iter().copied()).collect());
+        let w: WeightsF = WeightsF::from_direct(x);
         let total_violation = decreasing_violations(&w.0);
         if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
         conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(),
@@ -144,8 +144,7 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost<SC> 
     }
 
     fn init(&self, conf: &Conf) -> Vec<f64> {
-        let all = self.0.bucket_evaluator(conf.bits_per_seed, conf.slice_len(&self.0), conf.alpha).0;
-        all[1..].iter().map(|v| *v as f64 - all[0] as f64).collect()
+        WeightsF::from(self.0.bucket_evaluator(conf.bits_per_seed, conf.slice_len(&self.0), conf.alpha)).to_direct().into_vec()
     }
 
     fn print(&self, conf: &Conf, x: &[f64]) {
@@ -456,6 +455,18 @@ impl WeightsF {
             self.0[6] - self.0[0]
         ]
     }
+
+    /// Creates weights from the direct encoding (used by [`WeightsCost`]): the first weight is
+    /// fixed at `0.0` and the given values are the offsets of the remaining weights from it,
+    /// so they have to be positive and strictly increasing for the weights to be monotone.
+    fn from_direct(x: &[f64]) -> Self {
+        Self(std::iter::once(0.0).chain(x.iter().copied()).collect())
+    }
+
+    /// Returns the weights in the direct encoding (see [`WeightsF::from_direct`]).
+    fn to_direct(&self) -> Box<[f64]> {
+        self.0[1..].iter().map(|v| *v - self.0[0]).collect()
+    }
 }
 
 impl From<ph::phast::Weights> for WeightsF {
@@ -700,6 +711,49 @@ impl CostFn for WGenericProdOfValues {
 }
 
 
+/// Cost function for joint optimization of the bucket weights, given directly as in [`WeightsCost`]
+/// (the first weight is fixed at 0 and the remaining 6 are given by their offsets from it),
+/// and 1 seed evaluation parameter (for 1-perfect function).
+pub struct PerfectProdAndWeightsCost;
+
+impl CostFn for PerfectProdAndWeightsCost {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = GenericProdOfValues { shift: x[6], ..Default::default() };
+        let s = SeedOnly(e);
+        let w = WeightsF::from_direct(&x[..6]);
+        let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
+        if total_violation != 0 {
+            return total_violation * conf.keys_num as usize * conf.sample_size as usize;
+        }
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), (s, &w)).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        let e = GenericProdOfValues::default();
+        let s = SeedOnly(e);
+        let mut v = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, conf.slice_len(&s), conf.alpha)).to_direct().to_vec();
+        v.push(e.shift);
+        v
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print!("{}  ", WeightsF::from_direct(&x[..6]).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print_vec(&x[6..], &self.params(conf)[6..])
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("shift", Constrain::Strong(0.0000000001), Constrain::Weak(1000.0), 0),
+        ]
+    }
+}
+
 /// Cost function for bucket weights optimization that exposes 7 weights:
 /// first as absolute, last as relative, middle and rest as weighted average coefficients
 /// + 1 seed evaluation parameter (for 1-perfect function).
@@ -739,6 +793,54 @@ impl CostFn for PerfectProdAndWeightsCost6 {
             ("", Constrain::Strong(0.0), Constrain::Strong(1.0), 4),
             ("", Constrain::Strong(0.9), Constrain::Weak(500_000.0), 0),
             ("shift", Constrain::Strong(0.0000000001), Constrain::Weak(1000.0), 0),
+        ]
+    }
+}
+
+/// Cost function for joint optimization of the bucket weights, given directly as in [`WeightsCost`]
+/// (the first weight is fixed at 0 and the remaining 6 are given by their offsets from it),
+/// and 3 seed evaluation parameters (for k-perfect function).
+pub struct PerfectProdKAndWeightsCost;
+
+impl CostFn for PerfectProdKAndWeightsCost {
+    fn eval(&self, conf: &Conf, x: &[f64]) -> usize {
+        let e = ProdOfValuesKEval { value_shift: x[6], free_shift: x[7], window_weight: x[8] };
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
+        let w = WeightsF::from_direct(&x[..6]);
+        let total_violation = decreasing_violations(&w.0) + violations(&x[6..], &self.params(conf)[6..]);
+        if total_violation != 0 { return total_violation * conf.keys_num as usize * conf.sample_size as usize; }
+        conf.par_eval(|keys| Partial::with_hashes_conf_sc_u(keys, &conf.phast_conf(), (s, &w)).1)
+    }
+
+    fn init(&self, conf: &Conf) -> Vec<f64> {
+        // the tuning-table row (and hence the seed evaluator) is selected by the slice length,
+        // which does not depend on the evaluator itself, so a chooser for `conf.k` is enough here
+        let slice_len = conf.slice_len(&SeedOnlyK::<ProdOfValues>::new(conf.k));
+        let e = ProdOfValues.seed_evaluator_k(conf.k, conf.bits_per_seed, slice_len, conf.alpha);
+        let s = SeedOnlyK::with_evaluator(conf.k, e);
+        let mut v  = WeightsF::from(s.bucket_evaluator(conf.bits_per_seed, slice_len, conf.alpha)).to_direct().to_vec();
+        v.push(e.value_shift);
+        v.push(e.free_shift);
+        v.push(e.window_weight);
+        v
+    }
+
+    fn print(&self, conf: &Conf, x: &[f64]) {
+        print!("{}  ", WeightsF::from_direct(&x[..6]).0.iter().map(|v| format!("{v:.0}")).collect::<Box<[_]>>().join(", "));
+        print_vec(&x[6..], &self.params(conf)[6..])
+    }
+
+    fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
+        vec![
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 6),
+            ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
+            ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
         ]
     }
 }
@@ -894,5 +996,23 @@ mod tests {
         assert_eq!(decreasing_violations(&WeightsF::from6(&flat[..6]).0), 0);
         let (tuned, flat) = (cost.eval(&conf, &x), cost.eval(&conf, &flat));
         assert_ne!(tuned, flat, "the bucket weights must affect the evaluated cost");
+    }
+
+    /// The starting point of the direct weights encoding (used by `optall`) must be feasible:
+    /// the weights must be strictly increasing and the seed evaluation parameters must respect
+    /// their bounds; otherwise `eval` returns only the penalty and nothing is optimized.
+    #[test]
+    fn direct_weights_init_is_feasible() {
+        let mut conf = test_conf();
+        conf.k = 1;
+        let one_perfect = (PerfectProdAndWeightsCost.init(&conf), PerfectProdAndWeightsCost.params(&conf));
+        conf.k = 4;
+        let k_perfect = (PerfectProdKAndWeightsCost.init(&conf), PerfectProdKAndWeightsCost.params(&conf));
+        for (init, params) in [one_perfect, k_perfect] {
+            assert_eq!(decreasing_violations(&WeightsF::from_direct(&init[..6]).0), 0,
+                "the direct weights must be strictly increasing");
+            assert_eq!(violations(&init[6..], &params[6..]), 0,
+                "the seed evaluation parameters must respect their bounds");
+        }
     }
 }
