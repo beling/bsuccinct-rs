@@ -680,7 +680,7 @@ const PROD_S6_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=
 
 const PROD_S8_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
     //(4, [0, 57704, 57731, 57741, 61170, 61650, 62559], P{value_shift: 0.001991, free_shift: 1.700801, window_weight: 0.977667}), // 1.88% for 10.90 λ=26.70
-    (16, [0, 243420, 244555, 244823, 246117, 247310, 247396], P{value_shift: 0.004768, free_shift: 0.136158, window_weight: 0.985420}) // 0.94% for 23.60 λ=163.43
+    (16, [0, 244202, 245343, 245608, 246907, 248104, 248191], P{value_shift: 0.004771, free_shift: 0.136154, window_weight: 0.979461}) // 1.35% for 24.60 λ=170.35
 ];
 
 const PROD_S8_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
