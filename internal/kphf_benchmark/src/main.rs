@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use ph::{GetSize, fmph::{Bits8, SeedSize}, phast::{Generic, KFunction, Perfect, SeedOnlyK, bucket_size_normalization_multiplier, compressed_array::DefaultCompressedArray}, seeds::BitsFast};
+use ph::{GetSize, fmph::{Bits8, SeedSize, TwoToPowerBitsStatic}, phast::{Generic, KFunction, Perfect, SeedOnlyK, bucket_size_normalization_multiplier, compressed_array::DefaultCompressedArray}, seeds::BitsFast};
 
 use crate::kptrhash::{KptrHash, Mode, space_lower_bound};
 
@@ -134,6 +134,7 @@ fn k16_a90(keys: &[u32]) {
 
     bench_perfect(16, conf(Bits8, 0.91, 1192, 0), &keys);  // 0.099
     bench_perfect(16, conf(BitsFast(6), 0.91, 846, 0), &keys); // 0.104
+    //bench_perfect(16, conf(TwoToPowerBitsStatic::<2>, 0.92, 470, 0), &keys); // 0.129
 
     //bench_kphast(16, conf(Bits8, 0.896, 1100, 0), &keys);  // 0.109
     //bench_kphast(16, conf(BitsFast(6), 0.896, 775, 0), &keys); // 0.116
@@ -145,6 +146,7 @@ fn k4_a90(keys: &[u32]) {
 
     bench_perfect(4, conf(Bits8, 0.91, 754, 0), &keys);    // 0.438
     bench_perfect(4, conf(BitsFast(6), 0.91, 533, 0), &keys);  // 0.465
+    //bench_perfect(4, conf(TwoToPowerBitsStatic::<2>, 0.92, 300, 0), &keys); // 0.558
 
     //bench_kphast(4, conf(Bits8, 0.9, 720, 0), &keys);  // 0.462
     //bench_kphast(4, conf(BitsFast(6), 0.9, 500, 0), &keys);    // 0.496
@@ -157,7 +159,8 @@ fn k4_a80(keys: &[u32]) {
 
     bench_perfect(4, conf(Bits8, 0.81, 1167, 0), &keys);  // 0.283
     bench_perfect(4, conf(BitsFast(6), 0.81, 830, 0), &keys);  // 0.299
-
+    //bench_perfect(4, conf(TwoToPowerBitsStatic::<2>, 0.82, 460, 0), &keys); // 0.365
+    
     //bench_kphast(4, conf(Bits8, 0.8, 1070, 0), &keys); // 0.310
     //bench_kphast(4, conf(BitsFast(6), 0.8, 730, 0), &keys);    // 0.345
 }
@@ -168,15 +171,15 @@ fn k16_a80(keys: &[u32]) {  //??
 
     bench_perfect(16, conf(Bits8, 0.81, 2470, 0), &keys);  // 0.048
     bench_perfect(16, conf(BitsFast(6), 0.81, 1780, 0), &keys);   // 0.049
+    //bench_perfect(16, conf(TwoToPowerBitsStatic::<2>, 0.82, 840, 0), &keys); // 0.071
 }
 
 fn main() {
     let keys = keys(100_000_000, 1234);
 
-    for b in (2430..2800).step_by(10) {
+    for b in (400..2800).step_by(10) {
         println!("{b}");
-        bench_perfect(16, conf(Bits8, 0.81, b, 0), &keys);  // 0.049
-
+        bench_perfect(16, conf(TwoToPowerBitsStatic::<2>, 0.92, b, 0), &keys); // 0.558
     }
 
     k4_a80(&keys);
