@@ -110,6 +110,7 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, loading_factor_1000: u16)
         (7, ..=256, _) => PROD_S7_L256.as_ref(),
         (7, ..=512, _) => PROD_S7_L512.as_ref(),
         (7, _, _) => PROD_S7_L1024.as_ref(),
+        (8, ..=128, ..851) => PROD_S8_L128_A81.as_ref(),
         (8, ..=256, ..851) => PROD_S8_L256_A81.as_ref(),
         (8, ..=256, 851..951) => PROD_S8_L256_A91.as_ref(),
         (8, ..=1024, ..851) => PROD_S8_L1024_A81.as_ref(),
@@ -669,6 +670,14 @@ const PROD_S10_L256: [(u16, [i32; 7], ProdOfValuesKEval); 3] = [   // for W=512 
 //    (10, [0, 149239, 200013, 207397, 209455, 211771, 211803], P{value_shift: 0.003702, free_shift: 1.175097, window_weight: 0.632076}), // 0.65% for 5.7 λ=27.42
 //];
 
+// S4_L256_A82
+// 4: 0, 14992, 15142, 17105, 22422, 26729, 28817  value_shift: 0.008692, free_shift: 0.860894, window_weight: 0.968914 // 2.56% for 4.8 λ=11.75
+// 16: 0, 32023, 33253, 33916, 38621, 42429, 42949  value_shift: 0.009720, free_shift: 0.207154, window_weight: 0.993932 // 0.60% for 8.7 λ=60.24
+
+// S4_L256_A92
+// 4: 0, 10529, 16106, 19477, 32838, 46774, 50771  value_shift: 0.011395, free_shift: 1.349613, window_weight: 0.645572 // 1.72% for 3.0 λ=7.34
+// 16: 0, 29923, 30471, 33561, 38143, 42599, 44311  value_shift: 0.007899, free_shift: 1.498430, window_weight: 0.993910 // 1.87% for 4.7 λ=32.54
+
 const PROD_S6_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 10M keys, alpha=0.81
     (4, [0, 47275, 48624, 51936, 54070, 54225, 55153], P{value_shift: 0.005506, free_shift: 0.851065, window_weight: 0.922497}), // 0.65% for 7.5 λ=18.37 TODO more iter, larger bucket
     (16, [0, 274061, 283392, 287198, 288130, 288962, 289136], P{value_shift: 0.006314, free_shift: 0.131816, window_weight: 0.981104}) // 0.97% for 16.80 λ=116.34 30M
@@ -676,6 +685,10 @@ const PROD_S6_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=5
 
 const PROD_S6_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81    TODO more iters
     (4, [0, 33626, 34761, 36081, 78527, 97496, 100644], P{value_shift: 0.002538, free_shift: 0.735067, window_weight: 0.776704}) // 1.27% for 8.3 λ=20.33
+];
+
+const PROD_S8_L128_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
+    (16, [0, 244542, 245473, 245819, 247080, 248300, 248349], P{value_shift: 0.005032, free_shift: 0.138797, window_weight: 0.988141}) // 2.55% for 24.70 λ=171.05 30M
 ];
 
 const PROD_S8_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
