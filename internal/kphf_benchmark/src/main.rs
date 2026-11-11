@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use ph::{GetSize, fmph::{Bits8, SeedSize, TwoToPowerBitsStatic}, phast::{Generic, KFunction, Perfect, SeedOnlyK, bucket_size_normalization_multiplier, compressed_array::DefaultCompressedArray}, seeds::BitsFast};
+use ph::{GetSize, fmph::{Bits8, SeedSize}, phast::{Generic, KFunction, Perfect, SeedOnlyK, bucket_size_normalization_multiplier, compressed_array::DefaultCompressedArray}, seeds::BitsFast};
 
 use crate::kptrhash::{KptrHash, Mode, space_lower_bound};
 
