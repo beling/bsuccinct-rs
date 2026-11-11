@@ -6,6 +6,8 @@ use crate::kptrhash::{KptrHash, Mode, space_lower_bound};
 
 mod kptrhash;
 
+const EVALUATION_ITERS: u8 = 10;
+
 /*pub fn benchmark<R, F: FnOnce() -> R>(f: F) -> (R, Duration) {
     let start_moment = Instant::now();
     let r = f();
@@ -36,11 +38,12 @@ fn bench_kptrhash<const MODE: u8, const K: usize>(alpha: f32, factor: f32, keys:
     let actual_alpha = n as f32 / (kphf.num_bins() as f32 * K as f32);
    
     let start = std::time::Instant::now();
-    for key in keys {
-        std::hint::black_box(kphf.get(*key));
+    for _ in 0..EVALUATION_ITERS {
+        for key in keys {
+            std::hint::black_box(kphf.get(*key));
+        }
     }
-
-    let loop_ns = start.elapsed().as_nanos() as f32 / n as f32;
+    let loop_ns = start.elapsed().as_nanos() as f64 / (n as f64 * EVALUATION_ITERS as f64);
 
     /*let start = std::time::Instant::now();
     let lookahead = 32;
@@ -64,10 +67,12 @@ fn bench_kphast<SS: SeedSize>(k: u16, mut conf: ph::phast::Conf<SS, Generic>, ke
     let build_ns: f32 = t0.elapsed().as_nanos() as f32 / n as f32;
    
     let start = std::time::Instant::now();
-    for key in keys {
-        std::hint::black_box(f.get(key));
+    for _ in 0..EVALUATION_ITERS {
+        for key in keys {
+            std::hint::black_box(f.get(key));
+        }
     }
-    let loop_ns = start.elapsed().as_nanos() as f32 / n as f32;
+    let loop_ns = start.elapsed().as_nanos() as f64 / (n as f64 * EVALUATION_ITERS as f64);
 
     let actual_bits_per_key = (f.size_bytes() * 8) as f32 / n as f32;
     let actual_alpha = n as f32 / (f.output_range() as f32 * k as f32);
@@ -87,10 +92,12 @@ fn bench_perfect<SS: SeedSize>(k: u16, mut conf: ph::phast::Conf<SS, Generic>, k
     let build_ns: f32 = t0.elapsed().as_nanos() as f32 / n as f32;
    
     let start = std::time::Instant::now();
-    for key in keys {
-        std::hint::black_box(f.get(key));
+    for _ in 0..EVALUATION_ITERS {
+        for key in keys {
+            std::hint::black_box(f.get(key));
+        }
     }
-    let loop_ns = start.elapsed().as_nanos() as f32 / n as f32;
+    let loop_ns = start.elapsed().as_nanos() as f64 / (n as f64 * EVALUATION_ITERS as f64);
 
     let actual_bits_per_key = (f.size_bytes() * 8) as f32 / n as f32;
     let actual_alpha = n as f32 / (f.output_range() as f32 * k as f32);
@@ -177,9 +184,9 @@ fn k16_a80(keys: &[u32]) {  //??
 fn main() {
     let keys = keys(100_000_000, 1234);
 
-    for b in (400..2800).step_by(10) {
+    for b in (2470..2800).step_by(10) {
         println!("{b}");
-        bench_perfect(16, conf(TwoToPowerBitsStatic::<2>, 0.92, b, 0), &keys); // 0.558
+        bench_perfect(16, conf(Bits8, 0.81, b, 0), &keys);
     }
 
     k4_a80(&keys);
