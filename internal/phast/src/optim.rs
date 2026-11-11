@@ -152,7 +152,7 @@ impl<SC: SeedChooserConf<BucketEvaluator = Weights>> CostFn for WeightsCost<SC> 
     }
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
-        vec![("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0); 6]
+        vec![("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0); 6]
     }
 }
 
@@ -488,7 +488,9 @@ impl BucketEvaluator for &WeightsF {
                 let p = self.0[len-2];
                 l + (l-p) * (bucket_size - len) as f64
             });
-        ComparableF64(sw - 1024.0 * bucket_nr as f64)
+        // The weights are 4× the ones tuned with the penalty of 1024
+        // (see `ph::phast::evaluator::Weights::eval`), so the penalty is scaled the same way.
+        ComparableF64(sw - 4096.0 * bucket_nr as f64)
     }
 }
 
@@ -743,12 +745,12 @@ impl CostFn for PerfectProdAndWeightsCost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
             ("shift", Constrain::Strong(0.0000000001), Constrain::Weak(1000.0), 0),
         ]
     }
@@ -832,12 +834,12 @@ impl CostFn for PerfectProdKAndWeightsCost {
 
     fn params(&self, _conf: &Conf) -> Vec<(&str, Constrain, Constrain, usize)> {
         vec![
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
-            ("", Constrain::Strong(0.0), Constrain::Weak(1_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
+            ("", Constrain::Strong(0.0), Constrain::Weak(4_000_000.0), 0),
             ("value_shift", Constrain::Strong(0.0000000001), Constrain::Weak(200.0/*0.01*/), 6),
             ("free_shift", Constrain::Strong(0.0000000001/*1.0*/), Constrain::Weak(200.0/*10.0*/), 6),
             ("window_weight", Constrain::Strong(0.0), Constrain::Strong(1.0), 6),
