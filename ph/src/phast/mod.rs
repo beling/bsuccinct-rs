@@ -71,7 +71,7 @@ const MAX_WINDOW_SIZE: usize = 512;
 /// used during construction. It must be at least as large as the widest slice (of output values)
 /// processed in a single window, so it limits the maximum slice length.
 //const MAX_VALUES: usize = 4096;
-const MAX_VALUES: usize = 4096 * 2  *2    *2/* for l=16384 */; // TODO only MT require last *2; maybe switch to dynamic allocation?
+const MAX_VALUES: usize = 4096 * 2  *2    /*2*//* for l=16384 */; // TODO only MT require last *2; maybe switch to dynamic allocation?
 
 /// Window size (in buckets) used during construction;
 /// the maximum number of buckets held in the priority queue.
