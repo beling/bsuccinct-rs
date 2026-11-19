@@ -388,6 +388,10 @@ struct ThreadBuilder<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: Seed
     /// Buckets to process by the thread.
     bucket_begin: &'k [usize],
 
+    /// Index of the first bucket of the thread (bucket indices of the thread
+    /// are local; seed evaluators need global ones).
+    first_bucket: usize,
+
     /// First bucket in the span.
     span_begin: usize,
 
@@ -416,6 +420,7 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> ThreadBuil
         Self {
             used_values: conf.seed_chooser.empty_used_values(),
             conf,
+            first_bucket: buckets.start,
             span_begin: 0,
             buckets_num: buckets.len()-gap,
             value_to_clear: 0,
@@ -504,7 +509,8 @@ impl<'k, C: Core, SC: SeedChooser, BE: BucketEvaluator, SS: SeedSize> ThreadBuil
     #[inline(always)]
     fn best_seed(&mut self, bucket_nr: usize) -> u16 {
         let keys = &self.conf.keys[self.bucket_begin[bucket_nr]..self.bucket_begin[bucket_nr+1]];
-        self.conf.seed_chooser.best_seed(&mut self.used_values, keys, &self.conf.core, self.conf.seed_size.into(), bucket_nr, self.span_begin)
+        self.conf.seed_chooser.best_seed(&mut self.used_values, keys, &self.conf.core, self.conf.seed_size.into(),
+            self.first_bucket + bucket_nr, self.first_bucket + self.span_begin)
     }
 
     /// Number of the last bucket included in the span limit + 1.
