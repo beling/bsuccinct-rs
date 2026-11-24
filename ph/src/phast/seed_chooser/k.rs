@@ -112,7 +112,9 @@ fn prod_for(k: u16, bits_per_seed: u8, slice_len: u16, loading_factor_1000: u16)
         (7, _, _) => PROD_S7_L1024.as_ref(),
         (8, ..=128, ..851) => PROD_S8_L128_A81.as_ref(),
         (8, ..=256, ..851) => PROD_S8_L256_A81.as_ref(),
+        (8, ..=512, ..851) => PROD_S8_L512_A81.as_ref(),
         (8, ..=256, 851..951) => PROD_S8_L256_A91.as_ref(),
+        (8, ..=512, 851..951) => PROD_S8_L512_A91.as_ref(),
         (8, ..=1024, ..851) => PROD_S8_L1024_A81.as_ref(),
         (8, ..=2048, ..851) => PROD_S8_L2048_A81.as_ref(),
         (8, _, ..851) => PROD_S8_L4096_A81.as_ref(),
@@ -695,7 +697,12 @@ const PROD_S8_L128_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=5
 
 const PROD_S8_L256_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
     //(4, [0, 230816, 230924, 230964, 244680, 246600, 250236], P{value_shift: 0.001991, free_shift: 1.700801, window_weight: 0.977667}), // 1.88% for 10.90 λ=26.70
-    (16, [0, 977120, 981580, 982636, 987784, 992624, 992968], P{value_shift: 0.004916, free_shift: 0.138733, window_weight: 0.978550}) // 1.35% for 24.60 λ=170.35
+    //(16, [0, 977120, 981580, 982636, 987784, 992624, 992968], P{value_shift: 0.004916, free_shift: 0.138733, window_weight: 0.978550}) // 1.35% for 24.60 λ=170.35
+    (16, [0, 983203, 987691, 988753, 993934, 998804, 999150], P{value_shift: 0.005039, free_shift: 0.138733, window_weight: 0.978550}) // 1.44% for 24.80 λ=171.74
+];
+
+const PROD_S8_L512_A81: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.81
+    (16, [0, 759169, 983418, 988465, 1014557, 1014572, 1014895], P{value_shift: 0.003607, free_shift: 0.152776, window_weight: 0.330437}) // 1.13% for 24.80 λ=171.74 30M
 ];
 
 const PROD_S8_L1024_A81: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 10M keys, alpha=0.81
@@ -722,20 +729,29 @@ const PROD_S6_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=5
     (16, [0, 789624, 807572, 849524, 872436, 891548, 893616], P{value_shift: 0.004169, free_shift: 0.737674, window_weight: 0.974546}) // 1.23% for 8.2 λ=56.78 30M
 ];
 
-const PROD_S8_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91
-    (16, [0, 789824, 845084, 872448, 892208, 909212, 910404], P{value_shift: 0.004412, free_shift: 0.655868, window_weight: 0.986539}) // 0.92% for 11.2 λ=77.56 30M
-];
-
 const PROD_S6_L512_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
-    (4, [0, 141548, 150536, 157180, 234700, 275332, 285000], P{value_shift: 0.009208, free_shift: 0.835095, window_weight: 0.350863}) // 1.47% for 5.35 λ=13.10 
+    (4, [0, 145184, 152448, 160592, 217408, 275276, 288748], P{value_shift: 0.009293, free_shift: 0.849006, window_weight: 0.365712}) // 1.41% for 5.35 λ=13.10 
 ];
 
 const PROD_S6_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
     (4, [0, 173336, 195188, 199292, 296536, 551924, 578024], P{value_shift: 0.007306, free_shift: 1.167883, window_weight: 0.482356}) // 1.22% for 5.35 λ=13.10 
 ];
 
-const PROD_S8_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 10M keys, alpha=0.91
-    //(4, [0, 660504, 893572, 950976, 1030980, 1072984, 1089008], P{value_shift: 0.004720, free_shift: 0.792409, window_weight: 0.350899}) // 0.85% for 7.4 λ=18.12
-    (4, [0, 307516, 491000, 595268, 617620, 637228, 651676], P{value_shift: 0.003430, free_shift: 1.122674, window_weight: 0.976634}) // 1.04% for 7.5 λ=18.37
+const PROD_S8_L256_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91
+    (16, [0, 789824, 845084, 872448, 892208, 909212, 910404], P{value_shift: 0.004412, free_shift: 0.655868, window_weight: 0.986539}) // 0.92% for 11.2 λ=77.56 30M
 ];
 
+const PROD_S8_L512_A91: [(u16, [i32; 7], ProdOfValuesKEval); 1] = [   // for W=512 30M keys, alpha=0.91
+    (16, [0, 23930, 27973, 105262, 108790, 178866, 181612], P{value_shift: 0.000696, free_shift: 0.629757, window_weight: 0.831636}) // 1.33% for 12.0 λ=83.10 30M
+];
+
+const PROD_S8_L1024_A91: [(u16, [i32; 7], ProdOfValuesKEval); 2] = [   // for W=512 10M keys, alpha=0.91
+    //(4, [0, 660504, 893572, 950976, 1030980, 1072984, 1089008], P{value_shift: 0.004720, free_shift: 0.792409, window_weight: 0.350899}) // 0.85% for 7.4 λ=18.12
+    (4, [0, 307516, 491000, 595268, 617620, 637228, 651676], P{value_shift: 0.003430, free_shift: 1.122674, window_weight: 0.976634}), // 1.04% for 7.5 λ=18.37
+    (16, [0, 6753, 110451, 2210204, 2210437, 2343961, 2348108], P{value_shift: 0.004431, free_shift: 0.410764, window_weight: 0.859839}) // 1.41% for 12.0 λ=83.10 30M
+];
+
+//S=8 k=16 12.0 λ=83.10 30M
+//L=2048: 1.54%  0, 882611, 887325, 1306550, 1377890, 1404247, 1416673  value_shift: 0.003875, free_shift: 0.286924, window_weight: 0.364786
+//L=4096: 1.48%  0, 18845, 1717215, 2155956, 2235833, 2344335, 2369368  value_shift: 0.007334, free_shift: 0.400328, window_weight: 0.371568
+//L=8192: 2.18%  0, 133892, 138134, 226826, 318630, 319382, 354491  value_shift: 0.003344, free_shift: 0.591322, window_weight: 0.990399
