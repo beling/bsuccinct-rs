@@ -139,7 +139,9 @@ fn k16_a90(keys: &[u32]) {
     println!("---- k=16 α=0.9 ----");
     bench_kptrhash::<{ Mode::SortBump as u8 }, 16>(0.9, 1.5, &keys);    // α=0.896 0.098
 
-    bench_perfect(16, conf(Bits8, 0.91, 1192, 0), &keys);  // 0.099
+    //bench_perfect(16, conf(Bits8, 0.91, 1192, 0), &keys);  // 0.099
+    //bench_perfect(16, conf(Bits8, 0.91, 1210, 1024), &keys);  // 0.097
+    bench_perfect(16, conf(Bits8, 0.91, 1220, 512), &keys);  // 0.096
     bench_perfect(16, conf(BitsFast(6), 0.91, 846, 0), &keys); // 0.104
     //bench_perfect(16, conf(TwoToPowerBitsStatic::<2>, 0.92, 470, 0), &keys); // 0.129
 
@@ -183,10 +185,11 @@ fn k16_a80(keys: &[u32]) {  //??
 
 fn main() {
     let keys = keys(30_000_000, 1234);
+    //bench_perfect(16, conf(Bits8, 0.91, 1192, 512), &keys);  // 0.099
 
-    for b in (2490..2800).step_by(10) {
+    for b in (1200..2800).step_by(10) {
         println!("{b}");
-        bench_perfect(16, conf(Bits8, 0.81, b, 4096), &keys);
+        bench_perfect(16, conf(Bits8, 0.91, 1220, 512), &keys);  // 0.096
     }
 
     k4_a80(&keys);
