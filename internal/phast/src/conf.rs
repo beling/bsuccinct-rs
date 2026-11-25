@@ -474,7 +474,7 @@ impl Conf {
     }
 
     /// Runs the benchmark of a complete function built by `build` with the generic core and given seed size.
-    pub fn run_phast<SS: SeedSize, SC: SeedChooserConf, F, B>(&self, build: B, seed_size: SS, seed_chooser: SC)
+    pub fn run_of<SS: SeedSize, SC: SeedChooserConf, F, B>(&self, build: B, seed_size: SS, seed_chooser: SC)
         where F: Function, B: Fn(&[u64], ph::phast::Conf<SS, Generic>, usize, SC) -> F
     {
         self.run(|keys| build(keys, self.params(seed_size, self.bucket_size().into()), self.threads(), seed_chooser.clone()))
